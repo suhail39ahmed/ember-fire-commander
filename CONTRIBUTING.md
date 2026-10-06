@@ -9,27 +9,35 @@ Thank you for your interest in contributing to EMBER! This document outlines the
 All feature branches must follow this pattern:
 
 ```
-cursor/<descriptive-name>-1233
+<type>/<short-name>
 ```
 
-Examples:
-- `cursor/add-volunteer-pwa-1233`
-- `cursor/implement-aggregator-stage1-1233`
-- `cursor/fix-websocket-reconnection-1233`
+**Types:**
+- `feat/` - New features
+- `fix/` - Bug fixes
+- `docs/` - Documentation updates
+- `refactor/` - Code refactoring
+- `test/` - Test additions or updates
+- `chore/` - Maintenance tasks
+
+**Examples:**
+- `feat/volunteer-pwa`
+- `feat/aggregator-stage1`
+- `fix/websocket-reconnection`
+- `docs/setup-instructions`
+- `refactor/firestore-schema`
 
 **Important:**
-- Always use the `cursor/` prefix
 - Use lowercase letters only (case-insensitive filesystems cannot hold branches that differ only in casing)
-- Use hyphens to separate words in descriptive names
-- Always append the `-1233` suffix
-- Keep names concise but descriptive
+- Use hyphens to separate words in short names
+- Keep names concise but descriptive (2-4 words maximum)
 
 ### 2. Creating a Branch
 
 ```bash
 git checkout main
 git pull origin main
-git checkout -b cursor/<descriptive-name>-1233
+git checkout -b feat/<short-name>
 ```
 
 ### 3. Making Changes
@@ -56,7 +64,7 @@ Include per-user Live-minute cap enforcement
 ```bash
 git add .
 git commit -m "Your descriptive commit message"
-git push -u origin cursor/<descriptive-name>-1233
+git push -u origin <type>/<short-name>
 ```
 
 If push fails due to network errors, retry up to 4 times with exponential backoff.

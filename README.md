@@ -6,7 +6,7 @@
 
 ## The Problem
 
-During the 2026 haze crisis, over 202,000 hectares burned in Indonesia (January–July), with West Kalimantan the worst affected region. On September 29, Singapore's air quality entered unhealthy ranges across all regions due to smoke from fires in southern Sumatra and Kalimantan. Village fire brigades like the Power of Mama—an all-women volunteer group patrolling 10 villages in West Kalimantan—work unpaid on motorbikes to record hotspots and extinguish fires. They face thousands of satellite thermal anomalies daily but can only reach a handful.
+During the 2026 haze crisis, over 202,000 hectares burned in Indonesia (January–July), with West Kalimantan the worst affected region ([Reuters, September 2026](https://www.reuters.com/investigates/special-report/asia-weather-indonesia-wildfire-women/)). On September 29, Singapore's air quality entered unhealthy ranges across all regions due to smoke from fires in southern Sumatra and Kalimantan. Village fire brigades like the Power of Mama—an all-women volunteer group patrolling 10 villages in West Kalimantan—work unpaid on motorbikes to record hotspots and extinguish fires. They face thousands of satellite thermal anomalies daily but can only reach a handful.
 
 EMBER helps scarce village brigades decide where to look first.
 
@@ -62,15 +62,15 @@ Push-to-talk bursts instead of always-open Live sessions: ~$0.09 per volunteer-h
 | **Gemini 3.8 Flash** | Photo triage (Spotter confidence scoring), structured JSON, consolidated Bahasa/English summaries, report drafts |
 | **ADK 2.0 Agents** | Graph workflows with HITL pause (`RequestedInput`), automatic retries; runs on Agent Runtime |
 | **Agent Platform Memory Bank** | Long-term memory for landmarks, language preferences (consent-based) |
-| **Firestore** | Shared incident state with realtime listeners and offline cache; Security Rules by role claim; collections: ops, volunteers, pings (TTL 24h), observations (immutable), leads, incidents, conflicts, tasks, crews, digest, audit, sites (re-ignition watch) |
+| **Firestore** | Shared incident state written by backend services (ember-api, ember-agents, voice-gateway); clients receive updates via ember-api REST endpoints, WebSocket digest, and FCM push notifications (no direct client Firestore listeners); Security Rules by role claim; collections: ops, volunteers, pings (TTL 24h), observations (immutable), leads, incidents, conflicts, tasks, crews, digest, audit, sites (re-ignition watch) |
 | **Eventarc** | Triggers ember-agents on new observation documents |
 | **Cloud Run Functions** | Event-driven functions for aggregation triggers (optional Pub/Sub path if Firestore triggers prove slow) |
 | **Cloud Storage** | Compressed stills (~100–200 KB JPEG), signed-URL upload, lifecycle TTL |
 | **Cloud Scheduler + Cloud Run Job (ember-ingest)** | Hourly pulls: NASA FIRMS hotspots, data.gov.sg PSI, Open-Meteo wind/weather → BigQuery; top-N leads synced to Firestore |
 | **BigQuery** | Archive tables: FIRMS, PSI, weather, peat mask, risk scores, back-test results; `ST_DWITHIN` for re-ignition queries |
 | **Google Earth Engine** | Peat-soil data, burn history, vegetation indices (future roadmap) |
-| **Maps Platform (JavaScript API + deck.gl)** | Supervisor console COP map; vector tiles with GoogleMapsOverlay for incident rings, volunteer dots, wind arrows |
-| **Maps Platform (Weather API)** | Live wind, temperature, humidity, precipitation at incident locations (display cross-check; not stored beyond cache terms) |
+| **Maps Platform (JavaScript API + deck.gl)** | Map tiles render in browser with restricted Maps JS key (display only); all Maps data calls (routes, weather, air quality, geocoding) proxied through ember-api |
+| **Maps Platform (Weather API)** | Live wind, temperature, humidity, precipitation fetched by ember-api and served to clients; not stored beyond cache terms |
 | **Secret Manager** | API keys for Maps, Weather, FIRMS MAP_KEY, data.gov.sg |
 | **IAM** | Service accounts, role bindings, custom claims verification |
 | **Cloud Logging / Monitoring** | Traces, latency metrics, cost counters per burst, alerting on silent volunteers and conflict backlogs |
@@ -145,17 +145,11 @@ Detailed setup, build, and deployment instructions will be added in each service
 **Submission Requirements:**
 - Deployed on Cloud Run / Firebase ✓ (architecture planned)
 - Uses Gemini ✓ (Gemini 3.8 Live + Flash)
-- Public GitHub repository ✓
+- Public GitHub repository (made public before submission)
 - Live link (to be deployed)
 - Video demo (<3 minutes, to be recorded)
 - PDF deck (to be prepared)
 - Submission deadline: October 17–18, 2026
-
-**Judging Criteria (Official):**
-- **Technical Merit & Gen AI (40%)**: Uses Google Cloud and Gemini effectively; scalability and sustainability beyond prototype
-- **Problem Alignment & Impact (25%)**: Addresses real Southeast Asian haze crisis; helps under-resourced village brigades
-- **Innovation & Creativity (25%)**: Verification loop, re-ignition watch, explainable ranking, conflict-to-human workflow
-- **UX & Solution Design (10%)**: Bahasa-first, hands-free voice, offline-capable PWA, supervisor approval gate
 
 ---
 
