@@ -1,0 +1,125 @@
+# Operating System
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*~
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Node.js / JavaScript / TypeScript
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dist/
+build/
+*.tsbuildinfo
+.npm
+.eslintcache
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+*.key
+*.pem
+service-account*.json
+*-key.json
+secrets.yaml
+secrets.json
+
+# Google Cloud
+.gcloud/
+.config/gcloud/
+gcloud-credentials.json
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+database-debug.log
+pubsub-debug.log
+firebase-export-*/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Testing
+coverage/
+*.lcov
+.nyc_output
+
+# Temporary Files
+tmp/
+temp/
+*.tmp
+
+# Build Artifacts
+*.tar.gz
+*.zip
+
+# Terraform
+infra/**/.terraform/
+infra/**/.terraform.lock.hcl
+infra/**/terraform.tfstate
+infra/**/terraform.tfstate.backup
+infra/**/*.tfvars
+!infra/**/example.tfvars
+
+# Docker
+*.dockerignore
+docker-compose.override.yml
+
+# Misc
+.cache/
+.parcel-cache/
