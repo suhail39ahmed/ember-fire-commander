@@ -10,12 +10,14 @@ locals {
 
 # ---------------- ember-api (public edge; app checks Firebase ID token + App Check)
 resource "google_cloud_run_v2_service" "ember_api" {
-  project             = local.project_id
-  name                = "ember-api"
-  location            = var.region
-  ingress             = "INGRESS_TRAFFIC_ALL"
-  deletion_protection = var.run_deletion_protection
-  labels              = local.labels
+  project  = local.project_id
+  name     = "ember-api"
+  location = var.region
+  ingress  = "INGRESS_TRAFFIC_ALL"
+  # Public: matches console 'Allow public access' (IAM invoker check off). App code verifies Firebase ID token + App Check.
+  invoker_iam_disabled = true
+  deletion_protection  = var.run_deletion_protection
+  labels               = local.labels
 
   template {
     service_account = google_service_account.runtime["ember-api"].email
@@ -88,12 +90,14 @@ resource "google_cloud_run_v2_service" "ember_api" {
 
 # ---------------- voice-gateway (WSS relay to Gemini Live)
 resource "google_cloud_run_v2_service" "voice_gateway" {
-  project             = local.project_id
-  name                = "voice-gateway"
-  location            = var.region
-  ingress             = "INGRESS_TRAFFIC_ALL"
-  deletion_protection = var.run_deletion_protection
-  labels              = local.labels
+  project  = local.project_id
+  name     = "voice-gateway"
+  location = var.region
+  ingress  = "INGRESS_TRAFFIC_ALL"
+  # Public: matches console 'Allow public access' (IAM invoker check off). App code verifies Firebase ID token + App Check.
+  invoker_iam_disabled = true
+  deletion_protection  = var.run_deletion_protection
+  labels               = local.labels
 
   template {
     service_account = google_service_account.runtime["voice-gateway"].email
@@ -238,22 +242,7 @@ resource "google_cloud_run_v2_service" "ember_agents" {
 }
 
 # ---------------- Who may call what
-# Public edge for ember-api and voice-gateway (auth is done in app code).
-resource "google_cloud_run_v2_service_iam_member" "api_public" {
-  project  = local.project_id
-  location = var.region
-  name     = google_cloud_run_v2_service.ember_api.name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-}
-
-resource "google_cloud_run_v2_service_iam_member" "gateway_public" {
-  project  = local.project_id
-  location = var.region
-  name     = google_cloud_run_v2_service.voice_gateway.name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-}
+# ember-api and voice-gateway are public via invoker_iam_disabled above (no allUsers binding).
 
 # ember-agents: only ember-api and voice-gateway may invoke it.
 resource "google_cloud_run_v2_service_iam_member" "agents_invokers" {
