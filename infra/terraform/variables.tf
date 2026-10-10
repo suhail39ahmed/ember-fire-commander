@@ -155,7 +155,7 @@ variable "run_min_instances" {
 variable "run_deletion_protection" {
   description = "Terraform-level deletion protection on Cloud Run services. false = `terraform destroy` can remove them."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "app_check_enforce" {
