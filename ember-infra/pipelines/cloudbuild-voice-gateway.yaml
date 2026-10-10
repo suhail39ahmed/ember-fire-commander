@@ -1,0 +1,60 @@
+# Cloud Build: build + push + deploy voice-gateway (Cloud Run, asia-southeast1)
+#
+# Manual run from the REPO ROOT (the folder that contains services/voice-gateway/):
+#   gcloud builds submit . \
+#     --config=infra/pipelines/cloudbuild-voice-gateway.yaml \
+#     --region=asia-southeast1 \
+#     --gcs-source-staging-dir=gs://${PROJECT_ID}-ember-build-src/source
+#
+# Needs: services/voice-gateway/Dockerfile (the image must listen on $PORT, default 8080).
+# Runs as sa-ember-deployer (created by Terraform). Terraform ignores image
+# changes, so this deploy is never rolled back by `terraform apply`.
+# The SA, Firestore DB env (ember-db) and timeout/session affinity are passed
+# explicitly so a deploy can never fall back to the default compute SA.
+# They match Terraform, so `terraform plan` stays clean.
+
+substitutions:
+  _REGION: asia-southeast1
+  _REPO: ember
+  _SERVICE: voice-gateway
+  _SOURCE_DIR: services/voice-gateway
+
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$BUILD_ID
+      - ${_SOURCE_DIR}
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$BUILD_ID
+
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$BUILD_ID
+      - --region=${_REGION}
+      - --service-account=sa-voice-gateway@$PROJECT_ID.iam.gserviceaccount.com
+      - --timeout=3600
+      - --session-affinity
+      - --update-env-vars=FIRESTORE_DATABASE=ember-db,EMBER_FIRESTORE_DB=ember-db
+      - --quiet
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$BUILD_ID
+
+serviceAccount: projects/$PROJECT_ID/serviceAccounts/sa-ember-deployer@$PROJECT_ID.iam.gserviceaccount.com
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1200s

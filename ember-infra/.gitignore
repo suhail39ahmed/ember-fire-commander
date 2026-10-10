@@ -1,0 +1,9 @@
+**/.terraform/
+*.tfstate
+*.tfstate.*
+# terraform.tfvars is committed now (non-secret IDs only; the pipeline needs it)
+*.auto.tfvars
+crash.log
+.terraform.tfstate.lock.info
+# Keep .terraform.lock.hcl (commit it) so everyone uses the same provider builds.
+*.plan

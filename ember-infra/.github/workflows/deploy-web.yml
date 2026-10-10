@@ -1,0 +1,68 @@
+# Build the Vite PWA and deploy to Firebase Hosting (manual trigger only).
+# Example: copy into the app repo's .github/workflows/ when you are ready.
+#
+# GitHub repo > Settings > Secrets and variables > Actions > Variables:
+#   GCP_PROJECT_ID, GCP_WIF_PROVIDER, GCP_DEPLOYER_SA (see deploy-api.yml)
+#   VITE_EMBER_API_URL, VITE_VOICE_GATEWAY_WSS_URL, VITE_FIREBASE_API_KEY,
+#   VITE_FIREBASE_APP_ID, VITE_FIREBASE_MESSAGING_SENDER_ID, VITE_FIREBASE_VAPID_KEY,
+#   VITE_RECAPTCHA_ENTERPRISE_SITE_KEY, VITE_MAPS_BROWSER_KEY, VITE_MAPS_MAP_ID
+# These VITE_* values are public client identifiers baked into the bundle, so
+# repo *variables* are fine. Real secrets never go into VITE_*.
+name: deploy-web
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: false
+
+env:
+  WEB_DIR: apps/web
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+          create_credentials_file: true # firebase-tools reads these ADC creds
+
+      - name: Build
+        working-directory: ${{ env.WEB_DIR }}
+        env:
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.GCP_PROJECT_ID }}.firebaseapp.com
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_VAPID_KEY: ${{ vars.VITE_FIREBASE_VAPID_KEY }}
+          VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY }}
+          VITE_MAPS_BROWSER_KEY: ${{ vars.VITE_MAPS_BROWSER_KEY }}
+          VITE_MAPS_MAP_ID: ${{ vars.VITE_MAPS_MAP_ID }}
+          VITE_EMBER_API_URL: ${{ vars.VITE_EMBER_API_URL }}
+          VITE_VOICE_GATEWAY_WSS_URL: ${{ vars.VITE_VOICE_GATEWAY_WSS_URL }}
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy to Firebase Hosting
+        working-directory: ${{ env.WEB_DIR }}
+        run: npx --yes firebase-tools@15 deploy --only hosting --project "${{ vars.GCP_PROJECT_ID }}" --non-interactive
+

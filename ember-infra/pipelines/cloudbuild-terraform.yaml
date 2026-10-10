@@ -1,0 +1,44 @@
+# Cloud Build alternative to .github/workflows/terraform.yml
+#
+# Plan (from the REPO ROOT):
+#   gcloud builds submit . --config=infra/pipelines/cloudbuild-terraform.yaml `
+#     --region=asia-southeast1 --substitutions=_ACTION=plan
+# Apply (only after reading the plan):
+#   gcloud builds submit . --config=infra/pipelines/cloudbuild-terraform.yaml `
+#     --region=asia-southeast1 --substitutions=_ACTION=apply
+#
+# Runs as sa-ember-terraform (created when enable_github_wif = true).
+# Whoever submits needs roles/iam.serviceAccountUser on sa-ember-terraform
+# plus roles/cloudbuild.builds.editor. Logs go to Cloud Logging only.
+# NOTE: unlike GitHub's "production" environment there is no approval gate
+# when run by hand. For a gated version, create a Cloud Build trigger with
+# "Require approval" ticked and _ACTION=apply.
+
+substitutions:
+  _ACTION: plan
+  _TF_VERSION: "1.16.5" # confirm: match local
+  _TF_DIR: infra/terraform
+
+steps:
+  - id: terraform
+    name: hashicorp/terraform:${_TF_VERSION}
+    dir: ${_TF_DIR}
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        set -e
+        terraform fmt -check -recursive
+        terraform init -input=false
+        terraform validate
+        terraform plan -input=false -lock-timeout=5m -out=tfplan
+        if [ "${_ACTION}" = "apply" ]; then
+          terraform apply -input=false -lock-timeout=5m tfplan
+        fi
+
+serviceAccount: projects/$PROJECT_ID/serviceAccounts/sa-ember-terraform@$PROJECT_ID.iam.gserviceaccount.com
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1800s

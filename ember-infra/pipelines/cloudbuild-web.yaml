@@ -1,0 +1,74 @@
+# Cloud Build: build the Vite PWA and deploy it to Firebase Hosting.
+#
+# Manual run from the REPO ROOT:
+#   gcloud builds submit . \
+#     --config=infra/pipelines/cloudbuild-web.yaml \
+#     --region=asia-southeast1 \
+#     --gcs-source-staging-dir=gs://${PROJECT_ID}-ember-build-src/source \
+#     --substitutions=_VITE_EMBER_API_URL=https://ember-api-xxxx.a.run.app,_VITE_VOICE_GATEWAY_WSS_URL=wss://voice-gateway-xxxx.a.run.app,_VITE_FIREBASE_API_KEY=...,_VITE_FIREBASE_APP_ID=...,_VITE_FIREBASE_MESSAGING_SENDER_ID=...
+#   (values come from `terraform output`)
+#
+# Needs in _WEB_DIR: package.json with a "build" script, and a firebase.json
+# (see pipelines/firebase.json.example). VITE_* values are public client
+# identifiers baked into the JS bundle; they are not secrets. Never put a
+# real secret in a VITE_* variable.
+# Runs as sa-ember-deployer (roles/firebasehosting.admin).
+
+substitutions:
+  _WEB_DIR: apps/web
+  _NODE_IMAGE: node:22
+  _FIREBASE_TOOLS: firebase-tools@15 # confirm: pin to the version you test with
+  _VITE_EMBER_API_URL: ""
+  _VITE_VOICE_GATEWAY_WSS_URL: ""
+  _VITE_FIREBASE_API_KEY: ""
+  _VITE_FIREBASE_APP_ID: ""
+  _VITE_FIREBASE_MESSAGING_SENDER_ID: ""
+  _VITE_FIREBASE_VAPID_KEY: ""
+  _VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ""
+  _VITE_MAPS_BROWSER_KEY: ""
+  _VITE_MAPS_MAP_ID: ""
+
+steps:
+  - id: write-env
+    name: ${_NODE_IMAGE}
+    dir: ${_WEB_DIR}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        cat > .env.production <<ENV
+        VITE_FIREBASE_PROJECT_ID=$PROJECT_ID
+        VITE_FIREBASE_AUTH_DOMAIN=$PROJECT_ID.firebaseapp.com
+        VITE_FIREBASE_API_KEY=${_VITE_FIREBASE_API_KEY}
+        VITE_FIREBASE_APP_ID=${_VITE_FIREBASE_APP_ID}
+        VITE_FIREBASE_MESSAGING_SENDER_ID=${_VITE_FIREBASE_MESSAGING_SENDER_ID}
+        VITE_FIREBASE_VAPID_KEY=${_VITE_FIREBASE_VAPID_KEY}
+        VITE_RECAPTCHA_ENTERPRISE_SITE_KEY=${_VITE_RECAPTCHA_ENTERPRISE_SITE_KEY}
+        VITE_MAPS_BROWSER_KEY=${_VITE_MAPS_BROWSER_KEY}
+        VITE_MAPS_MAP_ID=${_VITE_MAPS_MAP_ID}
+        VITE_EMBER_API_URL=${_VITE_EMBER_API_URL}
+        VITE_VOICE_GATEWAY_WSS_URL=${_VITE_VOICE_GATEWAY_WSS_URL}
+        ENV
+
+  - id: build
+    name: ${_NODE_IMAGE}
+    dir: ${_WEB_DIR}
+    entrypoint: bash
+    args:
+      - -c
+      - npm ci && npm run build
+
+  - id: deploy-hosting
+    name: ${_NODE_IMAGE}
+    dir: ${_WEB_DIR}
+    entrypoint: bash
+    args:
+      - -c
+      - npx --yes ${_FIREBASE_TOOLS} deploy --only hosting --project $PROJECT_ID --non-interactive
+
+serviceAccount: projects/$PROJECT_ID/serviceAccounts/sa-ember-deployer@$PROJECT_ID.iam.gserviceaccount.com
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1200s

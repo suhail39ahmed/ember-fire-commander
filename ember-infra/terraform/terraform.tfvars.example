@@ -1,0 +1,38 @@
+# Copy to terraform.tfvars and edit:  cp terraform.tfvars.example terraform.tfvars
+# terraform.tfvars is gitignored. Never commit real emails/IDs you don't want public.
+
+project_id = "ember-fire-commander" # confirm: must be globally unique
+region     = "asia-southeast1"
+
+# Leave false: you create the project + link billing by hand first (README step 2).
+create_project     = false
+billing_account_id = "" # e.g. "0123AB-4567CD-89EF01" (gcloud billing accounts list)
+
+# Teammates (Editor). Use their Google account emails.
+team_member_emails = [
+  # "naushad@example.com",
+  # "zeeshan@example.com",
+]
+
+# Gemini via Agent Platform (service accounts). No API key secret for now.
+create_gemini_api_key_secret = false
+live_location                = "us-central1"
+
+# Firestore: location is PERMANENT.
+firestore_location          = "asia-southeast1"
+firestore_delete_protection = false
+
+# Budget alerts (alerts only, not a hard cap).
+enable_budget       = false
+budget_amount       = 50 # in your billing account's currency; confirm
+budget_alert_emails = []
+
+# Optional automation you can switch on after doing it once by hand.
+enable_identity_platform = false
+enable_app_check         = false
+create_maps_keys         = false
+
+# CI/CD with GitHub Actions (after you're comfortable deploying manually).
+enable_github_wif  = false
+github_repository  = "suhail39ahmed/ember-fire-commander"
+github_allowed_ref = "refs/heads/main"

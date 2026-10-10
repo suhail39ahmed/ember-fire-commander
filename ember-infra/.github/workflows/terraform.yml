@@ -1,0 +1,132 @@
+# Terraform pipeline for EMBER infra.
+# Lives at REPO ROOT: .github/workflows/terraform.yml (GitHub only reads workflows there).
+# Terraform code lives at infra/terraform.
+#
+#   - Pull request touching infra/terraform/**  -> fmt check, init, validate, plan, plan posted as PR comment
+#   - Manual run (Actions > terraform > Run workflow) with action=plan|apply
+#       apply only from main, and only after approval in the GitHub
+#       environment "production" (Settings > Environments > production >
+#       Required reviewers = you).
+#
+# One-time setup (README "Adopt existing resources", steps F-G):
+#   Repo variables (Settings > Secrets and variables > Actions > Variables):
+#     GCP_WIF_PROVIDER = terraform output -raw github_wif_provider
+#     GCP_TF_SA        = terraform output -raw github_terraform_sa
+#   (Variables, not secrets: neither value is sensitive. If you prefer secrets,
+#    create them with the same names; the expressions below fall back to secrets.)
+name: terraform
+
+on:
+  pull_request:
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "plan or apply"
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - apply
+
+permissions:
+  contents: read
+  id-token: write # mint GitHub OIDC token for Workload Identity Federation
+  pull-requests: write # post the plan as a PR comment
+
+concurrency:
+  group: terraform-state # one run at a time (GCS also locks the state)
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_VERSION: "1.16.5" # confirm: match your local `terraform version`
+
+defaults:
+  run:
+    working-directory: infra/terraform
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || inputs.action == 'plan'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive
+
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER || secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_TF_SA || secrets.GCP_TF_SA }}
+
+      - name: terraform init
+        run: terraform init
+
+      - name: terraform validate
+        run: terraform validate -no-color
+
+      - id: plan
+        name: terraform plan
+        run: |
+          set -o pipefail
+          terraform plan -no-color -lock-timeout=5m -out=tfplan | tee plan.txt
+
+      - name: Post plan to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            let plan = fs.readFileSync('infra/terraform/plan.txt', 'utf8');
+            if (plan.length > 60000) plan = plan.slice(-60000) + '\n...(truncated, see run log)';
+            const body = `### Terraform plan\n<details><summary>Show plan</summary>\n\n\`\`\`\n${plan}\n\`\`\`\n</details>\n\n_Run: ${context.runId}_`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: context.issue.number, body
+            });
+
+      - name: Plan summary
+        run: |
+          echo '### Terraform plan' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          grep -E '^(Plan:|No changes|  # )' plan.txt >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+  apply:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply' && github.ref == 'refs/heads/main'
+    environment: production # pauses here until a required reviewer approves
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER || secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_TF_SA || secrets.GCP_TF_SA }}
+
+      - name: terraform init
+        run: terraform init
+
+      - name: terraform plan (fresh, on main)
+        run: terraform plan -no-color -lock-timeout=5m -out=tfplan
+
+      - name: terraform apply
+        run: terraform apply -no-color -lock-timeout=5m tfplan
