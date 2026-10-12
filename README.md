@@ -244,10 +244,10 @@ Values in `.env` (the Firebase web config, the reCAPTCHA site key, the restricte
 
 | Name | Role |
 |---|---|
-| Suhail Ahmed | Team lead, cloud and architecture |
-| Naushad ([@MdNaushad](https://github.com/MdNaushad)) | Developer |
-| Zeeshan Abid ([@zeeshrocky](https://github.com/zeeshrocky)) | Developer |
-| Aqib | Developer |
+| Suhail Ahmed | Team lead, Solution Architect - AI & Automations |
+| Naushad ([@MdNaushad](https://github.com/MdNaushad)) | Lead Software Developer |
+| Zeeshan Abid ([@zeeshrocky](https://github.com/zeeshrocky)) | UI/UX Developer |
+| Aqib | Salesforce Solution Architect |
 
 ## License
 
