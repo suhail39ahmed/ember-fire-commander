@@ -10,7 +10,7 @@ Snapshot of GitHub issues for local reference. GitHub remains the source of trut
 
 | # | State | Labels | Title |
 |---|---|---|---|
-| [4](#4-shared-define-shared-contracts) | open | ui, backend, voice-gateway, agents, shared, P0 | [shared] Define shared contracts |
+| [4](#4-shared-define-shared-contracts) | closed | ui, backend, voice-gateway, agents, shared, P0 | [shared] Define shared contracts |
 | [5](#5-demo-freeze-the-synthetic-demo-scenario) | open | demo, P0 | [demo] Freeze the synthetic demo scenario |
 | [6](#6-ui-add-google-sign-in-and-role-based-routes) | open | ui, P0 | [ui] Add Google sign-in and role-based routes |
 | [7](#7-backend-resolve-the-signed-in-user-and-role) | open | backend, P0 | [backend] Resolve the signed-in user and role |
