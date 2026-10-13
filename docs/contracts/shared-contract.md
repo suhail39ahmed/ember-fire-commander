@@ -1,0 +1,455 @@
+# EMBER shared contract
+
+This is the contract for the volunteer PWA, the supervisor console, `ember-api`, `voice-gateway`, and `ember-agents`. A workstream can be implemented from this document alone.
+
+The browser talks only to `ember-api` (REST) and `voice-gateway` (WebSocket). Clients do not read or write Firestore or Cloud Storage. Services open Firestore with `FIRESTORE_DATABASE=ember-db`. Only backend service accounts write. Firestore and Storage rules are deny-all.
+
+Examples below are synthetic.
+
+## 1. Rules
+
+1. Observations are immutable after they are stored.
+2. Geometry, evidence scores, conflict detection, and safety rules are deterministic code. Gemini Live may converse and call the tools in §7. It must not set incident severity.
+3. A conflict keeps the two observations side by side. Code keeps the higher severity, sets the incident to `held`, and holds dispatch. Code creates a `verify` task for each volunteer in the conflict.
+4. **WITHDRAW needs no approval.** It is an instruction to specific volunteers. Code sends it immediately when an observation severity is `large_flame` or the wind rule fires. A supervisor may also send it to chosen volunteers. Both paths write the instruction, the tasks, and an audit record.
+5. **Dispatch always needs supervisor approval.** Dispatch means approving a proposed task of type `investigate`. Approval is rejected while that incident has an open conflict.
+6. Only a supervisor can verify an incident, extinguish it, or lower its severity. Code may raise severity. Nothing in the client, and nothing returned by the model, can do those three human actions.
+7. FIRMS hotspots are leads to verify. This contract has no lead, forecast, haze, or plume field. Every number a client shows comes from one of these payloads.
+8. The direct phone-to-Gemini fallback is outside this contract. The Live path is the relay through `voice-gateway`.
+
+Severity order, low to high: `none`, `smoke`, `small_flame`, `large_flame`. `unknown` does not raise or lower a known severity.
+
+## 2. Identity
+
+Protected REST routes and the WebSocket upgrade require both headers:
+
+| Header | Value |
+|---|---|
+| `Authorization` | `Bearer <Firebase ID token>` |
+| `X-Firebase-AppCheck` | `<App Check token>` |
+
+A missing or invalid Firebase ID token is `401`. A valid token with no role, or the wrong role, is `403`. `/healthz` on each service stays public.
+
+The role is the Firebase custom claim `role`: `volunteer` or `supervisor`. `ember-api` sets that claim. Clients cannot send a role in a body, and a missing claim does not default to `volunteer`.
+
+`GET /me` returns the signed-in user.
+
+```json
+{
+  "id": "uid_sari",
+  "displayName": "Sari",
+  "role": "volunteer"
+}
+```
+
+| Field | Type | Source |
+|---|---|---|
+| `id` | string | Token `uid` |
+| `displayName` | string | Token display name |
+| `role` | `volunteer` \| `supervisor` | Custom claim `role` |
+
+## 3. Errors
+
+REST bodies are JSON. `Content-Type` is `application/json`.
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "chip is not a known value",
+    "fields": { "chip": "use asap, api, aman, or butuh_bantuan" }
+  }
+}
+```
+
+`fields` is present on `validation_error` only.
+
+| HTTP | `code` | When |
+|---|---|---|
+| 400 | `validation_error` | A required field is missing or a value is outside its enum or range |
+| 401 | `unauthorized` | The Firebase ID token is missing or invalid |
+| 403 | `forbidden` | The caller is signed in and is not allowed to do this |
+| 403 | `role_missing` | The token has no `role` claim |
+| 404 | `not_found` | The id is unknown |
+| 409 | `conflict` | The write breaks immutability, dispatch hold, or a severity rule |
+
+## 4. Shared enums
+
+| Name | Values |
+|---|---|
+| Role | `volunteer`, `supervisor` |
+| Observation source | `live`, `chip`, `text`, `photo` |
+| Chip | `asap`, `api`, `aman`, `butuh_bantuan` |
+| Severity | `none`, `smoke`, `small_flame`, `large_flame`, `unknown` |
+| Incident status | `open`, `held`, `verified`, `extinguished` |
+| Task type | `verify`, `withdraw`, `investigate` |
+| Task status | `proposed`, `approved`, `rejected` |
+| Conflict status | `open`, `resolved` |
+
+Wire value for the “butuh bantuan” chip is `butuh_bantuan`. A text-only report omits the chip.
+
+Timestamps are ISO-8601 UTC strings. Ids are server-generated strings.
+
+## 5. Entities
+
+Collections used by this contract: `observations`, `incidents`, `conflicts`, `tasks`, `digest`, `audit`.
+
+### 5.1 Observation
+
+Immutable. The stored record always has `"immutable": true`. There is no update or delete route.
+
+| Field | Type | Set by |
+|---|---|---|
+| `id` | string | Server |
+| `volunteerId` | string | Server, from the token |
+| `capturedAt` | string | Client. The phone time of the report |
+| `receivedAt` | string | Server |
+| `source` | source enum | Client for `chip`, `text`, and `photo`. Gateway sets `live` |
+| `lat` | number, −90 to 90 | Phone |
+| `lng` | number, −180 to 180 | Phone |
+| `accuracyM` | number or null | Phone |
+| `chip` | chip enum or null | Client when `source` is `chip` |
+| `text` | string or null | Client, or the Live tool |
+| `severity` | severity enum | Server. See the mapping below |
+| `photoPath` | string or null | Server. A private object path, never a public URL |
+| `immutable` | `true` | Server |
+
+Chip to severity, applied by `ember-api` even if the client sends a severity:
+
+| Chip | Severity |
+|---|---|
+| `asap` | `smoke` |
+| `api` | `small_flame` |
+| `aman` | `none` |
+| `butuh_bantuan` | `unknown` |
+
+A `text` observation is stored as `unknown`. A `live` observation stores the tool’s `severity` when it is a valid enum, and `unknown` when the tool omits it. That value stays on the observation. Agents compute incident severity separately.
+
+`lat`, `lng`, and `capturedAt` are required. `capturedAt` may be earlier than `receivedAt` so a delayed report still sorts correctly.
+
+### 5.2 Incident
+
+| Field | Type | Who may change it |
+|---|---|---|
+| `id` | string | Nobody after create |
+| `status` | status enum | Agents may set `open` or `held`. A supervisor may set `verified` or `extinguished` |
+| `severity` | severity enum | Agents may raise it. A supervisor may lower it. The model must not set it |
+| `evidenceScore` | number | Agents. Code-computed, not a probability and not a forecast |
+| `conflictId` | string or null | Agents |
+| `withdraw` | object or null | Code, or a supervisor through the withdraw route in §6.5 |
+| `lat` | number | Agents |
+| `lng` | number | Agents |
+
+`withdraw` when active:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `active` | `true` | The instruction is in effect |
+| `instruction` | string | The sentence shown and spoken to the volunteer |
+| `reasons` | string[] | Why the instruction was sent |
+| `volunteerIds` | string[] | The volunteers who must follow it |
+
+```json
+{
+  "active": true,
+  "instruction": "Withdraw upwind. Do not engage.",
+  "reasons": ["large flame reported"],
+  "volunteerIds": ["uid_sari", "uid_rizal"]
+}
+```
+
+Clearing `withdraw`, or lowering severity in order to dismiss it, is not a client action.
+
+### 5.3 Task
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | Server |
+| `incidentId` | string | |
+| `volunteerId` | string | One volunteer per task |
+| `type` | task type | `verify`, `withdraw`, or `investigate` |
+| `status` | task status | `withdraw` is stored as `approved` |
+| `instruction` | string or null | Shown to the volunteer. The edit route may replace this text |
+
+A proposed `investigate` task is a dispatch waiting for a supervisor. A `verify` task may be approved while a conflict is open. A `withdraw` task is never proposed and never waits.
+
+### 5.4 Conflict
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | |
+| `incidentId` | string | |
+| `observationIds` | string[] | The original observations, unchanged |
+| `higherSeverity` | severity enum | The higher of the two known severities |
+| `status` | `open` \| `resolved` | Clients have no route that sets `resolved` |
+| `dispatchHeld` | `true` | While `status` is `open`, investigate approval is rejected |
+
+### 5.5 Audit
+
+Append-only. Clients do not write audit records. Every supervisor action and every automatic WITHDRAW appends one.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | Server |
+| `actorId` | string | The supervisor uid, or `code` when code decided |
+| `action` | string | One of the names below |
+| `targetId` | string | The task or incident id |
+| `at` | string | Server time |
+
+| `action` | When |
+|---|---|
+| `observation.create` | An observation was stored |
+| `task.approve` | A supervisor approved a proposed task |
+| `task.reject` | A supervisor rejected a proposed task |
+| `task.edit` | A supervisor replaced a task instruction |
+| `task.withdraw` | Code or a supervisor issued a withdraw instruction |
+| `incident.verify` | A supervisor verified the incident |
+| `incident.extinguish` | A supervisor extinguished the incident |
+| `incident.severity.lower` | A supervisor lowered severity |
+| `incident.severity.raise` | Code raised severity |
+
+### 5.6 Digest
+
+One current picture for Live context, REST polling, and WebSocket pushes.
+
+| Field | Type | Notes |
+|---|---|---|
+| `updatedAt` | string | |
+| `incidents` | incident summary[] | `id`, `status`, `severity`, `withdraw`, `lat`, `lng` |
+| `myTasks` | task[] | Tasks whose `volunteerId` is the caller. Empty for a supervisor |
+
+A volunteer receives incidents linked to their observations or tasks. A supervisor receives incidents whose status is `open`, `held`, or `verified`.
+
+## 6. REST
+
+Base URL is the `ember-api` origin. Unless a route says otherwise, the caller is any signed-in role and the success body is the stored record.
+
+### 6.1 `GET /me`
+
+Returns §2. `401` or `403` as in §3.
+
+### 6.2 `POST /observations`
+
+Creates one immutable `chip` or `text` observation. `ember-api` then calls the agents intake in §8.
+
+Request, chip:
+
+```json
+{
+  "source": "chip",
+  "capturedAt": "2026-10-13T08:12:00Z",
+  "lat": 1.482,
+  "lng": 102.115,
+  "accuracyM": 18,
+  "chip": "api",
+  "text": null
+}
+```
+
+Request, text only:
+
+```json
+{
+  "source": "text",
+  "capturedAt": "2026-10-13T08:14:00Z",
+  "lat": 1.482,
+  "lng": 102.115,
+  "accuracyM": 18,
+  "chip": null,
+  "text": "Asap tipis di tepi kanal"
+}
+```
+
+The server fills `id`, `volunteerId`, `receivedAt`, `severity`, `photoPath`, and `immutable`. Response `201` with the stored observation:
+
+```json
+{
+  "id": "obs_01",
+  "volunteerId": "uid_sari",
+  "capturedAt": "2026-10-13T08:12:00Z",
+  "receivedAt": "2026-10-13T08:12:04Z",
+  "source": "chip",
+  "lat": 1.482,
+  "lng": 102.115,
+  "accuracyM": 18,
+  "chip": "api",
+  "text": null,
+  "severity": "small_flame",
+  "photoPath": null,
+  "immutable": true
+}
+```
+
+`source: live` and `source: photo` are rejected on this route. Live observations are created by the gateway in §7. The signed photo upload URL is outside this contract; a later photo observation still uses this observation shape and a private `photoPath`.
+
+A second request that tries to change `obs_01` has no route. A client that retries with the same body creates a new observation.
+
+### 6.3 `GET /incidents` and `GET /incidents/{id}`
+
+`GET /incidents` returns a JSON array of incident records, scoped as in §5.6.
+
+`GET /incidents/{id}` returns the picture the supervisor screen needs:
+
+```json
+{
+  "incident": {
+    "id": "inc_01",
+    "status": "held",
+    "severity": "small_flame",
+    "evidenceScore": 64,
+    "conflictId": "con_01",
+    "withdraw": null,
+    "lat": 1.482,
+    "lng": 102.115
+  },
+  "observations": [],
+  "conflict": {
+    "id": "con_01",
+    "incidentId": "inc_01",
+    "observationIds": ["obs_01", "obs_02"],
+    "higherSeverity": "small_flame",
+    "status": "open",
+    "dispatchHeld": true
+  },
+  "tasks": []
+}
+```
+
+`observations` are the full immutable records for `conflict.observationIds` when a conflict exists, otherwise the observations clustered into this incident. A volunteer who is not on the incident receives `404`.
+
+### 6.4 `GET /digest`
+
+Returns the §5.6 digest for the caller.
+
+### 6.5 Approval and human incident actions
+
+All of these are supervisor-only. A volunteer receives `403`. Each success returns the updated record and the new audit id:
+
+```json
+{
+  "task": {},
+  "auditId": "aud_01"
+}
+```
+
+Incident actions return `incident` instead of `task`.
+
+| Route | Body | Result |
+|---|---|---|
+| `POST /tasks/{id}/approve` | none | `proposed` becomes `approved`. Allowed for `verify`. Allowed for `investigate` only when that incident has no open conflict. Rejected for `withdraw` |
+| `POST /tasks/{id}/reject` | none | `proposed` becomes `rejected`. Rejected for `withdraw` |
+| `POST /tasks/{id}/edit` | `{ "instruction": "Check the east bank again" }` | Replaces `instruction` only. Type, status, volunteer, and incident stay the same |
+| `POST /incidents/{id}/verify` | none | `status` becomes `verified` |
+| `POST /incidents/{id}/extinguish` | none | `status` becomes `extinguished` |
+| `POST /incidents/{id}/severity` | `{ "severity": "smoke" }` | Stores the new severity only when it is strictly lower on the scale in §1 |
+| `POST /incidents/{id}/withdraw` | see below | Issues a withdraw instruction. This is not an approval |
+
+Withdraw request:
+
+```json
+{
+  "volunteerIds": ["uid_sari"],
+  "instruction": "Withdraw upwind. Do not engage.",
+  "reasons": ["supervisor instruction"]
+}
+```
+
+The route sets `incident.withdraw`, creates one `withdraw` task with `status: approved` and that `instruction` for each id, and appends a `task.withdraw` audit with the supervisor’s uid. `volunteerIds` must already have an observation or a task on this incident.
+
+Code uses the same writes when it fires WITHDRAW. Its `actorId` is `code`, and its `volunteerIds` are every volunteer who already has an observation or a task on the incident. Code does not call the supervisor route and does not wait.
+
+### 6.6 Update channels
+
+Clients refresh by polling `GET /incidents` and `GET /digest`. During a Live session the gateway also sends `digest` messages on the socket (§7).
+
+FCM is the third channel, used when the app is not in a Live session. `ember-api` sends it for a new task, a withdraw instruction, and a supervisor alert. The push payload itself belongs to the push workstream, not this document.
+
+## 7. WebSocket
+
+`voice-gateway` exposes a WebSocket. The upgrade carries the same two headers as §2. Invalid credentials close the socket before a Gemini session starts.
+
+The session opens when the client sends `session.start` (push to talk) and closes about 30 seconds after the reply, on `session.stop`, or when a cap is reached. The gateway uses manual activity detection so wind and engine noise do not open a turn. Caps are configurable per user and per operation. Hitting a cap closes with `cap_reached` and does not open a further Gemini session.
+
+Messages are JSON text. Audio and frames use base64 in those messages.
+
+Client to gateway:
+
+```json
+{ "type": "session.start" }
+{ "type": "location", "lat": 1.482, "lng": 102.115, "accuracyM": 18, "capturedAt": "2026-10-13T08:12:00Z" }
+{ "type": "audio", "data": "<base64>" }
+{ "type": "frame", "data": "<base64>", "capturedAt": "2026-10-13T08:12:01Z" }
+{ "type": "session.stop" }
+```
+
+Frames are about one per second while the session is open.
+
+Gateway to client:
+
+```json
+{ "type": "session.ready" }
+{ "type": "audio", "data": "<base64>" }
+{ "type": "digest", "digest": { "updatedAt": "2026-10-13T08:12:05Z", "incidents": [], "myTasks": [] } }
+{ "type": "observation.created", "observationId": "obs_03" }
+{ "type": "session.closed", "reason": "reply_complete" }
+```
+
+`session.closed` `reason` is `reply_complete`, `idle_timeout`, `cap_reached`, or `unauthorized`.
+
+On session start the gateway injects the caller’s current digest into the Gemini Live context.
+
+### 7.1 Tools
+
+The model may call these tools. It has no other way to read or write incident state.
+
+`submit_observation`
+
+```json
+{ "severity": "small_flame", "text": "Api kecil di tepi kanal" }
+```
+
+The gateway writes one immutable observation with `source: live`. `lat`, `lng`, `accuracyM`, and `capturedAt` come from the latest `location` message in the session. Coordinates spoken by the model are discarded. If the session has no location yet, the gateway does not write an observation. After a successful write it calls §8 and sends `observation.created`.
+
+`get_common_picture` takes no arguments and returns the caller’s digest from §5.6.
+
+`get_my_task` takes no arguments and returns the caller’s current task, or `null` when they have none. Current means the newest task for that volunteer whose status is `approved`, with a `withdraw` task preferred over any other type.
+
+## 8. Agents intake
+
+`ember-agents` is private. Only the `ember-api` and `voice-gateway` service accounts can invoke it.
+
+`POST /internal/observations/{observationId}/intake`
+
+No body. The agents service reads the observation from `ember-db`. Response `202`:
+
+```json
+{ "observationId": "obs_01" }
+```
+
+Agents may create and update incidents, conflicts, tasks, and the digest, within the field rules in §5. They cluster nearby observations, set `evidenceScore`, open conflicts, raise severity, and issue code WITHDRAW. They do not verify, extinguish, lower severity, or copy the model’s severity onto the incident.
+
+The high-wind threshold is a setting in the agents workstream. This contract only requires that crossing it produces the same WITHDRAW writes as a `large_flame` observation.
+
+## 9. Worked path
+
+Two synthetic volunteers, one disagreement, then a code WITHDRAW.
+
+1. Sari `POST /observations` with chip `api`. Stored severity is `small_flame`.
+2. Rizal `POST /observations` with chip `aman` at the same spot. Stored severity is `none`.
+3. Agents cluster them into `inc_01`, set severity to `small_flame`, open `con_01`, set status to `held`, and create two proposed `verify` tasks.
+4. A supervisor `POST /tasks/{id}/approve` on each verify task. `POST /tasks/{id}/approve` on an `investigate` task for `inc_01` returns `409` with code `conflict` while `con_01` is open.
+5. A later observation with severity `large_flame` makes code set `incident.withdraw`, create approved `withdraw` tasks for Sari and Rizal, and append `task.withdraw` with `actorId: code`.
+6. Their next `GET /digest` or socket `digest` message carries `withdraw.active: true` and the instruction. The PWA shows that instruction full screen.
+
+## 10. Outside this contract
+
+| Item | Where it belongs |
+|---|---|
+| Signed photo `PUT` URL | Photo-upload work. Later observations still use `photoPath` |
+| FCM payload fields | Push work |
+| `ops`, `volunteers`, `pings`, `leads`, `crews`, `sites` | Not required to implement this contract |
+| Hourly FIRMS, weather, and PSI ingest | Ingest work. Wind enters WITHDRAW only through the agents rule |
+| Flash photo triage, summaries, evals, Memory Bank | Later agent work |
+| Ephemeral-token Live fallback | Only if a later decision replaces the relay |
+| Map tiles | Loaded by the browser with the referrer-restricted Maps key |
+| Agency report delivery | EMBER does not send agency reports |
