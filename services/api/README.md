@@ -30,6 +30,8 @@ The role is the Firebase custom claim `role` already present on that Google sign
 
 Set the claim on each Firebase Auth user in Google Cloud, then sign out and sign in again so the ID token includes it. `GET /healthz` stays unauthenticated.
 
+Protected routes also read `X-Firebase-AppCheck`. `APP_CHECK_ENFORCE` defaults to `false`: a missing or invalid App Check token is logged and the request continues. Set `APP_CHECK_ENFORCE=true` to reject it with `401` before the handler runs. That production switch is separate from this service code.
+
 Token verification uses the Firebase Admin SDK and `GOOGLE_CLOUD_PROJECT` (default `ember-fire-commander`). No service-account JSON is stored in this repo.
 
 ## Phase 1 (current)

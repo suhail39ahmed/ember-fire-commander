@@ -5,10 +5,11 @@ GET /healthz stays public.
 """
 import os
 
-from flask import Flask, jsonify, request
+from flask import Flask, g, jsonify
 from flask_cors import CORS
 
-from identity import AuthError, user_from_token
+from auth import install_auth
+from identity import AuthError
 
 app = Flask(__name__)
 
@@ -22,6 +23,7 @@ CORS(
     origins=_origins,
     allow_headers=["Authorization", "Content-Type", "X-Firebase-AppCheck"],
 )
+install_auth(app)
 
 
 def error_body(code, message):
@@ -31,14 +33,6 @@ def error_body(code, message):
 @app.errorhandler(AuthError)
 def handle_auth_error(exc):
     return error_body(exc.code, exc.message), exc.status
-
-
-def bearer_token():
-    header = request.headers.get("Authorization", "")
-    scheme, _, token = header.partition(" ")
-    if scheme != "Bearer" or not token.strip():
-        raise AuthError(401, "unauthorized", "Firebase ID token is missing")
-    return token.strip()
 
 
 @app.route("/healthz")
@@ -54,8 +48,7 @@ def healthz():
 @app.route("/me")
 def me():
     """Return the signed-in user. Role comes only from the ID token."""
-    user = user_from_token(bearer_token())
-    return jsonify(user), 200
+    return jsonify(g.user), 200
 
 
 if __name__ == "__main__":
