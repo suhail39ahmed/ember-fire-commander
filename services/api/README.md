@@ -22,11 +22,20 @@ All client access to Firestore and Storage goes through `ember-api`. The browser
 - **Firestore database:** `FIRESTORE_DATABASE=ember-db` (set via Cloud Run env var).
 - **Service account:** `sa-ember-api@ember-fire-commander.iam.gserviceaccount.com` with least-privilege IAM bindings.
 
+## Identity
+
+`GET /me` verifies the Firebase ID token in `Authorization: Bearer <token>` and returns `id`, `displayName`, and `role`.
+
+The role is the Firebase custom claim `role` already present on that Google sign-in token: `volunteer` or `supervisor`. ember-api reads the claim. It does not call `set_custom_user_claims`, and it does not accept a role from query parameters or JSON. A verified token with no `role` claim returns `403` with `error.code` `role_missing`. Any other claim value returns `403` `forbidden`. A missing, invalid, or expired token returns `401` `unauthorized`.
+
+Set the claim on each Firebase Auth user in Google Cloud, then sign out and sign in again so the ID token includes it. `GET /healthz` stays unauthenticated.
+
+Token verification uses the Firebase Admin SDK and `GOOGLE_CLOUD_PROJECT` (default `ember-fire-commander`). No service-account JSON is stored in this repo.
+
 ## Phase 1 (current)
 
-This is a **walking skeleton** with:
 - `GET /healthz` returning `200` for Cloud Run health checks
-- `GET /me` stub endpoint for the web app to call
+- `GET /me` returning the signed-in user from a verified Firebase ID token
 
 No secrets, no Gemini API keys, no service-account JSON. The deploy pipeline builds this directory and deploys to Cloud Run `ember-api`.
 
@@ -35,7 +44,7 @@ No secrets, no Gemini API keys, no service-account JSON. The deploy pipeline bui
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 export PORT=8080
 export FIRESTORE_DATABASE=ember-db
 python app.py
