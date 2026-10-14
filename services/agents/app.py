@@ -23,6 +23,9 @@ def healthz():
         'firestore_database': os.getenv('FIRESTORE_DATABASE', 'not-set')
     }), 200
 
+from sites.routes import bp as sites_bp  # noqa: E402
+app.register_blueprint(sites_bp)
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', '8080'))
     app.run(host='0.0.0.0', port=port)
