@@ -85,3 +85,17 @@ All `VITE_*` variables are public client identifiers that are baked into the bun
 | `VITE_VOICE_GATEWAY_WSS_URL` | WebSocket gateway URL |
 
 See `.env.example` for the full list with defaults.
+
+## Volunteer PWA (`/pwa`)
+
+The volunteer screen lives in `src/pwa/` and is mounted at `/pwa` behind `RequireRole role="volunteer"`.
+
+- Talks only to `ember-api` (`GET /digest`, `POST /observations`) and `voice-gateway`, as in `docs/contracts/shared-contract.md`. Every request carries `Authorization: Bearer <ID token>` and, when App Check is configured, `X-Firebase-AppCheck`.
+- Errors use the contract envelope `{ "error": { "code", "message", "fields" } }`. A `400 validation_error` shows the field messages; network errors and 5xx can be retried.
+- A report needs the phone's location (`lat`/`lng` are required). The client never sends an id or a severity.
+- WITHDRAW is shown full screen when the digest carries an active `incident.withdraw` that names the volunteer, or a withdraw task.
+- `VITE_API_BASE_URL` sets the API origin and falls back to `VITE_EMBER_API_URL`. `VITE_USE_MOCK_API=true` swaps in an in-browser mock with synthetic data.
+
+```bash
+npm run typecheck && npm run lint && npm test && npm run build
+```

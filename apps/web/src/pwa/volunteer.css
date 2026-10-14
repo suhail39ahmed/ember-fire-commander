@@ -1,0 +1,74 @@
+/* Volunteer PWA — tokens from docs/design/EMBER_design_handoff.md §3 */
+.vol {
+  --ember: #e2531b;
+  --danger: #c81e1e;
+  --withdraw: #b91c1c;
+  --safe: #2f7d4f;
+  --safe-tint: #e3f2e8;
+  --haze: #b7791f;
+  --data: #2563eb;
+  --ink: #1c1917;
+  --ink-muted: #6b645c;
+  --paper: #faf7f2;
+  --night: #141210;
+  --line: #e7e1d8;
+  color-scheme: light;
+  min-height: 100vh;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--paper);
+  color: var(--ink);
+  text-align: left;
+  font-size: 15px;
+}
+.vol-header { display: flex; align-items: center; gap: 10px; padding: 14px 20px; background: var(--night); color: var(--paper); position: sticky; top: 0; z-index: 2; }
+.vol-title { display: flex; flex-direction: column; flex: 1; line-height: 1.2; }
+.vol-title .muted { color: #bdb5aa; font-size: 12px; }
+.badge-simulated { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; background: var(--haze); color: #fff; border-radius: 999px; padding: 3px 8px; white-space: nowrap; }
+.badge-simulated.on-dark { background: rgba(255,255,255,0.15); margin-top: 16px; align-self: center; }
+.lang { background: transparent; color: var(--paper); border: 1.5px solid #6b645c; border-radius: 999px; padding: 4px 10px; font-weight: 600; cursor: pointer; }
+.vol-main { display: flex; flex-direction: column; gap: 12px; padding: 12px 20px 32px; }
+.card { background: #fff; border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.card h2 { font-size: 20px; font-weight: 600; }
+.section-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; color: var(--ink-muted); text-transform: uppercase; }
+.muted { color: var(--ink-muted); }
+.small { font-size: 13px; }
+.instruction { background: var(--night); color: var(--paper); border-radius: 12px; padding: 12px 14px; font-weight: 500; }
+.tip { background: var(--safe-tint); color: var(--safe); border-radius: 12px; padding: 10px 14px; font-size: 14px; }
+.btn { height: 54px; border-radius: 14px; border: none; font-size: 16px; font-weight: 600; padding: 0 20px; cursor: pointer; }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn.primary { background: var(--ember); color: #fff; }
+.btn.ink { background: var(--ink); color: var(--paper); }
+.btn.secondary { background: #fff; color: var(--ink); border: 1.5px solid var(--line); }
+.btn.inverse { background: #fff; color: var(--withdraw); }
+.btn.small { height: 36px; font-size: 13px; border-radius: 10px; padding: 0 12px; background: #fff; border: 1.5px solid var(--line); color: var(--ink); }
+.ptt { height: 72px; font-size: 18px; touch-action: none; user-select: none; }
+.session { font-size: 13px; font-weight: 600; color: var(--ink-muted); }
+.camera-state { font-size: 13px; }
+.camera-state[data-state='denied'] { color: var(--danger); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { height: 47px; border-radius: 999px; padding: 0 16px; background: #fff; border: 1.5px solid var(--line); color: var(--ink); font-size: 15px; font-weight: 500; cursor: pointer; }
+.chip.selected { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 600; }
+.chip.invalid { border-color: var(--danger); }
+.text-field { border: 1.5px solid var(--line); border-radius: 12px; padding: 14px 16px; font-size: 15px; background: #fff; color: var(--ink); }
+.error { color: var(--danger); font-size: 13px; font-weight: 500; }
+.error-card { border: 1.5px solid var(--danger); }
+.sent { background: var(--safe-tint); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.sent strong { color: var(--safe); font-size: 18px; }
+.perms ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.perm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.perm-name { font-weight: 600; min-width: 100px; }
+.perm-state { flex: 1; color: var(--ink-muted); }
+.perm-granted .perm-state { color: var(--safe); }
+.perm-denied .perm-state { color: var(--danger); font-weight: 600; }
+.perm-help { width: 100%; font-size: 13px; color: var(--danger); }
+.install { text-align: center; }
+.dev { border: 1.5px dashed var(--line); flex-direction: row; flex-wrap: wrap; }
+.dev .section-label { width: 100%; }
+.withdraw { position: fixed; inset: 0; z-index: 10; background: var(--withdraw); color: #fff; display: flex; flex-direction: column; justify-content: center; gap: 16px; padding: 32px 24px; text-align: left; }
+.withdraw h1 { font-size: 40px; font-weight: 700; line-height: 1.1; }
+.withdraw-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; color: #ffd0d0; }
+.withdraw-instruction { font-size: 20px; font-weight: 500; color: #ffe4e4; }
+.withdraw-why { font-size: 15px; }
+.task-actions { display: flex; gap: 8px; } .task-actions .btn { flex: 1; }
