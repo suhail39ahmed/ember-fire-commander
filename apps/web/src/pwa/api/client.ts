@@ -2,8 +2,9 @@
  * ember-api client for the volunteer PWA.
  * The browser talks only to ember-api (REST, here) and voice-gateway (WebSocket,
  * see ../gateway/). No Firestore or Cloud Storage SDK is used in the browser.
+ * The one exception is the photo PUT to a signed URL that ember-api issued (see ../photo/).
  */
-import type { Digest, ErrorBody, Observation, ObservationCreate } from '../contracts/types'
+import type { Digest, ErrorBody, Observation, ObservationRequest, UploadUrl } from '../contracts/types'
 import type { AuthHeadersProvider } from './authHeaders'
 import { API_BASE_URL } from './config'
 import { ApiError, type EmberApi } from './types'
@@ -11,6 +12,7 @@ import { ApiError, type EmberApi } from './types'
 export const ENDPOINTS = {
   digest: '/digest',
   observations: '/observations',
+  photoUploadUrl: '/photos/upload-url',
 } as const
 
 function isErrorBody(body: unknown): body is ErrorBody {
@@ -47,7 +49,9 @@ export function createHttpApi(
 
   return {
     getDigest: () => request<Digest>(ENDPOINTS.digest),
-    createObservation: (body: ObservationCreate) =>
+    createObservation: (body: ObservationRequest) =>
       request<Observation>(ENDPOINTS.observations, { method: 'POST', body: JSON.stringify(body) }),
+    createUploadUrl: (contentType) =>
+      request<UploadUrl>(ENDPOINTS.photoUploadUrl, { method: 'POST', body: JSON.stringify({ contentType }) }),
   }
 }

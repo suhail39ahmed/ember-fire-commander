@@ -14,6 +14,8 @@ import { usePermissions } from './permissions/usePermissions'
 import { PermissionsPanel } from './install/PermissionsPanel'
 import { InstallBanner } from './install/InstallBanner'
 import { ReportPanel } from './report/ReportPanel'
+import { PhotoPanel } from './photo/PhotoPanel'
+import { createMockUpload, createXhrUpload } from './photo/upload'
 import type { Position } from './report/buildObservation'
 import { WithdrawScreen } from './WithdrawScreen'
 import './volunteer.css'
@@ -48,6 +50,7 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
     [apiOverride, getAuthHeaders, volunteerId],
   )
   const mock = (api as EmberApi & { mock?: MockControls }).mock
+  const upload = useMemo(() => (USE_MOCK_API ? createMockUpload() : createXhrUpload()), [])
 
   useEffect(() => registerServiceWorker(), [])
 
@@ -204,6 +207,8 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
         </section>
 
         <ReportPanel api={api} lang={lang} getPosition={getPosition} preset={preset} />
+
+        <PhotoPanel api={api} upload={upload} lang={lang} getPosition={getPosition} />
 
         <PermissionsPanel perms={perms} lang={lang} onRequest={(k) => void request(k)} />
 

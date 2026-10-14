@@ -5,7 +5,7 @@
  * Task and WITHDRAW state is produced here, standing in for backend code.
  * The UI only displays what the API returns.
  */
-import { CHIP_VALUES, type Digest, type Observation, type ObservationCreate } from '../contracts/types'
+import { CHIP_VALUES, type Digest, type Observation, type ObservationRequest } from '../contracts/types'
 import { ApiError, type EmberApi } from './types'
 
 export interface MockControls {
@@ -24,8 +24,10 @@ function validationError(field: string, hint: string): ApiError {
   return new ApiError('validation_error', `${field} is not valid`, 400, false, { [field]: hint })
 }
 
-function validate(body: ObservationCreate): void {
-  if (body.source !== 'chip' && body.source !== 'text') throw validationError('source', 'use chip or text')
+const MOCK_PHOTO_PREFIX = 'photos/'
+
+function validate(body: ObservationRequest, volunteerId: string): void {
+  if (body.source !== 'chip' && body.source !== 'text' && body.source !== 'photo') throw validationError('source', 'use chip, text or photo')
   if (typeof body.lat !== 'number' || body.lat < -90 || body.lat > 90) throw validationError('lat', 'required, -90 to 90')
   if (typeof body.lng !== 'number' || body.lng < -180 || body.lng > 180) throw validationError('lng', 'required, -180 to 180')
   if (!body.capturedAt) throw validationError('capturedAt', 'required')
@@ -33,6 +35,9 @@ function validate(body: ObservationCreate): void {
     throw validationError('chip', 'use asap, api, aman, or butuh_bantuan')
   }
   if (body.source === 'text' && !body.text?.trim()) throw validationError('text', 'required for a text report')
+  if (body.source === 'photo' && !body.photoPath?.startsWith(`${MOCK_PHOTO_PREFIX}${volunteerId}/`)) {
+    throw validationError('photoPath', 'use the photoPath from your own upload')
+  }
 }
 
 const SEVERITY = { asap: 'smoke', api: 'small_flame', aman: 'none', butuh_bantuan: 'unknown' } as const
@@ -77,18 +82,30 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
         if (f === 'network') throw new ApiError('network', 'Network error', null, true)
         throw validationError('chip', 'use asap, api, aman, or butuh_bantuan')
       }
-      validate(body)
+      validate(body, volunteerId)
       const stored: Observation = {
         ...body,
         id: `obs_mock_${observations.length + 1}`,
         volunteerId,
         receivedAt: new Date().toISOString(),
         severity: body.chip ? SEVERITY[body.chip] : 'unknown',
-        photoPath: null,
+        photoPath: body.source === 'photo' ? body.photoPath : null,
         immutable: true,
       }
       observations.push(stored)
       return stored
+    },
+    async createUploadUrl(contentType) {
+      await wait()
+      const id = Math.random().toString(16).slice(2).padEnd(12, '0')
+      const ext = contentType === 'image/webp' ? 'webp' : 'jpg'
+      return {
+        uploadUrl: `mock-upload://${id}`,
+        method: 'PUT',
+        headers: { 'Content-Type': contentType },
+        photoPath: `${MOCK_PHOTO_PREFIX}${volunteerId}/mock/${id}.${ext}`,
+        expiresAt: new Date(Date.now() + 300_000).toISOString(),
+      }
     },
     mock: {
       triggerWithdraw() {

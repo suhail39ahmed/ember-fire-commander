@@ -26,6 +26,39 @@ export interface ObservationCreate {
   text: string | null
 }
 
+/**
+ * Photo observation body. Same shape as section 6.2 plus the private object path
+ * returned by POST /photos/upload-url. Sent only after the upload succeeded.
+ */
+export interface PhotoObservationCreate {
+  source: 'photo'
+  capturedAt: string
+  lat: number
+  lng: number
+  accuracyM: number | null
+  chip: null
+  text: string | null
+  photoPath: string
+}
+
+export type ObservationRequest = ObservationCreate | PhotoObservationCreate
+
+/** Body of POST /photos/upload-url. */
+export interface UploadUrlRequest {
+  contentType: PhotoContentType
+}
+
+export type PhotoContentType = 'image/jpeg' | 'image/webp'
+
+/** Response of POST /photos/upload-url: a short-lived signed PUT URL and the private object path. */
+export interface UploadUrl {
+  uploadUrl: string
+  method: 'PUT'
+  headers: Record<string, string>
+  photoPath: string
+  expiresAt: string
+}
+
 /** Stored observation (section 5.1). */
 export interface Observation {
   id: string
