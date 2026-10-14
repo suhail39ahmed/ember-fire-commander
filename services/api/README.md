@@ -34,10 +34,39 @@ Protected routes also read `X-Firebase-AppCheck`. `APP_CHECK_ENFORCE` defaults t
 
 Token verification uses the Firebase Admin SDK and `GOOGLE_CLOUD_PROJECT` (default `ember-fire-commander`). No service-account JSON is stored in this repo.
 
+## Photo uploads
+
+`POST /photos/upload-url` gives a signed-in volunteer a V4 signed `PUT` URL for one still in the private bucket `PHOTO_BUCKET` (default `ember-fire-commander-ember-photos`).
+
+Request:
+
+```json
+{ "contentType": "image/jpeg" }
+```
+
+`contentType` is `image/jpeg` or `image/webp`. Response `201`:
+
+```json
+{
+  "uploadUrl": "https://storage.googleapis.com/...",
+  "method": "PUT",
+  "headers": { "Content-Type": "image/jpeg" },
+  "photoPath": "photos/uid_sari/20261017/3f2a....jpg",
+  "expiresAt": "2026-10-17T03:05:00Z"
+}
+```
+
+- The PWA sends the file with exactly that method and `Content-Type`. The URL expires after `PHOTO_UPLOAD_TTL_SECONDS` (default 300, max 900).
+- Every object lives under `photos/<uid>/`. `photos.is_owned_photo_path(path, uid)` rejects another volunteer's path, so a later photo observation can only reference the caller's own upload.
+- ember-api stores an upload record in the `photoUploads` collection of `ember-db` with the object path, owner and expiry. It never stores the URL or a public link.
+- A supervisor receives `403 forbidden`; a bad `contentType` returns `400 validation_error`.
+- Signing uses the IAM signBlob API with the Cloud Run service account. No key file is used and nothing is made public.
+
 ## Phase 1 (current)
 
 - `GET /healthz` returning `200` for Cloud Run health checks
 - `GET /me` returning the signed-in user from a verified Firebase ID token
+- `POST /photos/upload-url` returning a signed upload URL for the private photo bucket
 
 No secrets, no Gemini API keys, no service-account JSON. The deploy pipeline builds this directory and deploys to Cloud Run `ember-api`.
 
