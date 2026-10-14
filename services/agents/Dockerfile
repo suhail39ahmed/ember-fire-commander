@@ -6,6 +6,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
+COPY fusion ./fusion
 
 ENV PORT=8080
 EXPOSE 8080

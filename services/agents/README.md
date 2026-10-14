@@ -28,6 +28,29 @@ This is a **walking skeleton** with:
 
 No secrets, no ADK graph, no Gemini calls yet. The deploy pipeline builds this directory and deploys to Cloud Run `ember-agents`.
 
+## Fusion rules (`fusion/`)
+
+`POST /internal/observations/{observationId}/intake` (shared contract §8) reads the
+observation from `ember-db`, runs the deterministic rules in `fusion/rules.py`, and
+writes incidents, conflicts, tasks, and audit rows in one batch. It returns `202`.
+
+- **Cluster:** an observation joins the nearest open, held, or verified incident
+  with a member within `EMBER_CLUSTER_RADIUS_M` (default 300 m). Otherwise it starts
+  a new incident. The incident stores `observationIds`.
+- **Evidence score:** 0-100, the sum of the points in `evidenceFactors`
+  (severity, corroboration, photo, GPS precision, conflict penalty).
+- **Conflict:** flame versus no-flame in one cluster opens a conflict. Both
+  observations stay as they are, the higher severity is kept, the incident is
+  `held`, and each volunteer gets a proposed `verify` task.
+- **WITHDRAW:** a `large_flame` report, or wind at or above
+  `EMBER_WIND_WITHDRAW_KMH` (default 40, read from `weather/current.windKmh`),
+  sets `incident.withdraw`, creates approved `withdraw` tasks, and appends a
+  `task.withdraw` audit with `actorId: code`. No approval step.
+- Code only raises severity. It never verifies, extinguishes, or lowers it, and a
+  `live` report's severity is not copied onto the incident.
+
+Tests: `pip install -r requirements-dev.txt && pytest`.
+
 ## Local development
 
 ```bash

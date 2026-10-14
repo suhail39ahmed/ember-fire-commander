@@ -7,7 +7,10 @@ conflict detection, risk scoring, and task planning with human-in-the-loop.
 import os
 from flask import Flask, jsonify
 
+from fusion.intake import bp as fusion_bp
+
 app = Flask(__name__)
+app.register_blueprint(fusion_bp)
 
 @app.route('/healthz')
 def healthz():
