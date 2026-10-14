@@ -11,12 +11,13 @@ State names, fields and routes follow [`docs/contracts/shared-contract.md`](../c
 |---|---|---|---|---|
 | **Pak Dedi** | `volunteer` | `uid_dedi` | Phone 1 (PWA at `/pwa`) | "Pak Dedi · SIMULATED" |
 | **Ibu Sari** | `volunteer` | `uid_sari` | Phone 2 (PWA at `/pwa`) | "Ibu Sari · SIMULATED" |
-| **Ibu Rahma** | `supervisor` | `uid_rahma` | Laptop (console at `/console`) | "Supervisor · SIMULATED" |
+| **Bu Maya** | `supervisor` | `uid_maya` | Laptop (console at `/console`) | "Bu Maya · SIMULATED" |
 
 **Before you start**
 1. Each demo account signs in with Google and has its `role` custom claim set. Sign out and in again after setting a claim.
-2. No incidents exist. Both phones show an empty task list (`GET /digest` returns `myTasks: []`).
-3. The console map is centred on the demo area, with the SIMULATED banner visible.
+2. Dedicated demo Gmail accounts (SIMULATED personas; do not put passwords in the repo): **Pak Dedi** → `pak.dedi.ember@gmail.com` (`volunteer`), **Bu Maya** → `bu.maya.ember@gmail.com` (`supervisor`). Ibu Sari stays a scripted second volunteer for the dual-phone path.
+3. No incidents exist. Both phones show an empty task list (`GET /digest` returns `myTasks: []`).
+4. The console map is centred on the demo area, with the SIMULATED banner visible.
 
 ## Rules the script relies on (decided by code, not the model)
 - The model **never sets incident severity**. Chip reports map to severity on the server (`asap` → `smoke`, `api` → `small_flame`, `aman` → `none`, `butuh_bantuan` → `unknown`). Agents compute incident severity and may only raise it. Only a supervisor can lower it.
@@ -45,7 +46,7 @@ Each step gives the input to say or tap, then the expected state and screens. **
 - **Console:** amber conflict badge, both observations side by side, "dispatch held".
 
 ### Step 4: Supervisor approves the verify tasks
-- **Input (Rahma):** approve both verify tasks (`POST /tasks/{id}/approve`). Verify tasks can be approved while the conflict is open.
+- **Input (Maya):** approve both verify tasks (`POST /tasks/{id}/approve`). Verify tasks can be approved while the conflict is open.
 - **Expected state:** both tasks `approved`. Two `task.approve` audit records.
 - **Both phones:** the verify card from `myTasks`: "Foto lebih lebar ke arah tanah. Jaga jarak aman. Katakan apakah api terlihat." *(Take a wider photo towards the ground. Keep a safe distance. Say whether you can see flame.)*
 
@@ -55,7 +56,7 @@ Each step gives the input to say or tap, then the expected state and screens. **
 - **Expected state:** a new `small_flame` observation on `inc_demo_01`. The conflict is **still open**; clients have no route that resolves it.
 
 ### Step 6: Supervisor verifies; dispatch stays held
-- **Input (Rahma):** **Verify** the incident (`POST /incidents/inc_demo_01/verify`). Then try to approve the proposed `investigate` task.
+- **Input (Maya):** **Verify** the incident (`POST /incidents/inc_demo_01/verify`). Then try to approve the proposed `investigate` task.
 - **Expected state:** `inc_demo_01` becomes `verified` (a human-only action) with an `incident.verify` audit record. The investigate approval returns **`409 conflict`** because `con_demo_01` is open.
 - **Console:** verified colour on the ring; the dispatch card shows "held: open conflict". This is the point of the step: a disagreement blocks dispatch until it is settled.
 
@@ -83,3 +84,4 @@ Each step gives the input to say or tap, then the expected state and screens. **
 - Say "indicative" for the ring, staging point and upwind guidance.
 - Only numbers that come from the system appear on screen. Don't improvise numbers.
 - EMBER does not send agency reports.
+

@@ -9,7 +9,8 @@
     {
       "id": "uid_dedi",
       "displayName": "Pak Dedi (fictional)",
-      "role": "volunteer"
+      "role": "volunteer",
+      "email": "pak.dedi.ember@gmail.com"
     },
     {
       "id": "uid_sari",
@@ -17,9 +18,10 @@
       "role": "volunteer"
     },
     {
-      "id": "uid_rahma",
-      "displayName": "Ibu Rahma (fictional)",
-      "role": "supervisor"
+      "id": "uid_maya",
+      "displayName": "Bu Maya (fictional)",
+      "role": "supervisor",
+      "email": "bu.maya.ember@gmail.com"
     }
   ],
   "outsideContract": {
@@ -124,7 +126,7 @@
     },
     {
       "step": 4,
-      "actor": "uid_rahma",
+      "actor": "uid_maya",
       "rest": [
         "POST /tasks/{verifyTaskDedi}/approve",
         "POST /tasks/{verifyTaskSari}/approve"
@@ -181,7 +183,7 @@
     },
     {
       "step": 6,
-      "actor": "uid_rahma",
+      "actor": "uid_maya",
       "rest": [
         "POST /incidents/inc_demo_01/verify",
         "POST /tasks/{investigateTask}/approve"
