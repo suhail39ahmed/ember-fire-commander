@@ -9,6 +9,7 @@ import { createMockSupervisorApi } from './api/mock'
 import type { SupervisorApi } from './api/types'
 import type { Incident, IncidentDetail } from './contracts'
 import { IncidentView, type Outcome } from './IncidentView'
+import { IncidentMap } from './map/IncidentMap'
 import { SEVERITY_LABEL, sortQueue, STATUS_LABEL, volunteerName } from './view'
 import './supervisor.css'
 
@@ -27,7 +28,7 @@ export function SupervisorConsole({ api: apiOverride }: { api?: SupervisorApi })
   const { user, me, signOut } = useAuth()
   const getAuthHeaders = useMemo(() => authHeadersFor(user), [user])
   const api = useMemo<SupervisorApi>(
-    () => apiOverride ?? (USE_MOCK_API ? createMockSupervisorApi(me?.id ?? 'uid_mock') : createHttpSupervisorApi(getAuthHeaders)),
+    () => apiOverride ?? (USE_MOCK_API ? createMockSupervisorApi(me?.id ?? 'uid_mock', 'region') : createHttpSupervisorApi(getAuthHeaders)),
     [apiOverride, getAuthHeaders, me?.id],
   )
   const [queue, setQueue] = useState<Incident[] | null>(null)
@@ -155,10 +156,15 @@ export function SupervisorConsole({ api: apiOverride }: { api?: SupervisorApi })
             <p className="sup-state-title">No live incidents</p>
             <p className="sup-muted">When a volunteer reports a fire, the incident opens here with the reports and EMBER’s suggested tasks.</p>
           </div>
-        ) : detail ? (
-          <IncidentView key={detail.incident.id} detail={detail} actions={actions} />
         ) : (
-          <div className="sup-state" role="status"><p className="sup-state-title">Loading live incident…</p></div>
+          <>
+            <IncidentMap incidents={queue} selectedId={activeId} onSelect={setSelectedId} />
+            {detail ? (
+              <IncidentView key={detail.incident.id} detail={detail} actions={actions} />
+            ) : (
+              <div className="sup-state" role="status"><p className="sup-state-title">Loading live incident…</p></div>
+            )}
+          </>
         )}
       </main>
     </div>
