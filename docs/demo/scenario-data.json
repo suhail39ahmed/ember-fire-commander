@@ -1,0 +1,264 @@
+{
+  "_label": "SYNTHETIC demo data for EMBER. Fictional people, positions and values. Not real observations.",
+  "_contract": "Field names and enum values follow docs/contracts/shared-contract.md. Ids are server-generated; the ids below are the ones a seeded demo run is expected to show.",
+  "op": {
+    "name": "Demo operation (SIMULATED)",
+    "timezone": "Asia/Jakarta"
+  },
+  "users": [
+    {
+      "id": "uid_dedi",
+      "displayName": "Pak Dedi (fictional)",
+      "role": "volunteer"
+    },
+    {
+      "id": "uid_sari",
+      "displayName": "Ibu Sari (fictional)",
+      "role": "volunteer"
+    },
+    {
+      "id": "uid_rahma",
+      "displayName": "Ibu Rahma (fictional)",
+      "role": "supervisor"
+    }
+  ],
+  "outsideContract": {
+    "_note": "Not part of the shared contract (section 10: ingest work). Shown only if that work has landed.",
+    "lead": {
+      "label": "satellite thermal anomaly, a lead to verify, not a fire",
+      "lat": -1.849,
+      "lng": 110.051,
+      "ageHours": 3
+    },
+    "windStep7": {
+      "windKmh": 31,
+      "windFrom": "E",
+      "label": "synthetic; crosses the agents high-wind threshold"
+    }
+  },
+  "steps": [
+    {
+      "step": 2,
+      "actor": "uid_dedi",
+      "voice": {
+        "utterance_id": "Komandan, ada asap putih dari parit di belakang kebun. Sepertinya ada api kecil.",
+        "utterance_en": "Commander, there's white smoke from the ditch behind the garden. Looks like a small flame.",
+        "toolCall": {
+          "name": "submit_observation",
+          "arguments": {
+            "severity": "small_flame",
+            "text": "Asap putih dari parit, api kecil"
+          }
+        }
+      },
+      "fallback": {
+        "source": "chip",
+        "capturedAt": "2026-10-17T03:02:00Z",
+        "lat": -1.8492,
+        "lng": 110.0508,
+        "accuracyM": 15,
+        "chip": "api",
+        "text": null
+      },
+      "expect": {
+        "observationSeverity": "small_flame",
+        "incident": {
+          "id": "inc_demo_01",
+          "status": "open",
+          "severity": "small_flame",
+          "conflictId": null,
+          "withdraw": null
+        }
+      }
+    },
+    {
+      "step": 3,
+      "actor": "uid_sari",
+      "voice": {
+        "utterance_id": "Saya lihat asap saja, tidak ada api.",
+        "utterance_en": "I only see smoke, no flame.",
+        "toolCall": {
+          "name": "submit_observation",
+          "arguments": {
+            "severity": "smoke",
+            "text": "Asap saja, tidak ada api"
+          }
+        }
+      },
+      "fallback": {
+        "source": "chip",
+        "capturedAt": "2026-10-17T03:04:00Z",
+        "lat": -1.8488,
+        "lng": 110.0514,
+        "accuracyM": 15,
+        "chip": "asap",
+        "text": null
+      },
+      "expect": {
+        "observationSeverity": "smoke",
+        "incident": {
+          "id": "inc_demo_01",
+          "status": "held",
+          "severity": "small_flame",
+          "conflictId": "con_demo_01"
+        },
+        "conflict": {
+          "id": "con_demo_01",
+          "higherSeverity": "small_flame",
+          "status": "open",
+          "dispatchHeld": true
+        },
+        "tasks": [
+          {
+            "volunteerId": "uid_dedi",
+            "type": "verify",
+            "status": "proposed"
+          },
+          {
+            "volunteerId": "uid_sari",
+            "type": "verify",
+            "status": "proposed"
+          }
+        ]
+      }
+    },
+    {
+      "step": 4,
+      "actor": "uid_rahma",
+      "rest": [
+        "POST /tasks/{verifyTaskDedi}/approve",
+        "POST /tasks/{verifyTaskSari}/approve"
+      ],
+      "expect": {
+        "tasks": [
+          {
+            "volunteerId": "uid_dedi",
+            "type": "verify",
+            "status": "approved"
+          },
+          {
+            "volunteerId": "uid_sari",
+            "type": "verify",
+            "status": "approved"
+          }
+        ],
+        "audit": [
+          "task.approve",
+          "task.approve"
+        ]
+      }
+    },
+    {
+      "step": 5,
+      "actor": "uid_dedi",
+      "voice": {
+        "utterance_id": "Sudah saya foto lebih lebar. Api kecil di tanah gambut, sekitar satu meter.",
+        "utterance_en": "I took a wider photo. Small flame on the peat, about one metre.",
+        "toolCall": {
+          "name": "submit_observation",
+          "arguments": {
+            "severity": "small_flame",
+            "text": "Api kecil di gambut, kira-kira 1 meter"
+          }
+        }
+      },
+      "fallback": {
+        "source": "chip",
+        "capturedAt": "2026-10-17T03:08:00Z",
+        "lat": -1.8492,
+        "lng": 110.0508,
+        "accuracyM": 15,
+        "chip": "api",
+        "text": null
+      },
+      "expect": {
+        "observationSeverity": "small_flame",
+        "conflict": {
+          "id": "con_demo_01",
+          "status": "open"
+        }
+      }
+    },
+    {
+      "step": 6,
+      "actor": "uid_rahma",
+      "rest": [
+        "POST /incidents/inc_demo_01/verify",
+        "POST /tasks/{investigateTask}/approve"
+      ],
+      "expect": {
+        "incident": {
+          "id": "inc_demo_01",
+          "status": "verified",
+          "severity": "small_flame"
+        },
+        "investigateApprove": {
+          "http": 409,
+          "code": "conflict"
+        },
+        "audit": [
+          "incident.verify"
+        ]
+      }
+    },
+    {
+      "step": 7,
+      "actor": "uid_sari",
+      "voice": {
+        "utterance_id": "Api membesar! Apinya besar sekarang, anginnya kencang.",
+        "utterance_en": "The fire is growing! Big flames now, strong wind.",
+        "toolCall": {
+          "name": "submit_observation",
+          "arguments": {
+            "severity": "large_flame",
+            "text": "Api besar, angin kencang"
+          }
+        }
+      },
+      "fallback": {
+        "source": "chip",
+        "capturedAt": "2026-10-17T03:14:00Z",
+        "lat": -1.8486,
+        "lng": 110.0516,
+        "accuracyM": 15,
+        "chip": "butuh_bantuan",
+        "text": "Api besar, angin kencang"
+      },
+      "fallbackNote": "No chip maps to large_flame. On the chip/text path WITHDRAW comes from the agents wind rule (synthetic 31 km/h), not from the chip.",
+      "expect": {
+        "incident": {
+          "id": "inc_demo_01",
+          "withdraw": {
+            "active": true,
+            "instruction": "MUNDUR sekarang ke titik kumpul di arah datangnya angin. Jangan padamkan sendiri.",
+            "reasons": [
+              "large flame reported"
+            ],
+            "volunteerIds": [
+              "uid_dedi",
+              "uid_sari"
+            ]
+          }
+        },
+        "tasks": [
+          {
+            "volunteerId": "uid_dedi",
+            "type": "withdraw",
+            "status": "approved"
+          },
+          {
+            "volunteerId": "uid_sari",
+            "type": "withdraw",
+            "status": "approved"
+          }
+        ],
+        "audit": [
+          {
+            "action": "task.withdraw",
+            "actorId": "code"
+          }
+        ]
+      }
+    }
+  ]
+}
