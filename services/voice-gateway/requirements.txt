@@ -1,2 +1,5 @@
 Flask==3.0.0
 gunicorn==21.2.0
+firebase-admin==6.6.0
+flask-sock==0.7.0
+gevent==26.9.0
