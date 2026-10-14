@@ -271,3 +271,22 @@ variable "github_allowed_ref" {
   type        = string
   default     = "refs/heads/main"
 }
+
+# ---------------- Hourly ingest (#26, ingest.tf)
+variable "ingest_schedule" {
+  description = "Cron for the ingest job (Cloud Scheduler)."
+  type        = string
+  default     = "0 * * * *"
+}
+
+variable "ingest_schedule_paused" {
+  description = "Pause the hourly trigger (e.g. to save FIRMS quota). The job can still be run by hand."
+  type        = bool
+  default     = false
+}
+
+variable "ingest_job_placeholder_image" {
+  description = "First image for the job before deploy-ingest.yml runs. Must exit on its own (the service hello image never exits)."
+  type        = string
+  default     = "us-docker.pkg.dev/cloudrun/container/job"
+}

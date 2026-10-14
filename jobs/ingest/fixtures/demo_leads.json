@@ -1,0 +1,29 @@
+{
+  "note": "Hand-seeded FIRMS-style leads for the demo when the hourly schedule is not running. Coordinates sit next to the demo scenario (docs/demo/scenario-data.json). These are leads to verify, never confirmed fires.",
+  "leads": [
+    {
+      "id": "seed-firms-demo-1",
+      "satellite": "N",
+      "instrument": "VIIRS",
+      "lat": -1.8475,
+      "lng": 110.0532,
+      "acqAt": "2026-10-17T05:40:00Z",
+      "confidence": "nominal",
+      "frpMw": 9.4,
+      "brightnessK": 341.2,
+      "daynight": "D"
+    },
+    {
+      "id": "seed-firms-demo-2",
+      "satellite": "N",
+      "instrument": "VIIRS",
+      "lat": -1.8521,
+      "lng": 110.0468,
+      "acqAt": "2026-10-17T05:40:00Z",
+      "confidence": "high",
+      "frpMw": 14.8,
+      "brightnessK": 352.0,
+      "daynight": "D"
+    }
+  ]
+}

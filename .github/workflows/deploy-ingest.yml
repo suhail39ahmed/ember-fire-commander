@@ -1,0 +1,76 @@
+# Deploy the ember-ingest Cloud Run JOB (manual trigger only).
+# Terraform (infra/terraform/ingest.tf) creates the job, its env vars and the
+# hourly Cloud Scheduler trigger; this workflow only builds and swaps the image.
+#
+# One-time setup: same repo variables as the other deploy-* workflows:
+#     GCP_PROJECT_ID, GCP_WIF_PROVIDER, GCP_DEPLOYER_SA
+# Run terraform apply first so the job exists (and the deployer may act as sa-ember-ingest).
+name: deploy-ingest
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref_note:
+        description: "Why are you deploying? (free text, shows in the run log)"
+        required: false
+        default: "manual deploy"
+      run_now:
+        description: "Run the job once after deploying (manual ingest run)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write # needed to mint the OIDC token for WIF
+
+concurrency:
+  group: deploy-ingest
+  cancel-in-progress: false
+
+env:
+  REGION: asia-southeast1
+  REPO: ember
+  JOB: ember-ingest
+  SOURCE_DIR: jobs/ingest
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # WIF only trusts refs/heads/main by default (terraform var github_allowed_ref).
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Unit tests (recorded fixtures, no network)
+        working-directory: jobs/ingest
+        run: |
+          pip install -r requirements-dev.txt
+          python -m pytest -q
+
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - name: Build and push image
+        run: |
+          IMAGE="${REGION}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${REPO}/${JOB}:${GITHUB_SHA::12}"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          docker build -t "$IMAGE" "$SOURCE_DIR"
+          docker push "$IMAGE"
+
+      - name: Update Cloud Run job (image only; Terraform owns the rest)
+        run: gcloud run jobs update "$JOB" --region "$REGION" --image "$IMAGE" --quiet
+
+      - name: Run once and wait
+        if: inputs.run_now
+        run: gcloud run jobs execute "$JOB" --region "$REGION" --wait
