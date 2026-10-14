@@ -30,6 +30,7 @@ locals {
     "roles/serviceusage.apiKeysAdmin",       # API keys (if managed)
     "roles/recaptchaenterprise.admin",       # App Check key (if managed)
     "roles/monitoring.notificationChannelEditor",
+    "roles/cloudscheduler.admin", # ember-ingest hourly trigger (#26)
   ]
 }
 
@@ -55,10 +56,10 @@ resource "google_project_iam_member" "deployer" {
   member  = "serviceAccount:${google_service_account.deployer[0].email}"
 }
 
-# Deployer may "act as" the three Cloud Run runtime SAs (needed by
+# Deployer may "act as" the Cloud Run runtime SAs (ember-ingest added for the job, #26) (needed by
 # `gcloud run deploy --service-account`), and nothing else.
 resource "google_service_account_iam_member" "deployer_acts_as_runtime" {
-  for_each = var.enable_github_wif ? toset(["ember-api", "voice-gateway", "ember-agents"]) : toset([])
+  for_each = var.enable_github_wif ? toset(["ember-api", "voice-gateway", "ember-agents", "ember-ingest"]) : toset([])
 
   service_account_id = google_service_account.runtime[each.value].name
   role               = "roles/iam.serviceAccountUser"

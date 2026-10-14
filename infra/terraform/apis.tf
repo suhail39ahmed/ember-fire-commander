@@ -29,6 +29,7 @@ locals {
     "firebasehosting.googleapis.com", # Hosting site
     "maps-backend.googleapis.com",    # Maps JavaScript API (enabled by hand, step 16)
     "weather.googleapis.com",         # Weather API (enabled by hand, step 16)
+    "cloudscheduler.googleapis.com",  # hourly ember-ingest trigger (#26)
   ]
 
   optional_apis = concat(
@@ -41,7 +42,7 @@ locals {
     var.create_gemini_api_key_secret ? ["generativelanguage.googleapis.com"] : [],
   )
 
-  # Later (NOT day 1): eventarc, cloudscheduler, bigquery, pubsub, earthengine,
+  # Later (NOT day 1): eventarc, bigquery, pubsub, earthengine,
   # routes, geocoding-backend, airquality.
 }
 

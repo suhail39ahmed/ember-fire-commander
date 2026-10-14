@@ -113,3 +113,8 @@ output "github_terraform_sa" {
   description = "GitHub repo variable GCP_TF_SA (only if enable_github_wif)"
   value       = var.enable_github_wif ? google_service_account.terraform[0].email : null
 }
+
+output "ingest_job_name" {
+  description = "Cloud Run job run hourly by Cloud Scheduler (deploy-ingest.yml updates its image)"
+  value       = google_cloud_run_v2_job.ember_ingest.name
+}

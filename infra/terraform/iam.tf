@@ -27,6 +27,7 @@ locals {
     ]
     "ember-ingest" = [
       "roles/logging.logWriter",
+      "roles/datastore.user", # #26: writes leads, weather, psi, ingestRuns
       # LATER: roles/bigquery.dataEditor (dataset-level) + roles/bigquery.jobUser
     ]
   }
