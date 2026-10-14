@@ -8,9 +8,9 @@ region             = "asia-southeast1"
 create_project     = false
 billing_account_id = "01696D-367603-4DF080" # only used if enable_budget = true
 
-# Live Editors (imported). Your own Owner binding is not managed here.
+# Teammate Editors. The project Owner binding is not managed here.
 team_member_emails = [
-  "aqibpasha.20@gmail.com", # confirm: 4th teammate
+  "aqibpasha.20@gmail.com",
   "mdnaushad5009@gmail.com",
   "zeesh.rocky@gmail.com",
 ]
@@ -20,11 +20,11 @@ team_role = "roles/editor"
 create_gemini_api_key_secret = false
 live_location                = "us-central1"
 
-# Firestore: hand-made DB is "ember-db". Location is PERMANENT.
+# Firestore: named database "ember-db". Location is PERMANENT.
 firestore_database_name     = "ember-db"
 firestore_location          = "asia-southeast1"
-firestore_delete_protection = true  # live: OFF -> plan turns it ON (intended)
-manage_firestore_rules      = false # live deny-all rules stay console-managed
+firestore_delete_protection = true
+manage_firestore_rules      = false # deny-all rules are managed outside Terraform
 
 # Photo bucket: ember-fire-commander-ember-photos (name derived from project_id)
 photo_retention_days = 14
@@ -40,14 +40,14 @@ app_check_enforce       = false
 api_token_creator_scope    = "project" # live; "self" = least privilege later
 enable_observability_roles = false
 
-# Firebase (project + default Hosting site are always imported)
+# Firebase (project + default Hosting site are always managed)
 hosting_site_id          = "ember-fire-commander"
-manage_firebase_web_app  = false # set true + fill firebase_web_app_id to adopt ember-web
+manage_firebase_web_app  = false # set true + fill firebase_web_app_id to manage ember-web
 firebase_web_app_id      = ""    # firebase apps:list WEB --project ember-fire-commander
 enable_identity_platform = false # Auth (Google sign-in) stays console-managed
 enable_app_check         = false # App Check stays console-managed (would create a 2nd key)
 
-# Maps keys (console-made). To adopt: create_maps_keys = true + both UIDs.
+# Maps keys are kept out of Terraform. To manage them: create_maps_keys = true + both UIDs.
 create_maps_keys     = false
 maps_browser_key_uid = "" # gcloud services api-keys list --project ember-fire-commander
 maps_server_key_uid  = ""
@@ -57,8 +57,7 @@ enable_budget       = false
 budget_amount       = 50
 budget_alert_emails = ["suhail39ahmed@gmail.com"]
 
-# CI/CD: OFF for the first (adoption) apply. Then flip to true and apply
-# LOCALLY once (bootstrap) to create WIF + sa-ember-terraform + sa-ember-deployer.
+# CI/CD: GitHub Workload Identity Federation + sa-ember-terraform + sa-ember-deployer.
 enable_github_wif  = true
-github_repository  = "suhail39ahmed/ember-fire-commander" # confirm: real owner/repo
+github_repository  = "suhail39ahmed/ember-fire-commander"
 github_allowed_ref = "refs/heads/main"

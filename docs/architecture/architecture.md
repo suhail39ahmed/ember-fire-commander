@@ -10,7 +10,7 @@
 
 Project `ember-fire-commander`, region **asia-southeast1** (Singapore). Gemini Live runs in a US region because it has no Asia endpoint, so it is the only cross-region hop.
 
-**Status (10 Oct 2026):** the infrastructure is live, and the application code is in progress. Items marked *planned* are not built yet.
+**Status (14 Oct 2026):** the infrastructure is live, defined in Terraform (`infra/terraform`, state in `gs://ember-fire-commander-tfstate`) and changed only through the pipeline. The application code is in progress; `ember-api` serves `GET /me` behind Firebase ID-token checks (App Check log-only), the web app has Google sign-in with role-based routes, and the other two services are skeletons. Interfaces between components are defined in [`docs/contracts/shared-contract.md`](../contracts/shared-contract.md). Items marked *planned* are not built yet.
 
 ## 1. The backend-mediated rule
 
@@ -35,10 +35,10 @@ There is no browser-to-Firestore access: no client listeners and no client SDK r
 |---|---|---|
 | Volunteer PWA + supervisor console (React/Vite/TS, one codebase, role-based routes) | Push-to-talk, camera, chips, tasks, WITHDRAW screen, outbox. Console has the shared map, verification queue, conflicts and approvals | in progress |
 | Firebase Hosting | Serves the web app over a global CDN | live |
-| Firebase Auth | Google sign-in, with roles as custom claims set by `ember-api`. No SMS | live (Google provider) |
-| Firebase App Check | reCAPTCHA Enterprise (Fraud Defense), TTL 6 h, checked by the backend. Enforced before the demo | live, not enforced |
+| Firebase Auth | Google sign-in. The role is the `role` custom claim (`volunteer` or `supervisor`) on the ID token; `ember-api` reads it and never takes a role from the request. No SMS | live (Google provider); sign-in and role routes in the web app |
+| Firebase App Check | reCAPTCHA Enterprise (Fraud Defense), TTL 6 h, sent as `X-Firebase-AppCheck` and checked by the backend. Enforced before the demo | live; `ember-api` checks it in log-only mode |
 | FCM | Task, WITHDRAW and supervisor-alert pushes, sent by `ember-api` | live (VAPID key) |
-| Cloud Run `ember-api` (public) | Auth and roles, signed URLs, approvals, incident and digest reads, Maps/Weather proxy, FCM, audit | live service, code in progress |
+| Cloud Run `ember-api` (public) | Auth and roles, signed URLs, approvals, incident and digest reads, Maps/Weather proxy, FCM, audit | live service; `GET /me` and identity middleware done, other routes in progress |
 | Cloud Run `voice-gateway` (public, WSS) | Live relay, caps, observation writes. Runs as `sa-voice-gateway` | live service, code in progress |
 | Cloud Run `ember-agents` (private) | ADK graph: intake → dedupe/cluster → fusion → conflict → score → consolidate → plan, with a human-in-the-loop pause. Only the api and gateway service accounts can invoke it | live service, code in progress |
 | Gemini 3.8 Live | Bahasa voice and video conversation through tools | in progress |
@@ -50,7 +50,7 @@ There is no browser-to-Firestore access: no client listeners and no client SDK r
 | Artifact Registry `ember` | Images, with a cleanup policy | live |
 | Maps JS + Map ID / Weather API | Map display (browser key) and weather lookups (server key, through `ember-api`) | live (keys) |
 | Cloud Scheduler + Cloud Run job `ember-ingest`, BigQuery | Hourly FIRMS, PSI and weather pulls, plus archive and back-test tables | planned |
-| Budgets, Logging, Monitoring | Cost alerts, traces, latency, cost counters | budgets live |
+| Budgets, Logging, Monitoring | Cost alerts, traces, latency, cost counters | budget alerts live (console); traces and counters planned |
 
 ## 4. Shared incident state (Firestore `ember-db`)
 
@@ -61,7 +61,7 @@ Collections: `ops`, `volunteers`, `pings` (24 h TTL), `observations` (immutable)
 - **Code decides, Gemini talks and looks.** Geometry, evidence scores, conflict detection and safety rules are deterministic Python. Flash only reads photos and writes prose, and Live only converses and calls tools.
 - **Conflicts are surfaced, never averaged.** If one volunteer reports a small flame and another reports none at the same spot, the incident keeps the higher severity, a conflict is opened, dispatch is held, and both volunteers get a VERIFY task.
 - **Safety:** large flames or high wind → **WITHDRAW upwind** to nearby crews immediately, with no approval needed, and it's logged. Dispatch always needs supervisor approval. Only a human can verify or extinguish an incident or lower its severity.
-- **Evidence so far:** the fusion and conflict prototype was tested on a **synthetic** GPS-noise simulation (300 scenarios). Thresholds are placeholders that need field tuning.
+- **Evidence so far:** the fusion and conflict prototype was tested on a **synthetic** GPS-noise simulation (300 scenarios). The prototype is **not yet in this repository**. Thresholds are placeholders that need field tuning.
 
 ## 6. Identities (least privilege)
 

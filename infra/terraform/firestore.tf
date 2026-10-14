@@ -12,13 +12,13 @@ resource "google_firestore_database" "default" {
 
   delete_protection_state = var.firestore_delete_protection ? "DELETE_PROTECTION_ENABLED" : "DELETE_PROTECTION_DISABLED"
   # ABANDON = `terraform destroy` only forgets the DB, it does not delete it.
-  # The DB was created by hand and holds real data, so this is the safe choice.
+  # The DB holds real data, so this is the safe choice.
   deletion_policy = "ABANDON"
 
   depends_on = [time_sleep.wait_for_apis]
 }
 
-# Daily backups kept 7 days (live: created in the console, imported in imports.tf).
+# Daily backups kept 7 days.
 resource "google_firestore_backup_schedule" "daily" {
   project   = local.project_id
   database  = google_firestore_database.default.name
@@ -29,11 +29,11 @@ resource "google_firestore_backup_schedule" "daily" {
 
 # Deny-all client rules: the browser never talks to Firestore.
 # The backend uses the Admin SDK (IAM), which bypasses these rules.
-# GATED (manage_firestore_rules, default false): the live DB already has the
-# console's deny-all "production mode" rules, which are identical in effect.
+# GATED (manage_firestore_rules, default false): the live DB already has
+# deny-all "production mode" rules, which are identical in effect.
 # Turning this on creates a NEW ruleset and re-points the release at it
 # (an intended, harmless change). For a named database the release is
-# "cloud.firestore/<db>". confirm: release exists before importing it.
+# "cloud.firestore/<db>".
 resource "google_firebaserules_ruleset" "firestore" {
   count   = var.manage_firestore_rules ? 1 : 0
   project = local.project_id
