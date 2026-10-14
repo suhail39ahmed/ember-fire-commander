@@ -8,9 +8,11 @@ import os
 from flask import Flask, jsonify
 
 from fusion.intake import bp as fusion_bp
+from spotter.routes import bp as spotter_bp
 
 app = Flask(__name__)
 app.register_blueprint(fusion_bp)
+app.register_blueprint(spotter_bp)
 
 @app.route('/healthz')
 def healthz():
