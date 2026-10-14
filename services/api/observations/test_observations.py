@@ -40,11 +40,9 @@ def signed_in(monkeypatch):
 
 
 def _post(client, body, headers=None):
-    return client.post(
-        "/observations",
-        json=body,
-        headers=headers or {"Authorization": "Bearer valid"},
-    )
+    if headers is None:
+        headers = {"Authorization": "Bearer valid"}
+    return client.post("/observations", json=body, headers=headers)
 
 
 def test_chip_observation_is_stored_and_read_back(client, store, signed_in):
@@ -219,7 +217,7 @@ def test_notify_double_is_called_after_write(client, store, signed_in, monkeypat
 
 
 def test_notify_skips_when_url_unset(monkeypatch):
-    monkeypatch.delenv("AGENTS_BASE_URL", raising=False)
+    monkeypatch.delenv("EMBER_AGENTS_URL", raising=False)
 
     def refuse(*_args, **_kwargs):
         raise AssertionError("agents should not be called")
@@ -229,7 +227,7 @@ def test_notify_skips_when_url_unset(monkeypatch):
 
 
 def test_notify_posts_intake_when_url_is_set(monkeypatch):
-    monkeypatch.setenv("AGENTS_BASE_URL", "https://agents.example/")
+    monkeypatch.setenv("EMBER_AGENTS_URL", "https://agents.example/")
     monkeypatch.setattr("observations.notify._id_token", lambda audience: "tok")
     seen = {}
 

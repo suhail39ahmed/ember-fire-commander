@@ -1,6 +1,6 @@
 """Tell ember-agents that an observation was stored.
 
-The call is skipped when AGENTS_BASE_URL is unset, so local runs and tests
+The call is skipped when EMBER_AGENTS_URL is unset, so local runs and tests
 do not need Cloud Run. A failed call is logged and does not undo the write.
 """
 import logging
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def notify_observation(observation_id):
-    base = os.getenv("AGENTS_BASE_URL", "").strip().rstrip("/")
+    base = os.getenv("EMBER_AGENTS_URL", "").strip().rstrip("/")
     if not base:
         return
     url = f"{base}/internal/observations/{observation_id}/intake"
