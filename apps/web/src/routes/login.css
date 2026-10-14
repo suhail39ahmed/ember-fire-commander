@@ -1,0 +1,161 @@
+.login-screen,
+.role-screen {
+  min-height: 100vh;
+  text-align: left;
+  color: #1c1917;
+  background: #faf7f2;
+}
+
+.login-screen {
+  display: grid;
+  grid-template-columns: minmax(280px, 42%) 1fr;
+}
+
+.login-brand {
+  background: #141210;
+  color: #faf7f2;
+  padding: 48px 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 100vh;
+}
+
+.lockup {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.eyebrow {
+  letter-spacing: 0.14em;
+  font-size: 13px;
+  font-weight: 600;
+  color: #a79f94;
+}
+
+.tagline {
+  font-size: 36px;
+  line-height: 1.15;
+  font-weight: 700;
+  max-width: 14ch;
+  margin-top: 16px;
+}
+
+.footnote {
+  color: #a79f94;
+  font-size: 14px;
+}
+
+.login-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+}
+
+.login-card {
+  width: min(420px, 100%);
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 12px 40px rgba(20, 18, 16, 0.08);
+}
+
+.login-card h1 {
+  font-size: 28px;
+  margin-bottom: 4px;
+}
+
+.login-card .sub {
+  color: #6b645c;
+  margin-bottom: 24px;
+}
+
+.google-button,
+.text-button,
+.sign-out {
+  width: 100%;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.google-button {
+  border: 1px solid #e7e1d8;
+  background: #fff;
+  color: #1c1917;
+  padding: 14px 16px;
+}
+
+.google-button:disabled,
+.sign-out:disabled {
+  cursor: wait;
+}
+
+.note,
+.error {
+  margin-top: 16px;
+  font-size: 14px;
+}
+
+.note {
+  color: #6b645c;
+}
+
+.error {
+  color: #c81e1e;
+}
+
+.role-screen {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 24px;
+}
+
+.role-screen h1 {
+  font-size: 32px;
+  margin: 8px 0 24px;
+}
+
+.me-card {
+  background: #fff;
+  border: 1px solid #e7e1d8;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.me-card p + p {
+  margin-top: 8px;
+}
+
+.sign-out,
+.text-button {
+  border: 0;
+  background: #1c1917;
+  color: #faf7f2;
+  padding: 12px 16px;
+  width: auto;
+}
+
+.text-button {
+  display: inline-block;
+  text-decoration: none;
+  margin-right: 12px;
+}
+
+@media (max-width: 800px) {
+  .login-screen {
+    grid-template-columns: 1fr;
+  }
+
+  .login-brand {
+    min-height: auto;
+    gap: 32px;
+  }
+}
