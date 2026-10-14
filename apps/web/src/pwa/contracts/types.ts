@@ -1,0 +1,86 @@
+/**
+ * Types from docs/contracts/shared-contract.md (sections 4, 5 and 6).
+ * This is the only file in src/pwa that defines contract shapes.
+ */
+import type { Me } from '../../auth/api'
+
+export type { Me }
+
+export type ObservationSource = 'live' | 'chip' | 'text' | 'photo'
+export type ChipValue = 'asap' | 'api' | 'aman' | 'butuh_bantuan'
+export type Severity = 'none' | 'smoke' | 'small_flame' | 'large_flame' | 'unknown'
+export type IncidentStatus = 'open' | 'held' | 'verified' | 'extinguished'
+export type TaskType = 'verify' | 'withdraw' | 'investigate'
+export type TaskStatus = 'proposed' | 'approved' | 'rejected'
+
+export const CHIP_VALUES: readonly ChipValue[] = ['asap', 'api', 'aman', 'butuh_bantuan']
+
+/** Body of POST /observations (section 6.2). The server fills id, volunteerId, receivedAt, severity, photoPath and immutable. */
+export interface ObservationCreate {
+  source: 'chip' | 'text'
+  capturedAt: string
+  lat: number
+  lng: number
+  accuracyM: number | null
+  chip: ChipValue | null
+  text: string | null
+}
+
+/** Stored observation (section 5.1). */
+export interface Observation {
+  id: string
+  volunteerId: string
+  capturedAt: string
+  receivedAt: string
+  source: ObservationSource
+  lat: number
+  lng: number
+  accuracyM: number | null
+  chip: ChipValue | null
+  text: string | null
+  severity: Severity
+  photoPath: string | null
+  immutable: true
+}
+
+export interface Withdraw {
+  active: true
+  instruction: string
+  reasons: string[]
+  volunteerIds: string[]
+}
+
+/** Incident summary as carried in the digest (section 5.6). */
+export interface IncidentSummary {
+  id: string
+  status: IncidentStatus
+  severity: Severity
+  withdraw: Withdraw | null
+  lat: number
+  lng: number
+}
+
+export interface Task {
+  id: string
+  incidentId: string
+  volunteerId: string
+  type: TaskType
+  status: TaskStatus
+  instruction: string | null
+}
+
+/** GET /digest (section 6.4). */
+export interface Digest {
+  updatedAt: string
+  incidents: IncidentSummary[]
+  myTasks: Task[]
+}
+
+/** Error body (section 3). `fields` is present on validation_error only. */
+export interface ErrorBody {
+  error: {
+    code: string
+    message: string
+    fields?: Record<string, string>
+  }
+}

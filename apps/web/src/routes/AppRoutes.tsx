@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router-dom'
 
+import { VolunteerApp } from '../pwa/VolunteerApp'
 import { LoginScreen } from './LoginScreen'
 import { RequireRole, RoleHome } from './RoleHome'
 
@@ -11,7 +12,7 @@ export function AppRoutes() {
         path="/pwa"
         element={
           <RequireRole role="volunteer">
-            <RoleHome title="Volunteer" />
+            <VolunteerApp />
           </RequireRole>
         }
       />
