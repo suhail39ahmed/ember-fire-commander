@@ -9,7 +9,7 @@
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 
 > Built for the **Google Cloud AI Builder Cup 2026**.
-> **Status (10 Oct 2026):** the Google Cloud infrastructure is live in `ember-fire-commander` (asia-southeast1). The application code is **in progress**. Anything not built yet is marked *planned* or *in progress* below.
+> **Status (14 Oct 2026):** the Google Cloud infrastructure is live in `ember-fire-commander` (asia-southeast1), defined in Terraform and deployed through the pipeline. The application code is **in progress**. Anything not built yet is marked *planned* or *in progress* below.
 
 ---
 
@@ -39,10 +39,10 @@ EMBER helps scarce brigades decide **where to look first**. It does **not** fore
 
 1. **Leads:** every hour, NASA FIRMS hotspots and weather are pulled in and each hotspot is given an explainable 0–100 *spread-risk* score with its reasons shown (for example "8 dry days · RH 39% · wind 10 km/h · 62% peat"). These are **leads to verify**, never "fires". *(planned)*
 2. **Report:** a volunteer presses push-to-talk on the Bahasa-first PWA and speaks to Gemini Live while the camera streams frames, or taps a quick chip (*asap*, *api*, *aman*, *butuh bantuan*). *(in progress)*
-3. **Fuse:** the agents service merges reports, photos and positions from several volunteers, plus satellite leads and wind, into one incident with a transparent evidence score. *(the fusion logic exists as a prototype with unit tests; the service is in progress)*
-4. **Conflicts are surfaced:** if volunteers disagree ("small flame" vs "no flame"), EMBER flags it, shows both side by side and holds dispatch. It never averages the reports.
-5. **Human approves:** the supervisor console shows the shared picture, a verification queue, wind and an *indicative* downwind exposure corridor. The supervisor approves, edits or rejects each proposal. Only a human can mark an incident verified or extinguished, or lower its severity.
-6. **Safety first:** deterministic rules in code (not model output) send **WITHDRAW upwind** on large flames or high wind, immediately and logged.
+3. **Fuse:** the agents service merges reports, photos and positions from several volunteers, plus satellite leads and wind, into one incident with a transparent evidence score. *(in progress: a fusion prototype with unit tests exists but is **not yet in this repository**; the `ember-agents` service is in progress)*
+4. **Conflicts are surfaced:** if volunteers disagree ("small flame" vs "no flame"), EMBER flags it, shows both side by side and holds dispatch. It never averages the reports. *(planned)*
+5. **Human approves:** the supervisor console shows the shared picture, a verification queue, wind and an *indicative* downwind exposure corridor. The supervisor approves, edits or rejects each proposal. Only a human can mark an incident verified or extinguished, or lower its severity. *(planned)*
+6. **Safety first:** deterministic rules in code (not model output) send **WITHDRAW upwind** on large flames or high wind, immediately and logged. *(planned)*
 7. **Re-ignition watch:** extinguished sites are remembered, and new detections near them raise a re-inspection alert. *(planned)*
 
 ## Architecture
@@ -131,7 +131,7 @@ Design principle: **the deterministic code decides and Gemini talks and looks.**
 ## Security and responsible AI
 
 - **Backend-mediated:** client Firestore and Storage rules are *deny-all*. Data reaches the browser only through authenticated backend endpoints.
-- **App Check and ID tokens** are verified on every API call and on the WebSocket upgrade. Enforcement turns on before the demo.
+- **ID tokens and App Check:** `ember-api` verifies the Firebase ID token on every route except `GET /healthz` and reads the role from the `role` custom claim (`volunteer` or `supervisor`); a missing role is `403`. It checks the `X-Firebase-AppCheck` header in log-only mode (`APP_CHECK_ENFORCE=false`) until just before the demo. The same checks on the `voice-gateway` WebSocket upgrade are *planned*.
 - **Least privilege:** one service account per service. `ember-agents` is private and only `ember-api` and `voice-gateway` can invoke it. Secrets are scoped per accessor.
 - **Keyless CI/CD:** GitHub Actions authenticates with Workload Identity Federation, so no JSON keys are stored in the repo.
 - **Human in the loop:** dispatch always needs supervisor approval. Only a human can verify or extinguish an incident or lower its severity. WITHDRAW is a hard-coded safety rule, not a model output.
@@ -150,14 +150,11 @@ Design principle: **the deterministic code decides and Gemini talks and looks.**
 
 ## Infrastructure as code and CI/CD
 
-All of the above is described in **Terraform** under [`infra/`](infra/README.md):
+All of the above is defined in **Terraform** under [`infra/`](infra/README.md) and is **applied** (55 resources in the first apply, plus the CI/CD identities added since). Nothing in the project is changed by hand in the console.
 
-- **Remote state** in a private, versioned GCS bucket (`ember-fire-commander-tfstate`) with native locking. State is not kept in Git.
-- **Import blocks** (`imports.tf`) adopt the resources we first built in the console, so Terraform takes them over without recreating them.
-- **GitHub Actions + Workload Identity Federation:** `terraform plan` runs on every pull request, and `apply` runs manually from `main` only after approval in the `production` environment.
-- **App deploy pipelines** (`deploy-*.yml` / Cloud Build) build to Artifact Registry and deploy each Cloud Run service with its own runtime service account.
-
-*Status: the Terraform code validates and the import is in progress. The target is a first pipeline `plan` showing "No changes" apart from the intended fixes listed in `infra/README.md`.*
+- **Remote state** in a private, versioned GCS bucket (`gs://ember-fire-commander-tfstate`) with native locking. State is not kept in Git.
+- **Pipeline-owned:** infrastructure changes go through a pull request. `terraform plan` runs on every PR, and `apply` runs from `main` only after approval in the `production` environment. GitHub Actions authenticates with **Workload Identity Federation** as `sa-ember-terraform`, with no JSON keys.
+- **App deploy pipelines** (`.github/workflows/deploy-*.yml`, with Cloud Build alternatives in `infra/pipelines/`) build images into Artifact Registry and deploy each Cloud Run service as its own runtime service account. Terraform ignores the image, so pipelines own the code and Terraform owns everything else.
 
 ### What is NOT managed by Terraform
 
@@ -170,7 +167,7 @@ These are deliberately done by hand or are one-time console settings:
 | FCM Web Push (VAPID) key pair | Generated in the Firebase console only |
 | Maps Map ID | Created in Map management |
 | Maps daily quotas | The free trial blocks quota changes. To be set after upgrading |
-| Maps API keys | Optional adoption (otherwise the key strings would land in state) |
+| Maps API keys | Kept out of Terraform so the key strings never land in state |
 | Secret **values** | Added with `gcloud secrets versions add` so they never enter state |
 | Removing Editor from the default compute service account | One-off cleanup command |
 | Project Owner binding | Kept outside Terraform so it can't lock us out |
@@ -179,7 +176,7 @@ These are deliberately done by hand or are one-time console settings:
 
 ## Cost
 
-From our cost model (`ember_cost_estimate.md`, prices checked 3–6 Oct 2026, 16 days, 4 developers, one project):
+From our cost model (prices checked 3–6 Oct 2026, 16 days, 4 developers, one project). *The cost model document (`ember_cost_estimate.md`) is **not yet in this repository**; the figures below are its summary.*
 
 | Scenario | Estimate (USD) |
 |---|---|
@@ -194,18 +191,19 @@ Gemini Live is the biggest cost driver, because each turn re-bills the accumulat
 
 ```
 .
-├── apps/web/                 # React + Vite + TypeScript PWA (volunteer + supervisor) – in progress
+├── apps/web/                 # React + Vite + TypeScript PWA – Google sign-in, role routes (/pwa volunteer, /console supervisor), in progress
 ├── services/
-│   ├── api/                  # ember-api (Cloud Run) – in progress
-│   ├── voice-gateway/        # WSS relay to Gemini Live (Cloud Run) – in progress
-│   └── agents/               # ADK agent graph (ember-agents) – in progress
+│   ├── api/                  # ember-api (Cloud Run) – Flask: /healthz, GET /me (ID token + role claim, App Check log-only); other routes in progress
+│   ├── voice-gateway/        # WSS relay to Gemini Live (Cloud Run) – Flask skeleton (/healthz), in progress
+│   └── agents/               # ADK agent graph (ember-agents) – Flask skeleton (/healthz), in progress
 ├── jobs/ingest/              # hourly FIRMS / weather / PSI job – planned
 ├── infra/
-│   ├── terraform/            # all GCP + Firebase resources, imports, GCS backend
+│   ├── terraform/            # all GCP + Firebase resources, GCS backend
 │   ├── pipelines/            # Cloud Build configs
 │   └── README.md             # infra runbook
 ├── .github/workflows/        # terraform.yml + deploy-*.yml
-├── docs/architecture/        # diagrams (.png, .drawio) + architecture.md
+├── docs/contracts/           # shared-contract.md: REST, WebSocket, entities, errors (source of truth)
+├── docs/architecture/        # ember_infra_v2.png/.drawio, ember_infra_simple_data_paths.png, architecture.md
 ├── LICENSE                   # Apache-2.0
 └── README.md
 ```
@@ -222,7 +220,7 @@ cd ember-fire-commander
 gcloud auth application-default login
 gcloud config set project ember-fire-commander
 
-# Web app (TODO: confirm once apps/web exists)
+# Web app
 cd apps/web && cp .env.example .env.local   # Firebase config, App Check site key, VAPID key, Maps browser key, Map ID, API/gateway URLs
 npm install && npm run dev                  # http://localhost:5173
 
@@ -244,10 +242,10 @@ Values in `.env` (the Firebase web config, the reCAPTCHA site key, the restricte
 
 | Name | Role |
 |---|---|
-| Suhail Ahmed | Team lead, Solution Architect - AI & Automations |
-| Naushad ([@MdNaushad](https://github.com/MdNaushad)) | Lead Software Developer |
-| Zeeshan Abid ([@zeeshrocky](https://github.com/zeeshrocky)) | UI/UX Developer |
-| Aqib | Salesforce Solution Architect |
+| Suhail Ahmed | Solution Architect, AI & Automation |
+| Md Naushad ([@MdNaushad](https://github.com/MdNaushad)) | Lead Software Engineer |
+| Zeeshan ([@zeeshrocky](https://github.com/zeeshrocky)) | UI/UX Designer |
+| Aqib Pasha | Salesforce Solution Architect |
 
 ## License
 
