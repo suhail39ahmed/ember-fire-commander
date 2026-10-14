@@ -1,8 +1,9 @@
 import { Route, Routes } from 'react-router-dom'
 
 import { VolunteerApp } from '../pwa/VolunteerApp'
+import { SupervisorConsole } from '../supervisor/SupervisorConsole'
 import { LoginScreen } from './LoginScreen'
-import { RequireRole, RoleHome } from './RoleHome'
+import { RequireRole } from './RoleHome'
 
 export function AppRoutes() {
   return (
@@ -20,7 +21,7 @@ export function AppRoutes() {
         path="/console"
         element={
           <RequireRole role="supervisor">
-            <RoleHome title="Supervisor console" />
+            <SupervisorConsole />
           </RequireRole>
         }
       />
