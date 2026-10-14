@@ -41,6 +41,10 @@ def protect_request():
     """Verify identity. Return None so the view can run."""
     if request.path == "/healthz" or request.method == "OPTIONS":
         return None
+    # Agents calls this with its own Cloud Run ID token. The route checks that
+    # token. A Firebase user token is the wrong credential here.
+    if request.path == "/internal/notifications/withdraw":
+        return None
     g.user = user_from_token(_bearer_token())
     app_check_token = request.headers.get("X-Firebase-AppCheck", "").strip()
     try:

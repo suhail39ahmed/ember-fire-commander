@@ -79,6 +79,11 @@ resource "google_cloud_run_v2_service" "ember_api" {
         name  = "AGENTS_BASE_URL"
         value = google_cloud_run_v2_service.ember_agents.uri
       }
+      env {
+        # notifications/caller.py accepts only this service account on the internal withdraw route.
+        name  = "EMBER_AGENTS_CALLER"
+        value = google_service_account.runtime["ember-agents"].email
+      }
     }
   }
 
@@ -188,6 +193,15 @@ resource "google_cloud_run_v2_service" "voice_gateway" {
   depends_on = [google_project_iam_member.runtime, google_firestore_database.default]
 }
 
+# Live URL of ember-api. Read from the deployed service, not from
+# google_cloud_run_v2_service.ember_api.uri: that resource already reads
+# ember_agents.uri, and the reverse reference would be a cycle.
+data "google_cloud_run_v2_service" "ember_api_live" {
+  project  = local.project_id
+  name     = "ember-api"
+  location = var.region
+}
+
 # ---------------- ember-agents (PRIVATE: no public invoker)
 resource "google_cloud_run_v2_service" "ember_agents" {
   project             = local.project_id
@@ -243,6 +257,11 @@ resource "google_cloud_run_v2_service" "ember_agents" {
       env {
         name  = "EMBER_VERTEX_LOCATION"
         value = var.agents_vertex_location
+      }
+      env {
+        # fusion/notify.py posts code WITHDRAW here. Skipped when empty.
+        name  = "EMBER_API_URL"
+        value = data.google_cloud_run_v2_service.ember_api_live.uri
       }
     }
   }

@@ -2,12 +2,19 @@
 
 Reads are open to both roles and scoped by role. Every write route is
 supervisor-only and commits the change and its audit record together.
+A task or WITHDRAW push runs only after that commit, and a failed push
+does not undo it.
 """
+import logging
+
 from flask import Blueprint, g, jsonify, request
 
 from identity import AuthError
 from incidents import rules, store
 from incidents.errors import ApiError, conflict, error_response, not_found, validation
+from notifications.send import deliver_task
+
+logger = logging.getLogger(__name__)
 
 incidents_bp = Blueprint("incidents", __name__)
 
@@ -187,7 +194,19 @@ def _decide_task(task_id, action, apply):
         return rules.pick(task, rules.TASK_FIELDS), audit_id
 
     task, audit_id = store.run_transaction(run)
+    return task, audit_id
+
+
+def _task_response(task, audit_id):
     return jsonify({"task": task, "auditId": audit_id}), 200
+
+
+def _push_after_commit(task):
+    """Send after the task write. A failure here leaves the task as it was committed."""
+    try:
+        deliver_task(task)
+    except Exception:
+        logger.exception("push failed for task %s", task.get("id"))
 
 
 def _check_proposed(task, verb):
@@ -205,7 +224,9 @@ def approve_task(task_id):
             raise conflict("Dispatch is held while this incident has an open conflict")
         return {"status": "approved"}
 
-    return _decide_task(task_id, "task.approve", apply)
+    task, audit_id = _decide_task(task_id, "task.approve", apply)
+    _push_after_commit(task)
+    return _task_response(task, audit_id)
 
 
 @incidents_bp.route("/tasks/<task_id>/reject", methods=["POST"])
@@ -214,7 +235,7 @@ def reject_task(task_id):
         _check_proposed(task, "rejected")
         return {"status": "rejected"}
 
-    return _decide_task(task_id, "task.reject", apply)
+    return _task_response(*_decide_task(task_id, "task.reject", apply))
 
 
 @incidents_bp.route("/tasks/<task_id>/edit", methods=["POST"])
@@ -231,7 +252,7 @@ def edit_task(task_id):
             raise conflict("A withdraw instruction cannot be edited")
         return {"instruction": instruction.strip()}
 
-    return _decide_task(task_id, "task.edit", apply)
+    return _task_response(*_decide_task(task_id, "task.edit", apply))
 
 
 def _decide_incident(incident_id, action, apply):
@@ -354,19 +375,24 @@ def withdraw(incident_id):
             "reasons": reasons,
             "volunteerIds": targets,
         }}
+        created = []
         for volunteer_id in volunteer_ids:
             task_ref = store.db().collection(store.TASKS).document()
-            transaction.set(task_ref, {
+            task = {
                 "incidentId": incident_id,
                 "volunteerId": volunteer_id,
                 "type": "withdraw",
                 "status": "approved",
                 "instruction": instruction,
-            })
+            }
+            transaction.set(task_ref, task)
+            created.append(dict(task, id=task_ref.id))
         audit_id = _commit_with_audit(transaction, ref, changes, "task.withdraw", incident_id)
         incident.update(changes)
         incident["id"] = incident_id
-        return rules.pick(incident, rules.INCIDENT_FIELDS), audit_id
+        return rules.pick(incident, rules.INCIDENT_FIELDS), audit_id, created
 
-    incident, audit_id = store.run_transaction(run)
+    incident, audit_id, created = store.run_transaction(run)
+    for task in created:
+        _push_after_commit(task)
     return jsonify({"incident": incident, "auditId": audit_id}), 200
