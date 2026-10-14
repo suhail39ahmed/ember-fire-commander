@@ -74,6 +74,11 @@ resource "google_cloud_run_v2_service" "ember_api" {
         name  = "EMBER_AGENTS_URL"
         value = google_cloud_run_v2_service.ember_agents.uri
       }
+      env {
+        # observations/notify.py reads this name; same value as EMBER_AGENTS_URL
+        name  = "AGENTS_BASE_URL"
+        value = google_cloud_run_v2_service.ember_agents.uri
+      }
     }
   }
 
@@ -226,6 +231,18 @@ resource "google_cloud_run_v2_service" "ember_agents" {
       env {
         name  = "EMBER_FIRESTORE_DB"
         value = google_firestore_database.default.name
+      }
+      env {
+        name  = "PHOTO_BUCKET"
+        value = google_storage_bucket.photos.name # read-only for #24 photo triage
+      }
+      env {
+        name  = "EMBER_FLASH_MODEL"
+        value = var.agents_flash_model
+      }
+      env {
+        name  = "EMBER_VERTEX_LOCATION"
+        value = var.agents_vertex_location
       }
     }
   }
