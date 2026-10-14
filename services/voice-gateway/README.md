@@ -21,12 +21,22 @@ The voice gateway is a WebSocket server that relays push-to-talk audio and ~1 fp
 - **Service account:** `sa-voice-gateway@ember-fire-commander.iam.gserviceaccount.com` with least-privilege IAM bindings.
 - **Cloud Run timeout:** 3600 seconds (1 hour) to support long WebSocket sessions. Session affinity is enabled.
 
-## Phase 1 (current)
+## Upgrade authentication
 
-This is a **walking skeleton** with:
-- `GET /healthz` returning `200` for Cloud Run health checks
+The WebSocket is served at `/`, the URL in `VITE_VOICE_GATEWAY_WSS_URL` with no extra path. `GET /healthz` stays public.
 
-No secrets, no Gemini API keys, no WebSocket server yet. The deploy pipeline builds this directory and deploys to Cloud Run `voice-gateway`.
+The upgrade reads the same two headers as the shared contract:
+
+- `Authorization: Bearer <Firebase ID token>`
+- `X-Firebase-AppCheck: <App Check token>`
+
+A missing, invalid, expired, or revoked ID token closes the socket before a Gemini session is created. A token with no `role` claim, or a role other than `volunteer` or `supervisor`, closes it the same way. The close message is `{"type":"session.closed","reason":"unauthorized"}`.
+
+`APP_CHECK_ENFORCE` defaults to `false`, matching ember-api and the Cloud Run setting. The App Check token is still verified. When the flag is false, a missing or invalid App Check token is logged and a valid ID token is enough. Set `APP_CHECK_ENFORCE=true` to close the socket on that failure.
+
+An accepted upgrade stays open. This service does not start Gemini Live, relay audio, or write observations yet.
+
+The browser `WebSocket` API cannot set these headers. The PWA keeps voice unavailable until the contract defines a browser handshake. This service does not accept the tokens on the query string.
 
 ## Local development
 
@@ -36,7 +46,15 @@ source venv/bin/activate
 pip install -r requirements.txt
 export PORT=8080
 export FIRESTORE_DATABASE=ember-db
+export APP_CHECK_ENFORCE=false
 python app.py
+```
+
+Upgrade tests cover accepted and rejected credentials and assert that no Gemini session is created:
+
+```bash
+pip install -r requirements-dev.txt
+pytest
 ```
 
 Test the health check:
