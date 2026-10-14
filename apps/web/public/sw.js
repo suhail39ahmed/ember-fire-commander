@@ -2,7 +2,7 @@
  * - Caches the shell (HTML, built assets, icons) so the installed app launches.
  * - NEVER caches API or gateway traffic: only same-origin GET requests are handled,
  *   and ember-api / voice-gateway are different origins (Cloud Run).
- * - Offline report replay is out of scope (#21).
+ * - Offline report replay runs in the page (src/pwa/outbox/), not in this worker.
  */
 const CACHE = 'ember-shell-v1'
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/favicon.svg', '/icons/icon-192.png', '/icons/icon-512.png', '/brand/ember-emblem.svg']

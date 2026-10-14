@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { CHIP_VALUES, type ChipValue } from '../contracts/types'
+import { CHIP_VALUES, type ChipValue, type ObservationCreate } from '../contracts/types'
 import { ApiError, type EmberApi } from '../api/types'
 import { strings, t, type Lang } from '../i18n'
+import { outboxStrings } from '../outbox/strings'
 import { buildObservation, MAX_NOTE_LENGTH, validateDraft, type Position } from './buildObservation'
 
 const CHIP_LABEL: Record<ChipValue, string> = {
@@ -15,6 +16,7 @@ type Status =
   | { kind: 'idle' }
   | { kind: 'sending' }
   | { kind: 'sent'; at: string }
+  | { kind: 'queued' }
   | { kind: 'error'; message: string; retryable: boolean }
 
 interface Props {
@@ -23,10 +25,12 @@ interface Props {
   getPosition: () => Promise<Position | null>
   /** Pre-select a chip from the task card ("Not a fire" → aman). `n` changes on each request. */
   preset?: { chip: ChipValue | null; n: number }
+  /** Sends through the offline outbox (#21). Without it the report goes straight to POST /observations. */
+  submit?: (body: ObservationCreate) => Promise<'sent' | 'queued'>
 }
 
 /** #17: chip and text report. Works without Live voice. */
-export function ReportPanel({ api, lang, getPosition, preset }: Props) {
+export function ReportPanel({ api, lang, getPosition, preset, submit }: Props) {
   const [chip, setChip] = useState<ChipValue | null>(null)
   const [text, setText] = useState('')
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
@@ -45,7 +49,7 @@ export function ReportPanel({ api, lang, getPosition, preset }: Props) {
   }, [preset])
 
   // Inputs lock while a report is in flight or awaiting retry, so a retry sends the same report.
-  const locked = status.kind === 'sending' || status.kind === 'sent' || (status.kind === 'error' && status.retryable)
+  const locked = status.kind === 'sending' || status.kind === 'sent' || status.kind === 'queued' || (status.kind === 'error' && status.retryable)
   const errorId = 'report-error'
 
   async function send() {
@@ -66,7 +70,12 @@ export function ReportPanel({ api, lang, getPosition, preset }: Props) {
       return
     }
     try {
-      await api.createObservation(buildObservation(draft, pos))
+      const body = buildObservation(draft, pos)
+      if (submit && (await submit(body)) === 'queued') {
+        setStatus({ kind: 'queued' })
+        return
+      }
+      if (!submit) await api.createObservation(body)
       setStatus({
         kind: 'sent',
         at: new Date().toLocaleTimeString(lang === 'id' ? 'id-ID' : 'en-GB', { hour: '2-digit', minute: '2-digit' }),
@@ -151,6 +160,14 @@ export function ReportPanel({ api, lang, getPosition, preset }: Props) {
           <span>
             {status.at} · {t(lang, strings.sentDetail)}
           </span>
+          <button type="button" className="btn secondary" onClick={reset}>
+            {t(lang, strings.newReport)}
+          </button>
+        </div>
+      ) : status.kind === 'queued' ? (
+        <div className="sent queued" role="status">
+          <strong>{t(lang, outboxStrings.queuedTitle)}</strong>
+          <span>{t(lang, outboxStrings.queuedReport)}</span>
           <button type="button" className="btn secondary" onClick={reset}>
             {t(lang, strings.newReport)}
           </button>

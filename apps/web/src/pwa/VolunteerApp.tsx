@@ -16,6 +16,8 @@ import { InstallBanner } from './install/InstallBanner'
 import { ReportPanel } from './report/ReportPanel'
 import { PhotoPanel } from './photo/PhotoPanel'
 import { createMockUpload, createXhrUpload } from './photo/upload'
+import { OutboxPanel } from './outbox/OutboxPanel'
+import { useOutbox } from './outbox/useOutbox'
 import type { Position } from './report/buildObservation'
 import { WithdrawScreen } from './WithdrawScreen'
 import './volunteer.css'
@@ -51,6 +53,7 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
   )
   const mock = (api as EmberApi & { mock?: MockControls }).mock
   const upload = useMemo(() => (USE_MOCK_API ? createMockUpload() : createXhrUpload()), [])
+  const outbox = useOutbox(api, upload)
 
   useEffect(() => registerServiceWorker(), [])
 
@@ -206,9 +209,25 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
           )}
         </section>
 
-        <ReportPanel api={api} lang={lang} getPosition={getPosition} preset={preset} />
+        <ReportPanel api={api} lang={lang} getPosition={getPosition} preset={preset} submit={outbox.submit} />
 
-        <PhotoPanel api={api} upload={upload} lang={lang} getPosition={getPosition} />
+        <PhotoPanel
+          api={api}
+          upload={upload}
+          lang={lang}
+          getPosition={getPosition}
+          submit={outbox.submit}
+          queuePhoto={outbox.queuePhoto}
+        />
+
+        <OutboxPanel
+          items={outbox.items}
+          online={outbox.online}
+          lang={lang}
+          onRetry={(id) => void outbox.retry(id)}
+          onDiscard={(id) => void outbox.discard(id)}
+          onSendNow={() => void outbox.flush()}
+        />
 
         <PermissionsPanel perms={perms} lang={lang} onRequest={(k) => void request(k)} />
 

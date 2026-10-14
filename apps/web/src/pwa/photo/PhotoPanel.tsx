@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PhotoContentType, PhotoObservationCreate } from '../contracts/types'
 import { ApiError, type EmberApi } from '../api/types'
+import { outboxStrings } from '../outbox/strings'
+import type { PendingPhoto } from '../outbox/types'
 import { t, type Lang } from '../i18n'
 import type { Position } from '../report/buildObservation'
 import { isAcceptedImage, preparePhoto } from './preparePhoto'
@@ -25,6 +27,7 @@ type Status =
   | { kind: 'uploading'; progress: number }
   | { kind: 'submitting' }
   | { kind: 'done' }
+  | { kind: 'queued'; uploaded: boolean }
   | { kind: 'error'; message: string; retryable: boolean }
 
 interface Props {
@@ -32,8 +35,10 @@ interface Props {
   upload: UploadFn
   lang: Lang
   getPosition: () => Promise<Position | null>
-  /** Sends the photo observation. Defaults to POST /observations. */
-  submit?: (body: PhotoObservationCreate) => Promise<void>
+  /** Sends the photo observation, through the outbox when given. Defaults to POST /observations. */
+  submit?: (body: PhotoObservationCreate) => Promise<'sent' | 'queued'>
+  /** Keeps a photo whose upload failed on weak signal; the outbox uploads it later (#21). */
+  queuePhoto?: (photo: PendingPhoto) => Promise<void>
 }
 
 function describe(e: unknown, lang: Lang): { message: string; retryable: boolean } {
@@ -46,7 +51,7 @@ function describe(e: unknown, lang: Lang): { message: string; retryable: boolean
 }
 
 /** #20: take one still, upload it to a signed URL, then send `source: photo`. */
-export function PhotoPanel({ api, upload, lang, getPosition, submit }: Props) {
+export function PhotoPanel({ api, upload, lang, getPosition, submit, queuePhoto }: Props) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const [shot, setShot] = useState<Shot | null>(null)
   const input = useRef<HTMLInputElement>(null)
@@ -78,14 +83,24 @@ export function PhotoPanel({ api, upload, lang, getPosition, submit }: Props) {
       // source: photo is sent only after the upload succeeded.
       setStatus({ kind: 'submitting' })
       const body = buildPhotoObservation(photoPath, current.capturedAt, current.pos)
-      await (submit ? submit(body) : api.createObservation(body).then(() => undefined))
-      setStatus({ kind: 'done' })
+      const result = submit ? await submit(body) : (await api.createObservation(body), 'sent')
+      setStatus(result === 'queued' ? { kind: 'queued', uploaded: true } : { kind: 'done' })
     } catch (e) {
       abort.current = null
       if (e instanceof UploadError && e.kind === 'aborted') {
         setStatus({ kind: 'idle' })
         setShot(null)
         return
+      }
+      if (!photoPath && queuePhoto && e instanceof UploadError && e.retryable) {
+        // Weak signal: keep the photo in IndexedDB so it survives a reload and uploads later.
+        try {
+          await queuePhoto({ blob: current.blob, contentType: current.contentType, capturedAt: current.capturedAt, pos: current.pos })
+          setStatus({ kind: 'queued', uploaded: false })
+          return
+        } catch {
+          // Storage unavailable: fall through and keep the photo on screen for a manual retry.
+        }
       }
       const failure = describe(e, lang)
       setStatus({ kind: 'error', ...failure, message: photoPath && failure.retryable ? t(lang, s.submitFailed) : failure.message })
@@ -185,6 +200,12 @@ export function PhotoPanel({ api, upload, lang, getPosition, submit }: Props) {
           <span>{t(lang, s.uploadedDetail)}</span>
         </div>
       )}
+      {status.kind === 'queued' && (
+        <div className="sent queued" role="status">
+          <strong>{t(lang, outboxStrings.queuedTitle)}</strong>
+          <span>{t(lang, status.uploaded ? outboxStrings.queuedReport : outboxStrings.queuedPhoto)}</span>
+        </div>
+      )}
       {status.kind === 'error' && (
         <div role="alert">
           <p className="photo-status failed">{status.message}</p>
@@ -213,9 +234,9 @@ export function PhotoPanel({ api, upload, lang, getPosition, submit }: Props) {
             {t(lang, s.retry)}
           </button>
         )}
-        {(status.kind === 'done' || status.kind === 'error') && (
+        {(status.kind === 'done' || status.kind === 'queued' || status.kind === 'error') && (
           <button type="button" className="btn secondary" disabled={busy} onClick={retake}>
-            {t(lang, status.kind === 'done' ? s.another : s.retake)}
+            {t(lang, status.kind === 'error' ? s.retake : s.another)}
           </button>
         )}
       </div>

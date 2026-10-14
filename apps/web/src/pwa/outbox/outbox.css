@@ -1,0 +1,13 @@
+.outbox-offline { background: #fdf3e2; color: var(--haze); border-radius: 12px; padding: 10px 14px; font-size: 14px; font-weight: 500; }
+.outbox-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.outbox-item { border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; }
+.outbox-row { display: flex; gap: 8px; align-items: baseline; }
+.outbox-what { flex: 1; font-weight: 500; overflow-wrap: anywhere; }
+.outbox-state { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; white-space: nowrap; }
+.outbox-queued .outbox-state, .outbox-sending .outbox-state { color: var(--haze); }
+.outbox-failed { border-color: var(--danger); }
+.outbox-failed .outbox-state { color: var(--danger); }
+.outbox-sent .outbox-state { color: var(--safe); }
+.outbox-actions { display: flex; gap: 8px; }
+.sent.queued { background: #fdf3e2; }
+.sent.queued strong { color: var(--haze); }
