@@ -290,3 +290,30 @@ variable "ingest_job_placeholder_image" {
   type        = string
   default     = "us-docker.pkg.dev/cloudrun/container/job"
 }
+
+# ---------------------------------------------------------------------------
+# ember-agents: photo triage (#24) and re-ignition watch (#25)
+# ---------------------------------------------------------------------------
+variable "agents_flash_model" {
+  description = "Gemini model ember-agents uses for photo triage and incident summaries."
+  type        = string
+  default     = "gemini-2.5-flash"
+}
+
+variable "agents_vertex_location" {
+  description = "Vertex AI location for agents_flash_model. gemini-2.5-flash is served in asia-southeast1."
+  type        = string
+  default     = "asia-southeast1"
+}
+
+variable "sites_scan_schedule" {
+  description = "Cron (UTC) for the ember-sites-scan re-ignition watch."
+  type        = string
+  default     = "*/15 * * * *"
+}
+
+variable "sites_scan_schedule_paused" {
+  description = "Create the ember-sites-scan scheduler job paused."
+  type        = bool
+  default     = false
+}
