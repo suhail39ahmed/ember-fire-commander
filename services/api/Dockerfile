@@ -10,6 +10,7 @@ COPY auth ./auth
 
 COPY observations ./observations
 COPY photos ./photos
+COPY incidents ./incidents
 
 ENV PORT=8080
 EXPOSE 8080

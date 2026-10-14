@@ -62,6 +62,21 @@ Request:
 - A supervisor receives `403 forbidden`; a bad `contentType` returns `400 validation_error`.
 - Signing uses the IAM signBlob API with the Cloud Run service account. No key file is used and nothing is made public.
 
+## Incidents, digest and approvals
+
+Routes follow `docs/contracts/shared-contract.md` §6.3 to §6.5. Code lives in `incidents/`.
+
+| Route | Who | Result |
+|---|---|---|
+| `GET /incidents` | both roles | Supervisor: incidents that are `open`, `held` or `verified`. Volunteer: incidents linked to their observations, tasks or a withdraw instruction |
+| `GET /incidents/{id}` | both roles | `incident`, `observations`, `conflict`, `tasks`. A volunteer not on the incident gets `404` and sees only their own tasks |
+| `GET /digest` | both roles | `updatedAt`, `incidents` (summaries), `myTasks` (empty for a supervisor) |
+| `POST /tasks/{id}/approve`, `/reject`, `/edit` | supervisor | Proposed task decided. `investigate` approval is `409` while the incident has an open conflict. Withdraw tasks are never approved, rejected or edited |
+| `POST /incidents/{id}/verify`, `/extinguish`, `/severity` | supervisor | Human-only actions. `/severity` stores the value only when it is strictly lower and never touches `withdraw` |
+| `POST /incidents/{id}/withdraw` | supervisor | Sets `withdraw`, creates approved `withdraw` tasks, no approval step |
+
+A volunteer gets `403 forbidden` on every write route. Each decision writes the record and its audit entry (`actorId`, `action`, `targetId`, `at`) in one Firestore transaction. No route clears `withdraw`, raises severity, or sets `open` or `held`.
+
 ## Phase 1 (current)
 
 - `GET /healthz` returning `200` for Cloud Run health checks
