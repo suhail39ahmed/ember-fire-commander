@@ -7,6 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py identity.py ./
 COPY auth ./auth
+COPY observations ./observations
 
 ENV PORT=8080
 EXPOSE 8080

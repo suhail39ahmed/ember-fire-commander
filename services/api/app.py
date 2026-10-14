@@ -1,6 +1,7 @@
 """ember-api: REST API for EMBER fire commander.
 
 GET /me verifies a Firebase ID token and returns the signed-in user.
+POST /observations stores one immutable chip or text observation.
 GET /healthz stays public.
 """
 import os
@@ -10,6 +11,7 @@ from flask_cors import CORS
 
 from auth import install_auth
 from identity import AuthError
+from observations.routes import bp as observations_bp
 
 app = Flask(__name__)
 
@@ -24,6 +26,7 @@ CORS(
     allow_headers=["Authorization", "Content-Type", "X-Firebase-AppCheck"],
 )
 install_auth(app)
+app.register_blueprint(observations_bp)
 
 
 def error_body(code, message):
