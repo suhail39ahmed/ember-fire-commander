@@ -6,10 +6,14 @@
 import { ApiError } from '../../pwa/api/types'
 import type { IncidentDetail, Task } from '../contracts'
 import { fixture, type FixtureName } from '../fixtures'
+import { regionFixtures } from '../map/fixtures'
 import type { SupervisorApi } from './types'
 
+/** `region` loads three incidents at distinct positions for the map. */
+export type MockScenario = FixtureName | 'region' | 'empty'
+
 export interface SupervisorMockControls {
-  load(name: FixtureName | 'empty'): void
+  load(name: MockScenario): void
   readonly audit: readonly { id: string; action: string; targetId: string }[]
 }
 
@@ -18,14 +22,14 @@ const notFound = () => new ApiError('not_found', 'id is unknown', 404, false)
 
 export function createMockSupervisorApi(
   actorId: string,
-  initial: FixtureName | 'empty' = 'conflict',
+  initial: MockScenario = 'conflict',
   latencyMs = 300,
 ): SupervisorApi & { mock: SupervisorMockControls } {
   let details: IncidentDetail[] = []
   const audit: { id: string; actorId: string; action: string; targetId: string; at: string }[] = []
 
-  const load = (name: FixtureName | 'empty') => {
-    details = name === 'empty' ? [] : [fixture(name)]
+  const load = (name: MockScenario) => {
+    details = name === 'empty' ? [] : name === 'region' ? regionFixtures() : [fixture(name)]
     audit.length = 0
   }
   load(initial)

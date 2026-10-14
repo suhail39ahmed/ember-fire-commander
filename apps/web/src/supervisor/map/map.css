@@ -1,0 +1,35 @@
+/* Incident map (issue #22). Colours from docs/design/EMBER_design_handoff.md §3.1 */
+.map-card { display: flex; flex-direction: column; gap: 8px; }
+.map-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.map-head p { margin: 0; }
+.map-canvas, .map-schematic, .map-empty { height: 300px; border-radius: 12px; border: 1px solid var(--line, #e7e1d8); }
+.map-schematic { position: relative; background: #eef0e6; overflow: hidden; }
+.map-empty { display: flex; align-items: center; justify-content: center; color: var(--ink-muted, #6b645c); background: #faf7f2; }
+.map-note { position: absolute; left: 10px; top: 8px; margin: 0; font-size: 12px; color: var(--ink-muted, #6b645c); background: rgba(255,255,255,0.85); border-radius: 8px; padding: 2px 8px; }
+.map-pin {
+  --pin: #e2531b;
+  position: absolute;
+  transform: translate(-50%, -50%);
+  min-width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 999px;
+  background: var(--pin);
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--pin) 25%, transparent);
+  color: transparent;
+  font-size: 0;
+  cursor: pointer;
+}
+.map-canvas .map-pin { position: relative; transform: none; }
+.map-pin.verified { border-color: var(--pin); background: #fff; }
+.map-pin.conflict { box-shadow: 0 0 0 4px #fff, 0 0 0 7px #b7791f; }
+.map-pin.withdraw { box-shadow: 0 0 0 26px rgba(200, 30, 30, 0.16); }
+.map-pin.conflict.withdraw { box-shadow: 0 0 0 4px #fff, 0 0 0 7px #b7791f, 0 0 0 26px rgba(200, 30, 30, 0.16); }
+.map-pin.selected { outline: 3px solid #1c1917; outline-offset: 4px; }
+.map-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--ink-muted, #6b645c); }
+.map-legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 999px; vertical-align: -1px; margin-right: 4px; }
+.dot.sev-fire { background: #e2531b; }
+.dot.ring-conflict { border: 2px solid #b7791f; background: #fff; }
+.dot.zone-withdraw { background: rgba(200, 30, 30, 0.2); border: 1px solid #c81e1e; }
+.map-caveat { margin: 0; font-size: 12px; color: var(--ink-muted, #6b645c); }
