@@ -203,6 +203,7 @@ Gemini Live is the biggest cost driver, because each turn re-bills the accumulat
 │   └── README.md             # infra runbook
 ├── .github/workflows/        # terraform.yml + deploy-*.yml
 ├── docs/contracts/           # shared-contract.md: REST, WebSocket, entities, errors (source of truth)
+├── docs/api/                 # api-map.md: route lookup, who calls each one
 ├── docs/architecture/        # ember_infra_v2.png/.drawio, ember_infra_simple_data_paths.png, architecture.md
 ├── LICENSE                   # Apache-2.0
 └── README.md

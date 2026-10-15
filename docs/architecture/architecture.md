@@ -10,7 +10,7 @@
 
 Project `ember-fire-commander`, region **asia-southeast1** (Singapore). Gemini Live runs in a US region because it has no Asia endpoint, so it is the only cross-region hop.
 
-**Status (14 Oct 2026):** the infrastructure is live, defined in Terraform (`infra/terraform`, state in `gs://ember-fire-commander-tfstate`) and changed only through the pipeline. The application code is in progress; `ember-api` serves `GET /me` behind Firebase ID-token checks (App Check log-only), the web app has Google sign-in with role-based routes, and the other two services are skeletons. Interfaces between components are defined in [`docs/contracts/shared-contract.md`](../contracts/shared-contract.md). Items marked *planned* are not built yet.
+**Status (14 Oct 2026):** the infrastructure is live, defined in Terraform (`infra/terraform`, state in `gs://ember-fire-commander-tfstate`) and changed only through the pipeline. The application code is in progress; `ember-api` serves `GET /me` behind Firebase ID-token checks (App Check log-only), the web app has Google sign-in with role-based routes, and the other two services are skeletons. Interfaces between components are defined in [`docs/contracts/shared-contract.md`](../contracts/shared-contract.md). The route lookup, including which client calls each one, is [`docs/api/api-map.md`](../api/api-map.md). Items marked *planned* are not built yet.
 
 ## 1. The backend-mediated rule
 
