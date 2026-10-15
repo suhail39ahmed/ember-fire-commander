@@ -2,14 +2,16 @@
 
 The incident and task are already committed before this runs. A failed or
 skipped send is written to notificationAttempts and does not change them.
-Transient failures are tried three times. A missing token is a skip: this
-service does not register devices.
+Transient failures are tried three times. A missing token is a skip.
+A token that FCM reports as unregistered or invalid is removed from the
+volunteer so it is not tried again.
 """
 import logging
 
-from firebase_admin import messaging
+from firebase_admin import exceptions, messaging
 
 from incidents import store
+from notifications import tokens as token_store
 from notifications.message import message_for
 from observations.store import utc_now_iso
 
@@ -48,6 +50,13 @@ def _transient(exc):
     return getattr(exc, "code", None) in _TRANSIENT_CODES
 
 
+def _dead_token(exc):
+    """True when FCM says this token can never receive a push."""
+    if isinstance(exc, (messaging.UnregisteredError, messaging.SenderIdMismatchError)):
+        return True
+    return isinstance(exc, exceptions.InvalidArgumentError) and "token" in str(exc).lower()
+
+
 def tokens_for(volunteer_id):
     if not volunteer_id:
         return []
@@ -77,12 +86,23 @@ def _send_token(sender, token, message):
     for attempt in range(1, ATTEMPTS + 1):
         try:
             sender.send(token, message["title"], message["body"], dict(message["data"]))
-            return attempt, True
+            return attempt, True, False
         except Exception as exc:
+            if _dead_token(exc):
+                logger.warning("push token rejected by FCM: %s", type(exc).__name__)
+                return attempt, False, True
             if not _transient(exc) or attempt == ATTEMPTS:
                 logger.warning("push failed after %s attempt(s): %s", attempt, type(exc).__name__)
-                return attempt, False
-    return ATTEMPTS, False
+                return attempt, False, False
+    return ATTEMPTS, False, False
+
+
+def _drop(volunteer_id, token):
+    """Remove a dead token. A failure here must not hide the send result."""
+    try:
+        token_store.remove(volunteer_id, token)
+    except Exception as exc:
+        logger.warning("could not remove a dead push token: %s", type(exc).__name__)
 
 
 def deliver_task(task, sender=None):
@@ -96,9 +116,11 @@ def deliver_task(task, sender=None):
     attempts = 0
     sent = False
     for token in tokens:
-        used, ok = _send_token(sender, token, message)
+        used, ok, dead = _send_token(sender, token, message)
         attempts += used
         sent = sent or ok
+        if dead:
+            _drop(task.get("volunteerId"), token)
     result = "sent" if sent else "failed"
     _record(task, result, attempts)
     return {"result": result, "attempts": attempts}

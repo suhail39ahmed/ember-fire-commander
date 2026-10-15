@@ -2,11 +2,16 @@
 
 The incident is already stored. This route only sends. It reads the instruction
 from the stored task, so the caller cannot put extra text in the push.
-"""
-from flask import Blueprint, jsonify, request
 
+POST and DELETE /notifications/token let a signed-in volunteer add or drop one
+of their own device tokens. The browser never writes Firestore.
+"""
+from flask import Blueprint, g, jsonify, request
+
+from identity import AuthError
 from incidents import store
 from incidents.errors import ApiError, error_response, not_found, validation
+from notifications import tokens
 from notifications.caller import require_agents
 from notifications.send import deliver_task
 
@@ -78,3 +83,28 @@ def withdraw_push():
     volunteer_ids = set(withdraw.get("volunteerIds") or [])
     tasks = [_withdraw_task(incident_id, volunteer_ids, item) for item in requested]
     return jsonify({"results": [deliver_task(task) for task in tasks]}), 202
+
+
+def _own_token():
+    """The caller's own token from the body. The uid always comes from the ID token."""
+    if g.user["role"] != "volunteer":
+        raise AuthError(403, "forbidden", "Only volunteers register devices")
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        raise validation("body", "send a JSON object")
+    claimed = body.get("volunteerId")
+    if claimed is not None and claimed != g.user["id"]:
+        raise AuthError(403, "forbidden", "A volunteer can only change their own tokens")
+    return tokens.clean(body.get("token"))
+
+
+@bp.post("/notifications/token")
+def register_token():
+    token = _own_token()
+    return jsonify({"stored": tokens.add(g.user["id"], token)}), 200
+
+
+@bp.delete("/notifications/token")
+def remove_token():
+    token = _own_token()
+    return jsonify({"removed": tokens.remove(g.user["id"], token)}), 200

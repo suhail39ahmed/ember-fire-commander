@@ -9,6 +9,7 @@ import { createMockApi, type MockControls } from './api/mock'
 import { activeWithdraw, currentTask } from './digest'
 import { browserSocketFactory, PttSession, type SessionState } from './gateway/pttSession'
 import { registerServiceWorker } from './install/registerServiceWorker'
+import { usePushRegistration } from './push/usePushRegistration'
 import { strings, t, type Lang } from './i18n'
 import { usePermissions } from './permissions/usePermissions'
 import { PermissionsPanel } from './install/PermissionsPanel'
@@ -76,6 +77,8 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
     const id = setInterval(() => void load(), POLL_MS)
     return () => clearInterval(id)
   }, [load])
+
+  usePushRegistration(user, perms.notifications, load)
 
   const ptt = useMemo(
     () =>
