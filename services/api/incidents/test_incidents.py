@@ -349,3 +349,142 @@ def test_no_route_clears_withdraw_or_sets_status(client, monkeypatch, db):
     for method in ("put", "patch", "delete"):
         response = getattr(client, method)("/incidents/inc_01", headers=AUTH, json={"withdraw": None, "status": "open"})
         assert response.status_code == 405
+
+
+# Read queries ------------------------------------------------------------------
+
+def _obs(db, obs_id, volunteer):
+    db.add("observations", obs_id, {
+        "volunteerId": volunteer, "capturedAt": "2026-10-13T09:00:00Z",
+        "receivedAt": "2026-10-13T09:00:02Z", "source": "chip", "lat": 1.482, "lng": 102.115,
+        "accuracyM": 10, "chip": "api", "text": None, "severity": "smoke",
+        "photoPath": None, "immutable": True,
+    })
+
+
+def _incident(db, incident_id, status="open", **extra):
+    db.add("incidents", incident_id, dict({
+        "status": status, "severity": "smoke", "evidenceScore": 30, "conflictId": None,
+        "withdraw": None, "lat": 1.5, "lng": 102.1,
+    }, **extra))
+
+
+def _ids(client, path="/incidents"):
+    return [i["id"] for i in client.get(path, headers=AUTH).get_json()]
+
+
+@pytest.mark.parametrize("role,uid", [("supervisor", "uid_maya"), ("volunteer", "uid_sari")])
+def test_no_read_streams_a_whole_collection(client, monkeypatch, db, role, uid):
+    _as(monkeypatch, role=role, uid=uid)
+    for path in ("/incidents", "/digest", "/incidents/inc_01"):
+        assert client.get(path, headers=AUTH).status_code == 200
+    assert db.queries, "the reads should have run queries"
+    assert all(fields for _, fields in db.queries), db.queries
+
+
+def test_incident_detail_reads_observations_in_one_batch(client, monkeypatch, db):
+    _as(monkeypatch)
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    assert [o["id"] for o in body["observations"]] == ["obs_01", "obs_02"]
+    assert db.batch_reads == [("observations", 2)]
+    assert "observations" not in db.doc_reads
+
+
+def test_incident_detail_skips_missing_observations(client, monkeypatch, db):
+    _as(monkeypatch)
+    db.data["conflicts"]["con_01"]["observationIds"] = ["obs_01", "obs_gone", "obs_02"]
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    assert [o["id"] for o in body["observations"]] == ["obs_01", "obs_02"]
+
+
+def test_volunteer_detail_reads_observations_in_one_batch(client, monkeypatch, db):
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    assert [o["id"] for o in body["observations"]] == ["obs_01", "obs_02"]
+    assert [r for r in db.batch_reads if r[0] == "observations"] == [("observations", 2)]
+    assert "observations" not in db.doc_reads
+
+
+def test_supervisor_list_filters_by_status_in_the_query(client, monkeypatch, db):
+    _as(monkeypatch)
+    _incident(db, "inc_open", "open")
+    _incident(db, "inc_verified", "verified")
+    assert _ids(client) == ["inc_01", "inc_open", "inc_verified"]
+    assert ("incidents", ["status"]) in db.queries
+
+
+def test_volunteer_linked_by_task_only(client, monkeypatch, db):
+    _incident(db, "inc_task")
+    db.add("tasks", "task_x", {
+        "incidentId": "inc_task", "volunteerId": "uid_new", "type": "verify",
+        "status": "proposed", "instruction": "Look",
+    })
+    _as(monkeypatch, role="volunteer", uid="uid_new")
+    assert _ids(client) == ["inc_task"]
+    assert client.get("/incidents/inc_task", headers=AUTH).status_code == 200
+    assert client.get("/incidents/inc_01", headers=AUTH).status_code == 404
+
+
+def test_volunteer_linked_by_observation_on_the_incident(client, monkeypatch, db):
+    _obs(db, "obs_mine", "uid_new")
+    _incident(db, "inc_obs", observationIds=["obs_mine", "obs_01"])
+    _as(monkeypatch, role="volunteer", uid="uid_new")
+    assert _ids(client) == ["inc_obs"]
+    body = client.get("/incidents/inc_obs", headers=AUTH).get_json()
+    assert [o["id"] for o in body["observations"]] == ["obs_mine", "obs_01"]
+
+
+def test_volunteer_linked_through_a_conflict_only(client, monkeypatch, db):
+    _obs(db, "obs_mine", "uid_new")
+    _incident(db, "inc_con", "held", conflictId="con_x")
+    db.add("conflicts", "con_x", {
+        "incidentId": "inc_con", "observationIds": ["obs_mine"],
+        "higherSeverity": "smoke", "status": "open", "dispatchHeld": True,
+    })
+    _as(monkeypatch, role="volunteer", uid="uid_new")
+    assert _ids(client) == ["inc_con"]
+    assert client.get("/incidents/inc_con", headers=AUTH).status_code == 200
+
+
+def test_volunteer_linked_by_withdraw_only(client, monkeypatch, db):
+    _incident(db, "inc_wd", withdraw={"active": True, "instruction": "Go", "reasons": [], "volunteerIds": ["uid_new"]})
+    _as(monkeypatch, role="volunteer", uid="uid_new")
+    assert _ids(client) == ["inc_wd"]
+    assert client.get("/incidents/inc_wd", headers=AUTH).status_code == 200
+
+
+def test_volunteer_still_sees_a_linked_extinguished_incident(client, monkeypatch, db):
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    db.data["incidents"]["inc_old"]["observationIds"] = ["obs_01"]
+    assert _ids(client) == ["inc_01", "inc_old"]
+
+
+def test_incident_is_listed_once_when_linked_several_ways(client, monkeypatch, db):
+    db.data["incidents"]["inc_01"]["observationIds"] = ["obs_01", "obs_02"]
+    _as(monkeypatch, role="volunteer", uid="uid_sari")  # task, observation and conflict all point here
+    assert _ids(client) == ["inc_01"]
+
+
+def test_volunteer_with_many_observations_is_queried_in_chunks_of_thirty(client, monkeypatch, db):
+    for n in range(65):
+        _obs(db, f"obs_m{n:02d}", "uid_busy")
+    _incident(db, "inc_last", observationIds=["obs_m64"])
+    _incident(db, "inc_first", observationIds=["obs_m00"])
+    _as(monkeypatch, role="volunteer", uid="uid_busy")
+    assert _ids(client) == ["inc_first", "inc_last"]  # the fake rejects more than 30 values per query
+
+
+def test_volunteer_with_no_observations_runs_no_array_queries(client, monkeypatch, db):
+    _as(monkeypatch, role="volunteer", uid="uid_stranger")
+    assert _ids(client) == []
+    assert ("conflicts", ["observationIds"]) not in db.queries
+
+
+def test_withdraw_checks_volunteers_with_one_batched_read(client, monkeypatch, db):
+    _as(monkeypatch)
+    response = client.post("/incidents/inc_01/withdraw", headers=AUTH, json={
+        "volunteerIds": ["uid_sari", "uid_rizal"], "instruction": "Withdraw upwind.", "reasons": [],
+    })
+    assert response.status_code == 200
+    assert "observations" not in db.doc_reads
+    assert [r for r in db.batch_reads if r[0] == "observations"] == [("observations", 2)]

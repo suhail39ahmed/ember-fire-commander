@@ -57,33 +57,48 @@ def _incident_observation_ids(data, conflict_data):
     return list(data.get("observationIds") or [])
 
 
-def _volunteer_incident_ids(uid):
-    """Incidents linked to the caller's observations, tasks or withdraw instruction."""
-    linked = {snap.to_dict().get("incidentId") for snap in store.where(store.TASKS, "volunteerId", "==", uid)}
-    mine = _my_observation_ids(uid)
-    if mine:
-        for snap in store.db().collection(store.CONFLICTS).stream():
-            data = snap.to_dict() or {}
-            if mine.intersection(data.get("observationIds") or []):
-                linked.add(data.get("incidentId"))
-    for snap in store.db().collection(store.INCIDENTS).stream():
-        data = snap.to_dict() or {}
-        withdraw = data.get("withdraw") or {}
-        if mine.intersection(data.get("observationIds") or []) or uid in (withdraw.get("volunteerIds") or []):
-            linked.add(snap.id)
-    linked.discard(None)
+def _volunteer_incident_snapshots(uid):
+    """Incidents linked to the caller's observations, tasks or withdraw instruction, by id.
+
+    Every step is a filtered query, so the cost follows the caller's own data,
+    not the size of the incidents and conflicts collections.
+    """
+    linked = {}
+    task_incident_ids = [
+        (snap.to_dict() or {}).get("incidentId") for snap in store.where(store.TASKS, "volunteerId", "==", uid)
+    ]
+    linked.update(store.get_many(store.INCIDENTS, [i for i in task_incident_ids if i]))
+
+    mine = sorted(_my_observation_ids(uid))
+    conflict_incident_ids = [
+        (snap.to_dict() or {}).get("incidentId")
+        for snap in store.where_any(store.CONFLICTS, "observationIds", "array_contains_any", mine)
+    ]
+    linked.update(store.get_many(store.INCIDENTS, [i for i in conflict_incident_ids if i and i not in linked]))
+
+    for snap in store.where_any(store.INCIDENTS, "observationIds", "array_contains_any", mine):
+        linked[snap.id] = snap
+    for snap in store.where(store.INCIDENTS, "withdraw.volunteerIds", "array_contains", uid):
+        linked[snap.id] = snap
     return linked
 
 
 def _scoped_incidents():
     user = g.user
-    snaps = list(store.db().collection(store.INCIDENTS).stream())
     if user["role"] == "supervisor":
-        snaps = [s for s in snaps if (s.to_dict() or {}).get("status") in rules.LIVE_STATUSES]
+        snaps = store.where(store.INCIDENTS, "status", "in", list(rules.LIVE_STATUSES))
     else:
-        linked = _volunteer_incident_ids(user["id"])
-        snaps = [s for s in snaps if s.id in linked]
+        snaps = list(_volunteer_incident_snapshots(user["id"]).values())
     return sorted(snaps, key=lambda s: s.id)
+
+
+def _volunteer_on_incident(uid, data, observations, tasks):
+    """True when the caller has a task, a withdraw instruction or an observation on this incident."""
+    if any(t["volunteerId"] == uid for t in tasks):
+        return True
+    if uid in ((data.get("withdraw") or {}).get("volunteerIds") or []):
+        return True
+    return any((obs.to_dict() or {}).get("volunteerId") == uid for obs in observations.values())
 
 
 def _tasks_for(incident_id):
@@ -112,8 +127,6 @@ def get_incident(incident_id):
     snapshot = _get(store.INCIDENTS, incident_id)
     if snapshot is None:
         raise not_found("incident")
-    if user["role"] != "supervisor" and incident_id not in _volunteer_incident_ids(user["id"]):
-        raise not_found("incident")
     data = snapshot.to_dict() or {}
 
     conflict_body = None
@@ -122,15 +135,22 @@ def get_incident(incident_id):
         if conflict_snap is not None:
             conflict_body = rules.to_record(conflict_snap, rules.CONFLICT_FIELDS)
 
-    observations = []
-    for obs_id in _incident_observation_ids(data, conflict_body):
-        obs = _get(store.OBSERVATIONS, obs_id)
-        if obs is not None:
-            observations.append(rules.to_record(obs, rules.OBSERVATION_FIELDS))
-
     tasks = _tasks_for(incident_id)
+    shown_ids = _incident_observation_ids(data, conflict_body)
+    wanted_ids = list(shown_ids)
     if user["role"] != "supervisor":
+        # Observations from any conflict on this incident also link a volunteer to it.
+        for snap in store.where(store.CONFLICTS, "incidentId", "==", incident_id):
+            wanted_ids += (snap.to_dict() or {}).get("observationIds") or []
+        wanted_ids += data.get("observationIds") or []
+    found = store.get_many(store.OBSERVATIONS, wanted_ids)  # one batched read
+
+    if user["role"] != "supervisor":
+        if not _volunteer_on_incident(user["id"], data, found, tasks):
+            raise not_found("incident")
         tasks = [t for t in tasks if t["volunteerId"] == user["id"]]
+
+    observations = [rules.to_record(found[obs_id], rules.OBSERVATION_FIELDS) for obs_id in shown_ids if obs_id in found]
 
     return jsonify({
         "incident": rules.to_record(snapshot, rules.INCIDENT_FIELDS),
@@ -340,10 +360,8 @@ def _volunteers_on(incident_id, data):
         con = _get(store.CONFLICTS, data["conflictId"])
         if con is not None:
             obs_ids.update((con.to_dict() or {}).get("observationIds") or [])
-    for obs_id in obs_ids:
-        obs = _get(store.OBSERVATIONS, obs_id)
-        if obs is not None:
-            volunteers.add((obs.to_dict() or {}).get("volunteerId"))
+    for obs in store.get_many(store.OBSERVATIONS, obs_ids).values():
+        volunteers.add((obs.to_dict() or {}).get("volunteerId"))
     volunteers.discard(None)
     return volunteers
 
@@ -356,7 +374,8 @@ def withdraw(incident_id):
     pre = _get(store.INCIDENTS, incident_id)
     if pre is None:
         raise not_found("incident")
-    unknown = [v for v in volunteer_ids if v not in _volunteers_on(incident_id, pre.to_dict() or {})]
+    on_incident = _volunteers_on(incident_id, pre.to_dict() or {})
+    unknown = [v for v in volunteer_ids if v not in on_incident]
     if unknown:
         raise validation("volunteerIds", "each volunteer needs an observation or a task on this incident")
 

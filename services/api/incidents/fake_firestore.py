@@ -24,6 +24,7 @@ class FakeRef:
         self.id = doc_id
 
     def get(self, transaction=None):
+        self._db.doc_reads.append(self._collection)
         return FakeSnapshot(self.id, self._db.data[self._collection].get(self.id))
 
     def set(self, data):
@@ -40,18 +41,39 @@ class FakeQuery:
         return FakeQuery(self._db, self._collection, self._filters + [filter])
 
     def stream(self):
+        self._db.queries.append((self._collection, [f.field_path for f in self._filters]))
         for doc_id, data in list(self._db.data[self._collection].items()):
             if all(_matches(data, f) for f in self._filters):
                 yield FakeSnapshot(doc_id, data)
 
 
+MULTI_VALUE_LIMIT = 30  # what Firestore accepts for `in` and `array_contains_any`
+
+
+def _field(data, path):
+    """Read a value by dotted path, such as `withdraw.volunteerIds`."""
+    value = data
+    for part in path.split("."):
+        if not isinstance(value, dict):
+            return None
+        value = value.get(part)
+    return value
+
+
 def _matches(data, field_filter):
-    value = data.get(field_filter.field_path)
-    if field_filter.op_string == "==":
+    value = _field(data, field_filter.field_path)
+    op = field_filter.op_string
+    if op == "==":
         return value == field_filter.value
-    if field_filter.op_string == "array_contains":
+    if op == "array_contains":
         return field_filter.value in (value or [])
-    raise NotImplementedError(field_filter.op_string)
+    if op in ("in", "array_contains_any"):
+        if not field_filter.value or len(field_filter.value) > MULTI_VALUE_LIMIT:
+            raise ValueError(f"{op} takes 1 to {MULTI_VALUE_LIMIT} values")
+        if op == "in":
+            return value in field_filter.value
+        return bool(set(value or []) & set(field_filter.value))
+    raise NotImplementedError(op)
 
 
 class FakeCollection(FakeQuery):
@@ -92,10 +114,19 @@ class FakeFirestore:
         self.data = {}
         self.ids = itertools.count(1)
         self.commits = 0
+        self.queries = []  # (collection, filtered fields) for every query that was run
+        self.batch_reads = []  # (collection, document count) for each get_all call
+        self.doc_reads = []  # collection of every single-document get
 
     def collection(self, name):
         self.data.setdefault(name, {})
         return FakeCollection(self, name)
+
+    def get_all(self, refs):
+        refs = list(refs)
+        self.batch_reads.append((refs[0]._collection if refs else None, len(refs)))
+        snaps = [FakeSnapshot(ref.id, self.data[ref._collection].get(ref.id)) for ref in refs]
+        return snaps
 
     def run_transaction(self, fn):
         transaction = FakeTransaction(self)

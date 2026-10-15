@@ -47,3 +47,29 @@ def where(collection, field, op, value):
         filter=firestore.FieldFilter(field, op, value)
     )
     return [snap for snap in query.stream()]
+
+
+IN_QUERY_LIMIT = 30  # Firestore accepts at most 30 values in `in` and `array_contains_any`
+
+
+def where_any(collection, field, op, values):
+    """Run an `in` or `array_contains_any` query over any number of values.
+
+    Firestore takes 30 values per query, so the values go out in chunks. A
+    document that matches more than one chunk is returned once.
+    """
+    values = list(dict.fromkeys(values))
+    found = {}
+    for start in range(0, len(values), IN_QUERY_LIMIT):
+        for snap in where(collection, field, op, values[start:start + IN_QUERY_LIMIT]):
+            found[snap.id] = snap
+    return list(found.values())
+
+
+def get_many(collection, doc_ids):
+    """Read many documents in one batched call. Returns {id: snapshot} for the ones that exist."""
+    doc_ids = list(dict.fromkeys(doc_ids))
+    if not doc_ids:
+        return {}
+    refs = [db().collection(collection).document(doc_id) for doc_id in doc_ids]
+    return {snap.id: snap for snap in db().get_all(refs) if snap.exists}
