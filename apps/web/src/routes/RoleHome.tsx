@@ -13,7 +13,9 @@ import './login.css'
 
 export function CheckingScreen() {
   const { lang } = useLanguage()
-  return <main className="role-screen" role="status"><p>{t(lang, copy.checking)}</p></main>
+  return <main className="role-screen checking" role="status">
+      <p><span className="spinner" aria-hidden="true" />{t(lang, copy.checking)}</p>
+    </main>
 }
 
 /**

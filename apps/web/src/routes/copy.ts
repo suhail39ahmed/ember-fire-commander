@@ -1,3 +1,5 @@
+import type { Lang } from '../pwa/i18n'
+
 /**
  * Copy for the sign-in, role choice, wrong-role and not-found screens.
  * Bahasa copy is DRAFT and needs native-speaker review, like pwa/i18n.ts.
@@ -39,6 +41,12 @@ export const copy = {
       },
     },
     button: { id: 'Masuk dengan Google', en: 'Sign in with Google' },
+    busy: { id: 'Sedang masuk…', en: 'Signing in…' },
+    cancelled: { id: 'Masuk dibatalkan. Coba lagi.', en: 'Sign-in was cancelled. Try again.' },
+    blocked: {
+      id: 'Browser memblokir jendela masuk. Izinkan pop-up untuk situs ini lalu coba lagi.',
+      en: 'Your browser blocked the sign-in pop-up. Allow pop-ups for this site and try again.',
+    },
     note: { id: 'Anda akan kembali ke halaman yang Anda buka.', en: "You'll come back to the page you opened." },
   },
   roleChoice: {
@@ -85,3 +93,14 @@ export const copy = {
   checking: { id: 'Memeriksa akun…', en: 'Checking sign-in…' },
   signOut: { id: 'Keluar', en: 'Sign out' },
 } as const
+
+/** Turns the raw Firebase pop-up errors into plain wording; other messages pass through. */
+export function signInErrorText(message: string, lang: Lang): string {
+  if (/popup-closed-by-user|cancelled-popup-request|user-cancelled/.test(message)) {
+    return copy.signIn.cancelled[lang]
+  }
+  if (/popup-blocked/.test(message)) {
+    return copy.signIn.blocked[lang]
+  }
+  return message
+}

@@ -22,6 +22,9 @@ self.addEventListener('activate', (event) => {
   )
 })
 
+/** Last resort when the network and the cache both miss: a plain network error, never an uncaught rejection. */
+const offlineFallback = () => Response.error()
+
 self.addEventListener('fetch', (event) => {
   const req = event.request
   const url = new URL(req.url)
@@ -29,22 +32,32 @@ self.addEventListener('fetch', (event) => {
 
   // Navigations: network first, fall back to the cached shell.
   if (req.mode === 'navigate') {
-    event.respondWith(fetch(req).catch(() => caches.match('/index.html')))
+    event.respondWith(
+      fetch(req).catch(() =>
+        caches
+          .match('/index.html')
+          .then((shell) => shell || caches.match('/'))
+          .then((shell) => shell || offlineFallback()),
+      ),
+    )
     return
   }
   // Static assets: cache first, then network (and remember hashed assets).
   event.respondWith(
-    caches.match(req).then(
-      (hit) =>
-        hit ||
-        fetch(req).then((res) => {
-          if (res.ok && url.pathname.startsWith('/assets/')) {
-            const copy = res.clone()
-            caches.open(CACHE).then((c) => c.put(req, copy))
-          }
-          return res
-        }),
-    ),
+    caches
+      .match(req)
+      .then(
+        (hit) =>
+          hit ||
+          fetch(req).then((res) => {
+            if (res.ok && url.pathname.startsWith('/assets/')) {
+              const copy = res.clone()
+              caches.open(CACHE).then((c) => c.put(req, copy))
+            }
+            return res
+          }),
+      )
+      .catch(offlineFallback),
   )
 })
 

@@ -38,10 +38,10 @@
 }
 
 .tagline {
-  font-size: 36px;
-  line-height: 1.15;
-  font-weight: 700;
-  max-width: 14ch;
+  font-size: 22px;
+  line-height: 1.35;
+  font-weight: 600;
+  max-width: 30ch;
   margin-top: 16px;
 }
 
@@ -75,7 +75,8 @@
 
 .login-card h1 {
   font-size: 28px;
-  margin-bottom: 4px;
+  line-height: 1.2;
+  margin-bottom: 8px;
 }
 
 .login-card .sub {
@@ -101,9 +102,43 @@
   padding: 14px 16px;
 }
 
+.google-button,
+.action-button,
+.text-button {
+  min-height: 44px;
+}
+
 .google-button:disabled,
 .sign-out:disabled {
   cursor: wait;
+}
+
+.google-button:disabled {
+  color: #6b645c;
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-right: 10px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -3px;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2.4s;
+  }
 }
 
 .note,
@@ -118,6 +153,13 @@
 
 .error {
   color: #c81e1e;
+}
+
+.role-screen.checking {
+  max-width: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .role-screen {
@@ -226,6 +268,44 @@
 @media (max-width: 800px) {
   .login-screen {
     grid-template-columns: 1fr;
+    min-height: 100svh;
+  }
+
+  /* Compact brand strip so the sign-in button sits above the fold on short phones. */
+  .login-brand {
+    min-height: auto;
+    gap: 10px;
+    padding: 20px 24px;
+  }
+
+  .lockup {
+    gap: 10px;
+    font-size: 24px;
+  }
+
+  .lockup-mark {
+    width: 30px;
+    height: 34px;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+  }
+
+  .tagline {
+    margin-top: 6px;
+    max-width: none;
+    font-size: 16px;
+    line-height: 1.3;
+  }
+
+  .footnote {
+    font-size: 12px;
+  }
+
+  .login-panel {
+    justify-content: flex-start;
+    padding: 12px 16px 32px;
   }
 
   .login-lang {
@@ -234,8 +314,21 @@
     margin-bottom: 12px;
   }
 
-  .login-brand {
-    min-height: auto;
-    gap: 32px;
+  .login-card {
+    padding: 24px 20px;
+  }
+
+  .login-card h1 {
+    font-size: 24px;
+  }
+
+  .login-card .sub {
+    margin-bottom: 20px;
+  }
+
+  .google-button,
+  .action-button,
+  .text-button {
+    min-height: 56px;
   }
 }
