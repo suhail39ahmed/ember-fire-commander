@@ -10,12 +10,17 @@ locals {
     ember-ingest  = "ember-ingest runtime (job, later)"
   }
 
-  # Project-level roles per SA = EXACTLY what is live today (verified 2026-10-10).
-  # Every key "<sa>|<role>" here has a matching import block in imports.tf.
+  # Project-level roles per SA = what is live today (verified 2026-10-10), plus
+  # the NEW grants noted below, which are created by apply and have no import.
+  # Every other key "<sa>|<role>" here has a matching import block in imports.tf.
   sa_project_roles_live = {
     "ember-api" = [
       "roles/datastore.user",     # Firestore read/write via Admin SDK
       "roles/firebaseauth.admin", # verify users / custom tokens
+      # NEW (#23): firebase_admin messaging.send() calls FCM HTTP v1, which needs
+      # cloudmessaging.messages.create. Smallest predefined role that has it
+      # (the service-agent roles that also do are off limits to normal SAs).
+      "roles/firebasecloudmessaging.admin",
     ]
     "voice-gateway" = [
       "roles/datastore.user",  # writes observations

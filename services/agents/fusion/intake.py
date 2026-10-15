@@ -7,6 +7,7 @@ import logging
 
 from flask import Blueprint, jsonify
 
+from fusion.notify import notify_withdraw
 from fusion.rules import fuse
 from fusion.settings import Settings
 from fusion.store import get_store
@@ -47,4 +48,5 @@ def intake(observation_id):
     )
     if not plan.skipped:
         store.apply(plan)
+        notify_withdraw(plan)
     return jsonify({"observationId": observation_id}), 202

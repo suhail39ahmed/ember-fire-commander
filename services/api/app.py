@@ -4,6 +4,7 @@ GET /me verifies a Firebase ID token and returns the signed-in user.
 POST /observations stores one immutable chip or text observation.
 POST /photos/upload-url issues a short-lived signed PUT URL for one photo.
 GET /incidents, GET /digest and the supervisor decision routes live in incidents/.
+POST /internal/notifications/withdraw sends a code WITHDRAW push.
 GET /healthz stays public.
 """
 import os
@@ -16,6 +17,7 @@ from identity import AuthError
 from observations.routes import bp as observations_bp
 from photos import photos_bp
 from incidents import incidents_bp
+from notifications import notifications_bp
 
 app = Flask(__name__)
 
@@ -33,6 +35,7 @@ install_auth(app)
 app.register_blueprint(observations_bp)
 app.register_blueprint(photos_bp)
 app.register_blueprint(incidents_bp)
+app.register_blueprint(notifications_bp)
 
 
 def error_body(code, message):
