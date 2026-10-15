@@ -23,23 +23,12 @@ import { PhotoPanel } from './photo/PhotoPanel'
 import { createMockUpload, createXhrUpload } from './photo/upload'
 import { OutboxPanel } from './outbox/OutboxPanel'
 import { useOutbox } from './outbox/useOutbox'
-import type { Position } from './report/buildObservation'
+import { getPosition, locate, watchLocationGranted } from './report/location'
 import { VolunteerHeader } from './VolunteerHeader'
 import { WithdrawScreen } from './WithdrawScreen'
 import './volunteer.css'
 
 const POLL_MS = 5000
-
-function getPosition(): Promise<Position | null> {
-  if (!('geolocation' in navigator)) return Promise.resolve(null)
-  return new Promise((resolve) =>
-    navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracyM: Math.round(p.coords.accuracy) }),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 },
-    ),
-  )
-}
 
 /** Volunteer screen at /pwa. Rendered inside RequireRole role="volunteer", so `me` is set. */
 export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
@@ -178,7 +167,14 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
           onRelease={onReleaseTalk}
         />
 
-        <ReportPanel api={api} lang={lang} getPosition={getPosition} preset={preset} submit={outbox.submit} />
+        <ReportPanel
+          api={api}
+          lang={lang}
+          locate={locate}
+          onLocationGranted={watchLocationGranted}
+          preset={preset}
+          submit={outbox.submit}
+        />
 
         <PhotoPanel
           api={api}

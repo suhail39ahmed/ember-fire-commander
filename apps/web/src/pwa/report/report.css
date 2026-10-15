@@ -30,3 +30,10 @@
 .chip:disabled { cursor: not-allowed; opacity: 0.55; }
 .chip-text { display: flex; flex-direction: column; min-width: 0; }
 .chip-secondary { font-size: 12px; font-weight: 500; opacity: 0.75; }
+
+/* Status line under Send report (#73). Its height is reserved so a status change never moves the form. */
+.report-status { box-sizing: border-box; min-height: 40px; display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 20px; font-weight: 500; color: var(--ink-muted); }
+.report-status.error { color: var(--danger); }
+.report-spinner { flex: none; width: 14px; height: 14px; margin-top: 3px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: report-spin 0.9s linear infinite; }
+@keyframes report-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .report-spinner { animation: none; } }

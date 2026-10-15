@@ -88,6 +88,16 @@ const strings = {
   errTooLong: { id: 'Catatan terlalu panjang.', en: 'Note is too long.' },
   errNetwork: { id: 'Gagal mengirim. Periksa sinyal lalu coba lagi.', en: 'Could not send. Check signal and try again.' },
   errApi: { id: 'Laporan ditolak oleh server:', en: 'The server rejected the report:' },
+  locating: {
+    id: 'Mengambil lokasi… jawab permintaan izin di browser jika muncul.',
+    en: 'Getting location… answer the browser prompt if one appears.',
+  },
+  waitingForLocation: { id: 'Menunggu lokasi…', en: 'Waiting for location…' },
+  locationNote: { id: 'Lokasi Anda dilampirkan saat laporan dikirim.', en: 'Your location is attached when you send.' },
+  locationBlocked: {
+    id: 'Lokasi diblokir. Izinkan di pengaturan situs, lalu ketuk Kirim.',
+    en: 'Location is blocked. Allow it in site settings, then tap Send.',
+  },
   noLocation: { id: 'Lokasi tidak tersedia. Nyalakan lokasi lalu kirim lagi.', en: 'Location unavailable. Turn on location and send again.' },
   withdrawLabel: { id: 'ATURAN KESELAMATAN · TETAP', en: 'SAFETY RULE · FIXED' },
   withdrawTitle: { id: 'MUNDUR SEKARANG', en: 'WITHDRAW NOW' },
