@@ -1,8 +1,7 @@
 """voice-gateway: WebSocket relay to Gemini Live for EMBER fire commander.
 
 The upgrade at / requires a Firebase ID token. App Check follows
-APP_CHECK_ENFORCE. An accepted socket stays open and does not start Gemini.
-Audio relay, Live-minute caps, and observation writes are a later change.
+APP_CHECK_ENFORCE. An accepted socket runs one push-to-talk Live relay.
 GET /healthz stays public.
 """
 import os
@@ -26,16 +25,10 @@ def healthz():
     }), 200
 
 
-class LiveSession:
-    """Gemini Live session. A later change constructs this after the upgrade."""
-
-    def __init__(self, user):
-        self.user = user
-
-
-def start_gemini_session(user):
-    """Open Gemini Live for an authenticated user. Not called by the upgrade."""
-    return LiveSession(user)
+def start_gemini_session(user, ws):
+    """Relay one accepted socket. Gemini opens only after session.start."""
+    from live.session import run_session
+    run_session(user, ws)
 
 
 @sock.route("/")

@@ -159,6 +159,10 @@ resource "google_cloud_run_v2_service" "voice_gateway" {
         value = var.live_location
       }
       env {
+        name  = "EMBER_AGENTS_URL"
+        value = google_cloud_run_v2_service.ember_agents.uri
+      }
+      env {
         name  = "LIVE_MINUTE_CAP_USER"
         value = "10" # confirm: placeholder cap
       }

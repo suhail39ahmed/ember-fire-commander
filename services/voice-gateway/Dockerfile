@@ -7,6 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
 COPY auth ./auth
+COPY live ./live
 
 ENV PORT=8080
 EXPOSE 8080
