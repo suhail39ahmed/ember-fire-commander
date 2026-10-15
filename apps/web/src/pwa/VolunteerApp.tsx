@@ -8,6 +8,9 @@ import { ApiError, type EmberApi } from './api/types'
 import { createMockApi, type MockControls } from './api/mock'
 import { activeWithdraw, currentTask } from './digest'
 import { browserSocketFactory, PttSession, type SessionState } from './gateway/pttSession'
+import { TalkCard } from './gateway/TalkCard'
+import { useVoiceAvailability } from './gateway/useVoiceAvailability'
+import { talkView } from './gateway/voiceView'
 import { registerServiceWorker } from './install/registerServiceWorker'
 import { usePushRegistration } from './push/usePushRegistration'
 import { strings, t } from './i18n'
@@ -86,6 +89,7 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
     [getAuthHeaders],
   )
   useEffect(() => () => ptt.close(), [ptt])
+  const voice = useVoiceAvailability({ url: GATEWAY_WSS_URL, getAuthHeaders, createSocket: browserSocketFactory })
   const pressed = useRef(false)
 
   const onPressTalk = async () => {
@@ -180,32 +184,12 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
           </section>
         )}
 
-        <section className="card talk">
-          <div className="camera-state" data-state={perms.camera}>
-            {t(lang, strings.camera)}: {t(lang, strings.perm[perms.camera])}
-          </div>
-          <p className="session" aria-live="polite">
-            {t(lang, strings.session[session])}
-          </p>
-          <button
-            type="button"
-            className="btn ink ptt"
-            disabled={perms.microphone === 'denied' || perms.microphone === 'unsupported'}
-            onPointerDown={() => void onPressTalk()}
-            onPointerUp={onReleaseTalk}
-            onPointerLeave={onReleaseTalk}
-            onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && !e.repeat && void onPressTalk()}
-            onKeyUp={(e) => (e.key === ' ' || e.key === 'Enter') && onReleaseTalk()}
-          >
-            🎙 {t(lang, strings.holdToTalk)}
-          </button>
-          {perms.microphone === 'denied' && <p className="error">{t(lang, strings.microphone)}: {t(lang, strings.permDeniedHelp)}</p>}
-          {pttBlocked && (
-            <p className="muted" role="status">
-              {t(lang, pttBlocked === 'auth' ? strings.talkNeedsSignIn : strings.talkUnavailable)}
-            </p>
-          )}
-        </section>
+        <TalkCard
+          lang={lang}
+          view={talkView({ voice, session, mic: perms.microphone, blocked: pttBlocked })}
+          onPress={() => void onPressTalk()}
+          onRelease={onReleaseTalk}
+        />
 
         <ReportPanel api={api} lang={lang} getPosition={getPosition} preset={preset} submit={outbox.submit} />
 
