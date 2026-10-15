@@ -567,6 +567,8 @@ No body. The agents service reads the observation from `ember-db`. Response `202
 { "observationId": "obs_01" }
 ```
 
+Calling it again for an observation that is already in an incident changes nothing and still answers `202`, so the caller may retry. `ember-api` calls it with a 3 second timeout after storing an observation. If the call fails, the observation stays in the `intakePending` collection (`id`, `createdAt`, `attemptedAt`, `attempts`) and `ember-api` sends it again after later reports, up to 20 failed attempts. A report is never refused or delayed because agents is down.
+
 Agents may create and update incidents, conflicts, tasks, and the digest, within the field rules in §5. They cluster nearby observations, set `evidenceScore`, open conflicts, raise severity, and issue code WITHDRAW. They do not verify, extinguish, lower severity, or copy the model’s severity onto the incident.
 
 The high-wind threshold is a setting in the agents workstream. This contract only requires that crossing it produces the same WITHDRAW writes as a `large_flame` observation.

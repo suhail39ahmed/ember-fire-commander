@@ -36,11 +36,45 @@ class FakeRef:
     def get(self):
         return FakeSnapshot(self.db.data[self.collection].get(self.id))
 
+    def delete(self):
+        self.db.data[self.collection].pop(self.id, None)
+
+    def update(self, fields):
+        doc = self.db.data[self.collection][self.id]
+        for key, value in fields.items():
+            doc[key] = doc.get(key, 0) + value.value if isinstance(value, FakeIncrement) else value
+
+
+class FakeIncrement:
+    def __init__(self, value):
+        self.value = value
+
+
+class FakeQuery:
+    def __init__(self, docs):
+        self.docs = docs
+
+    def where(self, field, op, value):
+        assert op == "<="
+        return FakeQuery([d for d in self.docs if d[field] <= value])
+
+    def order_by(self, field):
+        return FakeQuery(sorted(self.docs, key=lambda d: d[field]))
+
+    def limit(self, count):
+        return FakeQuery(self.docs[:count])
+
+    def stream(self):
+        return [FakeSnapshot(d) for d in self.docs]
+
 
 class FakeCollection:
     def __init__(self, db, name):
         self.db = db
         self.name = name
+
+    def where(self, field, op, value):
+        return FakeQuery(list(self.db.data[self.name].values())).where(field, op, value)
 
     def document(self, doc_id=None):
         self.db.counter += 1
@@ -69,7 +103,7 @@ class FakeBatch:
 
 class FakeDb:
     def __init__(self):
-        self.data = {"observations": {}, "audit": {}}
+        self.data = {"observations": {}, "audit": {}, "intakePending": {}}
         self.counter = 0
 
     def collection(self, name):
@@ -134,3 +168,55 @@ def test_other_errors_are_not_swallowed():
     db.batch = lambda: Broken(db)
     with pytest.raises(RuntimeError):
         FirestoreObservationStore(client=db).create(_record(client_id="item-1"))
+
+
+def test_new_observation_is_queued_for_intake_until_it_is_done():
+    db = FakeDb()
+    store = FirestoreObservationStore(client=db)
+    stored, _ = store.create(_record())
+    queued = db.data["intakePending"][stored["id"]]
+    assert queued == {
+        "id": stored["id"],
+        "createdAt": "2026-10-13T08:12:05Z",
+        "attemptedAt": "2026-10-13T08:12:05Z",
+        "attempts": 0,
+    }
+    store.intake_done(stored["id"])
+    assert db.data["intakePending"] == {}
+    store.intake_done(stored["id"])  # deleting twice is fine
+
+
+def test_replay_does_not_requeue_a_delivered_observation():
+    db = FakeDb()
+    store = FirestoreObservationStore(client=db)
+    stored, _ = store.create(_record(client_id="item-1"))
+    store.intake_done(stored["id"])
+    store.create(_record(client_id="item-1"))
+    assert db.data["intakePending"] == {}
+
+
+def test_pending_intake_returns_due_items_oldest_first(monkeypatch):
+    db = FakeDb()
+    store = FirestoreObservationStore(client=db)
+    ids = []
+    for second in (30, 10, 20):
+        record = _record()
+        record["receivedAt"] = f"2026-10-13T08:12:{second:02d}Z"
+        ids.append(store.create(record)[0]["id"])
+    due = store.pending_intake(retry_before="2026-10-13T08:12:25Z", limit=5)
+    assert [d["id"] for d in due] == [ids[1], ids[2]]
+    assert len(store.pending_intake(retry_before="2026-10-13T09:00:00Z", limit=2)) == 2
+
+
+def test_intake_failed_counts_the_attempt_and_moves_it_back(monkeypatch):
+    import observations.store as store_module
+
+    monkeypatch.setattr("google.cloud.firestore.Increment", FakeIncrement)
+    db = FakeDb()
+    store = FirestoreObservationStore(client=db)
+    stored, _ = store.create(_record())
+    store.intake_failed(stored["id"], "2026-10-13T08:20:00.000Z")
+    item = db.data["intakePending"][stored["id"]]
+    assert item["attempts"] == 1
+    assert item["attemptedAt"] == "2026-10-13T08:20:00.000Z"
+    assert store_module.PENDING_COLLECTION == "intakePending"

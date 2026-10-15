@@ -20,6 +20,19 @@ def observation_id_for(volunteer_id, client_id):
     return hashlib.sha256(f"{volunteer_id}:{client_id}".encode()).hexdigest()
 
 
+PENDING_COLLECTION = "intakePending"
+
+
+def pending_record(observation_id, created_at):
+    """Queue entry for an observation whose agents intake call has not succeeded yet."""
+    return {
+        "id": observation_id,
+        "createdAt": created_at,
+        "attemptedAt": created_at,
+        "attempts": 0,
+    }
+
+
 def assemble_record(prepared, volunteer_id, received_at):
     record = {
         "volunteerId": volunteer_id,
@@ -46,6 +59,7 @@ class MemoryObservationStore:
     def __init__(self):
         self.observations = {}
         self.audits = []
+        self.pending = {}
 
     def create(self, record):
         """Return (stored, created). A repeated clientId returns the first record with created False."""
@@ -65,11 +79,25 @@ class MemoryObservationStore:
         }
         self.observations[stored["id"]] = dict(stored)
         self.audits.append(audit)
+        self.pending[stored["id"]] = pending_record(stored["id"], stored["receivedAt"])
         return dict(stored), True
 
     def get(self, observation_id):
         found = self.observations.get(observation_id)
         return dict(found) if found else None
+
+    def pending_intake(self, retry_before, limit):
+        due = [p for p in self.pending.values() if p["attemptedAt"] <= retry_before]
+        return [dict(p) for p in sorted(due, key=lambda p: p["attemptedAt"])[:limit]]
+
+    def intake_done(self, observation_id):
+        self.pending.pop(observation_id, None)
+
+    def intake_failed(self, observation_id, at):
+        item = self.pending.get(observation_id)
+        if item:
+            item["attempts"] += 1
+            item["attemptedAt"] = at
 
 
 class FirestoreObservationStore:
@@ -114,11 +142,35 @@ class FirestoreObservationStore:
         # create() fails when the document exists, and then the audit row is not written either.
         batch.create(obs_ref, stored)
         batch.set(audit_ref, audit)
+        # Removed once agents has taken the observation, see observations/notify.py.
+        batch.set(db.collection(PENDING_COLLECTION).document(obs_ref.id), pending_record(obs_ref.id, stored["receivedAt"]))
         try:
             batch.commit()
         except AlreadyExists:
             return obs_ref.get().to_dict(), False
         return stored, True
+
+    def pending_intake(self, retry_before, limit):
+        """Queued observations last tried at or before retry_before, oldest first."""
+        query = (
+            self._db()
+            .collection(PENDING_COLLECTION)
+            .where("attemptedAt", "<=", retry_before)
+            .order_by("attemptedAt")
+            .limit(limit)
+        )
+        return [snapshot.to_dict() for snapshot in query.stream()]
+
+    def intake_done(self, observation_id):
+        self._db().collection(PENDING_COLLECTION).document(observation_id).delete()
+
+    def intake_failed(self, observation_id, at):
+        from google.cloud import firestore
+
+        self._db().collection(PENDING_COLLECTION).document(observation_id).update({
+            "attempts": firestore.Increment(1),
+            "attemptedAt": at,
+        })
 
     def get(self, observation_id):
         snapshot = self._db().collection("observations").document(observation_id).get()
