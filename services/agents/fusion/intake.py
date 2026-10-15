@@ -9,7 +9,7 @@ from flask import Blueprint, jsonify
 
 from clock import now_iso as _now
 from fusion.notify import notify_withdraw
-from fusion.places import incident_name
+from fusion.places import incident_name, place_label
 from fusion.rules import fuse
 from fusion.settings import Settings
 from fusion.store import get_store
@@ -32,11 +32,13 @@ def _reporter_name(store, observation):
 
 
 def _name_incident(store, incident, observation):
-    """Give a new incident its readable name, such as "Bengkalis, Riau · Pak Dedi · #3".
+    """Give a new incident its area ("Bengkalis, Riau") and readable name ("Bengkalis, Riau · Pak Dedi · #3").
 
-    A failure leaves the incident unnamed and the console shows a short form of its id.
+    The area needs no lookup, so it is always written. A counter or name failure leaves
+    the incident without a name and the console shows a short form of its id.
     Intake must never fail because of a label.
     """
+    incident["area"] = place_label(incident["lat"], incident["lng"])
     try:
         number = store.next_incident_number()
         incident["name"] = incident_name(

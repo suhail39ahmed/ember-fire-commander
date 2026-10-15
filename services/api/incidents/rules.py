@@ -11,9 +11,9 @@ LIVE_STATUSES = ("open", "held", "verified")
 INSTRUCTION_MAX = 500
 
 INCIDENT_FIELDS = (
-    "id", "name", "status", "severity", "evidenceScore", "conflictId", "withdraw", "lat", "lng",
+    "id", "name", "area", "status", "severity", "evidenceScore", "conflictId", "withdraw", "lat", "lng",
 )
-SUMMARY_FIELDS = ("id", "name", "status", "severity", "withdraw", "lat", "lng")
+SUMMARY_FIELDS = ("id", "name", "area", "status", "severity", "withdraw", "lat", "lng")
 TASK_FIELDS = ("id", "incidentId", "volunteerId", "type", "status", "instruction")
 CONFLICT_FIELDS = (
     "id", "incidentId", "observationIds", "higherSeverity", "status", "dispatchHeld",
