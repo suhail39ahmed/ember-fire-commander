@@ -37,3 +37,8 @@
 .report-spinner { flex: none; width: 14px; height: 14px; margin-top: 3px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: report-spin 0.9s linear infinite; }
 @keyframes report-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .report-spinner { animation: none; } }
+
+/* Success card details (#77). */
+.sent-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; }
+.sent-chip { font-weight: 600; background: #fff; border: 1.5px solid var(--line); border-radius: 999px; padding: 2px 12px; }
+.sent-note { color: var(--ink-muted); overflow-wrap: anywhere; }

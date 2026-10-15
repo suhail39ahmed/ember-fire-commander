@@ -45,7 +45,7 @@
 .btn.ink { background: var(--ink); color: var(--paper); }
 .btn.secondary { background: #fff; color: var(--ink); border: 1.5px solid var(--line); }
 .btn.inverse { background: #fff; color: var(--withdraw); }
-.btn.small { height: 36px; font-size: 13px; border-radius: 10px; padding: 0 12px; background: #fff; border: 1.5px solid var(--line); color: var(--ink); }
+.btn.small { height: 44px; font-size: 13px; border-radius: 10px; padding: 0 12px; background: #fff; border: 1.5px solid var(--line); color: var(--ink); }
 .ptt { height: 72px; font-size: 18px; touch-action: none; user-select: none; }
 .session { font-size: 13px; font-weight: 600; color: var(--ink-muted); }
 .camera-state { font-size: 13px; }

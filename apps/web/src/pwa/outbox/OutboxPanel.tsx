@@ -1,3 +1,4 @@
+import { formatTime } from '../formatTime'
 import { t, type Lang } from '../i18n'
 import { describeItem } from './describeItem'
 import { outboxStrings as s } from './strings'
@@ -17,8 +18,6 @@ interface Props {
 export function OutboxPanel({ items, online, lang, onRetry, onDiscard, onSendNow }: Props) {
   if (items.length === 0 && online) return null
   const queued = items.some((i) => i.state === 'queued')
-  const time = (iso: string) =>
-    new Date(iso).toLocaleTimeString(lang === 'id' ? 'id-ID' : 'en-GB', { hour: '2-digit', minute: '2-digit' })
 
   return (
     <section className="card outbox" aria-labelledby="outbox-label">
@@ -41,7 +40,7 @@ export function OutboxPanel({ items, online, lang, onRetry, onDiscard, onSendNow
                 </span>
               </div>
               <span className="muted small">
-                {time(capturedAtOf(item))}
+                {formatTime(capturedAtOf(item))}
                 {item.state === 'failed' && item.lastError ? ` · ${item.lastError}` : ''}
               </span>
               {item.state === 'failed' && (

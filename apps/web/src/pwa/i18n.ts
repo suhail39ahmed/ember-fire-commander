@@ -80,6 +80,7 @@ const strings = {
   sending: { id: 'Mengirim…', en: 'Sending…' },
   sent: { id: 'Laporan terkirim ✓', en: 'Report sent ✓' },
   sentDetail: { id: 'Supervisor Anda bisa melihatnya sekarang.', en: 'Your supervisor can see it now.' },
+  sentSummary: { id: 'Yang Anda kirim', en: 'What you sent' },
   newReport: { id: 'Laporan baru', en: 'New report' },
   errEmpty: {
     id: 'Pilih salah satu: asap, api, aman atau butuh bantuan — atau tulis catatan.',
@@ -93,6 +94,7 @@ const strings = {
     en: 'Getting location… answer the browser prompt if one appears.',
   },
   waitingForLocation: { id: 'Menunggu lokasi…', en: 'Waiting for location…' },
+  sendHint: { id: 'Pilih satu isyarat atau tulis catatan untuk mengirim.', en: 'Pick a chip or write a note to send.' },
   locationNote: { id: 'Lokasi Anda dilampirkan saat laporan dikirim.', en: 'Your location is attached when you send.' },
   locationBlocked: {
     id: 'Lokasi diblokir. Izinkan di pengaturan situs, lalu ketuk Kirim.',
