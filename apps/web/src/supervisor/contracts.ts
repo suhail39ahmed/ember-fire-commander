@@ -1,5 +1,5 @@
 /**
- * Supervisor shapes from docs/contracts/shared-contract.md (sections 5.2, 5.4, 6.3 and 6.5).
+ * Supervisor shapes from docs/contracts/shared-contract.md (sections 5.2, 5.4, 5.5, 5.7, 6.3 and 6.5).
  * Shared enums and records come from the PWA contract file so there is one source.
  */
 import type { IncidentStatus, Observation, Severity, Task, Withdraw } from '../pwa/contracts/types'
@@ -16,6 +16,22 @@ export interface Incident {
   withdraw: Withdraw | null
   lat: number
   lng: number
+}
+
+/** One factor behind `evidenceScore`, written by agents fusion (section 5.2). */
+export interface EvidenceFactor {
+  factor: 'severity' | 'corroboration' | 'photo' | 'gps' | 'conflict'
+  points: number
+  detail: string
+}
+
+/**
+ * Incident as stored by the agents (section 5.2). The REST routes return only
+ * `Incident`: `observationIds` and `evidenceFactors` are never in a response.
+ */
+export interface StoredIncident extends Incident {
+  observationIds: string[]
+  evidenceFactors: EvidenceFactor[]
 }
 
 /** Conflict (section 5.4). Both observations stay side by side; nothing is averaged. */
@@ -46,4 +62,99 @@ export interface TaskDecision {
 export interface IncidentDecision {
   incident: Incident
   auditId: string
+}
+
+/** Audit actions (section 5.5). `site.reinspect` is written by code when the re-ignition watch raises an alert. */
+export type AuditAction =
+  | 'observation.create'
+  | 'task.approve'
+  | 'task.reject'
+  | 'task.edit'
+  | 'task.withdraw'
+  | 'incident.verify'
+  | 'incident.extinguish'
+  | 'incident.severity.lower'
+  | 'incident.severity.raise'
+  | 'site.reinspect'
+
+/** Advisory photo triage, collection `photo_triage`, one per observation (section 5.7). */
+export interface PhotoTriage {
+  id: string
+  observationId: string
+  volunteerId: string | null
+  photoPath: string | null
+  status: 'ok' | 'rejected' | 'error'
+  advisory: true
+  model: string | null
+  result: {
+    smokeVisible: boolean
+    flameVisible: 'none' | 'small' | 'large' | 'unclear'
+    burnScarVisible: boolean
+    notes: string
+    confidence: 'low' | 'medium' | 'high'
+  } | null
+  /** Why the photo was rejected. Present when `status` is `rejected`. */
+  reason?: string
+  /** Short failure reason. Present when `status` is `error`. */
+  error?: string
+  at: string
+}
+
+/** Advisory incident summary, collection `incident_summaries`, one per incident (section 5.7). */
+export interface IncidentSummary {
+  id: string
+  incidentId: string
+  english: string
+  bahasa: string
+  source: 'model' | 'template'
+  advisory: true
+  model: string | null
+  facts: {
+    incidentId: string
+    reportCount: number
+    volunteerCount: number
+    reportsDisagree: boolean
+    reports: {
+      source: string | null
+      chip: string | null
+      text: string | null
+      capturedAt: string | null
+      hasPhoto: boolean
+    }[]
+    photoDescriptions: {
+      smokeVisible: boolean
+      flameVisible: string
+      burnScarVisible: boolean
+      notes: string
+    }[]
+  }
+  at: string
+}
+
+/** One re-inspection alert on a watched site (section 5.7). */
+export interface SiteAlert {
+  id: string
+  kind: 'observation' | 'lead'
+  sourceId: string
+  distanceM: number
+  itemAt: string
+  at: string
+  message: string
+}
+
+/** Watched extinguished site, collection `sites`, id is the incident id (section 5.7). */
+export interface Site {
+  id: string
+  incidentId: string
+  lat: number
+  lng: number
+  radiusM: number
+  extinguishedAt: string
+  /** End of the watch window. Records made before the window existed do not have it. */
+  expiresAt?: string
+  observationIds: string[]
+  status: 'watching' | 'reinspect' | 'expired'
+  /** Newest alerts only. */
+  alerts: SiteAlert[]
+  lastAlertAt?: string
 }
