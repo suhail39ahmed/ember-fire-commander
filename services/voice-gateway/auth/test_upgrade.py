@@ -94,31 +94,42 @@ def test_socket_route_is_registered():
     assert "/healthz" in rules
 
 
-def test_accepted_volunteer_upgrade_stays_open_without_gemini(monkeypatch):
+def _recording_factory():
+    calls = []
+
+    def factory(user, ws):
+        calls.append((user, ws.receive()))
+
+    factory.calls = calls
+    return factory
+
+
+def test_accepted_volunteer_upgrade_hands_off_the_socket(monkeypatch):
     monkeypatch.setenv("APP_CHECK_ENFORCE", "true")
     _allow_user(monkeypatch)
     _allow_app_check(monkeypatch)
-    live = _live_session()
+    factory = _recording_factory()
     ws = FakeSocket(messages=['{"type":"session.start"}', None])
-    user = upgrade.handle_upgrade(ws, _headers(), live)
+    user = upgrade.handle_upgrade(ws, _headers(), factory)
     assert user["id"] == "uid_sari"
     assert user["displayName"] == "Sari"
     assert user["role"] == "volunteer"
     assert ws.sent == []
     assert ws.closed is False
-    live.assert_not_called()
+    assert factory.calls[0][0]["role"] == "volunteer"
+    assert factory.calls[0][1] == '{"type":"session.start"}'
 
 
 def test_accepted_supervisor_upgrade(monkeypatch):
     monkeypatch.setenv("APP_CHECK_ENFORCE", "true")
     _allow_user(monkeypatch, role="supervisor")
     _allow_app_check(monkeypatch)
-    live = _live_session()
+    factory = _recording_factory()
     ws = FakeSocket(messages=[None])
-    user = upgrade.handle_upgrade(ws, _headers(), live)
+    user = upgrade.handle_upgrade(ws, _headers(), factory)
     assert user["role"] == "supervisor"
     assert ws.sent == []
-    live.assert_not_called()
+    assert factory.calls[0][0]["role"] == "supervisor"
 
 
 def test_missing_id_token_closes_before_gemini(monkeypatch):
@@ -208,13 +219,13 @@ def test_expired_app_check_rejected_when_enforced(monkeypatch):
 def test_log_only_allows_missing_app_check(monkeypatch, caplog):
     monkeypatch.setenv("APP_CHECK_ENFORCE", "false")
     _allow_user(monkeypatch)
-    live = _live_session()
+    factory = _recording_factory()
     caplog.set_level(logging.WARNING, logger="auth.upgrade")
-    user = upgrade.handle_upgrade(FakeSocket(messages=[None]), _headers(app_check=None), live)
+    user = upgrade.handle_upgrade(FakeSocket(messages=[None]), _headers(app_check=None), factory)
     assert user["id"] == "uid_sari"
     assert user["role"] == "volunteer"
     assert "App Check not enforced" in caplog.text
-    live.assert_not_called()
+    assert factory.calls[0][0]["id"] == "uid_sari"
 
 
 class _RouteSocket:
@@ -253,16 +264,12 @@ def _run_gateway(headers=None):
 
 
 def test_route_rejects_missing_token_before_gemini(monkeypatch):
-    created = []
+    def boom(user, ws):
+        raise AssertionError("Gemini must not start")
 
-    class RecordingLive:
-        def __init__(self, user):
-            created.append(user)
-
-    monkeypatch.setattr("app.LiveSession", RecordingLive)
+    monkeypatch.setattr("app.start_gemini_session", boom)
     _patch_route_socket(monkeypatch, fail_on_receive=True)
     _run_gateway()
-    assert created == []
     assert _RouteSocket.last.closed is True
     assert json.loads(_RouteSocket.last.sent[0]) == {
         "type": "session.closed",
@@ -270,20 +277,12 @@ def test_route_rejects_missing_token_before_gemini(monkeypatch):
     }
 
 
-def test_route_accepts_volunteer_without_gemini(monkeypatch):
+def test_route_accepts_volunteer_without_starting_live(monkeypatch):
     monkeypatch.setenv("APP_CHECK_ENFORCE", "true")
     _allow_user(monkeypatch)
     _allow_app_check(monkeypatch)
-    created = []
-
-    class RecordingLive:
-        def __init__(self, user):
-            created.append(user)
-
-    monkeypatch.setattr("app.LiveSession", RecordingLive)
     _patch_route_socket(monkeypatch)
     _run_gateway(_headers())
-    assert created == []
     assert _RouteSocket.last.sent == []
 
 
@@ -295,9 +294,9 @@ def test_log_only_allows_invalid_app_check(monkeypatch, caplog):
         raise ValueError("invalid")
 
     monkeypatch.setattr(upgrade.app_check, "verify_token", reject)
-    live = _live_session()
+    factory = _recording_factory()
     caplog.set_level(logging.WARNING, logger="auth.upgrade")
-    user = upgrade.handle_upgrade(FakeSocket(messages=[None]), _headers(), live)
+    user = upgrade.handle_upgrade(FakeSocket(messages=[None]), _headers(), factory)
     assert user["role"] == "volunteer"
     assert "App Check token is invalid" in caplog.text
-    live.assert_not_called()
+    assert len(factory.calls) == 1

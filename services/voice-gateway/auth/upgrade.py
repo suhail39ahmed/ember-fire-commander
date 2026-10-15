@@ -112,21 +112,11 @@ def _reject(ws):
         close()
 
 
-def _hold_open(ws):
-    """Keep an accepted socket open until the client disconnects.
-
-    Client messages are ignored. Gemini Live is a later change.
-    """
-    while True:
-        message = ws.receive()
-        if message is None:
-            return
-
-
 def handle_upgrade(ws, headers, session_factory):
     """Accept or close one upgrade before a Gemini session exists.
 
-    session_factory is the Gemini Live opener. This function must not call it.
+    session_factory runs the Live relay. It is called only after the upgrade
+    is accepted, and it is not called when credentials are rejected.
     """
     if session_factory is None:
         raise RuntimeError("session factory is required")
@@ -136,5 +126,5 @@ def handle_upgrade(ws, headers, session_factory):
         logger.info("WebSocket upgrade rejected: %s", exc.message)
         _reject(ws)
         return None
-    _hold_open(ws)
+    session_factory(user, ws)
     return user

@@ -34,7 +34,7 @@ A missing, invalid, expired, or revoked ID token closes the socket before a Gemi
 
 `APP_CHECK_ENFORCE` defaults to `false`, matching ember-api and the Cloud Run setting. The App Check token is still verified. When the flag is false, a missing or invalid App Check token is logged and a valid ID token is enough. Set `APP_CHECK_ENFORCE=true` to close the socket on that failure.
 
-An accepted upgrade stays open. This service does not start Gemini Live, relay audio, or write observations yet.
+An accepted upgrade waits for `session.start`, then relays audio and about one camera frame per second to Gemini Live. The caller's digest is injected into that session. `submit_observation` stores one immutable `live` observation from the phone's latest location, then notifies `ember-agents`. The socket closes about 30 seconds after the reply, on `session.stop`, or with `cap_reached` when `LIVE_MINUTE_CAP_USER` (default 10) or `LIVE_MINUTE_CAP_OP` (default 60) is used up. Minute usage is counted per instance, so a reconnect does not reset it. Wind and engine noise do not open a turn: activity detection is manual.
 
 The browser `WebSocket` API cannot set these headers. The PWA keeps voice unavailable until the contract defines a browser handshake. This service does not accept the tokens on the query string.
 
@@ -47,10 +47,12 @@ pip install -r requirements.txt
 export PORT=8080
 export FIRESTORE_DATABASE=ember-db
 export APP_CHECK_ENFORCE=false
+# Optional: run services/agents on port 8082 so live observations reach intake.
+export EMBER_AGENTS_URL=http://localhost:8082
 python app.py
 ```
 
-Upgrade tests cover accepted and rejected credentials and assert that no Gemini session is created:
+Tests cover rejected upgrades, a scripted push-to-talk session, and the Live-minute cap. The scripted session does not call Gemini:
 
 ```bash
 pip install -r requirements-dev.txt
@@ -70,6 +72,10 @@ docker build -t voice-gateway-test .
 docker run -p 8080:8080 -e FIRESTORE_DATABASE=ember-db voice-gateway-test
 curl http://localhost:8080/healthz
 ```
+
+## Live gate (14 Oct 2026)
+
+Not passed. The gate is a push-to-talk report on a real phone through the deployed `voice-gateway` in asia-southeast1 that stores the step 2 observation. Singapore-region latency was not measured. Gemini Live has no Asia endpoint (`LIVE_LOCATION` defaults to `us-central1`), so the measurement needs that deployed gateway and a client in Singapore. This workspace has no Agent Platform credential for `sa-voice-gateway`. The scripted session against the test double does pass.
 
 ## Deployment
 
