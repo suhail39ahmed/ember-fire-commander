@@ -395,6 +395,8 @@ Written by `ember-api` and `voice-gateway` in the same batch as every new observ
 
 `volunteers/{uid}.fcmTokens` is a string array of FCM device tokens, written only by `ember-api` through `POST` and `DELETE /notifications/token` (§6.8). It keeps the newest 10. `ember-api` removes a token that FCM reports as unregistered or invalid. Agents also read `volunteers/{uid}.displayName` as a fallback reporter name, but nothing in this repository writes that field.
 
+`volunteers/{uid}.agency` is an optional string, the caller's agency name. `GET /dashboard` (§6.9) reads it for the signed-in supervisor and returns `null` when it is missing or blank. Nothing in this repository writes it.
+
 #### `notificationAttempts`
 
 Written by `ember-api` after a task or WITHDRAW push. The task is already committed. A failed or skipped push never undoes it.
@@ -679,6 +681,26 @@ Volunteers only. A supervisor receives `403`. The body is `{ "token": "<FCM devi
 - `POST` stores the token in `volunteers/{uid}.fcmTokens` once, keeps the newest 10, and removes the same token from any other volunteer's list. Response `200` `{ "stored": true }`, or `false` when it was already stored.
 - `DELETE` removes it. Response `200` `{ "removed": true }`, or `false` when it was not stored.
 
+### 6.9 `GET /dashboard`
+
+Supervisor only. A volunteer receives `403 forbidden`. This is the summary the console chrome reads. Live fires, season impact, and charts are not in this response; when they are added they belong on this same body, not on a second dashboard route. The route does not return incidents or tasks.
+
+```json
+{
+  "agency": "BPBD Kepulauan Meranti",
+  "serverTime": "2026-10-16T07:46:00Z",
+  "approvalsCount": 2
+}
+```
+
+| Field | Type | Source |
+|---|---|---|
+| `agency` | string or null | `volunteers/{uid}.agency` for the caller, trimmed. `null` when the document is missing, the field is not a string, or the value is blank |
+| `serverTime` | string | Server time when the response is built. ISO-8601 UTC, the same format as stored timestamps |
+| `approvalsCount` | number | How many `tasks` have `status: proposed`. A task has no supervisor id, so this counts every proposed task, not one person's queue. `0` when none are waiting. The tasks themselves are not returned |
+
+`displayName` and `role` stay on `GET /me` (§6.1). There is no `onDuty` field, because no stored on-duty flag exists. `401` and `403` are as in §3. A profile with no agency is still `200` with `agency: null`.
+
 ## 7. WebSocket
 
 `voice-gateway` serves the WebSocket at `/`, with no other path. `/healthz` stays public. The upgrade is meant to carry the same two headers as §2. The gateway checks the ID token's signature, expiry, and role (not revocation), and App Check follows `APP_CHECK_ENFORCE` as in §2. For invalid credentials it sends `{ "type": "session.closed", "reason": "unauthorized" }` and closes the socket before a Gemini session starts. It does not read tokens from the query string.
@@ -915,6 +937,7 @@ Everything here is taken from the code and tests on `main`. Where the code leave
 | Route | Role | In the current web client |
 |---|---|---|
 | `GET /me` | any | Yes |
+| `GET /dashboard` | supervisor | Yes (console chrome, every 15 s) |
 | `GET /digest` | any | Yes (volunteer, every 5 s) |
 | `POST /observations` | any signed in (the app uses volunteers) | Yes |
 | `POST /photos/upload-url` | volunteer | Yes |
@@ -941,6 +964,9 @@ Every route except `/healthz` needs the two headers in §2.
 | `task.instruction` | Task | Typed as `string or null`. Every task the services create today has one |
 | `myTasks` | Digest | `[]` for a supervisor |
 | `displayName` | `GET /me` | `""` when the token has no name |
+| `agency` | `GET /dashboard` | The key is always there. `null` when the caller has no stored agency (§6.9) |
+| `approvalsCount` | `GET /dashboard` | `0` when no task is `proposed` |
+| `serverTime` | `GET /dashboard` | Always present on `200`. The console shows it as local `HH:mm` and moves the clock on from that instant |
 
 ### 12.3 Constraints the UI must respect
 
@@ -1003,5 +1029,6 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-15 · #85: new incidents store `area`, and the console groups the queue by it (§5.2).
 - 2026-10-15 · #86 (`Naushad/N06`): `.env.example` moved from `apps/web/` to the repository root, with more variables, and `.gitignore` now ignores `/.env.local` and `/.local` (§11.5).
 - 2026-10-15 · #87: `voice-gateway` relays Gemini Live and writes `live` observations (§7), adds the Live-minute caps, and sets `EMBER_AGENTS_URL` for the gateway in Terraform.
+- 2026-10-16 · #108: `GET /dashboard` returns `agency`, `serverTime`, and `approvalsCount` for the supervisor console chrome (§5.7, §6.9).
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).

@@ -64,13 +64,14 @@ Request:
 
 ## Incidents, digest and approvals
 
-Routes follow `docs/contracts/shared-contract.md` §6.3 to §6.5. Code lives in `incidents/`.
+Routes follow `docs/contracts/shared-contract.md` §6.3 to §6.5, and `GET /dashboard` is §6.9 (`dashboard.py`). Code for incidents lives in `incidents/`.
 
 | Route | Who | Result |
 |---|---|---|
 | `GET /incidents` | both roles | Supervisor: incidents that are `open`, `held` or `verified`. Volunteer: incidents linked to their observations, tasks or a withdraw instruction |
 | `GET /incidents/{id}` | both roles | `incident`, `observations`, `conflict`, `tasks`. A volunteer not on the incident gets `404` and sees only their own tasks |
 | `GET /digest` | both roles | `updatedAt`, `incidents` (summaries), `myTasks` (empty for a supervisor) |
+| `GET /dashboard` | supervisor | `agency` (or `null`), `serverTime`, `approvalsCount` of `proposed` tasks. The rest of the dashboard is not on this response yet |
 | `POST /tasks/{id}/approve`, `/reject`, `/edit` | supervisor | Proposed task decided. `investigate` approval is `409` while the incident has an open conflict. Withdraw tasks are never approved, rejected or edited |
 | `POST /incidents/{id}/verify`, `/extinguish`, `/severity` | supervisor | Human-only actions. `/severity` stores the value only when it is strictly lower and never touches `withdraw` |
 | `POST /incidents/{id}/withdraw` | supervisor | Sets `withdraw`, creates approved `withdraw` tasks, no approval step |

@@ -9,7 +9,14 @@ import { RequireRole } from './RoleHome'
 // Each signed-in page is its own chunk, fetched only after the role check passes,
 // so volunteers never download the console and supervisors never download the volunteer app.
 const VolunteerApp = lazyPage(() => import('../pwa/VolunteerApp').then((m) => m.VolunteerApp))
-const SupervisorConsole = lazyPage(() => import('../supervisor/SupervisorConsole').then((m) => m.SupervisorConsole))
+const ConsoleLayout = lazyPage(() => import('../supervisor/ConsoleLayout').then((m) => m.ConsoleLayout))
+const IncidentsShell = lazyPage(() => import('../supervisor/SupervisorConsole').then((m) => m.IncidentsShell))
+const IncidentsPage = lazyPage(() => import('../supervisor/SupervisorConsole').then((m) => m.IncidentsPage))
+
+/** Empty content slot. Later issues fill these routes; this one does not invent the page. */
+function ConsoleSlot() {
+  return null
+}
 
 export function AppRoutes() {
   return (
@@ -26,15 +33,23 @@ export function AppRoutes() {
         }
       />
       <Route
-        path="/console"
         element={
           <RequireRole role="supervisor">
             <PageBoundary>
-              <SupervisorConsole />
+              <ConsoleLayout />
             </PageBoundary>
           </RequireRole>
         }
-      />
+      >
+        <Route element={<IncidentsShell />}>
+          <Route path="/console" element={<IncidentsPage />} />
+          <Route path="/console/incidents/:incidentId" element={<IncidentsPage />} />
+        </Route>
+        <Route path="/console/approvals" element={<ConsoleSlot />} />
+        <Route path="/console/map" element={<ConsoleSlot />} />
+        <Route path="/console/audit" element={<ConsoleSlot />} />
+        <Route path="/console/settings" element={<ConsoleSlot />} />
+      </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
   )

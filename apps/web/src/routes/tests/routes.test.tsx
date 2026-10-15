@@ -19,7 +19,11 @@ const state = vi.hoisted(() => ({ auth: null as unknown as Auth }))
 
 vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => state.auth }))
 vi.mock('../../pwa/VolunteerApp', () => ({ VolunteerApp: () => <p>volunteer app screen</p> }))
-vi.mock('../../supervisor/SupervisorConsole', () => ({ SupervisorConsole: () => <p>console screen</p> }))
+vi.mock('../../supervisor/ConsoleLayout', () => ({ ConsoleLayout: () => <p>console screen</p> }))
+vi.mock('../../supervisor/SupervisorConsole', () => ({
+  IncidentsShell: () => null,
+  IncidentsPage: () => <p>incidents content</p>,
+}))
 
 import { AppRoutes } from '../AppRoutes'
 
@@ -73,6 +77,15 @@ describe('signed-out sign-in', () => {
     expect(html).toContain('Sign in to the Supervisor Console')
     expect(html).toContain('invited BPBD supervisors')
     expect(html).not.toContain('Volunteer app.')
+    expect(html).not.toContain('console screen')
+    expect(html).not.toContain('On duty')
+  })
+
+  it('keeps console child routes on the sign-in screen', () => {
+    const html = render('/console/audit')
+    expect(html).toContain('Sign in to the Supervisor Console')
+    expect(html).not.toContain('console screen')
+    expect(html).not.toContain('On duty')
   })
 
   it('stays on the page that was opened instead of redirecting to /', () => {
@@ -132,6 +145,15 @@ describe('signed-in pages', () => {
     expect(await renderSettled('/console')).toContain('console screen')
   })
 
+  it('keeps later console routes inside the chrome', async () => {
+    state.auth = signedOut({ status: 'ready', me: supervisor })
+    for (const path of ['/console/approvals', '/console/map', '/console/audit', '/console/settings', '/console/incidents/inc_1']) {
+      const html = await renderSettled(path)
+      expect(html).toContain('console screen')
+      expect(html).not.toContain('Page not found')
+    }
+  })
+
   it('tells a volunteer on /console the page is for supervisors, with a way to their own page', () => {
     state.auth = signedOut({ status: 'ready', me: volunteer })
     const html = render('/console')
@@ -139,6 +161,16 @@ describe('signed-in pages', () => {
     expect(html).toContain('403 · FORBIDDEN · /CONSOLE')
     expect(html).toContain('href="/pwa"')
     expect(html).toContain('Sign out')
+    expect(html).not.toContain('console screen')
+    expect(html).not.toContain('On duty')
+  })
+
+  it('tells a volunteer on a console child route the page is for supervisors', () => {
+    state.auth = signedOut({ status: 'ready', me: volunteer })
+    const html = render('/console/settings')
+    expect(html).toContain('This page is for supervisors')
+    expect(html).not.toContain('console screen')
+    expect(html).not.toContain('On duty')
   })
 
   it('tells a supervisor on /pwa the page is for volunteers', () => {
@@ -169,6 +201,14 @@ describe('signed-in pages', () => {
 })
 
 describe('unknown paths', () => {
+  it('leave an unknown console path outside the chrome', () => {
+    state.auth = signedOut({ status: 'ready', me: supervisor })
+    const html = render('/console/nope')
+    expect(html).toContain('Page not found')
+    expect(html).toContain('404 · /console/nope')
+    expect(html).not.toContain('console screen')
+  })
+
   it('show a not-found page with the path and a way back', () => {
     const html = render('/nonexistent')
     expect(html).toContain('Page not found')

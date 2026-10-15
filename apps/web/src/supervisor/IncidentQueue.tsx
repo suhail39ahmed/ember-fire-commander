@@ -1,7 +1,7 @@
 import { labelInArea, type AreaGroup } from './queueGroups'
 import { SEVERITY_LABEL, STATUS_LABEL } from './view'
 
-/** Sidebar queue: one labelled list per area, rows in the order given. */
+/** Incident queue: one labelled list per area, rows in the order given. */
 export function IncidentQueue({
   groups,
   activeId,
