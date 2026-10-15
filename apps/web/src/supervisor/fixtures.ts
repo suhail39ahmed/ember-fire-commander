@@ -8,7 +8,8 @@ import type { IncidentDetail, Observation, Task } from './contracts'
 
 export type FixtureName = 'normal' | 'conflict' | 'withdraw'
 
-const DEMO_NAME = 'Ketapang, Kalimantan Barat · Pak Dedi · #1'
+const DEMO_AREA = 'Ketapang, Kalimantan Barat'
+const DEMO_NAME = `${DEMO_AREA} · Pak Dedi · #1`
 const LAT = -1.849
 const LNG = 110.051
 
@@ -61,14 +62,14 @@ const investigate = task('task_demo_investigate', 'uid_dedi', 'investigate', 'pr
 export function fixture(name: FixtureName): IncidentDetail {
   if (name === 'normal') {
     return {
-      incident: { id: 'inc_demo_01', name: DEMO_NAME, status: 'open', severity: 'small_flame', evidenceScore: 41, conflictId: null, withdraw: null, lat: LAT, lng: LNG },
+      incident: { id: 'inc_demo_01', name: DEMO_NAME, area: DEMO_AREA, status: 'open', severity: 'small_flame', evidenceScore: 41, conflictId: null, withdraw: null, lat: LAT, lng: LNG },
       observations: [structuredClone(obsDedi)],
       conflict: null,
       tasks: [structuredClone(investigate)],
     }
   }
   const conflict: IncidentDetail = {
-    incident: { id: 'inc_demo_01', name: DEMO_NAME, status: 'held', severity: 'small_flame', evidenceScore: 64, conflictId: 'con_demo_01', withdraw: null, lat: LAT, lng: LNG },
+    incident: { id: 'inc_demo_01', name: DEMO_NAME, area: DEMO_AREA, status: 'held', severity: 'small_flame', evidenceScore: 64, conflictId: 'con_demo_01', withdraw: null, lat: LAT, lng: LNG },
     observations: [structuredClone(obsDedi), structuredClone(obsSari)],
     conflict: {
       id: 'con_demo_01',

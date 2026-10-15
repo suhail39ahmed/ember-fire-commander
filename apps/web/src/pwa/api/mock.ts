@@ -51,7 +51,7 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
   const reset = () => {
     digest = {
       updatedAt: new Date().toISOString(),
-      incidents: [{ id: INCIDENT_ID, name: INCIDENT_NAME, status: 'open', severity: 'small_flame', withdraw: null, lat: -1.849, lng: 110.051 }],
+      incidents: [{ id: INCIDENT_ID, name: INCIDENT_NAME, area: 'Ketapang, Kalimantan Barat', status: 'open', severity: 'small_flame', withdraw: null, lat: -1.849, lng: 110.051 }],
       myTasks: [
         {
           id: 'task_demo_verify',
