@@ -104,8 +104,9 @@ Immutable. The stored record always has `"immutable": true`. There is no update 
 |---|---|---|
 | `id` | string | Server |
 | `volunteerId` | string | Server, from the token |
-| `capturedAt` | string | Client. The phone time of the report |
+| `capturedAt` | string | Client. The phone time of the report. Must be within [now − 7 days, now + 5 minutes] when received, otherwise `400` |
 | `receivedAt` | string | Server |
+| `clientId` | string, optional | Client. The outbox item id, 1 to 128 letters, digits, `.`, `-` or `_`. Present only when the client sent it |
 | `source` | source enum | Client for `chip`, `text`, and `photo`. Gateway sets `live` |
 | `lat` | number, −90 to 90 | Phone |
 | `lng` | number, −180 to 180 | Phone |
@@ -422,7 +423,7 @@ The server fills `id`, `volunteerId`, `receivedAt`, `severity`, `photoPath`, and
 
 `source: live` and `source: photo` are rejected on this route. Live observations are created by the gateway in §7. The signed photo upload URL is outside this contract; a later photo observation still uses this observation shape and a private `photoPath`.
 
-A second request that tries to change `obs_01` has no route. A client that retries with the same body creates a new observation.
+A second request that tries to change `obs_01` has no route. A request that carries no `clientId` and is sent again creates a new observation. A request with a `clientId` is idempotent per volunteer: sending the same `clientId` again changes nothing and returns `200` with the observation stored the first time, even if the body differs.
 
 ### 6.3 `GET /incidents` and `GET /incidents/{id}`
 
@@ -565,6 +566,8 @@ No body. The agents service reads the observation from `ember-db`. Response `202
 ```json
 { "observationId": "obs_01" }
 ```
+
+Calling it again for an observation that is already in an incident changes nothing and still answers `202`, so the caller may retry. `ember-api` calls it with a 3 second timeout after storing an observation. If the call fails, the observation stays in the `intakePending` collection (`id`, `createdAt`, `attemptedAt`, `attempts`) and `ember-api` sends it again after later reports, up to 20 failed attempts. A report is never refused or delayed because agents is down.
 
 Agents may create and update incidents, conflicts, tasks, and the digest, within the field rules in §5. They cluster nearby observations, set `evidenceScore`, open conflicts, raise severity, and issue code WITHDRAW. They do not verify, extinguish, lower severity, or copy the model’s severity onto the incident.
 

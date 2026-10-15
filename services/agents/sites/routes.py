@@ -4,10 +4,10 @@ Meant for Cloud Scheduler (OIDC as a service account with run.invoker on
 ember-agents). Safe to call repeatedly: sites and alerts are de-duplicated.
 """
 import os
-from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify
 
+from clock import now_iso as _now
 from sites.store import get_store
 from sites.watch import (
     DEFAULT_RADIUS_M,
@@ -19,11 +19,6 @@ from sites.watch import (
 )
 
 bp = Blueprint("sites", __name__)
-
-
-def _now():
-    now = datetime.now(timezone.utc)
-    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
 
 
 def _radius():

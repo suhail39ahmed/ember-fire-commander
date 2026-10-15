@@ -54,7 +54,11 @@ describe('outbox', () => {
 
     expect(send).toHaveBeenCalledTimes(2)
     expect(sent.map((b) => b.capturedAt)).toEqual(['2026-10-17T03:02:00Z', '2026-10-17T03:04:00Z'])
-    expect(sent).toEqual([chip, note])
+    const [firstItem, secondItem] = after.list()
+    expect(sent).toEqual([
+      { ...chip, clientId: firstItem.id },
+      { ...note, clientId: secondItem.id },
+    ])
     expect(states(after.list())).toEqual(['sent', 'sent'])
     expect(after.list().map((i) => i.observationId)).toEqual(['obs_1', 'obs_2'])
 
@@ -71,7 +75,53 @@ describe('outbox', () => {
     const box = outbox(createMemoryStore(), { send })
     const item = await box.submit(chip)
     expect(item.state).toBe('sent')
-    expect(send).toHaveBeenCalledWith(chip)
+    expect(send).toHaveBeenCalledWith({ ...chip, clientId: item.id })
+  })
+
+  it('sends the item id as clientId, and the same one on every replay of that item', async () => {
+    // The server stores the report, but the reply is lost, so the outbox sees a network error.
+    const server = new Map<string, ObservationRequest>()
+    let lostReply = true
+    const send = vi.fn(async (body: ObservationRequest): Promise<Observation> => {
+      const key = body.clientId ?? `anon_${server.size}`
+      const existing = server.has(key)
+      server.set(key, server.get(key) ?? body)
+      if (lostReply && !existing) throw new ApiError('network', 'Network error', null, true)
+      return { id: `obs_${key}` } as Observation
+    })
+    const box = outbox(createMemoryStore(), { send })
+    const item = await box.submit(chip)
+    expect(item.state).toBe('queued')
+
+    lostReply = false
+    await box.flush()
+
+    expect(send).toHaveBeenCalledTimes(2)
+    expect(send.mock.calls.map(([body]) => body.clientId)).toEqual([item.id, item.id])
+    expect(server.size).toBe(1)
+    expect(box.list().map((i) => i.state)).toEqual(['sent'])
+    expect(box.list()[0].observationId).toBe(`obs_${item.id}`)
+  })
+
+  it('gives each report its own clientId', async () => {
+    const { sent, send } = recorder()
+    const box = outbox(createMemoryStore(), { send })
+    await box.submit(chip)
+    await box.submit(note)
+    expect(new Set(sent.map((b) => b.clientId)).size).toBe(2)
+  })
+
+  it('keeps the clientId when a report interrupted mid-send is replayed after a reload', async () => {
+    const store = createMemoryStore()
+    const first = outbox(store, { send: () => new Promise<Observation>(() => undefined) })
+    const pending = await first.enqueue(chip)
+    void first.flush()
+    await vi.waitFor(async () => expect((await store.all())[0].state).toBe('sending'))
+
+    const { sent, send } = recorder()
+    const reloaded = outbox(store, { send })
+    await reloaded.flush()
+    expect(sent.map((b) => b.clientId)).toEqual([pending.id])
   })
 
   it('shares one replay between concurrent triggers', async () => {
@@ -189,7 +239,7 @@ describe('outbox', () => {
 
     expect(uploadPhoto).toHaveBeenCalledTimes(1)
     expect(sent).toEqual([
-      { source: 'photo', capturedAt: '2026-10-17T03:06:00Z', lat: pos.lat, lng: pos.lng, accuracyM: 15, chip: null, text: null, photoPath: issued[0] },
+      { source: 'photo', capturedAt: '2026-10-17T03:06:00Z', lat: pos.lat, lng: pos.lng, accuracyM: 15, chip: null, text: null, photoPath: issued[0], clientId: (await createIdbStore(factory, 'ember-outbox-photo').all())[0].id },
     ])
     const [stored] = await createIdbStore(factory, 'ember-outbox-photo').all()
     expect(stored.state).toBe('sent')

@@ -1,6 +1,7 @@
 """Validate a chip, text or photo observation before it is stored."""
 import math
-from datetime import datetime, timezone
+import re
+from datetime import datetime, timedelta, timezone
 
 from photos.paths import owner_of
 
@@ -12,6 +13,12 @@ CHIP_SEVERITY = {
     "butuh_bantuan": "unknown",
 }
 MAX_NOTE_LENGTH = 280
+# The outbox item id. Letters, digits, dot, dash and underscore, so it is safe to hash and log.
+CLIENT_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+# A phone clock can be a little fast and the outbox can hold a report offline
+# for days, so capturedAt has to fall inside this window around receipt.
+MAX_FUTURE = timedelta(minutes=5)
+MAX_AGE = timedelta(days=7)
 SOURCES = ("chip", "text", "photo")
 _REJECTED_SOURCES = ("live",)
 
@@ -47,12 +54,18 @@ def prepare_observation(body):
     captured = _captured_at(body.get("capturedAt"))
     if captured is None:
         fields["capturedAt"] = "capturedAt must be an ISO-8601 UTC timestamp"
+    else:
+        problem = _captured_at_range(captured)
+        if problem:
+            fields["capturedAt"] = problem
+            captured = None
 
     lat = _coordinate(body.get("lat"), "lat", -90, 90, fields)
     lng = _coordinate(body.get("lng"), "lng", -180, 180, fields)
     accuracy = _accuracy(body, fields)
     chip, text = _chip_and_text(source, body, fields)
     photo_path = _photo_path(source, body, fields)
+    client_id = _client_id(body, fields)
 
     if fields:
         raise ValidationError(next(iter(fields.values())), fields)
@@ -68,7 +81,18 @@ def prepare_observation(body):
         "text": text,
         "severity": severity,
         "photoPath": photo_path,
+        "clientId": client_id,
     }
+
+
+def _client_id(body, fields):
+    value = body.get("clientId")
+    if value is None:
+        return None
+    if not isinstance(value, str) or not CLIENT_ID_PATTERN.match(value):
+        fields["clientId"] = "clientId must be 1 to 128 letters, digits, dots, dashes or underscores"
+        return None
+    return value
 
 
 def _captured_at(value):
@@ -89,6 +113,21 @@ def _captured_at(value):
     if utc.microsecond:
         text += f".{utc.microsecond // 1000:03d}"
     return text + "Z"
+
+
+def _now():
+    return datetime.now(timezone.utc)
+
+
+def _captured_at_range(captured):
+    """Return a message when captured (already normalised) is outside the allowed window."""
+    moment = datetime.fromisoformat(captured[:-1] + "+00:00")
+    now = _now()
+    if moment > now + MAX_FUTURE:
+        return "capturedAt must not be more than 5 minutes in the future"
+    if moment < now - MAX_AGE:
+        return "capturedAt must be within the last 7 days"
+    return None
 
 
 def _coordinate(value, name, low, high, fields):

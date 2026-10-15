@@ -3,10 +3,28 @@
 Writes go to `photo_triage` and `incident_summaries`. Spotter never writes
 incidents, observations, conflicts, or tasks.
 """
+import logging
 import os
 
+logger = logging.getLogger(__name__)
+
+# Only for local runs. Terraform sets PHOTO_BUCKET on ember-agents.
 DEFAULT_BUCKET = "ember-fire-commander-ember-photos"
 STORAGE_TIMEOUT_SECONDS = 30
+
+_warned_default_bucket = False
+
+
+def photo_bucket():
+    """The photo bucket from PHOTO_BUCKET. On Cloud Run an unset value is logged, once, before the default is used."""
+    global _warned_default_bucket
+    bucket = os.getenv("PHOTO_BUCKET", "").strip()
+    if bucket:
+        return bucket
+    if os.getenv("K_SERVICE") and not _warned_default_bucket:
+        _warned_default_bucket = True
+        logger.warning("PHOTO_BUCKET is not set on Cloud Run; using %s", DEFAULT_BUCKET)
+    return DEFAULT_BUCKET
 
 
 class PhotoMissing(Exception):
@@ -94,8 +112,7 @@ class FirestoreSpotterStore:
             from google.cloud import storage
 
             self._storage = storage.Client()
-        bucket = os.getenv("PHOTO_BUCKET", "").strip() or DEFAULT_BUCKET
-        return self._storage.bucket(bucket).blob(path)
+        return self._storage.bucket(photo_bucket()).blob(path)
 
     def photo_size(self, path):
         """Size in bytes from object metadata, without downloading the photo."""

@@ -7,6 +7,7 @@ import logging
 
 from flask import Blueprint, jsonify
 
+from clock import now_iso as _now
 from fusion.notify import notify_withdraw
 from fusion.rules import fuse
 from fusion.settings import Settings
@@ -15,13 +16,6 @@ from fusion.store import get_store
 logger = logging.getLogger(__name__)
 
 bp = Blueprint("fusion", __name__)
-
-
-def _now():
-    from datetime import datetime, timezone
-
-    now = datetime.now(timezone.utc)
-    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
 
 
 @bp.post("/internal/observations/<observation_id>/intake")

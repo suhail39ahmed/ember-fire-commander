@@ -1,9 +1,10 @@
 """POST /observations for chip, text and photo reports, and a rejection for any later edit."""
 import logging
+from datetime import datetime, timezone
 
 from flask import Blueprint, g, jsonify, request
 
-from observations.notify import notify_observation
+from observations.notify import notify_observation, resend_pending
 from observations.photo import check_photo_path
 from observations.store import assemble_record, get_store, utc_now_iso
 from observations.validate import ValidationError, prepare_observation
@@ -46,9 +47,23 @@ def create_observation():
         check_photo_path(g.user["id"], prepared["photoPath"])
 
     record = assemble_record(prepared, g.user["id"], utc_now_iso())
-    stored = get_store().create(record)
-    try:
-        notify_observation(stored["id"])
-    except Exception:
-        logger.exception("agents notify failed for observation %s", stored["id"])
+    store = get_store()
+    stored, created = store.create(record)
+    if not created:
+        # The same clientId was sent before (an outbox replay): answer with the stored report.
+        return jsonify(stored), 200
+    _hand_off(store, stored["id"])
     return jsonify(stored), 201
+
+
+def _hand_off(store, observation_id):
+    """Send the stored observation to agents. A failure leaves it queued for a later resend."""
+    try:
+        if notify_observation(observation_id):
+            store.intake_done(observation_id)
+            # Agents is answering, so this is a good moment to send any that missed it earlier.
+            resend_pending(store, datetime.now(timezone.utc))
+        else:
+            store.intake_failed(observation_id, utc_now_iso())
+    except Exception:
+        logger.exception("agents hand-off failed for observation %s", observation_id)

@@ -10,10 +10,10 @@ Optional JSON body for triage: {"callerId": "<uid>"}. When the calling
 service passes the signed-in uid, the photo path must belong to it too.
 """
 import logging
-from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
 
+from clock import now_iso as _now
 from spotter import model as model_module
 from spotter.store import get_store
 from spotter.summary import summarize
@@ -29,11 +29,6 @@ from spotter.triage import (
 logger = logging.getLogger(__name__)
 
 bp = Blueprint("spotter", __name__)
-
-
-def _now():
-    now = datetime.now(timezone.utc)
-    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
 
 
 def _error(status, code, message):

@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 import identity
@@ -14,6 +16,19 @@ CHIP_BODY = {
     "chip": "api",
     "text": None,
 }
+
+
+NOW = datetime(2026, 10, 14, 12, 0, 0, tzinfo=timezone.utc)
+
+
+@pytest.fixture(autouse=True)
+def clock(monkeypatch):
+    """Fix the clock so the sample timestamps stay inside the capturedAt window."""
+    monkeypatch.setattr("observations.validate._now", lambda: NOW)
+
+
+def _iso(moment):
+    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 @pytest.fixture
@@ -368,3 +383,118 @@ def test_notify_posts_intake_when_url_is_set(monkeypatch):
     notify_observation("abc")
     assert seen["url"] == "https://agents.example/internal/observations/abc/intake"
     assert seen["auth"] == "Bearer tok"
+
+
+@pytest.mark.parametrize("offset", [
+    timedelta(minutes=5),
+    timedelta(0),
+    -timedelta(days=7),
+    -timedelta(days=3),
+])
+def test_captured_at_inside_the_window_is_stored(client, store, signed_in, offset):
+    response = _post(client, dict(CHIP_BODY, capturedAt=_iso(NOW + offset)))
+    assert response.status_code == 201
+    assert response.get_json()["capturedAt"] == _iso(NOW + offset)
+
+
+@pytest.mark.parametrize("offset,message", [
+    (timedelta(minutes=5, seconds=1), "capturedAt must not be more than 5 minutes in the future"),
+    (timedelta(days=2), "capturedAt must not be more than 5 minutes in the future"),
+    (-timedelta(days=7, seconds=1), "capturedAt must be within the last 7 days"),
+    (-timedelta(days=60), "capturedAt must be within the last 7 days"),
+])
+def test_captured_at_outside_the_window_is_rejected(client, store, signed_in, offset, message):
+    response = _post(client, dict(CHIP_BODY, capturedAt=_iso(NOW + offset)))
+    body = response.get_json()
+    assert response.status_code == 400
+    assert body["error"]["code"] == "validation_error"
+    assert body["error"]["fields"]["capturedAt"] == message
+    assert store.observations == {}
+
+
+def test_future_captured_at_is_rejected_for_photo_and_text_reports(client, store, signed_in):
+    future = _iso(NOW + timedelta(hours=1))
+    text = _post(client, dict(CHIP_BODY, source="text", chip=None, text="note", capturedAt=future))
+    assert text.status_code == 400
+    assert "capturedAt" in text.get_json()["error"]["fields"]
+
+
+def test_supervisor_can_file_a_report(client, store, monkeypatch):
+    # Decided in #67: kept on purpose. A supervisor reporting from the field
+    # is attributed to their own uid and gets no extra rights from doing so.
+    monkeypatch.setattr(
+        identity,
+        "verify_id_token",
+        lambda token: {"uid": "uid_bpbd", "name": "Dewi", "role": "supervisor"},
+    )
+    response = _post(client, CHIP_BODY)
+    assert response.status_code == 201
+    assert response.get_json()["volunteerId"] == "uid_bpbd"
+
+
+def test_replaying_a_client_id_returns_the_stored_report(client, store, signed_in):
+    body = dict(CHIP_BODY, clientId="outbox-item-1")
+    first = _post(client, body)
+    second = _post(client, body)
+    assert first.status_code == 201
+    assert second.status_code == 200
+    assert second.get_json() == first.get_json()
+    assert second.get_json()["clientId"] == "outbox-item-1"
+    assert len(store.observations) == 1
+    assert len(store.audits) == 1
+
+
+def test_replay_does_not_notify_agents_again(client, store, signed_in, monkeypatch):
+    called = []
+    monkeypatch.setattr(
+        "observations.routes.notify_observation",
+        lambda observation_id: called.append(observation_id),
+    )
+    body = dict(CHIP_BODY, clientId="outbox-item-2")
+    _post(client, body)
+    _post(client, body)
+    assert len(called) == 1
+
+
+def test_replay_returns_the_first_report_even_if_the_body_differs(client, store, signed_in):
+    first = _post(client, dict(CHIP_BODY, clientId="outbox-item-3", chip="asap")).get_json()
+    second = _post(client, dict(CHIP_BODY, clientId="outbox-item-3", chip="api"))
+    assert second.status_code == 200
+    assert second.get_json()["id"] == first["id"]
+    assert second.get_json()["chip"] == "asap"
+
+
+def test_same_client_id_from_two_volunteers_is_two_reports(client, store, monkeypatch):
+    body = dict(CHIP_BODY, clientId="shared-id")
+    for uid in ("uid_sari", "uid_dedi"):
+        monkeypatch.setattr(
+            identity, "verify_id_token",
+            lambda token, uid=uid: {"uid": uid, "name": uid, "role": "volunteer"},
+        )
+        assert _post(client, body).status_code == 201
+    assert len(store.observations) == 2
+    assert len(store.audits) == 2
+
+
+def test_distinct_client_ids_are_distinct_reports(client, store, signed_in):
+    assert _post(client, dict(CHIP_BODY, clientId="a")).status_code == 201
+    assert _post(client, dict(CHIP_BODY, clientId="b")).status_code == 201
+    assert len(store.observations) == 2
+
+
+def test_report_without_a_client_id_is_unchanged(client, store, signed_in):
+    response = _post(client, CHIP_BODY)
+    assert response.status_code == 201
+    assert "clientId" not in response.get_json()
+
+
+@pytest.mark.parametrize("value", ["", " ", "a b", "x" * 129, 12, True, ["a"], "id/with/slash"])
+def test_invalid_client_id_is_rejected(client, store, signed_in, value):
+    response = _post(client, dict(CHIP_BODY, clientId=value))
+    assert response.status_code == 400
+    assert "clientId" in response.get_json()["error"]["fields"]
+    assert store.observations == {}
+
+
+def test_null_client_id_is_the_same_as_none(client, store, signed_in):
+    assert _post(client, dict(CHIP_BODY, clientId=None)).status_code == 201
