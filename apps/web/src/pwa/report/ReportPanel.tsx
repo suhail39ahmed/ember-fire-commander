@@ -1,16 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { CHIP_VALUES, type ChipValue, type ObservationCreate } from '../contracts/types'
+import type { ChipValue, ObservationCreate } from '../contracts/types'
 import { ApiError, type EmberApi } from '../api/types'
 import { strings, t, type Lang } from '../i18n'
 import { outboxStrings } from '../outbox/strings'
 import { buildObservation, MAX_NOTE_LENGTH, validateDraft, type Position } from './buildObservation'
-
-const CHIP_LABEL: Record<ChipValue, string> = {
-  asap: 'asap',
-  api: 'api',
-  aman: 'aman',
-  butuh_bantuan: 'butuh bantuan',
-}
+import { ChipRow } from './ChipRow'
 
 type Status =
   | { kind: 'idle' }
@@ -106,33 +100,17 @@ export function ReportPanel({ api, lang, getPosition, preset, submit }: Props) {
       <h3 id="quick-report-label" className="section-label">
         {t(lang, strings.quickReport)}
       </h3>
-      <div
-        className="chips"
-        role="radiogroup"
-        aria-labelledby="quick-report-label"
-        aria-describedby={status.kind === 'error' ? errorId : undefined}
-      >
-        {CHIP_VALUES.map((c) => {
-          const selected = chip === c
-          return (
-            <button
-              key={c}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              disabled={locked}
-              className={`chip${selected ? ' selected' : ''}${showChipError ? ' invalid' : ''}`}
-              onClick={() => {
-                setChip(selected ? null : c)
-                if (status.kind === 'error') setStatus({ kind: 'idle' })
-              }}
-            >
-              {CHIP_LABEL[c]}
-              {selected && <span aria-hidden="true"> ✓</span>}
-            </button>
-          )
-        })}
-      </div>
+      <ChipRow
+        value={chip}
+        disabled={locked}
+        invalid={showChipError}
+        labelledBy="quick-report-label"
+        describedBy={status.kind === 'error' ? errorId : undefined}
+        onChange={(next) => {
+          setChip(next)
+          if (status.kind === 'error') setStatus({ kind: 'idle' })
+        }}
+      />
 
       <label className="section-label" htmlFor="report-note">
         {t(lang, strings.noteLabel)}

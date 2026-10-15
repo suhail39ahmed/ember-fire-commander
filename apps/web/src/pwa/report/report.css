@@ -1,0 +1,30 @@
+/* Quick report chips (#57). 48 px tall, as in the Figma "Report chip" component. */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  --chip-dot: var(--ink-muted);
+  box-sizing: border-box;
+  min-height: 48px;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 0 12px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1.5px solid var(--line);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: left;
+  cursor: pointer;
+}
+.chip[data-chip='asap'] { --chip-dot: var(--haze); }
+.chip[data-chip='api'] { --chip-dot: var(--ember); }
+.chip[data-chip='aman'] { --chip-dot: var(--safe); }
+.chip[data-chip='butuh_bantuan'] { --chip-dot: var(--danger); }
+.chip-mark { flex: none; width: 16px; height: 16px; border-radius: 50%; background: var(--chip-dot); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; line-height: 1; }
+.chip.selected { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.chip.selected .chip-mark { background: transparent; color: var(--paper); }
+.chip.invalid { border-color: var(--danger); }
+.chip:disabled { cursor: not-allowed; opacity: 0.55; }
