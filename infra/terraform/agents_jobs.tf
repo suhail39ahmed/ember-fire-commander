@@ -44,9 +44,9 @@ resource "google_cloud_scheduler_job" "ember_sites_scan" {
   paused           = var.sites_scan_schedule_paused
   attempt_deadline = "120s"
 
-  retry_config {
-    retry_count = 0 # the next run is 15 minutes away
-  }
+  # No retry_config: Cloud Scheduler's default retry_count is 0 (no retry; the
+  # next run is 15 minutes away). An explicit `retry_count = 0` is never kept
+  # in state by the provider, so it showed as a change on every plan.
 
   http_target {
     http_method = "POST"

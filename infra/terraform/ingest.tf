@@ -97,9 +97,9 @@ resource "google_cloud_scheduler_job" "ember_ingest_hourly" {
   paused           = var.ingest_schedule_paused
   attempt_deadline = "180s"
 
-  retry_config {
-    retry_count = 0
-  }
+  # No retry_config: Cloud Scheduler's default retry_count is 0 (no retry; the
+  # next hourly run is the retry). An explicit `retry_count = 0` is never kept
+  # in state by the provider, so it showed as a change on every plan.
 
   http_target {
     http_method = "POST"
