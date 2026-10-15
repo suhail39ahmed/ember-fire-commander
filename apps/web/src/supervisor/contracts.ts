@@ -9,6 +9,8 @@ export type { IncidentStatus, Observation, Severity, Task, Withdraw }
 /** Full incident record (section 5.2). */
 export interface Incident {
   id: string
+  /** Readable label from agents, such as "Bengkalis, Riau · Sari · #3". Absent or null on older incidents. */
+  name?: string | null
   status: IncidentStatus
   severity: Severity
   evidenceScore: number

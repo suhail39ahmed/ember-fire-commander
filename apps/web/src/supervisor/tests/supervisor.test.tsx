@@ -22,6 +22,23 @@ const noop: IncidentActions = {
 const render = (name: Parameters<typeof fixture>[0], actions: IncidentActions = noop) =>
   renderToStaticMarkup(<IncidentView detail={fixture(name)} actions={actions} />)
 
+describe('incident heading', () => {
+  it('shows the readable name, not the id', () => {
+    const html = render('conflict')
+    expect(html).toContain('<h1>Ketapang, Kalimantan Barat · Pak Dedi · #1</h1>')
+    expect(html).toContain('aria-label="Incident Ketapang, Kalimantan Barat · Pak Dedi · #1"')
+    expect(html).not.toContain('inc_demo_01</h1>')
+  })
+
+  it('shows a short id for an incident without a name', () => {
+    const detail = fixture('normal')
+    detail.incident = { ...detail.incident, id: '4kQ9xZ7hLm', name: null }
+    const html = renderToStaticMarkup(<IncidentView detail={detail} actions={noop} />)
+    expect(html).toContain('<h1>INC-7HLM</h1>')
+    expect(html).not.toContain('4kQ9xZ7hLm</h1>')
+  })
+})
+
 describe('supervisor http client', () => {
   it('calls the contract routes with both identity headers', async () => {
     const fetchImpl = vi.fn(async () => json({ task: { id: 't1', status: 'approved' }, auditId: 'aud_1' }, 200))

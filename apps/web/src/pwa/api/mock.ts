@@ -18,6 +18,7 @@ export interface MockControls {
 }
 
 const INCIDENT_ID = 'inc_demo_01'
+const INCIDENT_NAME = 'Ketapang, Kalimantan Barat · Pak Dedi · #1'
 const WITHDRAW_TEXT = 'MUNDUR sekarang ke titik kumpul di arah datangnya angin. Jangan padamkan sendiri.'
 
 function validationError(field: string, hint: string): ApiError {
@@ -50,7 +51,7 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
   const reset = () => {
     digest = {
       updatedAt: new Date().toISOString(),
-      incidents: [{ id: INCIDENT_ID, status: 'open', severity: 'small_flame', withdraw: null, lat: -1.849, lng: 110.051 }],
+      incidents: [{ id: INCIDENT_ID, name: INCIDENT_NAME, status: 'open', severity: 'small_flame', withdraw: null, lat: -1.849, lng: 110.051 }],
       myTasks: [
         {
           id: 'task_demo_verify',

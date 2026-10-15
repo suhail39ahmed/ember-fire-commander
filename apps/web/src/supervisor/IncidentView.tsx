@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import { incidentLabel } from '../pwa/incidentName'
 import type { IncidentDetail, Observation, Task } from './contracts'
 import {
   canVerify, conflictPair, SEVERITY_LABEL, STATUS_LABEL, TASK_LABEL, taskControls, timeOf, volunteerName, withdrawBanner,
@@ -99,10 +100,10 @@ export function IncidentView({ detail, actions }: { detail: IncidentDetail; acti
   const pair = conflictPair(detail)
   const others = conflict ? [] : detail.observations
   return (
-    <section className="sup-incident" aria-label={`Incident ${incident.id}`}>
+    <section className="sup-incident" aria-label={`Incident ${incidentLabel(incident)}`}>
       <header className="sup-head">
         <div>
-          <h1>Incident {incident.id}</h1>
+          <h1>{incidentLabel(incident)}</h1>
           <p className="sup-muted">
             {STATUS_LABEL[incident.status]} · {SEVERITY_LABEL[incident.severity]} · {detail.observations.length} reports
           </p>

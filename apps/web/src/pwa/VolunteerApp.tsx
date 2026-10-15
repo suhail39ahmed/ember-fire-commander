@@ -7,6 +7,7 @@ import { GATEWAY_WSS_URL, USE_MOCK_API } from './api/config'
 import { ApiError, type EmberApi } from './api/types'
 import { createMockApi, type MockControls } from './api/mock'
 import { activeWithdraw, currentTask } from './digest'
+import { incidentLabelById } from './incidentName'
 import { browserSocketFactory, PttSession, type SessionState } from './gateway/pttSession'
 import { TalkCard } from './gateway/TalkCard'
 import { useVoiceAvailability } from './gateway/useVoiceAvailability'
@@ -142,7 +143,7 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
           <section className="card task" aria-labelledby="task-title">
             <p className="section-label">{t(lang, strings.currentTask)}</p>
             <h2 id="task-title">
-              {t(lang, strings.taskType[task.type])} · {task.incidentId}
+              {t(lang, strings.taskType[task.type])} · {incidentLabelById(task.incidentId, digest?.incidents)}
             </h2>
             <p className="muted">{t(lang, strings.taskStatus[task.status])}</p>
             {task.instruction && <p className="instruction">{task.instruction}</p>}

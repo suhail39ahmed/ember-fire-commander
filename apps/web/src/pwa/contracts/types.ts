@@ -91,6 +91,8 @@ export interface Withdraw {
 /** Incident summary as carried in the digest (section 5.6). */
 export interface IncidentSummary {
   id: string
+  /** Readable label from agents, such as "Bengkalis, Riau · Sari · #3". Absent or null on older incidents. */
+  name?: string | null
   status: IncidentStatus
   severity: Severity
   withdraw: Withdraw | null

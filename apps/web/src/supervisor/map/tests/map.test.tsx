@@ -16,6 +16,13 @@ const render = (props: Partial<Parameters<typeof IncidentMap>[0]> = {}) =>
   )
 
 describe('pin rules', () => {
+  it('labels pins with the incident name, or a short id for an unnamed one', () => {
+    const [conflict, normal] = region()
+    expect(pinStyle(normal).label).toBe('Ketapang, Kalimantan Barat · Sari · #2 · Open · Small flame')
+    expect(pinStyle({ ...conflict, name: null, id: '4kQ9xZ7hLm' }).label).toMatch(/^INC-7HLM · /)
+    expect(pinStyle({ ...conflict, name: undefined, id: '4kQ9xZ7hLm' }).label).not.toContain('4kQ9xZ7hLm')
+  })
+
   it('colours by severity and marks conflict, withdraw and verified', () => {
     const [conflict, normal, withdraw] = region()
     expect(pinStyle(normal)).toMatchObject({ color: PIN_COLOR.small_flame, conflict: false, withdraw: false, badge: null })
@@ -62,7 +69,7 @@ describe('IncidentMap', () => {
 
   it('marks the queue selection on the map', () => {
     const html = render()
-    expect(html).toMatch(/class="map-pin selected"[^>]*aria-label="inc_demo_02/)
+    expect(html).toMatch(/class="map-pin selected"[^>]*aria-label="Ketapang, Kalimantan Barat · Sari · #2/)
     expect(html.match(/aria-pressed="true"/g)?.length).toBe(1)
   })
 
