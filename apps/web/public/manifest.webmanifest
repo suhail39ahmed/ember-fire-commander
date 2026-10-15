@@ -3,7 +3,7 @@
   "short_name": "EMBER",
   "description": "EMBER volunteer app. Demo build with synthetic data.",
   "lang": "id",
-  "start_url": "/?source=pwa",
+  "start_url": "/pwa?source=pwa",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

@@ -2,13 +2,14 @@ import { Route, Routes } from 'react-router-dom'
 
 import { VolunteerApp } from '../pwa/VolunteerApp'
 import { SupervisorConsole } from '../supervisor/SupervisorConsole'
-import { LoginScreen } from './LoginScreen'
+import { NotFound } from './NotFound'
+import { RoleChoice } from './RoleChoice'
 import { RequireRole } from './RoleHome'
 
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<LoginScreen />} />
+      <Route path="/" element={<RoleChoice />} />
       <Route
         path="/pwa"
         element={
@@ -25,7 +26,7 @@ export function AppRoutes() {
           </RequireRole>
         }
       />
-      <Route path="*" element={<LoginScreen />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }

@@ -1,43 +1,57 @@
-import { Link, Navigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 
 import { useAuth } from '../auth/AuthProvider'
 import type { Me } from '../auth/api'
+import { t } from '../pwa/i18n'
+import { useLanguage } from '../pwa/language'
+import { AuthShell } from './AuthShell'
+import { copy } from './copy'
+import { homeFor } from './paths'
+import { SignInScreen } from './SignInScreen'
 import './login.css'
 
-function homeFor(role: Me['role']) {
-  return role === 'volunteer' ? '/pwa' : '/console'
+export function CheckingScreen() {
+  const { lang } = useLanguage()
+  return <main className="role-screen" role="status"><p>{t(lang, copy.checking)}</p></main>
 }
 
+/**
+ * Gate for a role's page. Signed out, it shows that role's sign-in on the same
+ * URL, so signing in returns the user to the page they opened.
+ */
 export function RequireRole({ role, children }: { role: Me['role']; children: ReactNode }) {
+  const { lang } = useLanguage()
   const { status, me, message, signOut } = useAuth()
   if (status === 'loading') {
-    return <main className="role-screen"><p>Checking sign-in…</p></main>
+    return <CheckingScreen />
   }
   if (status === 'signed-out') {
-    return <Navigate to="/" replace />
+    return <SignInScreen audience={role} />
   }
   if (status === 'no-access' || !me) {
     return (
-      <main className="role-screen">
-        <h1>No access</h1>
-        <p className="error" role="alert">{message || 'This account has no EMBER role.'}</p>
-        <button className="sign-out" type="button" onClick={() => { void signOut() }}>Sign out</button>
-      </main>
+      <AuthShell audience={role}>
+        <div className="login-card">
+          <h1>{t(lang, copy.noAccess.title)}</h1>
+          <p className="error" role="alert">{message || t(lang, copy.noAccess.fallback)}</p>
+          <button className="action-button" type="button" onClick={() => { void signOut() }}>{t(lang, copy.signOut)}</button>
+        </div>
+      </AuthShell>
     )
   }
   if (me.role !== role) {
+    const text = role === 'supervisor' ? copy.wrongRole.volunteerOnSupervisorPage : copy.wrongRole.supervisorOnVolunteerPage
     return (
-      <main className="role-screen">
-        <p className="eyebrow">EMBER</p>
-        <h1>This page is not for your role</h1>
-        <p>You are signed in as {me.displayName || me.id} ({me.role}).</p>
-        <p className="note">Open your own page, or sign out.</p>
-        <p>
-          <Link className="text-button" to={homeFor(me.role)}>Your page</Link>
-          <button className="sign-out" type="button" onClick={() => { void signOut() }}>Sign out</button>
-        </p>
-      </main>
+      <AuthShell audience={role}>
+        <div className="login-card">
+          <h1>{t(lang, text.title)}</h1>
+          <p className="sub">{t(lang, text.body)}</p>
+          <p className="status-code">{t(lang, copy.wrongRole.code)} · {homeFor(role).toUpperCase()}</p>
+          <Link className="action-button" to={homeFor(me.role)}>{t(lang, text.action)}</Link>
+          <button className="text-button" type="button" onClick={() => { void signOut() }}>{t(lang, copy.signOut)}</button>
+        </div>
+      </AuthShell>
     )
   }
   return children
