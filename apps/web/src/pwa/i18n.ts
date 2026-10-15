@@ -1,15 +1,21 @@
 /**
  * UI strings. Bahasa Indonesia is the default; English is a toggle.
  * Bahasa copy is DRAFT and needs native-speaker review before the demo.
- * Chip labels stay in Bahasa in both languages (they are the report vocabulary).
+ * Chip labels live in report/chips.ts. Only the labels change with the language; the values sent to the API do not.
  */
 export type Lang = 'id' | 'en'
+
+export const LANG_KEY = 'ember.lang'
+export const DEFAULT_LANG: Lang = 'id'
+
+/** Reads a stored language code; anything unknown falls back to the default. */
+export function parseLang(value: string | null | undefined): Lang {
+  return value === 'en' || value === 'id' ? value : DEFAULT_LANG
+}
 
 const strings = {
   simulated: { id: 'SIMULASI · data sintetis', en: 'SIMULATED · synthetic data' },
   team: { id: 'Regu A · Desa (fiktif)', en: 'Crew A · Village (fictional)' },
-  langToggle: { id: 'EN', en: 'ID' },
-  langToggleLabel: { id: 'Ganti ke bahasa Inggris', en: 'Switch to Bahasa Indonesia' },
   loading: { id: 'Memuat tugas…', en: 'Loading your tasks…' },
   loadError: { id: 'Tidak bisa terhubung ke EMBER.', en: 'Could not reach EMBER.' },
   retry: { id: 'Coba lagi', en: 'Try again' },
@@ -74,14 +80,26 @@ const strings = {
   sending: { id: 'Mengirim…', en: 'Sending…' },
   sent: { id: 'Laporan terkirim ✓', en: 'Report sent ✓' },
   sentDetail: { id: 'Supervisor Anda bisa melihatnya sekarang.', en: 'Your supervisor can see it now.' },
+  sentSummary: { id: 'Yang Anda kirim', en: 'What you sent' },
   newReport: { id: 'Laporan baru', en: 'New report' },
   errEmpty: {
     id: 'Pilih salah satu: asap, api, aman atau butuh bantuan — atau tulis catatan.',
-    en: 'Choose asap, api, aman or butuh bantuan — or write a note.',
+    en: 'Choose Smoke, Fire, Safe or Need help — or write a note.',
   },
   errTooLong: { id: 'Catatan terlalu panjang.', en: 'Note is too long.' },
   errNetwork: { id: 'Gagal mengirim. Periksa sinyal lalu coba lagi.', en: 'Could not send. Check signal and try again.' },
   errApi: { id: 'Laporan ditolak oleh server:', en: 'The server rejected the report:' },
+  locating: {
+    id: 'Mengambil lokasi… jawab permintaan izin di browser jika muncul.',
+    en: 'Getting location… answer the browser prompt if one appears.',
+  },
+  waitingForLocation: { id: 'Menunggu lokasi…', en: 'Waiting for location…' },
+  sendHint: { id: 'Pilih satu isyarat atau tulis catatan untuk mengirim.', en: 'Pick a chip or write a note to send.' },
+  locationNote: { id: 'Lokasi Anda dilampirkan saat laporan dikirim.', en: 'Your location is attached when you send.' },
+  locationBlocked: {
+    id: 'Lokasi diblokir. Izinkan di pengaturan situs, lalu ketuk Kirim.',
+    en: 'Location is blocked. Allow it in site settings, then tap Send.',
+  },
   noLocation: { id: 'Lokasi tidak tersedia. Nyalakan lokasi lalu kirim lagi.', en: 'Location unavailable. Turn on location and send again.' },
   withdrawLabel: { id: 'ATURAN KESELAMATAN · TETAP', en: 'SAFETY RULE · FIXED' },
   withdrawTitle: { id: 'MUNDUR SEKARANG', en: 'WITHDRAW NOW' },

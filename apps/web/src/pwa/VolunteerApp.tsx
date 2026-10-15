@@ -8,9 +8,13 @@ import { ApiError, type EmberApi } from './api/types'
 import { createMockApi, type MockControls } from './api/mock'
 import { activeWithdraw, currentTask } from './digest'
 import { browserSocketFactory, PttSession, type SessionState } from './gateway/pttSession'
+import { TalkCard } from './gateway/TalkCard'
+import { useVoiceAvailability } from './gateway/useVoiceAvailability'
+import { talkView } from './gateway/voiceView'
 import { registerServiceWorker } from './install/registerServiceWorker'
 import { usePushRegistration } from './push/usePushRegistration'
-import { strings, t, type Lang } from './i18n'
+import { strings, t } from './i18n'
+import { useLanguage } from './language'
 import { usePermissions } from './permissions/usePermissions'
 import { PermissionsPanel } from './install/PermissionsPanel'
 import { InstallBanner } from './install/InstallBanner'
@@ -19,33 +23,22 @@ import { PhotoPanel } from './photo/PhotoPanel'
 import { createMockUpload, createXhrUpload } from './photo/upload'
 import { OutboxPanel } from './outbox/OutboxPanel'
 import { useOutbox } from './outbox/useOutbox'
-import type { Position } from './report/buildObservation'
+import { getPosition, locate, watchLocationGranted } from './report/location'
+import { VolunteerHeader } from './VolunteerHeader'
 import { WithdrawScreen } from './WithdrawScreen'
 import './volunteer.css'
 
 const POLL_MS = 5000
-const LANG_KEY = 'ember.lang'
-
-function getPosition(): Promise<Position | null> {
-  if (!('geolocation' in navigator)) return Promise.resolve(null)
-  return new Promise((resolve) =>
-    navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracyM: Math.round(p.coords.accuracy) }),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 },
-    ),
-  )
-}
 
 /** Volunteer screen at /pwa. Rendered inside RequireRole role="volunteer", so `me` is set. */
 export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
   const { user, me } = useAuth()
-  const [lang, setLang] = useState<Lang>(() => (localStorage.getItem(LANG_KEY) === 'en' ? 'en' : 'id'))
+  const { lang } = useLanguage()
   const [digest, setDigest] = useState<Digest | null>(null)
   const [loadError, setLoadError] = useState(false)
   const [session, setSession] = useState<SessionState>('idle')
   const [pttBlocked, setPttBlocked] = useState<'auth' | 'unavailable' | null>(null)
-  const { perms, request } = usePermissions()
+  const { perms, asking, request } = usePermissions()
   const getAuthHeaders = useMemo(() => authHeadersFor(user), [user])
   const volunteerId = me?.id ?? null
   const api = useMemo<EmberApi>(
@@ -57,11 +50,6 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
   const outbox = useOutbox(api, upload)
 
   useEffect(() => registerServiceWorker(), [])
-
-  useEffect(() => {
-    localStorage.setItem(LANG_KEY, lang)
-    document.documentElement.lang = lang
-  }, [lang])
 
   const load = useCallback(async () => {
     try {
@@ -91,6 +79,7 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
     [getAuthHeaders],
   )
   useEffect(() => () => ptt.close(), [ptt])
+  const voice = useVoiceAvailability({ url: GATEWAY_WSS_URL, getAuthHeaders, createSocket: browserSocketFactory })
   const pressed = useRef(false)
 
   const onPressTalk = async () => {
@@ -122,24 +111,10 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
 
   return (
     <div className="vol">
-      <header className="vol-header">
-        <img src="/brand/ember-emblem.svg" alt="" width={28} height={28} />
-        <div className="vol-title">
-          <strong>EMBER</strong>
-          <span className="muted">{me?.displayName ? `${me.displayName} · ${t(lang, strings.team)}` : t(lang, strings.team)}</span>
-        </div>
-        <span className="badge-simulated">{t(lang, strings.simulated)}</span>
-        <button
-          type="button"
-          className="lang"
-          aria-label={t(lang, strings.langToggleLabel)}
-          onClick={() => setLang(lang === 'id' ? 'en' : 'id')}
-        >
-          {t(lang, strings.langToggle)}
-        </button>
-      </header>
+      <VolunteerHeader name={me?.displayName} lang={lang} />
 
       <main className="vol-main">
+        <p className="badge-simulated vol-simulated">{t(lang, strings.simulated)}</p>
         <InstallBanner lang={lang} />
 
         {!digest && !loadError && (
@@ -185,34 +160,21 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
           </section>
         )}
 
-        <section className="card talk">
-          <div className="camera-state" data-state={perms.camera}>
-            {t(lang, strings.camera)}: {t(lang, strings.perm[perms.camera])}
-          </div>
-          <p className="session" aria-live="polite">
-            {t(lang, strings.session[session])}
-          </p>
-          <button
-            type="button"
-            className="btn ink ptt"
-            disabled={perms.microphone === 'denied' || perms.microphone === 'unsupported'}
-            onPointerDown={() => void onPressTalk()}
-            onPointerUp={onReleaseTalk}
-            onPointerLeave={onReleaseTalk}
-            onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && !e.repeat && void onPressTalk()}
-            onKeyUp={(e) => (e.key === ' ' || e.key === 'Enter') && onReleaseTalk()}
-          >
-            🎙 {t(lang, strings.holdToTalk)}
-          </button>
-          {perms.microphone === 'denied' && <p className="error">{t(lang, strings.microphone)}: {t(lang, strings.permDeniedHelp)}</p>}
-          {pttBlocked && (
-            <p className="muted" role="status">
-              {t(lang, pttBlocked === 'auth' ? strings.talkNeedsSignIn : strings.talkUnavailable)}
-            </p>
-          )}
-        </section>
+        <TalkCard
+          lang={lang}
+          view={talkView({ voice, session, mic: perms.microphone, blocked: pttBlocked })}
+          onPress={() => void onPressTalk()}
+          onRelease={onReleaseTalk}
+        />
 
-        <ReportPanel api={api} lang={lang} getPosition={getPosition} preset={preset} submit={outbox.submit} />
+        <ReportPanel
+          api={api}
+          lang={lang}
+          locate={locate}
+          onLocationGranted={watchLocationGranted}
+          preset={preset}
+          submit={outbox.submit}
+        />
 
         <PhotoPanel
           api={api}
@@ -232,7 +194,7 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
           onSendNow={() => void outbox.flush()}
         />
 
-        <PermissionsPanel perms={perms} lang={lang} onRequest={(k) => void request(k)} />
+        <PermissionsPanel perms={perms} asking={asking} lang={lang} onRequest={(k) => void request(k)} />
 
         {USE_MOCK_API && mock && (
           <section className="card dev" aria-label="Mock controls">

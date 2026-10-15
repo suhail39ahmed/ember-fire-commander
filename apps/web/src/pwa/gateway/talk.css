@@ -1,0 +1,24 @@
+/* Push-to-talk states (#74). Sizes follow the Figma "Push-to-talk" component: 72 px tall, status line below with reserved space. */
+.talk .ptt { display: flex; align-items: center; justify-content: center; gap: 10px; height: 72px; padding: 0 16px; font-size: 17px; line-height: 1.25; text-align: center; }
+.talk .ptt:disabled { opacity: 1; }
+.talk .ptt-label { min-width: 0; }
+.talk .ptt-checking,
+.talk .ptt-unavailable { background: #ece6dc; color: var(--ink-muted); }
+.talk .ptt-connecting { background: var(--ink); color: var(--paper); }
+.talk .ptt-listening { background: var(--ember); color: #fff; }
+.talk .ptt-replying { background: #fff; color: var(--data); border: 1.5px solid var(--data); }
+.talk .ptt-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--paper); flex: none; }
+.talk .ptt-spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; flex: none; animation: ptt-spin 0.9s linear infinite; }
+.talk .ptt-mic { flex: none; }
+.talk .ptt-wave { display: inline-flex; align-items: center; gap: 3px; height: 22px; flex: none; }
+.talk .ptt-wave i { width: 3px; border-radius: 2px; background: currentColor; animation: ptt-wave 0.9s ease-in-out infinite; }
+.talk .ptt-wave i:nth-child(1), .talk .ptt-wave i:nth-child(5) { height: 8px; }
+.talk .ptt-wave i:nth-child(2), .talk .ptt-wave i:nth-child(4) { height: 14px; animation-delay: 0.1s; }
+.talk .ptt-wave i:nth-child(3) { height: 22px; animation-delay: 0.2s; }
+.talk .ptt-status { min-height: 2.8em; font-size: 13px; line-height: 1.4; font-weight: 500; color: var(--ink-muted); }
+.talk .ptt-status[data-state='unavailable'] { color: var(--ink); }
+@keyframes ptt-spin { to { transform: rotate(360deg); } }
+@keyframes ptt-wave { 50% { transform: scaleY(0.55); } }
+@media (prefers-reduced-motion: reduce) {
+  .talk .ptt-spinner, .talk .ptt-wave i { animation: none; }
+}

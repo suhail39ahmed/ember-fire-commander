@@ -1,28 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
-import { CHIP_VALUES, type ChipValue, type ObservationCreate } from '../contracts/types'
-import { ApiError, type EmberApi } from '../api/types'
+import type { ChipValue, ObservationCreate } from '../contracts/types'
+import type { EmberApi } from '../api/types'
 import { strings, t, type Lang } from '../i18n'
-import { outboxStrings } from '../outbox/strings'
-import { buildObservation, MAX_NOTE_LENGTH, validateDraft, type Position } from './buildObservation'
-
-const CHIP_LABEL: Record<ChipValue, string> = {
-  asap: 'asap',
-  api: 'api',
-  aman: 'aman',
-  butuh_bantuan: 'butuh bantuan',
-}
-
-type Status =
-  | { kind: 'idle' }
-  | { kind: 'sending' }
-  | { kind: 'sent'; at: string }
-  | { kind: 'queued' }
-  | { kind: 'error'; message: string; retryable: boolean }
+import { MAX_NOTE_LENGTH } from './buildObservation'
+import { ChipRow } from './ChipRow'
+import { SentCard } from './SentCard'
+import type { LocationResult } from './location'
+import { sendReport } from './sendReport'
+import { statusLine, type ReportStatus } from './status'
 
 interface Props {
   api: EmberApi
   lang: Lang
-  getPosition: () => Promise<Position | null>
+  /** Asks the browser for the position. Waits while the permission prompt is open. */
+  locate: () => Promise<LocationResult>
+  /** Calls back when location becomes allowed in the browser. Returns a function that stops listening. */
+  onLocationGranted?: (callback: () => void) => () => void
   /** Pre-select a chip from the task card ("Not a fire" → aman). `n` changes on each request. */
   preset?: { chip: ChipValue | null; n: number }
   /** Sends through the offline outbox (#21). Without it the report goes straight to POST /observations. */
@@ -30,10 +23,10 @@ interface Props {
 }
 
 /** #17: chip and text report. Works without Live voice. */
-export function ReportPanel({ api, lang, getPosition, preset, submit }: Props) {
+export function ReportPanel({ api, lang, locate, onLocationGranted, preset, submit }: Props) {
   const [chip, setChip] = useState<ChipValue | null>(null)
   const [text, setText] = useState('')
-  const [status, setStatus] = useState<Status>({ kind: 'idle' })
+  const [status, setStatus] = useState<ReportStatus>({ kind: 'idle' })
   // capturedAt is fixed when the report is first sent and reused on retry.
   const pending = useRef<{ capturedAt: string } | null>(null)
   const statusRef = useRef(status)
@@ -42,55 +35,76 @@ export function ReportPanel({ api, lang, getPosition, preset, submit }: Props) {
   useEffect(() => {
     if (!preset || preset.n === 0) return
     const s = statusRef.current
-    if (s.kind === 'idle' || (s.kind === 'error' && !s.retryable)) {
+    const finished = s.kind === 'sent' || s.kind === 'queued'
+    if (s.kind === 'idle' || finished || (s.kind === 'error' && !s.retryable)) {
+      // A finished report is closed, so a new request ("Not a fire") starts a fresh draft.
+      if (finished) {
+        pending.current = null
+        setText('')
+      }
       setChip(preset.chip)
       setStatus({ kind: 'idle' })
     }
   }, [preset])
 
   // Inputs lock while a report is in flight or awaiting retry, so a retry sends the same report.
-  const locked = status.kind === 'sending' || status.kind === 'sent' || status.kind === 'queued' || (status.kind === 'error' && status.retryable)
+  const busy = status.kind === 'locating' || status.kind === 'sending'
+  const locked = busy || (status.kind === 'error' && status.retryable)
+  const hasDraft = chip !== null || text.trim() !== ''
   const errorId = 'report-error'
 
   async function send() {
+    if (busy) return
     const capturedAt = pending.current?.capturedAt ?? new Date().toISOString()
     const draft = { chip, text, capturedAt }
-    const invalid = validateDraft(draft)
-    if (invalid) {
-      setStatus({ kind: 'error', retryable: false, message: t(lang, invalid === 'empty' ? strings.errEmpty : strings.errTooLong) })
-      return
-    }
     pending.current ??= { capturedAt }
-    setStatus({ kind: 'sending' })
-    const pos = await getPosition()
-    if (!pos) {
-      // lat and lng are required by ember-api; keep the draft so the volunteer can send again.
-      pending.current = null
-      setStatus({ kind: 'error', retryable: false, message: t(lang, strings.noLocation) })
-      return
-    }
-    try {
-      const body = buildObservation(draft, pos)
-      if (submit && (await submit(body)) === 'queued') {
-        setStatus({ kind: 'queued' })
+    const outcome = await sendReport(draft, {
+      locate,
+      submit,
+      create: (body) => api.createObservation(body),
+      onPhase: (phase) => setStatus({ kind: phase }),
+    })
+    switch (outcome.kind) {
+      case 'invalid':
+        pending.current = null
+        setStatus({ kind: 'error', retryable: false, message: t(lang, outcome.reason === 'empty' ? strings.errEmpty : strings.errTooLong) })
         return
-      }
-      if (!submit) await api.createObservation(body)
-      setStatus({
-        kind: 'sent',
-        at: new Date().toLocaleTimeString(lang === 'id' ? 'id-ID' : 'en-GB', { hour: '2-digit', minute: '2-digit' }),
-      })
-    } catch (e) {
-      const err = e instanceof ApiError ? e : new ApiError('network', String(e), null, true)
-      if (!err.retryable) pending.current = null
-      const detail = Object.values(err.fields).join('; ') || err.message
-      setStatus({
-        kind: 'error',
-        retryable: err.retryable,
-        message: err.retryable ? t(lang, strings.errNetwork) : `${t(lang, strings.errApi)} ${detail}`,
-      })
+      case 'no-location':
+        // lat and lng are required by ember-api; keep the draft so the volunteer can send again.
+        pending.current = null
+        setStatus({
+          kind: 'error',
+          retryable: false,
+          location: outcome.reason,
+          message: t(lang, outcome.reason === 'denied' ? strings.locationBlocked : strings.noLocation),
+        })
+        return
+      case 'queued':
+      case 'sent':
+        // The success card takes the form's place and shows what was sent; the form starts empty again.
+        setStatus({ kind: outcome.kind, at: new Date().toISOString(), chip, text })
+        pending.current = null
+        setChip(null)
+        setText('')
+        return
+      case 'failed':
+        if (!outcome.retryable) pending.current = null
+        setStatus({
+          kind: 'error',
+          retryable: outcome.retryable,
+          message: outcome.retryable ? t(lang, strings.errNetwork) : `${t(lang, strings.errApi)} ${outcome.detail}`,
+        })
     }
   }
+
+  // After "location blocked", sending again as soon as the volunteer allows it clears the error and the report goes out.
+  const sendRef = useRef(send)
+  sendRef.current = send
+  const noLocation = status.kind === 'error' && status.location !== undefined
+  useEffect(() => {
+    if (!noLocation || !onLocationGranted) return
+    return onLocationGranted(() => void sendRef.current())
+  }, [noLocation, onLocationGranted])
 
   function reset() {
     pending.current = null
@@ -99,40 +113,39 @@ export function ReportPanel({ api, lang, getPosition, preset, submit }: Props) {
     setStatus({ kind: 'idle' })
   }
 
-  const showChipError = status.kind === 'error' && !status.retryable && !chip && !text.trim()
+  const showChipError = status.kind === 'error' && !status.retryable && !status.location && !chip && !text.trim()
+  const line = statusLine(status, lang, hasDraft)
+
+  const title = (
+    <h3 id="quick-report-label" className="section-label">
+      {t(lang, strings.quickReport)}
+    </h3>
+  )
+
+  if (status.kind === 'sent' || status.kind === 'queued') {
+    return (
+      <section className="card report" aria-labelledby="quick-report-label">
+        {title}
+        <SentCard lang={lang} kind={status.kind} at={status.at} chip={status.chip} text={status.text} onNew={reset} />
+      </section>
+    )
+  }
 
   return (
     <section className="card report" aria-labelledby="quick-report-label">
-      <h3 id="quick-report-label" className="section-label">
-        {t(lang, strings.quickReport)}
-      </h3>
-      <div
-        className="chips"
-        role="radiogroup"
-        aria-labelledby="quick-report-label"
-        aria-describedby={status.kind === 'error' ? errorId : undefined}
-      >
-        {CHIP_VALUES.map((c) => {
-          const selected = chip === c
-          return (
-            <button
-              key={c}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              disabled={locked}
-              className={`chip${selected ? ' selected' : ''}${showChipError ? ' invalid' : ''}`}
-              onClick={() => {
-                setChip(selected ? null : c)
-                if (status.kind === 'error') setStatus({ kind: 'idle' })
-              }}
-            >
-              {CHIP_LABEL[c]}
-              {selected && <span aria-hidden="true"> ✓</span>}
-            </button>
-          )
-        })}
-      </div>
+      {title}
+      <ChipRow
+        lang={lang}
+        value={chip}
+        disabled={locked}
+        invalid={showChipError}
+        labelledBy="quick-report-label"
+        describedBy={status.kind === 'error' ? errorId : undefined}
+        onChange={(next) => {
+          setChip(next)
+          if (status.kind === 'error') setStatus({ kind: 'idle' })
+        }}
+      />
 
       <label className="section-label" htmlFor="report-note">
         {t(lang, strings.noteLabel)}
@@ -148,39 +161,19 @@ export function ReportPanel({ api, lang, getPosition, preset, submit }: Props) {
         onChange={(e) => setText(e.target.value)}
       />
 
-      {status.kind === 'error' && (
-        <p id={errorId} className="error" role="alert">
-          {status.message}
-        </p>
-      )}
-
-      {status.kind === 'sent' ? (
-        <div className="sent" role="status">
-          <strong>{t(lang, strings.sent)}</strong>
-          <span>
-            {status.at} · {t(lang, strings.sentDetail)}
-          </span>
-          <button type="button" className="btn secondary" onClick={reset}>
-            {t(lang, strings.newReport)}
-          </button>
-        </div>
-      ) : status.kind === 'queued' ? (
-        <div className="sent queued" role="status">
-          <strong>{t(lang, outboxStrings.queuedTitle)}</strong>
-          <span>{t(lang, outboxStrings.queuedReport)}</span>
-          <button type="button" className="btn secondary" onClick={reset}>
-            {t(lang, strings.newReport)}
-          </button>
-        </div>
-      ) : (
-        <button type="button" className="btn primary" disabled={status.kind === 'sending'} onClick={() => void send()}>
-          {status.kind === 'sending'
+      <button type="button" className="btn primary" disabled={busy || !hasDraft} onClick={() => void send()}>
+        {status.kind === 'locating'
+          ? t(lang, strings.waitingForLocation)
+          : status.kind === 'sending'
             ? t(lang, strings.sending)
             : status.kind === 'error' && status.retryable
               ? t(lang, strings.retry)
               : t(lang, strings.sendReport)}
-        </button>
-      )}
+      </button>
+      <p id={errorId} className={`report-status ${line.tone}`} aria-live="polite">
+        {line.tone === 'busy' && <span className="report-spinner" aria-hidden="true" />}
+        {line.text}
+      </p>
     </section>
   )
 }
