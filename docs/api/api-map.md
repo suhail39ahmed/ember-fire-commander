@@ -17,6 +17,7 @@ Clients:
 | Sign-in identity | `apps/web/src/auth/api.ts` — `GET /me` |
 | Volunteer PWA | `apps/web/src/pwa/api/client.ts`, `apps/web/src/pwa/push/pushClient.ts` |
 | Supervisor console | `apps/web/src/supervisor/api/client.ts` |
+| Supervisor chrome | `apps/web/src/supervisor/chromeClient.ts` — `GET /dashboard` |
 | Shared types | `apps/web/src/pwa/contracts/types.ts`, `apps/web/src/supervisor/contracts.ts` |
 
 ## Auth
@@ -59,7 +60,7 @@ Defined in `services/api/incidents/rules.py` and `services/api/observations/vali
 
 ## ember-api
 
-Handlers: `services/api/app.py`, `observations/routes.py`, `photos/routes.py`, `incidents/routes.py`, `notifications/routes.py`.
+Handlers: `services/api/app.py`, `observations/routes.py`, `photos/routes.py`, `incidents/routes.py`, `notifications/routes.py`, `dashboard.py`.
 
 Incident list and detail responses use `INCIDENT_FIELDS`: `id`, `name`, `area`, `status`, `severity`, `evidenceScore`, `conflictId`, `withdraw`, `lat`, `lng`. Digest summaries drop `evidenceScore` and `conflictId`. `observationIds` and `evidenceFactors` stay in Firestore and are not returned. A task is `id`, `incidentId`, `volunteerId`, `type`, `status`, `instruction`. A conflict is `id`, `incidentId`, `observationIds`, `higherSeverity`, `status`, `dispatchHeld`.
 
@@ -67,6 +68,7 @@ Incident list and detail responses use `INCIDENT_FIELDS`: `id`, `name`, `area`, 
 |---|---|---|---|---|---|
 | GET | `/healthz` | public | probes | — | `200` `{ status, service, firestore_database }` |
 | GET | `/me` | any role | both apps, after sign-in | — | `200` `{ id, displayName, role }` |
+| GET | `/dashboard` | supervisor | console chrome, every 15 s | — | `200` `{ agency, serverTime, approvalsCount }`. `agency` is a string or `null` (`volunteers/{uid}.agency`). `serverTime` is ISO-8601 UTC. `approvalsCount` is how many tasks are `proposed`. A volunteer is `403` |
 | POST | `/observations` | any role | PWA | chip, text, or photo observation. Optional `clientId` (1–128 of `[A-Za-z0-9._-]`) | `201` stored observation, or `200` the first observation when `clientId` repeats |
 | PUT, PATCH, DELETE | `/observations` and `/observations/{id}` | any role | nobody | — | `409` `conflict`, observations are immutable |
 | POST | `/photos/upload-url` | volunteer | PWA | `{ "contentType": "image/jpeg" \| "image/webp" }` | `201` `{ uploadUrl, method: "PUT", headers, photoPath, expiresAt }` |
@@ -94,7 +96,7 @@ There is no route that reads `audit`, clears `withdraw`, raises severity, sets i
 
 ### Polling
 
-The PWA polls `GET /digest` and the console polls `GET /incidents` (and reloads the open incident) every 5 seconds (`POLL_MS` in `VolunteerApp.tsx` and `SupervisorConsole.tsx`). During a Live session the gateway also sends `digest` messages. FCM is the channel when the app is backgrounded: new tasks and withdraw instructions. Payload fields are outside the shared contract.
+The PWA polls `GET /digest` and the console polls `GET /incidents` (and reloads the open incident) every 5 seconds (`POLL_MS` in `VolunteerApp.tsx` and `SupervisorConsole.tsx`). The console chrome polls `GET /dashboard` every 15 seconds (`CHROME_POLL_MS` in `ConsoleProvider.tsx`). During a Live session the gateway also sends `digest` messages. FCM is the channel when the app is backgrounded: new tasks and withdraw instructions. Payload fields are outside the shared contract.
 
 ## voice-gateway
 
