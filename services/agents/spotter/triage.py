@@ -4,7 +4,9 @@ The model describes what it sees. Code keeps only the fields below, drops
 anything else (a `severity` key, for example), and never applies the result
 to the incident or the observation.
 """
+from spotter.model import ModelError
 from spotter.paths import is_owned, mime_type, owner_of
+from spotter.store import PhotoMissing
 
 MAX_BYTES = 8 * 1024 * 1024
 FLAME = ("none", "small", "large", "unclear")
@@ -25,6 +27,18 @@ class PhotoRejected(Exception):
     def __init__(self, reason):
         super().__init__(reason)
         self.reason = reason
+
+
+class TriageFailed(Exception):
+    """A storage or model failure. The reason is short and safe to store."""
+
+    def __init__(self, reason):
+        super().__init__(reason)
+        self.reason = reason
+
+
+class PhotoTooLarge(PhotoRejected):
+    pass
 
 
 def check_photo(observation, caller_id=None):
@@ -60,13 +74,49 @@ def clean(raw):
     }
 
 
-def triage(observation, read_photo, model, now, caller_id=None):
-    """Return the triage record to store. Raises PhotoRejected before any read."""
+def _stored_size(photo_size, path):
+    try:
+        return photo_size(path)
+    except PhotoMissing as exc:
+        raise TriageFailed("photo not found in storage") from exc
+    except Exception as exc:
+        raise TriageFailed("photo could not be read from storage") from exc
+
+
+def _download(read_photo, path):
+    try:
+        return read_photo(path)
+    except PhotoMissing as exc:
+        raise TriageFailed("photo not found in storage") from exc
+    except Exception as exc:
+        raise TriageFailed("photo could not be read from storage") from exc
+
+
+def _ask_model(model, image, path):
+    try:
+        raw = model.json(PROMPT, image=image, mime_type=mime_type(path))
+    except (ModelError, ValueError) as exc:
+        raise TriageFailed("model returned invalid output") from exc
+    except Exception as exc:
+        raise TriageFailed("model call failed") from exc
+    if not isinstance(raw, dict):
+        raise TriageFailed("model returned invalid output")
+    return raw
+
+
+def triage(observation, read_photo, model, now, caller_id=None, photo_size=None):
+    """Return the triage record to store.
+
+    Raises PhotoRejected before any download, PhotoTooLarge when the object
+    metadata is over the limit, and TriageFailed for storage or model errors.
+    """
     path = check_photo(observation, caller_id)
-    image = read_photo(path)
+    if photo_size is not None and _stored_size(photo_size, path) > MAX_BYTES:
+        raise PhotoTooLarge("photo is larger than 8 MB")
+    image = _download(read_photo, path)
     if len(image) > MAX_BYTES:
-        raise PhotoRejected("photo is larger than 8 MB")
-    result = clean(model.json(PROMPT, image=image, mime_type=mime_type(path)))
+        raise PhotoTooLarge("photo is larger than 8 MB")
+    result = clean(_ask_model(model, image, path))
     return {
         "id": observation["id"],
         "observationId": observation["id"],
@@ -88,6 +138,21 @@ def rejected_record(observation, reason, now):
         "photoPath": observation.get("photoPath"),
         "status": "rejected",
         "reason": reason,
+        "advisory": True,
+        "model": None,
+        "result": None,
+        "at": now,
+    }
+
+
+def error_record(observation, error, now):
+    return {
+        "id": observation["id"],
+        "observationId": observation["id"],
+        "volunteerId": observation.get("volunteerId"),
+        "photoPath": observation.get("photoPath"),
+        "status": "error",
+        "error": error,
         "advisory": True,
         "model": None,
         "result": None,

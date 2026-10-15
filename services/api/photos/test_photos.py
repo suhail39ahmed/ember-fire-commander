@@ -217,3 +217,40 @@ def test_cloud_run_credentials_sign_through_iam(monkeypatch):
     assert captured["access_token"] == "access-token"
     assert captured["method"] == "PUT"
     assert captured["version"] == "v4"
+
+
+class _Query:
+    def __init__(self, rows):
+        self._rows = rows
+        self.filters = []
+
+    def where(self, field, op, value):
+        self.filters.append((field, op, value))
+        return self
+
+    def limit(self, count):
+        return self
+
+    def stream(self):
+        rows = self._rows
+        for field, _op, value in self.filters:
+            rows = [row for row in rows if row.get(field) == value]
+        return iter(rows)
+
+
+class _Db:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def collection(self, name):
+        assert name == store.COLLECTION
+        return _Query(self._rows)
+
+
+def test_was_issued_matches_owner_and_path(monkeypatch):
+    path = "photos/uid_sari/20261014/" + "a" * 32 + ".jpg"
+    rows = [{"volunteerId": "uid_sari", "photoPath": path}]
+    monkeypatch.setattr(store, "_db", lambda: _Db(rows))
+    assert store.was_issued("uid_sari", path) is True
+    assert store.was_issued("uid_budi", path) is False
+    assert store.was_issued("uid_sari", path.replace("a", "b")) is False

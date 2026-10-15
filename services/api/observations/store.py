@@ -24,7 +24,7 @@ def assemble_record(prepared, volunteer_id, received_at):
         "chip": prepared["chip"],
         "text": prepared["text"],
         "severity": prepared["severity"],
-        "photoPath": None,
+        "photoPath": prepared.get("photoPath"),
         "immutable": True,
     }
 

@@ -143,11 +143,128 @@ def test_text_report_requires_text(client, store, signed_in):
     assert response.get_json()["error"]["fields"]["text"] == "text is required"
 
 
-@pytest.mark.parametrize("source", ["live", "photo"])
-def test_live_and_photo_are_rejected(client, store, signed_in, source):
-    response = _post(client, dict(CHIP_BODY, source=source))
+def test_live_is_rejected(client, store, signed_in):
+    response = _post(client, dict(CHIP_BODY, source="live"))
     assert response.status_code == 400
     assert response.get_json()["error"]["fields"]["source"]
+    assert store.observations == {}
+
+
+OWN_PATH = "photos/uid_sari/20261014/" + "a" * 32 + ".jpg"
+OTHER_PATH = "photos/uid_budi/20261014/" + "b" * 32 + ".jpg"
+
+PHOTO_BODY = {
+    "source": "photo",
+    "capturedAt": "2026-10-14T08:12:00Z",
+    "lat": 1.482,
+    "lng": 102.115,
+    "accuracyM": 18,
+    "chip": None,
+    "text": None,
+    "photoPath": OWN_PATH,
+}
+
+
+@pytest.fixture
+def issued(monkeypatch):
+    """Paths ember-api issued, as (volunteerId, photoPath) pairs."""
+    pairs = {("uid_sari", OWN_PATH), ("uid_budi", OTHER_PATH)}
+    monkeypatch.setattr(
+        "photos.store.was_issued",
+        lambda volunteer_id, path: (volunteer_id, path) in pairs,
+    )
+    return pairs
+
+
+def test_photo_observation_keeps_its_photo_path(client, store, signed_in, issued):
+    response = _post(client, PHOTO_BODY)
+    body = response.get_json()
+    assert response.status_code == 201
+    assert body["source"] == "photo"
+    assert body["volunteerId"] == "uid_sari"
+    assert body["photoPath"] == OWN_PATH
+    assert body["chip"] is None
+    assert body["severity"] == "unknown"
+    assert body["immutable"] is True
+    assert store.get(body["id"]) == body
+    assert store.audits[0]["action"] == "observation.create"
+
+
+def test_photo_observation_with_note(client, store, signed_in, issued):
+    response = _post(client, dict(PHOTO_BODY, text="  Smoke past the ditch  "))
+    body = response.get_json()
+    assert response.status_code == 201
+    assert body["text"] == "Smoke past the ditch"
+    assert body["photoPath"] == OWN_PATH
+
+
+def test_photo_path_of_another_volunteer_is_refused(client, store, signed_in, issued):
+    response = _post(client, dict(PHOTO_BODY, photoPath=OTHER_PATH))
+    assert response.status_code == 403
+    assert response.get_json()["error"]["code"] == "forbidden"
+    assert store.observations == {}
+
+
+def test_photo_path_that_was_not_issued_is_refused(client, store, signed_in, issued):
+    unissued = "photos/uid_sari/20261014/" + "c" * 32 + ".jpg"
+    response = _post(client, dict(PHOTO_BODY, photoPath=unissued))
+    assert response.status_code == 403
+    assert response.get_json()["error"]["code"] == "forbidden"
+    assert store.observations == {}
+
+
+@pytest.mark.parametrize("missing", [{}, {"photoPath": None}, {"photoPath": ""}])
+def test_photo_report_requires_a_path(client, store, signed_in, issued, missing):
+    body = {k: v for k, v in PHOTO_BODY.items() if k != "photoPath"}
+    body.update(missing)
+    response = _post(client, body)
+    assert response.status_code == 400
+    assert response.get_json()["error"]["fields"]["photoPath"] == (
+        "photoPath is required for a photo report"
+    )
+    assert store.observations == {}
+
+
+@pytest.mark.parametrize("path", [
+    "https://storage.googleapis.com/bucket/photos/uid_sari/20261014/" + "a" * 32 + ".jpg",
+    "photos/uid_sari/../uid_budi/20261014/" + "a" * 32 + ".jpg",
+    "photos/uid_sari/20261014/short.jpg",
+    "photos/uid_sari/20261014/" + "a" * 32 + ".png",
+    "uploads/uid_sari/20261014/" + "a" * 32 + ".jpg",
+    12345,
+])
+def test_photo_report_rejects_a_malformed_path(client, store, signed_in, issued, path):
+    response = _post(client, dict(PHOTO_BODY, photoPath=path))
+    assert response.status_code == 400
+    assert "photoPath" in response.get_json()["error"]["fields"]
+    assert store.observations == {}
+
+
+def test_photo_report_rejects_a_chip(client, store, signed_in, issued):
+    response = _post(client, dict(PHOTO_BODY, chip="api"))
+    assert response.status_code == 400
+    assert "chip" in response.get_json()["error"]["fields"]
+    assert store.observations == {}
+
+
+def test_photo_path_is_ignored_on_chip_and_text_reports(client, store, signed_in):
+    chip = _post(client, dict(CHIP_BODY, photoPath=OWN_PATH)).get_json()
+    text = _post(client, {
+        "source": "text",
+        "capturedAt": "2026-10-13T08:14:00Z",
+        "lat": 1.482,
+        "lng": 102.115,
+        "chip": None,
+        "text": "smoke",
+        "photoPath": OWN_PATH,
+    }).get_json()
+    assert chip["photoPath"] is None
+    assert text["photoPath"] is None
+
+
+def test_photo_report_needs_a_token(client, store, issued):
+    response = _post(client, PHOTO_BODY, headers={})
+    assert response.status_code == 401
     assert store.observations == {}
 
 

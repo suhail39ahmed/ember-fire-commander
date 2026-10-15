@@ -3,6 +3,7 @@ import { onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebas
 
 import { fetchMe, type Me } from './api'
 import { auth, googleProvider } from './firebase'
+import { unregisterPushFor } from '../pwa/push/browser'
 
 type Status = 'loading' | 'signed-out' | 'ready' | 'no-access' | 'error'
 
@@ -64,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     },
     signOut: async () => {
+      await unregisterPushFor(user)
       await signOut(auth)
     },
   }), [status, user, me, message])

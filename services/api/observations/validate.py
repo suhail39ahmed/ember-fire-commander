@@ -1,6 +1,8 @@
-"""Validate a chip or text observation before it is stored."""
+"""Validate a chip, text or photo observation before it is stored."""
 import math
 from datetime import datetime, timezone
+
+from photos.paths import owner_of
 
 CHIPS = ("asap", "api", "aman", "butuh_bantuan")
 CHIP_SEVERITY = {
@@ -10,7 +12,8 @@ CHIP_SEVERITY = {
     "butuh_bantuan": "unknown",
 }
 MAX_NOTE_LENGTH = 280
-_REJECTED_SOURCES = ("live", "photo")
+SOURCES = ("chip", "text", "photo")
+_REJECTED_SOURCES = ("live",)
 
 
 class ValidationError(Exception):
@@ -24,7 +27,9 @@ def prepare_observation(body):
     """Return the client fields the server is willing to store.
 
     Server-owned fields on the body (id, volunteerId, severity, and the rest)
-    are ignored. Severity is filled from the chip, or `unknown` for text.
+    are ignored. Severity is filled from the chip, or `unknown` for text and
+    photo reports. A photo report must carry a well-formed photoPath; whether
+    the caller owns it is checked by the route.
     """
     if not isinstance(body, dict):
         raise ValidationError(
@@ -35,9 +40,9 @@ def prepare_observation(body):
     fields = {}
     source = body.get("source")
     if source in _REJECTED_SOURCES:
-        fields["source"] = "live and photo observations are not accepted on this route"
-    elif source not in ("chip", "text"):
-        fields["source"] = "source must be chip or text"
+        fields["source"] = "live observations are not accepted on this route"
+    elif source not in SOURCES:
+        fields["source"] = "source must be chip, text or photo"
 
     captured = _captured_at(body.get("capturedAt"))
     if captured is None:
@@ -47,11 +52,12 @@ def prepare_observation(body):
     lng = _coordinate(body.get("lng"), "lng", -180, 180, fields)
     accuracy = _accuracy(body, fields)
     chip, text = _chip_and_text(source, body, fields)
+    photo_path = _photo_path(source, body, fields)
 
     if fields:
         raise ValidationError(next(iter(fields.values())), fields)
 
-    severity = "unknown" if source == "text" else CHIP_SEVERITY[chip]
+    severity = CHIP_SEVERITY[chip] if source == "chip" else "unknown"
     return {
         "source": source,
         "capturedAt": captured,
@@ -61,6 +67,7 @@ def prepare_observation(body):
         "chip": chip,
         "text": text,
         "severity": severity,
+        "photoPath": photo_path,
     }
 
 
@@ -133,7 +140,24 @@ def _chip_and_text(source, body, fields):
         if "text" not in fields and note is None:
             fields["text"] = "text is required"
         return None, note
+    if source == "photo":
+        if chip is not None:
+            fields["chip"] = "a photo report omits the chip"
+        return None, note
     return None, note
+
+
+def _photo_path(source, body, fields):
+    if source != "photo":
+        return None
+    path = body.get("photoPath")
+    if not isinstance(path, str) or not path:
+        fields["photoPath"] = "photoPath is required for a photo report"
+        return None
+    if owner_of(path) is None:
+        fields["photoPath"] = "photoPath must be a path issued by /photos/upload-url"
+        return None
+    return path
 
 
 def _finite_number(value):

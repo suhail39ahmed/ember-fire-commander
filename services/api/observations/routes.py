@@ -1,9 +1,10 @@
-"""POST /observations, and a rejection for any later edit."""
+"""POST /observations for chip, text and photo reports, and a rejection for any later edit."""
 import logging
 
 from flask import Blueprint, g, jsonify, request
 
 from observations.notify import notify_observation
+from observations.photo import check_photo_path
 from observations.store import assemble_record, get_store, utc_now_iso
 from observations.validate import ValidationError, prepare_observation
 
@@ -40,6 +41,9 @@ def create_observation():
                 "fields": exc.fields,
             }
         }), 400
+
+    if prepared["source"] == "photo":
+        check_photo_path(g.user["id"], prepared["photoPath"])
 
     record = assemble_record(prepared, g.user["id"], utc_now_iso())
     stored = get_store().create(record)
