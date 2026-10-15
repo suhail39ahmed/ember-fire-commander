@@ -5,6 +5,14 @@
  */
 export type Lang = 'id' | 'en'
 
+export const LANG_KEY = 'ember.lang'
+export const DEFAULT_LANG: Lang = 'id'
+
+/** Reads a stored language code; anything unknown falls back to the default. */
+export function parseLang(value: string | null | undefined): Lang {
+  return value === 'en' || value === 'id' ? value : DEFAULT_LANG
+}
+
 const strings = {
   simulated: { id: 'SIMULASI · data sintetis', en: 'SIMULATED · synthetic data' },
   team: { id: 'Regu A · Desa (fiktif)', en: 'Crew A · Village (fictional)' },

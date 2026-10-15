@@ -10,7 +10,8 @@ import { activeWithdraw, currentTask } from './digest'
 import { browserSocketFactory, PttSession, type SessionState } from './gateway/pttSession'
 import { registerServiceWorker } from './install/registerServiceWorker'
 import { usePushRegistration } from './push/usePushRegistration'
-import { strings, t, type Lang } from './i18n'
+import { strings, t } from './i18n'
+import { useLanguage } from './language'
 import { usePermissions } from './permissions/usePermissions'
 import { PermissionsPanel } from './install/PermissionsPanel'
 import { InstallBanner } from './install/InstallBanner'
@@ -24,7 +25,6 @@ import { WithdrawScreen } from './WithdrawScreen'
 import './volunteer.css'
 
 const POLL_MS = 5000
-const LANG_KEY = 'ember.lang'
 
 function getPosition(): Promise<Position | null> {
   if (!('geolocation' in navigator)) return Promise.resolve(null)
@@ -40,7 +40,7 @@ function getPosition(): Promise<Position | null> {
 /** Volunteer screen at /pwa. Rendered inside RequireRole role="volunteer", so `me` is set. */
 export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
   const { user, me } = useAuth()
-  const [lang, setLang] = useState<Lang>(() => (localStorage.getItem(LANG_KEY) === 'en' ? 'en' : 'id'))
+  const { lang, setLang } = useLanguage()
   const [digest, setDigest] = useState<Digest | null>(null)
   const [loadError, setLoadError] = useState(false)
   const [session, setSession] = useState<SessionState>('idle')
@@ -57,11 +57,6 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
   const outbox = useOutbox(api, upload)
 
   useEffect(() => registerServiceWorker(), [])
-
-  useEffect(() => {
-    localStorage.setItem(LANG_KEY, lang)
-    document.documentElement.lang = lang
-  }, [lang])
 
   const load = useCallback(async () => {
     try {
