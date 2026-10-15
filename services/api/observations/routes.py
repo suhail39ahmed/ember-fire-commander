@@ -46,7 +46,7 @@ def create_observation():
     if prepared["source"] == "photo":
         check_photo_path(g.user["id"], prepared["photoPath"])
 
-    record = assemble_record(prepared, g.user["id"], utc_now_iso())
+    record = assemble_record(prepared, g.user["id"], utc_now_iso(), g.user.get("displayName"))
     store = get_store()
     stored, created = store.create(record)
     if not created:

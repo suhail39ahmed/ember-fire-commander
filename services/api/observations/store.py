@@ -33,7 +33,18 @@ def pending_record(observation_id, created_at):
     }
 
 
-def assemble_record(prepared, volunteer_id, received_at):
+MAX_VOLUNTEER_NAME = 80
+
+
+def clean_volunteer_name(name):
+    """The token's display name as one short line, or None when the token has none."""
+    if not isinstance(name, str):
+        return None
+    text = " ".join(name.split())
+    return text[:MAX_VOLUNTEER_NAME].strip() or None
+
+
+def assemble_record(prepared, volunteer_id, received_at, volunteer_name=None):
     record = {
         "volunteerId": volunteer_id,
         "capturedAt": prepared["capturedAt"],
@@ -50,6 +61,9 @@ def assemble_record(prepared, volunteer_id, received_at):
     }
     if prepared.get("clientId"):
         record["clientId"] = prepared["clientId"]
+    name = clean_volunteer_name(volunteer_name)
+    if name:
+        record["volunteerName"] = name
     return record
 
 

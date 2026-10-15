@@ -106,6 +106,7 @@ Immutable. The stored record always has `"immutable": true`. There is no update 
 | `volunteerId` | string | Server, from the token |
 | `capturedAt` | string | Client. The phone time of the report. Must be within [now − 7 days, now + 5 minutes] when received, otherwise `400` |
 | `receivedAt` | string | Server |
+| `volunteerName` | string, optional | Server, from the token display name, one line of at most 80 characters. Absent when the token has no display name. Agents use it to name the incident |
 | `clientId` | string, optional | Client. The outbox item id, 1 to 128 letters, digits, `.`, `-` or `_`. Present only when the client sent it |
 | `source` | source enum | Client for `chip`, `text`, and `photo`. Gateway sets `live` |
 | `lat` | number, −90 to 90 | Phone |
@@ -135,6 +136,7 @@ A `text` observation is stored as `unknown`. A `live` observation stores the too
 | Field | Type | Who may change it |
 |---|---|---|
 | `id` | string | Nobody after create |
+| `name` | string or null | Agents (fusion), once, when the incident is created. A readable label: the nearest known town or a coordinate label, the first reporter's display name when there is one, and the incident number, such as `Bengkalis, Riau · Pak Dedi · #3`. `null` on incidents created before names existed, or when naming failed. Clients show a short form of `id` then |
 | `status` | status enum | Agents may set `open` or `held`. A supervisor may set `verified` or `extinguished` |
 | `severity` | severity enum | Agents may raise it. A supervisor may lower it. The model must not set it |
 | `evidenceScore` | number | Agents. Code-computed, not a probability and not a forecast |
@@ -229,7 +231,7 @@ One current picture for Live context, REST polling, and WebSocket pushes.
 | Field | Type | Notes |
 |---|---|---|
 | `updatedAt` | string | |
-| `incidents` | incident summary[] | `id`, `status`, `severity`, `withdraw`, `lat`, `lng` |
+| `incidents` | incident summary[] | `id`, `name`, `status`, `severity`, `withdraw`, `lat`, `lng` |
 | `myTasks` | task[] | Tasks whose `volunteerId` is the caller. Empty for a supervisor |
 
 A volunteer receives incidents linked to their observations or tasks. A supervisor receives incidents whose status is `open`, `held`, or `verified`.
@@ -326,6 +328,10 @@ Written by `ember-api` after a task or WITHDRAW push. The task is already commit
 | `result` | string | `sent`, `failed`, or `skipped` (the volunteer has no device token) |
 | `attempts` | number | Send attempts, up to 3 per token. 0 when skipped |
 | `at` | string | |
+
+#### `counters`
+
+Written by `ember-agents` (fusion). `counters/incidents` has one field, `value`, the number of the last incident named. A transaction takes the next number each time fusion creates an incident, so two incidents never share a number. A gap is possible when naming succeeds and the incident write then fails.
 
 #### `leads`, `weather`, `psi`, `ingestRuns`
 
@@ -435,6 +441,7 @@ A second request that tries to change `obs_01` has no route. A request that carr
 {
   "incident": {
     "id": "inc_01",
+    "name": "Bengkalis, Riau · Sari · #1",
     "status": "held",
     "severity": "small_flame",
     "evidenceScore": 64,

@@ -82,7 +82,35 @@ def test_supervisor_lists_live_incidents_only(client, monkeypatch, db):
     assert response.status_code == 200
     body = response.get_json()
     assert [i["id"] for i in body] == ["inc_01"]
-    assert set(body[0]) == {"id", "status", "severity", "evidenceScore", "conflictId", "withdraw", "lat", "lng"}
+    assert set(body[0]) == {"id", "name", "status", "severity", "evidenceScore", "conflictId", "withdraw", "lat", "lng"}
+
+
+def test_incident_name_is_returned_and_old_incidents_have_none(client, monkeypatch, db):
+    _as(monkeypatch)
+    db.add("incidents", "inc_named", {
+        "name": "Bengkalis, Riau · Pak Dedi · #3", "status": "open", "severity": "smoke",
+        "evidenceScore": 20, "conflictId": None, "withdraw": None, "lat": 1.48, "lng": 102.1,
+    })
+    listed = {i["id"]: i for i in client.get("/incidents", headers=AUTH).get_json()}
+    assert listed["inc_named"]["name"] == "Bengkalis, Riau · Pak Dedi · #3"
+    assert listed["inc_01"]["name"] is None
+    detail = client.get("/incidents/inc_named", headers=AUTH).get_json()
+    assert detail["incident"]["name"] == "Bengkalis, Riau · Pak Dedi · #3"
+
+
+def test_digest_carries_the_incident_name(client, monkeypatch, db):
+    db.add("incidents", "inc_named", {
+        "name": "Ketapang, Kalimantan Barat · Sari · #4", "status": "open", "severity": "smoke",
+        "evidenceScore": 20, "conflictId": None, "withdraw": None, "lat": -1.83, "lng": 109.98,
+    })
+    db.add("tasks", "task_named", {
+        "incidentId": "inc_named", "volunteerId": "uid_sari", "type": "verify",
+        "status": "proposed", "instruction": None,
+    })
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    digest = client.get("/digest", headers=AUTH).get_json()
+    names = {i["id"]: i["name"] for i in digest["incidents"]}
+    assert names["inc_named"] == "Ketapang, Kalimantan Barat · Sari · #4"
 
 
 def test_incident_detail_has_both_conflicting_observations(client, monkeypatch, db):
@@ -120,7 +148,7 @@ def test_digest_matches_pwa_shape(client, monkeypatch, db):
     body = client.get("/digest", headers=AUTH).get_json()
     assert set(body) == {"updatedAt", "incidents", "myTasks"}
     assert body["updatedAt"].endswith("Z")
-    assert set(body["incidents"][0]) == {"id", "status", "severity", "withdraw", "lat", "lng"}
+    assert set(body["incidents"][0]) == {"id", "name", "status", "severity", "withdraw", "lat", "lng"}
     assert [t["id"] for t in body["myTasks"]] == ["task_investigate", "task_verify_sari"]
 
 
