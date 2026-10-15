@@ -6,10 +6,24 @@ import json
 import os
 
 DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_TIMEOUT_SECONDS = 30
+
+
+class ModelError(Exception):
+    """The model replied, but not with a JSON object we can use."""
 
 
 def model_name():
     return os.getenv("EMBER_FLASH_MODEL", "").strip() or DEFAULT_MODEL
+
+
+def timeout_seconds():
+    raw = os.getenv("EMBER_FLASH_TIMEOUT_SECONDS", "").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        return DEFAULT_TIMEOUT_SECONDS
+    return value if value > 0 else DEFAULT_TIMEOUT_SECONDS
 
 
 class FlashModel:
@@ -20,11 +34,14 @@ class FlashModel:
     def _sdk(self):
         if self._client is None:
             from google import genai
+            from google.genai import types
 
             self._client = genai.Client(
                 vertexai=True,
                 project=os.getenv("GOOGLE_CLOUD_PROJECT", "ember-fire-commander"),
                 location=os.getenv("EMBER_VERTEX_LOCATION", "asia-southeast1"),
+                # The SDK takes milliseconds. A slow call fails instead of hanging.
+                http_options=types.HttpOptions(timeout=int(timeout_seconds() * 1000)),
             )
         return self._client
 
@@ -44,7 +61,13 @@ class FlashModel:
                 response_mime_type="application/json",
             ),
         )
-        return json.loads(response.text)
+        try:
+            parsed = json.loads(response.text)
+        except (TypeError, ValueError) as exc:
+            raise ModelError("model did not return JSON") from exc
+        if not isinstance(parsed, dict):
+            raise ModelError("model did not return a JSON object")
+        return parsed
 
 
 _model = None

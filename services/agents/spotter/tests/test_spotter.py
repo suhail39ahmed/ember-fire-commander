@@ -1,9 +1,11 @@
 import os
+import re
 
 import pytest
 
 import spotter.model
 import spotter.routes
+import spotter.store
 from app import app
 from spotter.store import MemorySpotterStore
 from spotter.summary import is_neutral
@@ -207,3 +209,239 @@ def test_flash_model_uses_vertex_json_mode():
     assert flash.json("hi", image=b"\xff\xd8", mime_type="image/jpeg") == {"en": "x", "id": "y"}
     assert fake.models.kwargs["model"] == "gemini-test"
     assert fake.models.kwargs["config"].response_mime_type == "application/json"
+
+
+# Failure handling for photo triage (model, storage, size, timeouts).
+
+class FakeBlob:
+    def __init__(self, data=None, size=None):
+        self.data = data
+        self.size = size
+        self.downloads = 0
+        self.timeouts = []
+
+    def reload(self, timeout=None):
+        from google.api_core.exceptions import NotFound
+
+        self.timeouts.append(timeout)
+        if self.data is None:
+            raise NotFound("no such object")
+
+    def download_as_bytes(self, timeout=None):
+        from google.api_core.exceptions import NotFound
+
+        self.timeouts.append(timeout)
+        self.downloads += 1
+        if self.data is None:
+            raise NotFound("no such object")
+        return self.data
+
+
+class FakeStorage:
+    def __init__(self, blob):
+        self.blob_obj = blob
+        self.asked = []
+
+    def bucket(self, name):
+        self.asked.append(name)
+        return self
+
+    def blob(self, path):
+        self.asked.append(path)
+        return self.blob_obj
+
+
+def assert_error_record(store, oid, error):
+    saved = store.collections["photo_triage"][oid]
+    assert saved["status"] == "error"
+    assert saved["error"] == error
+    assert saved["result"] is None
+    assert saved["advisory"] is True
+    return saved
+
+
+def test_model_exception_stores_an_error_record(client, store, monkeypatch):
+    use_model(monkeypatch, RuntimeError("503 Vertex unavailable"))
+    seed_obs(store, "obs_e1", "uid_sari", PHOTO)
+    response = client.post("/internal/observations/obs_e1/triage")
+    assert response.status_code == 502
+    assert response.get_json()["error"]["code"] == "triage_failed"
+    assert response.get_json()["error"]["message"] == "model call failed"
+    saved = assert_error_record(store, "obs_e1", "model call failed")
+    assert saved["observationId"] == "obs_e1" and saved["photoPath"] == PHOTO
+    assert "Vertex" not in str(saved)
+
+
+def test_model_timeout_stores_an_error_record(client, store, monkeypatch):
+    use_model(monkeypatch, TimeoutError("deadline exceeded"))
+    seed_obs(store, "obs_e2", "uid_sari", PHOTO)
+    response = client.post("/internal/observations/obs_e2/triage")
+    assert response.status_code == 502
+    assert_error_record(store, "obs_e2", "model call failed")
+
+
+@pytest.mark.parametrize("reply", [
+    ValueError("Expecting value: line 1 column 1"),
+    spotter.model.ModelError("model did not return JSON"),
+    "not a json object",
+    ["a", "list"],
+    None,
+])
+def test_invalid_model_output_stores_an_error_record(client, store, monkeypatch, reply):
+    use_model(monkeypatch, reply)
+    seed_obs(store, "obs_e3", "uid_sari", PHOTO)
+    response = client.post("/internal/observations/obs_e3/triage")
+    assert response.status_code == 502
+    assert_error_record(store, "obs_e3", "model returned invalid output")
+
+
+def test_missing_object_stores_an_error_record(client, store, monkeypatch):
+    fake = use_model(monkeypatch, {})
+    seed_obs(store, "obs_e4", "uid_sari", "photos/uid_sari/20261013/" + "c" * 32 + ".jpg")
+    response = client.post("/internal/observations/obs_e4/triage")
+    assert response.status_code == 502
+    assert response.get_json()["error"]["message"] == "photo not found in storage"
+    assert_error_record(store, "obs_e4", "photo not found in storage")
+    assert fake.calls == [] and store.reads == []
+
+
+def test_unreadable_object_stores_an_error_record(client, store, monkeypatch):
+    fake = use_model(monkeypatch, {})
+
+    def boom(path):
+        raise OSError("connection reset")
+
+    monkeypatch.setattr(store, "read_photo", boom)
+    seed_obs(store, "obs_e5", "uid_sari", PHOTO)
+    response = client.post("/internal/observations/obs_e5/triage")
+    assert response.status_code == 502
+    assert_error_record(store, "obs_e5", "photo could not be read from storage")
+    assert fake.calls == []
+
+
+def test_oversized_photo_is_rejected_without_a_download(client, store, monkeypatch):
+    fake = use_model(monkeypatch, {})
+    store.photos[PHOTO] = b"\xff\xd8" + b"0" * (8 * 1024 * 1024)
+    seed_obs(store, "obs_e6", "uid_sari", PHOTO)
+    response = client.post("/internal/observations/obs_e6/triage")
+    assert response.status_code == 413
+    assert response.get_json()["error"]["code"] == "photo_too_large"
+    assert store.reads == [] and fake.calls == []
+    saved = store.collections["photo_triage"]["obs_e6"]
+    assert saved["status"] == "rejected" and "8 MB" in saved["reason"]
+
+
+def test_photo_at_the_limit_is_still_read(client, store, monkeypatch):
+    use_model(monkeypatch, {"flameVisible": "none", "confidence": "low"})
+    store.photos[PHOTO] = b"\xff\xd8" + b"0" * (8 * 1024 * 1024 - 2)
+    seed_obs(store, "obs_e7", "uid_sari", PHOTO)
+    response = client.post("/internal/observations/obs_e7/triage")
+    assert response.status_code == 200
+    assert store.reads == [PHOTO]
+
+
+def test_firestore_store_checks_size_from_metadata_only():
+    blob = FakeBlob(data=b"x" * 10, size=9 * 1024 * 1024)
+    storage = FakeStorage(blob)
+    store = spotter.store.FirestoreSpotterStore(storage_client=storage)
+    assert store.photo_size(PHOTO) == 9 * 1024 * 1024
+    assert blob.downloads == 0
+    assert blob.timeouts == [spotter.store.STORAGE_TIMEOUT_SECONDS]
+
+
+def test_firestore_store_maps_not_found_to_photo_missing():
+    storage = FakeStorage(FakeBlob(data=None))
+    store = spotter.store.FirestoreSpotterStore(storage_client=storage)
+    with pytest.raises(spotter.store.PhotoMissing):
+        store.photo_size(PHOTO)
+    with pytest.raises(spotter.store.PhotoMissing):
+        store.read_photo(PHOTO)
+
+
+def test_firestore_store_download_has_a_timeout():
+    blob = FakeBlob(data=b"abc", size=3)
+    store = spotter.store.FirestoreSpotterStore(storage_client=FakeStorage(blob))
+    assert store.read_photo(PHOTO) == b"abc"
+    assert blob.timeouts == [spotter.store.STORAGE_TIMEOUT_SECONDS]
+
+
+def test_missing_object_through_the_real_store_wiring(client, monkeypatch):
+    use_model(monkeypatch, {})
+    memory = MemorySpotterStore()
+    storage = FakeStorage(FakeBlob(data=None))
+    firestore_store = spotter.store.FirestoreSpotterStore(storage_client=storage)
+    memory.photo_size = firestore_store.photo_size
+    memory.read_photo = firestore_store.read_photo
+    monkeypatch.setattr(spotter.routes, "get_store", lambda: memory)
+    seed_obs(memory, "obs_e8", "uid_sari", PHOTO)
+    response = client.post("/internal/observations/obs_e8/triage")
+    assert response.status_code == 502
+    assert_error_record(memory, "obs_e8", "photo not found in storage")
+
+
+class FakeGenaiResponse:
+    def __init__(self, text):
+        self.text = text
+
+
+class FakeGenaiClient:
+    def __init__(self, text):
+        self.models = self
+        self.text = text
+
+    def generate_content(self, **kwargs):
+        return FakeGenaiResponse(self.text)
+
+
+@pytest.mark.parametrize("text", ["{not json", "", None, "[1, 2]", "42"])
+def test_flash_model_raises_model_error_on_bad_output(text):
+    model = spotter.model.FlashModel(client=FakeGenaiClient(text))
+    with pytest.raises(spotter.model.ModelError):
+        model.json("describe")
+
+
+def test_flash_model_parses_a_json_object():
+    model = spotter.model.FlashModel(client=FakeGenaiClient('{"a": 1}'))
+    assert model.json("describe") == {"a": 1}
+
+
+def test_flash_model_client_has_a_finite_timeout(monkeypatch):
+    from google import genai
+
+    seen = {}
+
+    class Recorder:
+        def __init__(self, **kwargs):
+            seen.update(kwargs)
+
+    monkeypatch.setattr(genai, "Client", Recorder)
+    monkeypatch.delenv("EMBER_FLASH_TIMEOUT_SECONDS", raising=False)
+    spotter.model.FlashModel()._sdk()
+    assert seen["http_options"].timeout == 30000
+
+    seen.clear()
+    monkeypatch.setenv("EMBER_FLASH_TIMEOUT_SECONDS", "12")
+    spotter.model.FlashModel()._sdk()
+    assert seen["http_options"].timeout == 12000
+
+
+@pytest.mark.parametrize("value", ["", "abc", "0", "-5"])
+def test_flash_timeout_falls_back_to_the_default(monkeypatch, value):
+    monkeypatch.setenv("EMBER_FLASH_TIMEOUT_SECONDS", value)
+    assert spotter.model.timeout_seconds() == spotter.model.DEFAULT_TIMEOUT_SECONDS
+
+
+def test_gunicorn_has_a_finite_worker_timeout():
+    dockerfile = os.path.join(os.path.dirname(__file__), "..", "..", "Dockerfile")
+    with open(dockerfile) as fh:
+        text = fh.read()
+    match = re.search(r"--timeout\s+(\d+)", text)
+    assert match is not None and int(match.group(1)) > 0
+
+
+def test_summary_still_falls_back_when_the_model_returns_bad_output(client, store, monkeypatch):
+    use_model(monkeypatch, spotter.model.ModelError("model did not return JSON"))
+    seed_incident(store)
+    response = client.post("/internal/incidents/inc_01/summary")
+    assert response.status_code == 200
+    assert response.get_json()["source"] == "template"
