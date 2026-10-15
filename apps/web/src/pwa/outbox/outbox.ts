@@ -4,7 +4,8 @@
  * Reports go into IndexedDB first, then replay in capture order. Each item
  * is marked `sending` before its request and `sent` as soon as ember-api
  * answers, so a stored report is never sent again. `capturedAt` is part of
- * the stored body and is never re-stamped.
+ * the stored body and is never re-stamped. Every request carries the item id as
+ * `clientId`, so a replay after a lost reply cannot create a second observation.
  */
 import type { Observation, ObservationRequest, PhotoContentType } from '../contracts/types'
 import { ApiError } from '../api/types'
@@ -166,7 +167,9 @@ export class Outbox {
           await this.save(item)
         }
         if (!item.body) throw new Error('Outbox item has nothing to send')
-        const stored = await this.deps.send(item.body)
+        // The item id is the idempotency key: if ember-api stored the report but the reply was lost,
+        // the replay gets the stored report back instead of creating a second one.
+        const stored = await this.deps.send({ ...item.body, clientId: item.id })
         await this.save({ ...item, state: 'sent', sentAt: this.now().toISOString(), observationId: stored.id, lastError: null })
       } catch (e) {
         this.errors.set(item.id, e)

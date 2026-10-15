@@ -1,5 +1,6 @@
 """Validate a chip, text or photo observation before it is stored."""
 import math
+import re
 from datetime import datetime, timedelta, timezone
 
 from photos.paths import owner_of
@@ -12,6 +13,8 @@ CHIP_SEVERITY = {
     "butuh_bantuan": "unknown",
 }
 MAX_NOTE_LENGTH = 280
+# The outbox item id. Letters, digits, dot, dash and underscore, so it is safe to hash and log.
+CLIENT_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 # A phone clock can be a little fast and the outbox can hold a report offline
 # for days, so capturedAt has to fall inside this window around receipt.
 MAX_FUTURE = timedelta(minutes=5)
@@ -62,6 +65,7 @@ def prepare_observation(body):
     accuracy = _accuracy(body, fields)
     chip, text = _chip_and_text(source, body, fields)
     photo_path = _photo_path(source, body, fields)
+    client_id = _client_id(body, fields)
 
     if fields:
         raise ValidationError(next(iter(fields.values())), fields)
@@ -77,7 +81,18 @@ def prepare_observation(body):
         "text": text,
         "severity": severity,
         "photoPath": photo_path,
+        "clientId": client_id,
     }
+
+
+def _client_id(body, fields):
+    value = body.get("clientId")
+    if value is None:
+        return None
+    if not isinstance(value, str) or not CLIENT_ID_PATTERN.match(value):
+        fields["clientId"] = "clientId must be 1 to 128 letters, digits, dots, dashes or underscores"
+        return None
+    return value
 
 
 def _captured_at(value):

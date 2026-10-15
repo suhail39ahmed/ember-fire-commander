@@ -24,6 +24,8 @@ export interface ObservationCreate {
   accuracyM: number | null
   chip: ChipValue | null
   text: string | null
+  /** Outbox item id. Sending it again returns the stored report instead of creating another. */
+  clientId?: string
 }
 
 /**
@@ -39,6 +41,7 @@ export interface PhotoObservationCreate {
   chip: null
   text: string | null
   photoPath: string
+  clientId?: string
 }
 
 export type ObservationRequest = ObservationCreate | PhotoObservationCreate
@@ -74,6 +77,8 @@ export interface Observation {
   severity: Severity
   photoPath: string | null
   immutable: true
+  /** Present when the report was sent with a clientId. */
+  clientId?: string
 }
 
 export interface Withdraw {

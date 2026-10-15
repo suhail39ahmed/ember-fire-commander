@@ -46,7 +46,10 @@ def create_observation():
         check_photo_path(g.user["id"], prepared["photoPath"])
 
     record = assemble_record(prepared, g.user["id"], utc_now_iso())
-    stored = get_store().create(record)
+    stored, created = get_store().create(record)
+    if not created:
+        # The same clientId was sent before (an outbox replay): answer with the stored report.
+        return jsonify(stored), 200
     try:
         notify_observation(stored["id"])
     except Exception:
