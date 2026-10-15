@@ -56,13 +56,6 @@
 .error-card { border: 1.5px solid var(--danger); }
 .sent { background: var(--safe-tint); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
 .sent strong { color: var(--safe); font-size: 18px; }
-.perms ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-.perm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.perm-name { font-weight: 600; min-width: 100px; }
-.perm-state { flex: 1; color: var(--ink-muted); }
-.perm-granted .perm-state { color: var(--safe); }
-.perm-denied .perm-state { color: var(--danger); font-weight: 600; }
-.perm-help { width: 100%; font-size: 13px; color: var(--danger); }
 .install { text-align: center; }
 .dev { border: 1.5px dashed var(--line); flex-direction: row; flex-wrap: wrap; }
 .dev .section-label { width: 100%; }

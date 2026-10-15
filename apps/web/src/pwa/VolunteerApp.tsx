@@ -48,7 +48,7 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
   const [loadError, setLoadError] = useState(false)
   const [session, setSession] = useState<SessionState>('idle')
   const [pttBlocked, setPttBlocked] = useState<'auth' | 'unavailable' | null>(null)
-  const { perms, request } = usePermissions()
+  const { perms, asking, request } = usePermissions()
   const getAuthHeaders = useMemo(() => authHeadersFor(user), [user])
   const volunteerId = me?.id ?? null
   const api = useMemo<EmberApi>(
@@ -211,7 +211,7 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
           onSendNow={() => void outbox.flush()}
         />
 
-        <PermissionsPanel perms={perms} lang={lang} onRequest={(k) => void request(k)} />
+        <PermissionsPanel perms={perms} asking={asking} lang={lang} onRequest={(k) => void request(k)} />
 
         {USE_MOCK_API && mock && (
           <section className="card dev" aria-label="Mock controls">
