@@ -40,6 +40,13 @@ function render(path: string, lang: 'id' | 'en' = 'en') {
   )
 }
 
+/** Signed-in pages are lazy chunks: the first render shows the loading screen, the next one the page. */
+async function renderSettled(path: string, lang: 'id' | 'en' = 'en') {
+  render(path, lang)
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  return render(path, lang)
+}
+
 beforeEach(() => {
   state.auth = signedOut()
 })
@@ -108,14 +115,21 @@ describe('role choice at /', () => {
 })
 
 describe('signed-in pages', () => {
-  it('renders the volunteer app for a volunteer at /pwa', () => {
+  it('shows the loading screen, not a blank page, on the first visit, while the page chunk downloads', () => {
     state.auth = signedOut({ status: 'ready', me: volunteer })
-    expect(render('/pwa')).toContain('volunteer app screen')
+    const html = render('/pwa')
+    expect(html).toContain('Checking sign-in')
+    expect(html).not.toContain('volunteer app screen')
   })
 
-  it('renders the console for a supervisor at /console', () => {
+  it('renders the volunteer app for a volunteer at /pwa', async () => {
+    state.auth = signedOut({ status: 'ready', me: volunteer })
+    expect(await renderSettled('/pwa')).toContain('volunteer app screen')
+  })
+
+  it('renders the console for a supervisor at /console', async () => {
     state.auth = signedOut({ status: 'ready', me: supervisor })
-    expect(render('/console')).toContain('console screen')
+    expect(await renderSettled('/console')).toContain('console screen')
   })
 
   it('tells a volunteer on /console the page is for supervisors, with a way to their own page', () => {

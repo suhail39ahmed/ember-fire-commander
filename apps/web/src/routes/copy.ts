@@ -90,6 +90,14 @@ export const copy = {
     toVolunteer: { id: 'Buka aplikasi relawan', en: 'Go to the volunteer app' },
     toConsole: { id: 'Buka konsol', en: 'Go to the console' },
   },
+  loadFailed: {
+    title: { id: 'Halaman gagal dimuat', en: 'This page could not load' },
+    body: {
+      id: 'Periksa koneksi Anda lalu muat ulang. Laporan yang belum terkirim tetap tersimpan di ponsel.',
+      en: 'Check your connection and reload. Reports that have not been sent stay saved on your phone.',
+    },
+    action: { id: 'Muat ulang', en: 'Reload' },
+  },
   checking: { id: 'Memeriksa akun…', en: 'Checking sign-in…' },
   signOut: { id: 'Keluar', en: 'Sign out' },
 } as const
