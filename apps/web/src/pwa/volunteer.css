@@ -22,12 +22,15 @@
   text-align: left;
   font-size: 15px;
 }
-.vol-header { display: flex; align-items: center; gap: 10px; padding: 14px 20px; background: var(--night); color: var(--paper); position: sticky; top: 0; z-index: 2; }
-.vol-title { display: flex; flex-direction: column; flex: 1; line-height: 1.2; }
-.vol-title .muted { color: #bdb5aa; font-size: 12px; }
+.vol-header { box-sizing: border-box; height: 64px; display: flex; align-items: center; gap: 10px; padding: 0 16px; background: var(--night); color: var(--paper); position: sticky; top: 0; z-index: 2; }
+.vol-header img { flex: none; }
+.vol-title { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.25; }
+.vol-title strong, .vol-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vol-sub { color: #bdb5aa; font-size: 12px; }
+.vol-header .lang-toggle { flex: none; }
+.vol-simulated { align-self: flex-start; }
 .badge-simulated { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; background: var(--haze); color: #fff; border-radius: 999px; padding: 3px 8px; white-space: nowrap; }
 .badge-simulated.on-dark { background: rgba(255,255,255,0.15); margin-top: 16px; align-self: center; }
-.lang { background: transparent; color: var(--paper); border: 1.5px solid #6b645c; border-radius: 999px; padding: 4px 10px; font-weight: 600; cursor: pointer; }
 .vol-main { display: flex; flex-direction: column; gap: 12px; padding: 12px 20px 32px; }
 .card { background: #fff; border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
 .card h2 { font-size: 20px; font-weight: 600; }

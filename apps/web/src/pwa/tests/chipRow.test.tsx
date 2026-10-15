@@ -5,7 +5,7 @@ import { CHIP_VALUES } from '../contracts/types'
 import { ChipRow } from '../report/ChipRow'
 
 const render = (props: Partial<Parameters<typeof ChipRow>[0]> = {}) =>
-  renderToStaticMarkup(<ChipRow value={null} labelledBy="label" onChange={() => {}} {...props} />)
+  renderToStaticMarkup(<ChipRow lang="id" value={null} labelledBy="label" onChange={() => {}} {...props} />)
 
 describe('ChipRow', () => {
   it('renders the four chips as one radio group', () => {
@@ -33,6 +33,20 @@ describe('ChipRow', () => {
   it('reserves the same mark slot on every chip so choosing one does not change its width', () => {
     const html = render({ value: 'asap' })
     expect(html.match(/class="chip-mark"/g)).toHaveLength(CHIP_VALUES.length)
+  })
+
+  it('shows Bahasa labels in Bahasa mode with no second line', () => {
+    const html = render({ lang: 'id' })
+    expect(html).toContain('>butuh bantuan<')
+    expect(html).not.toContain('Smoke')
+    expect(html).not.toContain('chip-secondary')
+  })
+
+  it('shows English labels with the Bahasa word underneath in English mode', () => {
+    const html = render({ lang: 'en', value: 'butuh_bantuan' })
+    for (const label of ['Smoke', 'Fire', 'Safe', 'Need help']) expect(html).toContain(`>${label}<`)
+    expect(html).toMatch(/chip-secondary" lang="id">butuh bantuan</)
+    expect(html).toContain('data-chip="butuh_bantuan"')
   })
 
   it('shows no tick when nothing is chosen', () => {

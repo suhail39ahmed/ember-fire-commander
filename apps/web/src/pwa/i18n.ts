@@ -1,7 +1,7 @@
 /**
  * UI strings. Bahasa Indonesia is the default; English is a toggle.
  * Bahasa copy is DRAFT and needs native-speaker review before the demo.
- * Chip labels stay in Bahasa in both languages (they are the report vocabulary).
+ * Chip labels live in report/chips.ts. Only the labels change with the language; the values sent to the API do not.
  */
 export type Lang = 'id' | 'en'
 
@@ -16,8 +16,6 @@ export function parseLang(value: string | null | undefined): Lang {
 const strings = {
   simulated: { id: 'SIMULASI · data sintetis', en: 'SIMULATED · synthetic data' },
   team: { id: 'Regu A · Desa (fiktif)', en: 'Crew A · Village (fictional)' },
-  langToggle: { id: 'EN', en: 'ID' },
-  langToggleLabel: { id: 'Ganti ke bahasa Inggris', en: 'Switch to Bahasa Indonesia' },
   loading: { id: 'Memuat tugas…', en: 'Loading your tasks…' },
   loadError: { id: 'Tidak bisa terhubung ke EMBER.', en: 'Could not reach EMBER.' },
   retry: { id: 'Coba lagi', en: 'Try again' },
@@ -85,7 +83,7 @@ const strings = {
   newReport: { id: 'Laporan baru', en: 'New report' },
   errEmpty: {
     id: 'Pilih salah satu: asap, api, aman atau butuh bantuan — atau tulis catatan.',
-    en: 'Choose asap, api, aman or butuh bantuan — or write a note.',
+    en: 'Choose Smoke, Fire, Safe or Need help — or write a note.',
   },
   errTooLong: { id: 'Catatan terlalu panjang.', en: 'Note is too long.' },
   errNetwork: { id: 'Gagal mengirim. Periksa sinyal lalu coba lagi.', en: 'Could not send. Check signal and try again.' },

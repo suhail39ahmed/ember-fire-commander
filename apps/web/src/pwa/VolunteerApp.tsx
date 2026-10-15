@@ -24,6 +24,7 @@ import { createMockUpload, createXhrUpload } from './photo/upload'
 import { OutboxPanel } from './outbox/OutboxPanel'
 import { useOutbox } from './outbox/useOutbox'
 import type { Position } from './report/buildObservation'
+import { VolunteerHeader } from './VolunteerHeader'
 import { WithdrawScreen } from './WithdrawScreen'
 import './volunteer.css'
 
@@ -43,7 +44,7 @@ function getPosition(): Promise<Position | null> {
 /** Volunteer screen at /pwa. Rendered inside RequireRole role="volunteer", so `me` is set. */
 export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
   const { user, me } = useAuth()
-  const { lang, setLang } = useLanguage()
+  const { lang } = useLanguage()
   const [digest, setDigest] = useState<Digest | null>(null)
   const [loadError, setLoadError] = useState(false)
   const [session, setSession] = useState<SessionState>('idle')
@@ -121,24 +122,10 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
 
   return (
     <div className="vol">
-      <header className="vol-header">
-        <img src="/brand/ember-emblem.svg" alt="" width={28} height={28} />
-        <div className="vol-title">
-          <strong>EMBER</strong>
-          <span className="muted">{me?.displayName ? `${me.displayName} · ${t(lang, strings.team)}` : t(lang, strings.team)}</span>
-        </div>
-        <span className="badge-simulated">{t(lang, strings.simulated)}</span>
-        <button
-          type="button"
-          className="lang"
-          aria-label={t(lang, strings.langToggleLabel)}
-          onClick={() => setLang(lang === 'id' ? 'en' : 'id')}
-        >
-          {t(lang, strings.langToggle)}
-        </button>
-      </header>
+      <VolunteerHeader name={me?.displayName} lang={lang} />
 
       <main className="vol-main">
+        <p className="badge-simulated vol-simulated">{t(lang, strings.simulated)}</p>
         <InstallBanner lang={lang} />
 
         {!digest && !loadError && (

@@ -101,6 +101,7 @@ export function ReportPanel({ api, lang, getPosition, preset, submit }: Props) {
         {t(lang, strings.quickReport)}
       </h3>
       <ChipRow
+        lang={lang}
         value={chip}
         disabled={locked}
         invalid={showChipError}

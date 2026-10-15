@@ -28,3 +28,5 @@
 .chip.selected .chip-mark { background: transparent; color: var(--paper); }
 .chip.invalid { border-color: var(--danger); }
 .chip:disabled { cursor: not-allowed; opacity: 0.55; }
+.chip-text { display: flex; flex-direction: column; min-width: 0; }
+.chip-secondary { font-size: 12px; font-weight: 500; opacity: 0.75; }

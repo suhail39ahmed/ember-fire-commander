@@ -1,8 +1,10 @@
 import { CHIP_VALUES, type ChipValue } from '../contracts/types'
-import { CHIP_ID_LABEL } from './chips'
+import type { Lang } from '../i18n'
+import { chipLabel } from './chips'
 import './report.css'
 
 interface Props {
+  lang: Lang
   value: ChipValue | null
   disabled?: boolean
   invalid?: boolean
@@ -17,11 +19,12 @@ interface Props {
  * width, and the tick can never spill onto the next chip. The row wraps when the
  * screen is narrow.
  */
-export function ChipRow({ value, disabled, invalid, labelledBy, describedBy, onChange }: Props) {
+export function ChipRow({ lang, value, disabled, invalid, labelledBy, describedBy, onChange }: Props) {
   return (
     <div className="chips" role="radiogroup" aria-labelledby={labelledBy} aria-describedby={describedBy}>
       {CHIP_VALUES.map((c) => {
         const selected = value === c
+        const label = chipLabel(c, lang)
         return (
           <button
             key={c}
@@ -36,7 +39,14 @@ export function ChipRow({ value, disabled, invalid, labelledBy, describedBy, onC
             <span className="chip-mark" aria-hidden="true">
               {selected ? '✓' : ''}
             </span>
-            <span className="chip-text">{CHIP_ID_LABEL[c]}</span>
+            <span className="chip-text">
+              <span className="chip-primary">{label.primary}</span>
+              {label.secondary && (
+                <span className="chip-secondary" lang="id">
+                  {label.secondary}
+                </span>
+              )}
+            </span>
           </button>
         )
       })}
