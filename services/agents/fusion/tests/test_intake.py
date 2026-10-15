@@ -191,3 +191,38 @@ def test_incidents_that_predate_names_are_left_alone(client, store):
     _intake(client, "obs_01")
     assert "name" not in store.collections["incidents"]["inc_old"]
     assert store.collections["counters"] == {}
+
+
+def test_new_incident_stores_its_area(client, store):
+    _seed(store, "obs_01", "uid_sari", "small_flame")
+    _intake(client, "obs_01")
+    [incident] = store.collections["incidents"].values()
+    assert incident["area"] == "Bengkalis, Riau"
+    assert incident["name"].startswith(incident["area"] + " · ")
+
+
+def test_area_is_a_coordinate_label_far_from_every_town(client, store):
+    _seed(store, "obs_01", "uid_sari", "small_flame", lat=10.0)
+    _intake(client, "obs_01")
+    [incident] = store.collections["incidents"].values()
+    assert incident["area"] == "10.00°N 102.11°E"
+
+
+def test_area_is_stored_even_when_naming_fails(client, store, monkeypatch):
+    def broken():
+        raise RuntimeError("counter unavailable")
+    monkeypatch.setattr(store, "next_incident_number", broken)
+    _seed(store, "obs_01", "uid_sari", "small_flame")
+    assert _intake(client, "obs_01").status_code == 202
+    [incident] = store.collections["incidents"].values()
+    assert incident["area"] == "Bengkalis, Riau"
+    assert "name" not in incident
+
+
+def test_later_report_keeps_the_area(client, store):
+    _seed(store, "obs_01", "uid_sari", "small_flame")
+    _seed(store, "obs_02", "uid_rizal", "small_flame")
+    _intake(client, "obs_01")
+    _intake(client, "obs_02")
+    [incident] = store.collections["incidents"].values()
+    assert incident["area"] == "Bengkalis, Riau"

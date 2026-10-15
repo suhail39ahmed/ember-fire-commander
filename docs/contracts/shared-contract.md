@@ -137,6 +137,7 @@ A `text` observation is stored as `unknown`. A `live` observation stores the too
 |---|---|---|
 | `id` | string | Nobody after create |
 | `name` | string or null | Agents (fusion), once, when the incident is created. A readable label: the nearest known town or a coordinate label, the first reporter's display name when there is one, and the incident number, such as `Bengkalis, Riau · Pak Dedi · #3`. `null` on incidents created before names existed, or when naming failed. Clients show a short form of `id` then |
+| `area` | string or null | Agents (fusion), once, when the incident is created. The place part of `name`: the nearest known town, such as `Bengkalis, Riau`, or a coordinate label such as `10.00°N 102.11°E`. Written even when `name` could not be. `null` on incidents created before areas existed. The console groups the queue by it |
 | `status` | status enum | Agents may set `open` or `held`. A supervisor may set `verified` or `extinguished` |
 | `severity` | severity enum | Agents may raise it. A supervisor may lower it. The model must not set it |
 | `evidenceScore` | number | Agents. Code-computed, not a probability and not a forecast |
@@ -231,7 +232,7 @@ One current picture for Live context, REST polling, and WebSocket pushes.
 | Field | Type | Notes |
 |---|---|---|
 | `updatedAt` | string | |
-| `incidents` | incident summary[] | `id`, `name`, `status`, `severity`, `withdraw`, `lat`, `lng` |
+| `incidents` | incident summary[] | `id`, `name`, `area`, `status`, `severity`, `withdraw`, `lat`, `lng` |
 | `myTasks` | task[] | Tasks whose `volunteerId` is the caller. Empty for a supervisor |
 
 A volunteer receives incidents linked to their observations or tasks. A supervisor receives incidents whose status is `open`, `held`, or `verified`.
@@ -442,6 +443,7 @@ A second request that tries to change `obs_01` has no route. A request that carr
   "incident": {
     "id": "inc_01",
     "name": "Bengkalis, Riau · Sari · #1",
+    "area": "Bengkalis, Riau",
     "status": "held",
     "severity": "small_flame",
     "evidenceScore": 64,

@@ -8,10 +8,11 @@ import { createHttpSupervisorApi } from './api/client'
 import { createMockSupervisorApi } from './api/mock'
 import type { SupervisorApi } from './api/types'
 import type { Incident, IncidentDetail } from './contracts'
+import { IncidentQueue } from './IncidentQueue'
 import { IncidentView, type Outcome } from './IncidentView'
 import { IncidentMap } from './map/IncidentMap'
-import { incidentLabel } from '../pwa/incidentName'
-import { SEVERITY_LABEL, sortQueue, STATUS_LABEL, volunteerName } from './view'
+import { flattenGroups, groupByArea } from './queueGroups'
+import { sortQueue, volunteerName } from './view'
 import './supervisor.css'
 
 const POLL_MS = 5000
@@ -39,11 +40,12 @@ export function SupervisorConsole({ api: apiOverride }: { api?: SupervisorApi })
   const [busyId, setBusyId] = useState<string | null>(null)
   const [outcomes, setOutcomes] = useState<Record<string, Outcome>>({})
 
+  const groups = useMemo(() => groupByArea(queue ?? []), [queue])
   const activeId = selectedId && queue?.some((i) => i.id === selectedId) ? selectedId : queue?.[0]?.id ?? null
 
   const load = useCallback(async () => {
     try {
-      const incidents = sortQueue(await api.listIncidents())
+      const incidents = flattenGroups(groupByArea(sortQueue(await api.listIncidents())))
       setQueue(incidents)
       setLoadError(null)
     } catch (e) {
@@ -118,23 +120,7 @@ export function SupervisorConsole({ api: apiOverride }: { api?: SupervisorApi })
           <span className="sup-nav active">Live incident</span>
         </nav>
         {queue && queue.length > 0 && (
-          <ul className="sup-queue" aria-label="Incident queue">
-            {queue.map((i) => (
-              <li key={i.id}>
-                <button
-                  type="button"
-                  className={`sup-queue-item${i.id === activeId ? ' active' : ''}`}
-                  aria-current={i.id === activeId}
-                  onClick={() => setSelectedId(i.id)}
-                >
-                  <span>{incidentLabel(i)}</span>
-                  <span className="sup-queue-meta">
-                    {i.withdraw?.active ? 'WITHDRAW · ' : ''}{STATUS_LABEL[i.status]} · {SEVERITY_LABEL[i.severity]} · {i.evidenceScore}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <IncidentQueue groups={groups} activeId={activeId} onSelect={setSelectedId} />
         )}
         <div className="sup-duty">
           <p className="sup-label">ON DUTY</p>

@@ -11,6 +11,8 @@ export interface Incident {
   id: string
   /** Readable label from agents, such as "Bengkalis, Riau · Sari · #3". Absent or null on older incidents. */
   name?: string | null
+  /** Place part of the name, such as "Bengkalis, Riau". Absent or null on older incidents. */
+  area?: string | null
   status: IncidentStatus
   severity: Severity
   evidenceScore: number
