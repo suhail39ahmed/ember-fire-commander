@@ -75,11 +75,6 @@ resource "google_cloud_run_v2_service" "ember_api" {
         value = google_cloud_run_v2_service.ember_agents.uri
       }
       env {
-        # observations/notify.py reads this name; same value as EMBER_AGENTS_URL
-        name  = "AGENTS_BASE_URL"
-        value = google_cloud_run_v2_service.ember_agents.uri
-      }
-      env {
         # notifications/caller.py accepts only this service account on the internal withdraw route.
         name  = "EMBER_AGENTS_CALLER"
         value = google_service_account.runtime["ember-agents"].email
