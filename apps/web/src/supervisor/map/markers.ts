@@ -3,6 +3,7 @@
  * severity, status, conflictId and withdraw. Nothing here estimates spread.
  */
 import type { Incident } from '../contracts'
+import { incidentLabel } from '../../pwa/incidentName'
 import { SEVERITY_LABEL, STATUS_LABEL } from '../view'
 
 /** Fixed display ring around a withdrawn incident. Indicative, not a hazard model. */
@@ -35,7 +36,7 @@ export function pinStyle(incident: Incident): PinStyle {
     conflict,
     withdraw,
     verified: incident.status === 'verified',
-    label: `${incident.id} · ${STATUS_LABEL[incident.status]} · ${SEVERITY_LABEL[incident.severity]}`,
+    label: `${incidentLabel(incident)} · ${STATUS_LABEL[incident.status]} · ${SEVERITY_LABEL[incident.severity]}`,
     badge: withdraw ? 'Withdrawn' : conflict ? 'Same fire?' : null,
   }
 }

@@ -7,6 +7,8 @@ import os
 import uuid
 
 ACTIVE_STATUSES = ["open", "held", "verified"]
+COUNTER_COLLECTION = "counters"
+INCIDENT_COUNTER = "incidents"
 
 
 def _apply(plan, put):
@@ -23,11 +25,19 @@ class MemoryFusionStore:
     def __init__(self):
         self.collections = {
             "observations": {}, "incidents": {}, "conflicts": {}, "tasks": {}, "audit": {},
-            "weather": {},
+            "weather": {}, "counters": {}, "volunteers": {},
         }
 
     def new_id(self, collection):
         return f"{collection[:3]}_{uuid.uuid4().hex[:12]}"
+
+    def next_incident_number(self):
+        counter = self.collections["counters"].setdefault(INCIDENT_COUNTER, {"value": 0})
+        counter["value"] += 1
+        return counter["value"]
+
+    def volunteer_name(self, volunteer_id):
+        return (self.collections["volunteers"].get(volunteer_id) or {}).get("displayName")
 
     def get_observation(self, observation_id):
         found = self.collections["observations"].get(observation_id)
@@ -82,6 +92,29 @@ class FirestoreFusionStore:
 
     def new_id(self, collection):
         return self._db().collection(collection).document().id
+
+    def next_incident_number(self):
+        """Take the next number from `counters/incidents` in a transaction.
+
+        Two intakes that create an incident at the same time cannot get the same
+        number: the second transaction retries on the committed counter.
+        """
+        from google.cloud import firestore
+
+        db = self._db()
+        ref = db.collection(COUNTER_COLLECTION).document(INCIDENT_COUNTER)
+
+        def take(transaction):
+            snapshot = ref.get(transaction=transaction)
+            value = ((snapshot.to_dict() or {}).get("value") or 0) + 1
+            transaction.set(ref, {"value": value})
+            return value
+
+        return firestore.transactional(take)(db.transaction())
+
+    def volunteer_name(self, volunteer_id):
+        snapshot = self._db().collection("volunteers").document(volunteer_id).get()
+        return (snapshot.to_dict() or {}).get("displayName") if snapshot.exists else None
 
     def get_observation(self, observation_id):
         snapshot = self._db().collection("observations").document(observation_id).get()

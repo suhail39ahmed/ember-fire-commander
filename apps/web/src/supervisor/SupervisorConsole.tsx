@@ -10,6 +10,7 @@ import type { SupervisorApi } from './api/types'
 import type { Incident, IncidentDetail } from './contracts'
 import { IncidentView, type Outcome } from './IncidentView'
 import { IncidentMap } from './map/IncidentMap'
+import { incidentLabel } from '../pwa/incidentName'
 import { SEVERITY_LABEL, sortQueue, STATUS_LABEL, volunteerName } from './view'
 import './supervisor.css'
 
@@ -126,7 +127,7 @@ export function SupervisorConsole({ api: apiOverride }: { api?: SupervisorApi })
                   aria-current={i.id === activeId}
                   onClick={() => setSelectedId(i.id)}
                 >
-                  <span>{i.id}</span>
+                  <span>{incidentLabel(i)}</span>
                   <span className="sup-queue-meta">
                     {i.withdraw?.active ? 'WITHDRAW · ' : ''}{STATUS_LABEL[i.status]} · {SEVERITY_LABEL[i.severity]} · {i.evidenceScore}
                   </span>

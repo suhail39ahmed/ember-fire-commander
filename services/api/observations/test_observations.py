@@ -432,6 +432,21 @@ def test_supervisor_can_file_a_report(client, store, monkeypatch):
     assert response.get_json()["volunteerId"] == "uid_bpbd"
 
 
+def test_reporter_display_name_is_stored_with_the_report(client, store, signed_in):
+    response = _post(client, CHIP_BODY)
+    assert response.get_json()["volunteerName"] == "Sari"
+    assert store.observations[response.get_json()["id"]]["volunteerName"] == "Sari"
+
+
+def test_report_without_a_display_name_has_no_volunteer_name(client, store, monkeypatch):
+    monkeypatch.setattr(
+        identity, "verify_id_token", lambda token: {"uid": "uid_x", "role": "volunteer"}
+    )
+    response = _post(client, CHIP_BODY)
+    assert response.status_code == 201
+    assert "volunteerName" not in response.get_json()
+
+
 def test_replaying_a_client_id_returns_the_stored_report(client, store, signed_in):
     body = dict(CHIP_BODY, clientId="outbox-item-1")
     first = _post(client, body)

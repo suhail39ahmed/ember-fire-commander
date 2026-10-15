@@ -4,7 +4,9 @@ from datetime import datetime, timezone
 import pytest
 from google.api_core.exceptions import AlreadyExists
 
-from observations.store import FirestoreObservationStore, assemble_record, observation_id_for
+from observations.store import (
+    MAX_VOLUNTEER_NAME, FirestoreObservationStore, assemble_record, clean_volunteer_name, observation_id_for,
+)
 from observations.validate import prepare_observation
 
 BODY = {
@@ -220,3 +222,18 @@ def test_intake_failed_counts_the_attempt_and_moves_it_back(monkeypatch):
     assert item["attempts"] == 1
     assert item["attemptedAt"] == "2026-10-13T08:20:00.000Z"
     assert store_module.PENDING_COLLECTION == "intakePending"
+
+
+def test_volunteer_name_is_added_only_when_there_is_one():
+    prepared = prepare_observation(dict(BODY))
+    assert assemble_record(prepared, "uid_sari", "2026-10-13T08:12:05Z", "Sari")["volunteerName"] == "Sari"
+    assert "volunteerName" not in assemble_record(prepared, "uid_sari", "2026-10-13T08:12:05Z", None)
+    assert "volunteerName" not in assemble_record(prepared, "uid_sari", "2026-10-13T08:12:05Z", "  ")
+    assert "volunteerName" not in assemble_record(prepared, "uid_sari", "2026-10-13T08:12:05Z")
+
+
+def test_volunteer_name_is_one_short_line():
+    assert clean_volunteer_name("  Pak\n  Dedi ") == "Pak Dedi"
+    assert clean_volunteer_name(None) is None
+    assert clean_volunteer_name(7) is None
+    assert len(clean_volunteer_name("x" * 500)) == MAX_VOLUNTEER_NAME
