@@ -14,7 +14,7 @@ Examples below are synthetic.
 4. **WITHDRAW needs no approval.** It is an instruction to specific volunteers. Code sends it immediately when an observation severity is `large_flame` or the wind rule fires. A supervisor may also send it to chosen volunteers. Both paths write the instruction, the tasks, and an audit record.
 5. **Dispatch always needs supervisor approval.** Dispatch means approving a proposed task of type `investigate`. Approval is rejected while that incident has an open conflict.
 6. Only a supervisor can verify an incident, extinguish it, or lower its severity. Code may raise severity. Nothing in the client, and nothing returned by the model, can do those three human actions.
-7. FIRMS hotspots are leads to verify. This contract has no lead, forecast, haze, or plume field. Every number a client shows comes from one of these payloads.
+7. FIRMS hotspots are leads to verify. No REST or WebSocket payload in this contract has a lead, forecast, haze, or plume field. The collections that services keep for those are internal and listed in §5.7. Every number a client shows comes from one of these payloads.
 8. The direct phone-to-Gemini fallback is outside this contract. The Live path is the relay through `voice-gateway`.
 
 Severity order, low to high: `none`, `smoke`, `small_flame`, `large_flame`. `unknown` does not raise or lower a known severity.
@@ -94,6 +94,8 @@ Timestamps are ISO-8601 UTC strings. Ids are server-generated strings.
 
 Collections used by this contract: `observations`, `incidents`, `conflicts`, `tasks`, `digest`, `audit`.
 
+Services also keep collections that no REST route returns. They are listed in §5.7 with the field types and the service that writes them: `photo_triage`, `incident_summaries`, `sites`, `sites_meta`, `notificationAttempts`, `leads`, `weather`, `psi`, and `ingestRuns`.
+
 ### 5.1 Observation
 
 Immutable. The stored record always has `"immutable": true`. There is no update or delete route.
@@ -139,6 +141,16 @@ A `text` observation is stored as `unknown`. A `live` observation stores the too
 | `withdraw` | object or null | Code, or a supervisor through the withdraw route in §6.5 |
 | `lat` | number | Agents |
 | `lng` | number | Agents |
+| `observationIds` | string[] | Agents (fusion). Every observation clustered into the incident, oldest first. Stored only: no REST response returns it. Services use it to find an incident's observations and to link a volunteer to it |
+| `evidenceFactors` | evidence factor[] | Agents (fusion). The factors that add up to `evidenceScore`. Stored only: no REST response returns it |
+
+An evidence factor explains one part of `evidenceScore`. The score is the sum of the `points`, kept between 0 and 100.
+
+| Field | Type | Notes |
+|---|---|---|
+| `factor` | string | `severity`, `corroboration`, `photo`, `gps`, or `conflict` |
+| `points` | number | Negative for `conflict` |
+| `detail` | string | A plain sentence, such as `highest reported severity is small_flame` |
 
 `withdraw` when active:
 
@@ -207,6 +219,7 @@ Append-only. Clients do not write audit records. Every supervisor action and eve
 | `incident.extinguish` | A supervisor extinguished the incident |
 | `incident.severity.lower` | A supervisor lowered severity |
 | `incident.severity.raise` | Code raised severity |
+| `site.reinspect` | Code found new activity near an extinguished site (§5.7). `actorId` is `code` and `targetId` is the incident id |
 
 ### 5.6 Digest
 
@@ -219,6 +232,133 @@ One current picture for Live context, REST polling, and WebSocket pushes.
 | `myTasks` | task[] | Tasks whose `volunteerId` is the caller. Empty for a supervisor |
 
 A volunteer receives incidents linked to their observations or tasks. A supervisor receives incidents whose status is `open`, `held`, or `verified`.
+
+### 5.7 Service-written collections
+
+These are written and read by the backend services only. No REST route in §6 returns them, and no client reads Firestore. All timestamps are ISO-8601 UTC strings. Advisory records never change an incident, an observation, or a severity.
+
+#### `photo_triage`
+
+Written by `ember-agents` (spotter). One document per observation, with the observation id as the document id. The model describes the photo. Code keeps only these fields.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | The observation id |
+| `observationId` | string | |
+| `volunteerId` | string or null | The reporting volunteer |
+| `photoPath` | string or null | The private object path |
+| `status` | string | `ok`, `rejected`, or `error` |
+| `advisory` | `true` | Always true |
+| `model` | string or null | Null unless the model ran |
+| `result` | object or null | Null unless `status` is `ok` |
+| `reason` | string | Only when `status` is `rejected`. Why the photo was refused |
+| `error` | string | Only when `status` is `error`. A short failure reason |
+| `at` | string | |
+
+`result`:
+
+| Field | Type | Notes |
+|---|---|---|
+| `smokeVisible` | boolean | |
+| `flameVisible` | string | `none`, `small`, `large`, or `unclear` |
+| `burnScarVisible` | boolean | |
+| `notes` | string | A short factual description, at most 200 characters |
+| `confidence` | string | `low`, `medium`, or `high` |
+
+#### `incident_summaries`
+
+Written by `ember-agents` (spotter). One document per incident, with the incident id as the document id. Code builds the facts. The model only rewords them, and code falls back to a plain template when the text is not neutral.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | The incident id |
+| `incidentId` | string | |
+| `english` | string | At most 400 characters |
+| `bahasa` | string | Bahasa Indonesia, at most 400 characters |
+| `source` | string | `model` or `template` |
+| `advisory` | `true` | Always true |
+| `model` | string or null | Null when `source` is `template` |
+| `facts` | object | `incidentId`, `reportCount`, `volunteerCount`, `reportsDisagree`, `reports[]` (`source`, `chip`, `text`, `capturedAt`, `hasPhoto`), and `photoDescriptions[]` (`smokeVisible`, `flameVisible`, `burnScarVisible`, `notes`). It has no severity on purpose |
+| `at` | string | |
+
+#### `sites` and `sites_meta`
+
+Written by `ember-agents` (sites, the re-ignition watch). A `sites` document is made for each extinguished incident, with the incident id as the document id. An alert asks a supervisor to look again. It never reopens, verifies, or re-rates the incident.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | The incident id |
+| `incidentId` | string | |
+| `lat` | number | The incident position |
+| `lng` | number | |
+| `radiusM` | number | Alert radius in metres. Default 500 |
+| `extinguishedAt` | string | From the `incident.extinguish` audit record |
+| `expiresAt` | string | End of the watch window, `EMBER_SITE_WATCH_DAYS` (default 14) after `extinguishedAt`. Records made before the window existed do not have it |
+| `observationIds` | string[] | The incident observations. These never raise an alert |
+| `status` | string | `watching`, `reinspect` after an alert, or `expired` once the window has passed. Expired sites are not scanned |
+| `alerts` | alert[] | The newest 50 alerts |
+| `lastAlertAt` | string | Set with the first alert |
+
+Each alert:
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | |
+| `kind` | string | `observation` or `lead` |
+| `sourceId` | string | The observation id or the lead id |
+| `distanceM` | number | From the site, rounded |
+| `itemAt` | string | When the observation arrived or the lead was first seen |
+| `at` | string | When the alert was raised |
+| `message` | string | |
+
+Each new alert also appends a `site.reinspect` audit record. `sites_meta/scan` holds `lastScannedAt` (string), the start time of the last completed scan, so the next scan reads only newer observations and leads.
+
+#### `notificationAttempts`
+
+Written by `ember-api` after a task or WITHDRAW push. The task is already committed. A failed or skipped push never undoes it.
+
+| Field | Type | Notes |
+|---|---|---|
+| `kind` | string | `withdraw` or `task` |
+| `targetId` | string | The task id |
+| `volunteerId` | string | The volunteer who was pushed |
+| `result` | string | `sent`, `failed`, or `skipped` (the volunteer has no device token) |
+| `attempts` | number | Send attempts, up to 3 per token. 0 when skipped |
+| `at` | string | |
+
+#### `leads`, `weather`, `psi`, `ingestRuns`
+
+Written by the hourly ingest job and nowhere else. It never writes incidents, observations, tasks, or audit records, and it never deletes. A FIRMS hotspot is a lead for a person to verify. It is never a confirmed fire.
+
+`leads`, one document per hotspot:
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | Stable for the same satellite source, position, and acquisition time |
+| `kind` | string | `firms_hotspot` |
+| `source` | string | `firms`, or `seed` for hand-seeded demo leads |
+| `firmsSource` | string | The FIRMS product, or `hand-seeded` |
+| `satellite`, `instrument` | string or null | |
+| `lat`, `lng` | number | |
+| `acqAt` | string | When the satellite saw it |
+| `confidence` | string | `low`, `nominal`, `high`, or `unknown` |
+| `frpMw`, `brightnessK` | number or null | |
+| `daynight` | string or null | |
+| `label` | string | `unverified_lead` |
+| `needsHumanVerification` | `true` | |
+| `confirmedFire` | `false` | |
+| `disclaimer` | string | |
+| `status` | string | `to_verify` on first sight. A person or a later service may change it, and ingest never overwrites it |
+| `firstSeenAt` | string | Kept from the first run |
+| `lastSeenAt` | string | The latest run that saw it |
+| `ingestRunId` | string | |
+| `verifiedBy`, `verifiedAt`, `incidentId` | string | Optional. Set by a person or a later service, and ingest never overwrites them |
+
+`weather/current`: `id`, `source` (`open-meteo`), `lat`, `lng`, `observedAt`, `windKmh`, `windDirDeg`, `gustKmh`, `tempC`, `humidityPct`, `precipMm` (numbers may be null), `fetchedAt`, `ingestRunId`. Wind reaches a WITHDRAW only through the agents rule in §8.
+
+`psi/current`: `id`, `source` (`data.gov.sg`), `observedAt`, `updatedAt`, `psi24h` (a map of region to number), `psi24hMax` (number), `pm25_24h` (a map of region to number), `fetchedAt`, `ingestRunId`.
+
+`ingestRuns/{runId}`: `id`, `startedAt`, `finishedAt`, `ok` (boolean), and `sources`, a map with `firms`, `weather`, and `psi`. Each entry has `ok` and either its count or value (`leads`, `windKmh`, or `psi24hMax`) or an `error` string.
 
 ## 6. REST
 
@@ -447,9 +587,9 @@ Two synthetic volunteers, one disagreement, then a code WITHDRAW.
 |---|---|
 | Signed photo `PUT` URL | Photo-upload work. Later observations still use `photoPath` |
 | FCM payload fields | Push work |
-| `ops`, `volunteers`, `pings`, `leads`, `crews`, `sites` | Not required to implement this contract |
-| Hourly FIRMS, weather, and PSI ingest | Ingest work. Wind enters WITHDRAW only through the agents rule |
-| Flash photo triage, summaries, evals, Memory Bank | Later agent work |
+| `ops`, `volunteers`, `pings`, `crews` | Not required to implement this contract |
+| Hourly FIRMS, weather, and PSI ingest | Ingest work. The collections it writes are in §5.7. Wind enters WITHDRAW only through the agents rule |
+| Flash photo triage, summaries, evals, Memory Bank | Later agent work. The `photo_triage` and `incident_summaries` records are in §5.7 |
 | Ephemeral-token Live fallback | Only if a later decision replaces the relay |
 | Map tiles | Loaded by the browser with the referrer-restricted Maps key |
 | Agency report delivery | EMBER does not send agency reports |
