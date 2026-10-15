@@ -1,7 +1,7 @@
 """Upload records in Firestore (database FIRESTORE_DATABASE, default ember-db).
 
-A record keeps the private object path, never a URL. A later photo
-observation can check its photoPath against the caller's records.
+A record keeps the private object path, never a URL. A photo
+observation checks its photoPath against the caller's records with was_issued.
 """
 import os
 
@@ -27,3 +27,15 @@ def save_upload(record):
     ref = _db().collection(COLLECTION).document()
     ref.set(record)
     return ref.id
+
+
+def was_issued(volunteer_id, photo_path):
+    """True when ember-api issued this exact path to this volunteer."""
+    query = (
+        _db()
+        .collection(COLLECTION)
+        .where("volunteerId", "==", volunteer_id)
+        .where("photoPath", "==", photo_path)
+        .limit(1)
+    )
+    return any(True for _ in query.stream())
