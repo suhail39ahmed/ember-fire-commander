@@ -1,6 +1,6 @@
 """Validate a chip, text or photo observation before it is stored."""
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from photos.paths import owner_of
 
@@ -12,6 +12,10 @@ CHIP_SEVERITY = {
     "butuh_bantuan": "unknown",
 }
 MAX_NOTE_LENGTH = 280
+# A phone clock can be a little fast and the outbox can hold a report offline
+# for days, so capturedAt has to fall inside this window around receipt.
+MAX_FUTURE = timedelta(minutes=5)
+MAX_AGE = timedelta(days=7)
 SOURCES = ("chip", "text", "photo")
 _REJECTED_SOURCES = ("live",)
 
@@ -47,6 +51,11 @@ def prepare_observation(body):
     captured = _captured_at(body.get("capturedAt"))
     if captured is None:
         fields["capturedAt"] = "capturedAt must be an ISO-8601 UTC timestamp"
+    else:
+        problem = _captured_at_range(captured)
+        if problem:
+            fields["capturedAt"] = problem
+            captured = None
 
     lat = _coordinate(body.get("lat"), "lat", -90, 90, fields)
     lng = _coordinate(body.get("lng"), "lng", -180, 180, fields)
@@ -89,6 +98,21 @@ def _captured_at(value):
     if utc.microsecond:
         text += f".{utc.microsecond // 1000:03d}"
     return text + "Z"
+
+
+def _now():
+    return datetime.now(timezone.utc)
+
+
+def _captured_at_range(captured):
+    """Return a message when captured (already normalised) is outside the allowed window."""
+    moment = datetime.fromisoformat(captured[:-1] + "+00:00")
+    now = _now()
+    if moment > now + MAX_FUTURE:
+        return "capturedAt must not be more than 5 minutes in the future"
+    if moment < now - MAX_AGE:
+        return "capturedAt must be within the last 7 days"
+    return None
 
 
 def _coordinate(value, name, low, high, fields):

@@ -13,6 +13,8 @@ from identity import AuthError, user_from_token
 
 logger = logging.getLogger(__name__)
 
+SAFE_METHODS = ("GET", "HEAD", "OPTIONS")
+
 
 def _bearer_token():
     header = request.headers.get("Authorization", "")
@@ -45,7 +47,8 @@ def protect_request():
     # token. A Firebase user token is the wrong credential here.
     if request.path == "/internal/notifications/withdraw":
         return None
-    g.user = user_from_token(_bearer_token())
+    # Requests that change data also check that the token was not revoked.
+    g.user = user_from_token(_bearer_token(), check_revoked=request.method not in SAFE_METHODS)
     app_check_token = request.headers.get("X-Firebase-AppCheck", "").strip()
     try:
         verify_app_check_token(app_check_token)
