@@ -1,0 +1,123 @@
+# Tests for every area of the repo.
+#
+#   - pull_request and push to main run every job.
+#   - Each deploy-* workflow calls this file with `area` so it only runs
+#     the tests for the thing it ships, and deploys only when they pass.
+#
+# Every job runs on every PR (no path filters) so each check always reports
+# and can be marked required in branch protection without getting stuck
+# on "expected". The whole suite takes about two minutes.
+#
+# Check names to mark as required (Settings > Branches > main):
+#   api tests, agents tests, ingest tests, voice-gateway tests, web checks
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+    inputs:
+      area:
+        description: "all, api, agents, ingest, voice-gateway or web"
+        required: false
+        default: all
+        type: string
+
+permissions:
+  contents: read
+
+# Newer pushes to a PR cancel the older run. Other runs get their own group.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: api tests
+    if: (inputs.area || 'all') == 'all' || inputs.area == 'api'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/api
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: services/api/requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      # "." on purpose: pytest.ini testpaths leaves out notifications/.
+      - run: python -m pytest -q .
+
+  agents:
+    name: agents tests
+    if: (inputs.area || 'all') == 'all' || inputs.area == 'agents'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/agents
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: services/agents/requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q .
+
+  ingest:
+    name: ingest tests
+    if: (inputs.area || 'all') == 'all' || inputs.area == 'ingest'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jobs/ingest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: jobs/ingest/requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q .
+
+  voice-gateway:
+    name: voice-gateway tests
+    if: (inputs.area || 'all') == 'all' || inputs.area == 'voice-gateway'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/voice-gateway
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: services/voice-gateway/requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q .
+
+  web:
+    name: web checks
+    if: (inputs.area || 'all') == 'all' || inputs.area == 'web'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build

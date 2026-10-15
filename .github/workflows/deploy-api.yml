@@ -32,7 +32,14 @@ env:
   SOURCE_DIR: services/api
 
 jobs:
+  test:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/ci.yml
+    with:
+      area: api
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     # WIF only trusts refs/heads/main by default (terraform var github_allowed_ref).
     if: github.ref == 'refs/heads/main'
