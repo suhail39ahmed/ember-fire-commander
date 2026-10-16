@@ -8,6 +8,7 @@ import type { EmberApi } from './api/types'
 import { createMockApi, type MockControls } from './api/mock'
 import { activeWithdraw, currentTask } from './digest'
 import { recordDigestClock } from './clock'
+import { DigestNotice } from './DigestNotice'
 import { useDigest } from './useDigest'
 import { useWakeLock } from './useWakeLock'
 import { incidentLabelById } from './incidentName'
@@ -89,7 +90,8 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
   /** Volunteers report what they see; only the supervisor verifies an incident. */
   const focusReport = (chip: ChipValue | null) => {
     setPreset((p) => ({ chip, n: p.n + 1 }))
-    document.getElementById('quick-report-label')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+    document.getElementById('quick-report-label')?.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' })
   }
 
   const task = currentTask(digest)
@@ -108,19 +110,7 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
         <p className="badge-simulated vol-simulated">{t(lang, strings.simulated)}</p>
         <InstallBanner lang={lang} />
 
-        {!digest && digestStatus === 'loading' && (
-          <p className="card muted" role="status">
-            {t(lang, strings.loading)}
-          </p>
-        )}
-        {(digestStatus === 'unreachable' || digestStatus === 'refused') && (
-          <div className="card error-card" role="alert">
-            <p>{t(lang, digestStatus === 'refused' ? strings.loadRefused : strings.loadError)}</p>
-            <button type="button" className="btn secondary" onClick={load}>
-              {t(lang, strings.retry)}
-            </button>
-          </div>
-        )}
+        <DigestNotice status={digestStatus} hasDigest={digest !== null} lang={lang} onRetry={load} />
 
         {digest && !task && (
           <section className="card">
