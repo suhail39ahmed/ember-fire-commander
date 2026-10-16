@@ -7,6 +7,7 @@ import { GATEWAY_WSS_URL, USE_MOCK_API } from './api/config'
 import type { EmberApi } from './api/types'
 import { createMockApi, type MockControls } from './api/mock'
 import { activeWithdraw, currentTask } from './digest'
+import { recordDigestClock } from './clock'
 import { useDigest } from './useDigest'
 import { incidentLabelById } from './incidentName'
 import { browserSocketFactory, PttSession, type SessionState } from './gateway/pttSession'
@@ -50,7 +51,7 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
 
   useEffect(() => registerServiceWorker(), [])
 
-  const { digest, status: digestStatus, refresh: load } = useDigest(api)
+  const { digest, status: digestStatus, refresh: load } = useDigest(api, recordDigestClock)
 
   usePushRegistration(user, perms.notifications, load)
 

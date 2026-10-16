@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChipValue, ObservationCreate } from '../contracts/types'
 import type { EmberApi } from '../api/types'
+import { clockMessage, stampNow } from '../clock'
 import { strings, t, type Lang } from '../i18n'
 import { MAX_NOTE_LENGTH } from './buildObservation'
 import { ChipRow } from './ChipRow'
@@ -55,7 +56,7 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, subm
 
   async function send() {
     if (busy) return
-    const capturedAt = pending.current?.capturedAt ?? new Date().toISOString()
+    const capturedAt = pending.current?.capturedAt ?? stampNow()
     const draft = { chip, text, capturedAt }
     pending.current ??= { capturedAt }
     const outcome = await sendReport(draft, {
@@ -92,7 +93,11 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, subm
         setStatus({
           kind: 'error',
           retryable: outcome.retryable,
-          message: outcome.retryable ? t(lang, strings.errNetwork) : `${t(lang, strings.errApi)} ${outcome.detail}`,
+          message: outcome.retryable
+            ? t(lang, strings.errNetwork)
+            : outcome.clock
+              ? clockMessage(lang)
+              : `${t(lang, strings.errApi)} ${outcome.detail}`,
         })
     }
   }

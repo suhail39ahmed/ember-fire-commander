@@ -99,6 +99,10 @@ const strings = {
   },
   errTooLong: { id: 'Catatan terlalu panjang.', en: 'Note is too long.' },
   errNetwork: { id: 'Gagal mengirim. Periksa sinyal lalu coba lagi.', en: 'Could not send. Check signal and try again.' },
+  errClock: {
+    id: 'Jam ponsel Anda tampaknya tidak tepat. Perbaiki tanggal dan jam, lalu coba lagi.',
+    en: "Your phone's clock looks wrong. Fix the date and time, then try again.",
+  },
   errApi: { id: 'Laporan ditolak oleh server:', en: 'The server rejected the report:' },
   locating: {
     id: 'Mengambil lokasi… jawab permintaan izin di browser jika muncul.',
