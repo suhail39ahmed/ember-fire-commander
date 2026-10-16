@@ -93,6 +93,19 @@ describe('IncidentMap', () => {
     expect(html).not.toMatch(/illustrative data|exposure corridor|hotspot/i)
   })
 
+  it('shows the layer toggles without drawing crews, wind, leads, or peat', () => {
+    const html = render({ showLayers: true })
+    expect(html).toContain('Live map')
+    expect(html).toContain('aria-pressed="true">Fires')
+    expect(html).toContain('>Crews<')
+    expect(html).toContain('>Wind<')
+    expect(html).toContain('>Satellite leads<')
+    expect(html).toContain('Peat dryness · Static')
+    expect(html).toContain('class="map-pin')
+    expect(html).not.toContain('km/h')
+    expect(html).not.toContain('Nothing to show')
+  })
+
   it('renders the map container when a key is set', () => {
     const html = render({ mapsKey: 'AIza-test' })
     expect(html).toContain('aria-label="Incident map"')

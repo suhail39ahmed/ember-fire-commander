@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { t, type Lang } from '../../pwa/i18n'
 import type { Incident } from '../contracts'
+import { mapCopy } from './mapCopy'
 import { hasMapsKey, MAPS_BROWSER_KEY, MAPS_MAP_ID } from './config'
 import { loadMaps, type GCircle, type GMap, type GMarker, type MapsApi } from './loadMaps'
 import { pinStyle, placeable, project, WITHDRAW_ZONE_M } from './markers'
@@ -15,6 +17,51 @@ export interface IncidentMapProps {
   onSelect(id: string): void
   /** Override for tests and previews. Defaults to VITE_MAPS_BROWSER_KEY. */
   mapsKey?: string
+  /** Dashboard layer toggles. Detail leaves this off. */
+  showLayers?: boolean
+  lang?: Lang
+}
+
+const EMPTY_LAYERS = ['crews', 'wind', 'satellite'] as const
+type EmptyLayer = (typeof EMPTY_LAYERS)[number]
+
+function LayerToggles({
+  firesOn,
+  emptyOn,
+  onFires,
+  onEmpty,
+  lang,
+}: {
+  firesOn: boolean
+  emptyOn: ReadonlySet<EmptyLayer>
+  onFires(): void
+  onEmpty(layer: EmptyLayer): void
+  lang: Lang
+}) {
+  const emptyLabels: Record<EmptyLayer, (typeof mapCopy)[EmptyLayer]> = {
+    crews: mapCopy.crews,
+    wind: mapCopy.wind,
+    satellite: mapCopy.satellite,
+  }
+  return (
+    <div className="map-layers" role="group" aria-label={t(lang, mapCopy.title)}>
+      <button type="button" className={firesOn ? 'map-layer on' : 'map-layer'} aria-pressed={firesOn} onClick={onFires}>
+        {t(lang, mapCopy.fires)}
+      </button>
+      {EMPTY_LAYERS.map((layer) => (
+        <button
+          key={layer}
+          type="button"
+          className={emptyOn.has(layer) ? 'map-layer on' : 'map-layer'}
+          aria-pressed={emptyOn.has(layer)}
+          onClick={() => onEmpty(layer)}
+        >
+          {t(lang, emptyLabels[layer])}
+        </button>
+      ))}
+      <span className="map-layer static">{t(lang, mapCopy.peat)} · {t(lang, mapCopy.staticLayer)}</span>
+    </div>
+  )
 }
 
 function Legend() {
@@ -155,26 +202,49 @@ export function IncidentMap(props: IncidentMapProps) {
   const key = props.mapsKey ?? MAPS_BROWSER_KEY
   const [failed, setFailed] = useState(false)
   const [onFail] = useState(() => () => setFailed(true))
+  const [firesOn, setFiresOn] = useState(true)
+  const [emptyOn, setEmptyOn] = useState<ReadonlySet<EmptyLayer>>(() => new Set())
+  const lang = props.lang ?? 'en'
+  const shown = props.showLayers && !firesOn ? [] : props.incidents
   const count = placeable(props.incidents).length
 
   let body
-  if (count === 0) {
+  if (props.showLayers && !firesOn) {
+    body = <div className="map-empty" role="status">{t(lang, mapCopy.firesOff)}</div>
+  } else if (count === 0) {
     body = <div className="map-empty" role="status">No incident positions to show.</div>
   } else if (!hasMapsKey(key)) {
-    body = <SchematicMap {...props} reason="Map tiles are off (no browser key)." />
+    body = <SchematicMap {...props} incidents={shown} reason="Map tiles are off (no browser key)." />
   } else if (failed) {
-    body = <SchematicMap {...props} reason="Map tiles could not load." />
+    body = <SchematicMap {...props} incidents={shown} reason="Map tiles could not load." />
   } else {
-    body = <GoogleIncidentMap {...props} mapsKey={key} onFail={onFail} />
+    body = <GoogleIncidentMap {...props} incidents={shown} mapsKey={key} onFail={onFail} />
   }
+
+  const emptyNote = EMPTY_LAYERS.filter((layer) => emptyOn.has(layer)).map((layer) => t(lang, mapCopy[layer]))
 
   return (
     <section className="sup-card map-card" aria-label="Incident locations">
       <div className="map-head">
-        <p className="sup-label">INCIDENT LOCATIONS</p>
+        <p className="sup-label">{props.showLayers ? t(lang, mapCopy.title) : 'INCIDENT LOCATIONS'}</p>
         <p className="sup-muted">{count} {count === 1 ? 'incident' : 'incidents'} · positions from ember-api</p>
       </div>
+      {props.showLayers && (
+        <LayerToggles
+          firesOn={firesOn}
+          emptyOn={emptyOn}
+          lang={lang}
+          onFires={() => setFiresOn((on) => !on)}
+          onEmpty={(layer) => setEmptyOn((current) => {
+            const next = new Set(current)
+            if (next.has(layer)) next.delete(layer)
+            else next.add(layer)
+            return next
+          })}
+        />
+      )}
       {body}
+      {emptyNote.length > 0 && <p className="map-empty-layer" role="status">{emptyNote.join(' · ')} — {t(lang, mapCopy.nothing)}</p>}
       <Legend />
       <p className="map-caveat">Guidance is indicative. EMBER does not forecast fire spread or haze.</p>
     </section>

@@ -705,13 +705,61 @@ Volunteers only. A supervisor receives `403`. The body is `{ "token": "<FCM devi
 
 ### 6.9 `GET /dashboard`
 
-Supervisor only. A volunteer receives `403 forbidden`. This is the summary the console chrome reads. Live fires, season impact, and charts are not in this response; when they are added they belong on this same body, not on a second dashboard route. The route does not return incidents or tasks.
+Supervisor only. A volunteer receives `403 forbidden`. This is the summary the console reads, every 15 seconds. The chrome uses `agency`, `serverTime`, and `approvalsCount`. The live banner uses `updatedAt`, `nextSatellitePass`, and `liveFires`. Season impact uses `seasonImpact`. The chart cards use `charts`. The crews, wind, satellite-lead, and peat map layers are not in this response. The route does not return tasks.
 
 ```json
 {
   "agency": "BPBD Kepulauan Meranti",
   "serverTime": "2026-10-16T07:46:00Z",
-  "approvalsCount": 2
+  "approvalsCount": 2,
+  "updatedAt": "2026-10-16T07:46:00Z",
+  "nextSatellitePass": null,
+  "liveFires": [
+    {
+      "id": "inc_01",
+      "peopleOnSite": 2,
+      "withdrawActive": false,
+      "code": null,
+      "placeName": null,
+      "liveCameras": null,
+      "photoCadence": null,
+      "distanceToRisk": null,
+      "since": null
+    }
+  ],
+  "seasonImpact": {
+    "since": null,
+    "region": null,
+    "crewCount": null,
+    "firesContained": null,
+    "firesContainedNote": null,
+    "falseAlarmsCleared": null,
+    "falseAlarmsNote": null,
+    "injuries": null,
+    "injuriesNote": null,
+    "medianTimeToHumanCheck": null,
+    "medianTimeNote": null,
+    "reignitionsCaught": null,
+    "reignitionsNote": null
+  },
+  "charts": {
+    "satelliteNote": null,
+    "realFires": null,
+    "dismissed": null,
+    "medianNote": null,
+    "medianToday": null,
+    "medianTarget": null,
+    "crewNote": null,
+    "onSite": null,
+    "enRoute": null,
+    "ready": null,
+    "offline": null,
+    "weatherNote": null,
+    "airTempC": null,
+    "humidity": null,
+    "wind": null,
+    "rain": null
+  }
 }
 ```
 
@@ -720,8 +768,39 @@ Supervisor only. A volunteer receives `403 forbidden`. This is the summary the c
 | `agency` | string or null | `volunteers/{uid}.agency` for the caller, trimmed. `null` when the document is missing, the field is not a string, or the value is blank |
 | `serverTime` | string | Server time when the response is built. ISO-8601 UTC, the same format as stored timestamps |
 | `approvalsCount` | number | How many `tasks` have `status: proposed`. A task has no supervisor id, so this counts every proposed task, not one person's queue. `0` when none are waiting. The tasks themselves are not returned |
+| `updatedAt` | string | Same instant as `serverTime`. The live banner shows it as the time this picture was built |
+| `nextSatellitePass` | null | No stored source. The banner shows the empty treatment. A pass time is not invented here |
+| `liveFires` | array | Incidents whose `status` is `open`, `held`, or `verified`, sorted by `id`. Extinguished incidents are omitted. `[]` when none are live |
 
-`displayName` and `role` stay on `GET /me` (§6.1). There is no `onDuty` field, because no stored on-duty flag exists. `401` and `403` are as in §3. A profile with no agency is still `200` with `agency: null`.
+Each `liveFires` item:
+
+| Field | Type | Source |
+|---|---|---|
+| `id` | string | Incident id |
+| `peopleOnSite` | number | Distinct `volunteerId` values on that incident's tasks, its `observationIds`, and the observations of its conflict. `0` when none |
+| `withdrawActive` | boolean | `incident.withdraw.active` is true |
+| `code`, `placeName`, `liveCameras`, `photoCadence`, `distanceToRisk`, `since` | null | No stored source. The banner shows the empty treatment. `name` and `area` are not `code` and `placeName` |
+
+`seasonImpact` is always present. Every field is `null` until a stored source exists. The console shows the empty treatment and does not derive these from extinguished incidents, leads, or re-ignition alerts.
+
+| Field | Type | What the card shows |
+|---|---|---|
+| `since`, `region` | null | The header date and region |
+| `crewCount` | null | Village crews in the header |
+| `firesContained`, `falseAlarmsCleared`, `injuries`, `reignitionsCaught` | null | The card figures |
+| `firesContainedNote`, `falseAlarmsNote`, `injuriesNote`, `medianTimeNote`, `reignitionsNote` | null | The line under each figure |
+| `medianTimeToHumanCheck` | null | The median-time figure |
+
+`charts` is always present. Every field is `null` until a client-safe source exists. The console shows the empty treatment. It does not draw bars or read `leads` or `weather`.
+
+| Field | Type | What the card shows |
+|---|---|---|
+| `satelliteNote`, `realFires`, `dismissed` | null | Satellite-leads subtitle, real fires, and dismissed leads |
+| `medianNote`, `medianToday`, `medianTarget` | null | Time-to-check subtitle, today's median, and the target |
+| `crewNote`, `onSite`, `enRoute`, `ready`, `offline` | null | Crews subtitle and the four crew states |
+| `weatherNote`, `airTempC`, `humidity`, `wind`, `rain` | null | Weather subtitle and the four weather lines |
+
+`displayName` and `role` stay on `GET /me` (§6.1). There is no `onDuty` field, because no stored on-duty flag exists. `401` and `403` are as in §3. A profile with no agency is still `200` with `agency: null`. The crews, wind, satellite-lead, and peat map layers are not on this response.
 
 ## 7. WebSocket
 
@@ -994,6 +1073,11 @@ Every route except `/healthz` needs the two headers in §2.
 | `agency` | `GET /dashboard` | The key is always there. `null` when the caller has no stored agency (§6.9) |
 | `approvalsCount` | `GET /dashboard` | `0` when no task is `proposed` |
 | `serverTime` | `GET /dashboard` | Always present on `200`. The console shows it as local `HH:mm` and moves the clock on from that instant |
+| `updatedAt` | `GET /dashboard` | Always present on `200`. Same instant as `serverTime`. The live banner shows it as local `HH:mm` |
+| `nextSatellitePass` | `GET /dashboard` | The key is always there. `null` until a stored pass time exists. The banner shows the empty treatment |
+| `liveFires` | `GET /dashboard` | `[]` when no incident is `open`, `held`, or `verified`. The banner is hidden. `code`, `placeName`, `liveCameras`, `photoCadence`, `distanceToRisk`, and `since` are `null` until a stored source exists |
+| `seasonImpact` | `GET /dashboard` | The key is always there. Every field is `null` until a stored season metric exists. The cards stay visible and show the empty treatment |
+| `charts` | `GET /dashboard` | The key is always there. Every field is `null` until a client-safe chart source exists. The cards stay visible and show the empty treatment |
 
 ### 12.3 Constraints the UI must respect
 
@@ -1062,5 +1146,7 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · #101: `incident.withdraw` gains optional `source`, `sentAt` and `safeVolunteerIds`, written by code and by the withdraw route. New `POST /incidents/{id}/withdraw/safe` (audit `withdraw.safe`) marks a volunteer found safe and never clears the withdraw. A supervisor's `GET /incidents/{id}` adds `volunteerPhones` (§5.2, §5.5, §6.3, §6.5). Open decision: whether all-safe ends a withdraw.
 - 2026-10-16 · #96: `POST /tasks/{id}/edit` also returns `editedBy`, the editor's display name, when the token has one (§6.5, §12.2). The audit row is unchanged.
 - 2026-10-16 · #94: tasks gain optional `sentAt`, `heardAt`, `sendCount` and a computed `resendAt` (§5.3). New `POST /tasks/{id}/resend` (supervisor) and `POST /tasks/{id}/heard` (volunteer), audits `task.resend` and `task.heard` (§5.5, §6.5). Approve, the withdraw route and code stamp `sentAt`. The volunteer app does not call `heard` yet.
+- 2026-10-16 · #91: the same `GET /dashboard` body adds the live banner: `updatedAt`, `nextSatellitePass` (`null`), and `liveFires` for `open`, `held`, and `verified` incidents (§6.9).
+- 2026-10-16 · #91: `GET /dashboard` adds `seasonImpact` and `charts`. Every field is `null` until a stored source exists (§6.9).
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).

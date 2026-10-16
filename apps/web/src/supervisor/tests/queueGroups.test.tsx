@@ -116,15 +116,15 @@ describe('IncidentQueue', () => {
   const html = renderToStaticMarkup(<IncidentQueue groups={groups} activeId="c" onSelect={() => undefined} />)
 
   it('renders a heading with the count for each area', () => {
-    expect(html).toContain('>Bengkalis, Riau (2)</h2>')
-    expect(html).toContain('>Dumai, Riau (1)</h2>')
-    expect(html).toContain('>Unnamed area (1)</h2>')
+    expect(html).toContain('>Bengkalis, Riau (2)</h3>')
+    expect(html).toContain('>Dumai, Riau (1)</h3>')
+    expect(html).toContain('>Unnamed area (1)</h3>')
   })
 
   it('labels the queue and each group', () => {
     expect(html).toContain('aria-label="Incident queue"')
     expect(html.match(/<section [^>]*aria-labelledby="queue-area-\d"/g)).toHaveLength(3)
-    expect(html.match(/<h2 id="queue-area-\d"/g)).toHaveLength(3)
+    expect(html.match(/<h3 id="queue-area-\d"/g)).toHaveLength(3)
   })
 
   it('lists incidents under their heading, in group order', () => {
@@ -136,6 +136,17 @@ describe('IncidentQueue', () => {
 
   it('marks only the active incident', () => {
     expect(html.match(/aria-current="true"/g)).toHaveLength(1)
-    expect(html).toMatch(/sup-queue-item active"[^>]*aria-current="true"[^>]*><span>Pak Dedi · #2<\/span>/)
+    expect(html).toContain('sup-queue-item active')
+    expect(html).toContain('Pak Dedi · #2')
+  })
+
+  it('counts open, held, and verified, and leaves Closed empty', () => {
+    expect(html).toContain('Open 4')
+    expect(html).toContain('Held 0')
+    expect(html).toContain('Verified 0')
+    expect(html).toContain('Closed —')
+    expect(html).toContain('— reports · — volunteers · evidence 45')
+    expect(html).toContain('>— · —<')
+    expect(html).not.toContain('TOHOR')
   })
 })

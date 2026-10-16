@@ -6,7 +6,7 @@ import { USE_MOCK_API } from '../pwa/api/config'
 import { ApiError } from '../pwa/api/types'
 import { t, type Lang } from '../pwa/i18n'
 import { useLanguage } from '../pwa/language'
-import { fetchConsoleChrome, mockConsoleChrome, type ConsoleChrome } from './chromeClient'
+import { fetchConsoleChrome, mockConsoleChrome, type ConsoleChrome, type DashboardCharts, type LiveFire, type SeasonImpact } from './chromeClient'
 import { chromeCopy } from './chromeCopy'
 import { consoleMenu, type ConsoleMenu } from './paths'
 
@@ -25,6 +25,16 @@ export interface ConsoleContextValue {
   clockSkewMs: number | null
   agency: string | null
   chromeError: string | null
+  /** null until the first dashboard read that includes the banner. */
+  liveFires: LiveFire[] | null
+  updatedAt: string | null
+  nextSatellitePass: string | null
+  /** null until the first dashboard read that includes season impact. */
+  seasonImpact: SeasonImpact | null
+  /** null until the first dashboard read that includes the charts. */
+  charts: DashboardCharts | null
+  /** The last picture is still showing while a refresh failed. */
+  bannerRetrying: boolean
 }
 
 const ConsoleContext = createContext<ConsoleContextValue | null>(null)
@@ -107,6 +117,12 @@ export function ConsoleProvider({
       clockSkewMs,
       agency: picture?.agency ?? null,
       chromeError,
+      liveFires: picture && 'liveFires' in picture ? (picture.liveFires ?? []) : null,
+      updatedAt: picture?.updatedAt ?? picture?.serverTime ?? null,
+      nextSatellitePass: picture?.nextSatellitePass ?? null,
+      seasonImpact: picture && 'seasonImpact' in picture ? (picture.seasonImpact ?? null) : null,
+      charts: picture && 'charts' in picture ? (picture.charts ?? null) : null,
+      bannerRetrying: failure !== null,
     }
   }, [me?.id, me?.displayName, lang, pathname, picture, clockSkewMs, failure])
 
