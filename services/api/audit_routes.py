@@ -199,6 +199,8 @@ def _detail(action, target_id, tasks, incidents, observations, names):
         return EMPTY_DETAIL
     if action == "withdraw.safe":
         return "Volunteer marked safe"
+    if action == "task.instruct":
+        return "Instruction sent to one volunteer"
     if action == "task.resend":
         return "Instruction sent again"
     if action == "task.heard":

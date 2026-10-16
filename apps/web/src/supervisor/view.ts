@@ -23,6 +23,7 @@ export const TASK_LABEL: Record<Task['type'], string> = {
   verify: 'Verify',
   investigate: 'Dispatch',
   withdraw: 'Withdraw',
+  instruct: 'Instruction',
 }
 
 /** "uid_dedi" -> "Dedi". Ids are all the contract gives the console. */

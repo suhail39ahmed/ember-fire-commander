@@ -27,3 +27,6 @@
 .inc-vol-wd { margin: 0; font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 8px; background: #fdf3f3; color: var(--danger); font-variant-numeric: tabular-nums; }
 .inc-vol-wd.safe { background: #e8f4ec; color: #1f6b3a; }
 .inc-vol.wd-unconfirmed { border-color: var(--danger); }
+.wd-facts { margin: 0; font-size: 12px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.inc-vol-wd-facts { display: block; font-weight: 500; margin-top: 2px; }
+.inc-vol-where { margin: 4px 0 0; font-size: 12px; font-variant-numeric: tabular-nums; }

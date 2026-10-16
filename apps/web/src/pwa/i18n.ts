@@ -35,6 +35,7 @@ const strings = {
     verify: { id: 'Periksa', en: 'Verify' },
     withdraw: { id: 'Mundur', en: 'Withdraw' },
     investigate: { id: 'Selidiki', en: 'Investigate' },
+    instruct: { id: 'Instruksi', en: 'Instruction' },
   },
   taskStatus: {
     proposed: { id: 'menunggu persetujuan supervisor', en: 'awaiting supervisor approval' },

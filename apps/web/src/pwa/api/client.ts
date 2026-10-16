@@ -13,6 +13,7 @@ export const ENDPOINTS = {
   digest: '/digest',
   observations: '/observations',
   photoUploadUrl: '/photos/upload-url',
+  heard: (taskId: string) => `/tasks/${encodeURIComponent(taskId)}/heard`,
 } as const
 
 function isErrorBody(body: unknown): body is ErrorBody {
@@ -53,5 +54,8 @@ export function createHttpApi(
       request<Observation>(ENDPOINTS.observations, { method: 'POST', body: JSON.stringify(body) }),
     createUploadUrl: (contentType) =>
       request<UploadUrl>(ENDPOINTS.photoUploadUrl, { method: 'POST', body: JSON.stringify({ contentType }) }),
+    markTaskHeard: async (taskId) => {
+      await request<unknown>(ENDPOINTS.heard(taskId), { method: 'POST' })
+    },
   }
 }

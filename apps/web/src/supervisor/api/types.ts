@@ -1,4 +1,4 @@
-import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, TaskDecision, WithdrawRequest } from '../contracts'
+import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, PhotoUrl, TaskDecision, WithdrawRequest } from '../contracts'
 
 /** One row from GET /audit (issue #99). Display fields are built by ember-api. */
 export interface AuditEntry {
@@ -44,6 +44,13 @@ export interface SupervisorApi {
   withdrawIncident(id: string, request: WithdrawRequest): Promise<IncidentDecision>
   /** Records that a supervisor found a withdrawn volunteer safe. Audited. It never clears the withdraw. */
   markWithdrawSafe(id: string, volunteerId: string): Promise<IncidentDecision>
+  /**
+   * Sends one free-text instruction to one volunteer, now. Creates an `instruct` task, pushes it and writes an audit row.
+   * `409` for an extinguished incident, or a volunteer under an active withdraw who is not marked safe.
+   */
+  sendInstruction(id: string, volunteerId: string, instruction: string): Promise<TaskDecision>
+  /** A short-lived signed URL to read one photo report of the incident. `404` when there is none. */
+  getPhotoUrl(id: string, observationId: string): Promise<PhotoUrl>
   /** Stores a strictly lower severity. An active withdraw stays in effect. Only code can raise severity. */
   lowerSeverity(id: string, severity: LowerableSeverity): Promise<IncidentDecision>
   /** Human only, and the console cannot undo it. `409` when the incident is already extinguished. */

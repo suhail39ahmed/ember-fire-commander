@@ -35,7 +35,9 @@ function view(detail: IncidentDetail | null, lang: 'id' | 'en' = 'en', over: Par
     lang, incidentId: 'inc_demo_01', detail, queue: detail ? [detail.incident] : null, failure: null, link: 'online',
     lastOkAt: NOW, now: NOW, actions: noop, onRetry: () => undefined, onSelect: () => undefined,
     markSafe: async () => decision, resendTask: async () => ({ auditId: 'aud_3' }), sendWithdraw: async () => decision, actorName: 'Bu Maya',
-    lowerSeverity: async () => decision, serverNow: () => NOW, extinguish: async () => decision, ...over,
+    lowerSeverity: async () => decision, serverNow: () => NOW, extinguish: async () => decision,
+    sendInstruction: async () => ({ task: fixture('normal').tasks[0], auditId: 'aud_i' }),
+    photoUrl: async () => ({ url: 'https://photo.example/x.jpg', expiresAt: '2026-10-17T03:15:00Z' }), ...over,
   }
   return renderToStaticMarkup(<StaticRouter location="/console/incidents/inc_demo_01"><IncidentDetailView {...props} /></StaticRouter>)
 }

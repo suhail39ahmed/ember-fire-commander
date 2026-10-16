@@ -3,7 +3,8 @@
  * answer. A region whose data no route returns is not given invented content: see `popupCopy.gaps`.
  */
 import type { Lang } from '../../pwa/i18n'
-import type { IncidentDetail, Observation, Task } from '../contracts'
+import type { EvidenceFactor, IncidentDetail, Observation, Task } from '../contracts'
+import { cardOf, distanceLine, placeLine } from './cardModel'
 import { formatPosition, initialsOf, nameOf } from './model'
 
 export interface PopupProfile {
@@ -19,6 +20,12 @@ export interface PopupProfile {
   firstReportAt: string | null
   lastReportAt: string | null
   reportCount: number
+  /** "120 m from the incident centre" from the supervisor read's card, or null. */
+  distance: string | null
+  /** The latest of their newest report arriving and their app showing a task. Null when neither exists. */
+  lastHeardAt: string | null
+  /** A push token is stored for them. Null from an older API that sends no card. */
+  pushReady: boolean | null
 }
 
 export interface Popup {
@@ -31,6 +38,12 @@ export interface Popup {
   tasks: Task[]
   /** True when the volunteer has a withdraw task or is on the incident's active withdraw. */
   withdrawn: boolean
+  /** What EMBER proposes for this volunteer and waits for a supervisor to decide: their proposed tasks. */
+  suggestions: Task[]
+  /** True when the incident has a conflict, the one reason agents give for a proposed verify task. */
+  hasConflict: boolean
+  /** The factors behind the incident's evidence score, as agents stored them. */
+  factors: EvidenceFactor[]
 }
 
 function byTimeDesc(a: Observation, b: Observation): number {
@@ -42,7 +55,8 @@ export function popupFor(detail: IncidentDetail, volunteerId: string, lang: Lang
   const reports = detail.observations.filter((o) => o.volunteerId === volunteerId).sort(byTimeDesc)
   const tasks = detail.tasks.filter((t) => t.volunteerId === volunteerId)
   const onWithdraw = Boolean(detail.incident.withdraw?.active && detail.incident.withdraw.volunteerIds.includes(volunteerId))
-  if (reports.length === 0 && tasks.length === 0 && !onWithdraw) return null
+  const card = cardOf(detail, volunteerId)
+  if (reports.length === 0 && tasks.length === 0 && !onWithdraw && !card) return null
   const newest = reports[0] ?? null
   const oldest = reports[reports.length - 1] ?? null
   const name = nameOf(detail, volunteerId, lang)
@@ -53,15 +67,22 @@ export function popupFor(detail: IncidentDetail, volunteerId: string, lang: Lang
       initials: initialsOf(name),
       incidentName: detail.incident.name ?? null,
       incidentId: detail.incident.id,
-      position: newest ? formatPosition(newest) : null,
-      accuracyM: newest?.accuracyM ?? null,
-      firstReportAt: oldest?.capturedAt ?? null,
-      lastReportAt: newest?.capturedAt ?? null,
-      reportCount: reports.length,
+      // The card covers reports a conflict leaves out of `observations`.
+      position: newest ? formatPosition(newest) : placeLine(card)?.split(' · ')[0] ?? null,
+      accuracyM: newest ? newest.accuracyM ?? null : card?.lastAccuracyM ?? null,
+      firstReportAt: oldest?.capturedAt ?? card?.firstReportAt ?? null,
+      lastReportAt: newest?.capturedAt ?? card?.lastReportAt ?? null,
+      reportCount: Math.max(reports.length, card?.reportCount ?? 0),
+      distance: distanceLine(lang, card),
+      lastHeardAt: card?.lastHeardAt ?? null,
+      pushReady: card ? card.pushReady : null,
     },
     reports,
     photos: reports.filter((o) => o.source === 'photo'),
     tasks,
     withdrawn: onWithdraw || tasks.some((t) => t.type === 'withdraw'),
+    suggestions: tasks.filter((t) => t.status === 'proposed'),
+    hasConflict: detail.conflict !== null,
+    factors: detail.evidenceFactors ?? [],
   }
 }

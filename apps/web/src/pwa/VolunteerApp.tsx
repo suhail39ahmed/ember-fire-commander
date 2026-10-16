@@ -17,6 +17,7 @@ import { usePushRegistration } from './push/usePushRegistration'
 import { strings, t } from './i18n'
 import { useLanguage } from './language'
 import { usePermissions } from './permissions/usePermissions'
+import { useMarkHeard } from './useMarkHeard'
 import { PermissionsPanel } from './install/PermissionsPanel'
 import { InstallBanner } from './install/InstallBanner'
 import { ReportPanel } from './report/ReportPanel'
@@ -109,6 +110,7 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
   const withdrawOrder = activeWithdraw(digest, volunteerId)
   const withdraw = withdrawOrder !== null || task?.type === 'withdraw'
   const withdrawText = withdrawOrder?.instruction ?? (task?.type === 'withdraw' ? task.instruction : null)
+  useMarkHeard(api, digest, task?.id ?? null, withdraw)
 
   return (
     <div className="vol">

@@ -2,7 +2,7 @@
  * What the incident detail screen shows, derived from `GET /incidents/{id}` only.
  * Nothing here decides incident state: no severity, no withdraw, no dispatch.
  */
-import type { Incident, IncidentDetail, Observation, Severity, Task } from '../contracts'
+import type { Incident, IncidentDetail, Observation, Severity, Task, VolunteerCardData } from '../contracts'
 
 const SEVERITY_ORDER: Record<Severity, number> = { none: 0, unknown: 1, smoke: 2, small_flame: 3, large_flame: 4 }
 
@@ -11,10 +11,11 @@ export function volunteerLabel(id: string, lang: 'id' | 'en'): string {
   return `${lang === 'id' ? 'Relawan' : 'Volunteer'} ${id.slice(-4).toUpperCase()}`
 }
 
-/** The reporter's name as the API gave it on any of their observations, else the short code. */
-export function nameOf(detail: Pick<IncidentDetail, 'observations'>, id: string, lang: 'id' | 'en'): string {
+/** The reporter's name as the API gave it on any of their observations, else on their card, else the short code. */
+export function nameOf(detail: Pick<IncidentDetail, 'observations' | 'volunteers'>, id: string, lang: 'id' | 'en'): string {
   const named = detail.observations.find((o) => o.volunteerId === id && o.volunteerName?.trim())
-  return named?.volunteerName?.trim() || volunteerLabel(id, lang)
+  const card = detail.volunteers?.find((c) => c.volunteerId === id)?.name?.trim()
+  return named?.volunteerName?.trim() || card || volunteerLabel(id, lang)
 }
 
 export function initialsOf(label: string): string {
@@ -62,6 +63,8 @@ export interface VolunteerRow {
   task: Task | null
   /** True when the incident's active withdraw lists this volunteer. */
   withdrawn: boolean
+  /** The supervisor read's card for them: every report, the last position, the withdraw state. Null from an older API. */
+  card: VolunteerCardData | null
 }
 
 /** Everyone the incident knows: reporters, task recipients and withdraw recipients. */
@@ -69,13 +72,27 @@ export function volunteersOf(detail: IncidentDetail): VolunteerRow[] {
   const ids = new Set<string>()
   detail.observations.forEach((o) => ids.add(o.volunteerId))
   detail.tasks.forEach((t) => ids.add(t.volunteerId))
+  detail.volunteers?.forEach((c) => ids.add(c.volunteerId))
   if (detail.incident.withdraw?.active) detail.incident.withdraw.volunteerIds.forEach((id) => ids.add(id))
   const withdrawn = new Set(detail.incident.withdraw?.active ? detail.incident.withdraw.volunteerIds : [])
   const rows = [...ids].map<VolunteerRow>((id) => {
     const mine = newestFirst(detail.observations.filter((o) => o.volunteerId === id))
-    return { id, name: mine.find((o) => o.volunteerName?.trim())?.volunteerName?.trim() ?? null, reportCount: mine.length, latest: mine[0] ?? null, task: lastTaskFor(detail.tasks, id), withdrawn: withdrawn.has(id) }
+    const card = detail.volunteers?.find((c) => c.volunteerId === id) ?? null
+    // The card counts every report, so a volunteer a conflict leaves out of `observations` still has their count.
+    return {
+      id,
+      name: mine.find((o) => o.volunteerName?.trim())?.volunteerName?.trim() ?? card?.name?.trim() ?? null,
+      reportCount: Math.max(mine.length, card?.reportCount ?? 0),
+      latest: mine[0] ?? null,
+      task: lastTaskFor(detail.tasks, id),
+      withdrawn: withdrawn.has(id),
+      card,
+    }
   })
-  const time = (r: VolunteerRow) => (r.latest ? Date.parse(r.latest.capturedAt) || 0 : -1)
+  const time = (r: VolunteerRow) => {
+    const at = r.card?.lastReportAt ?? r.latest?.capturedAt
+    return at ? Date.parse(at) || 0 : -1
+  }
   return rows.sort((a, b) => time(b) - time(a) || a.id.localeCompare(b.id))
 }
 

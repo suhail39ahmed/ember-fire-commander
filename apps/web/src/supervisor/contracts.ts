@@ -52,6 +52,64 @@ export interface Conflict {
   dispatchHeld: true
 }
 
+/** What a supervisor's read says about one volunteer's withdraw (section 6.3). Every field is null until stored. */
+export interface VolunteerWithdraw {
+  sentAt: string | null
+  /** When the volunteer's app said it showed the instruction. No app calls the route yet. */
+  heardAt: string | null
+  sendCount: number | null
+  /** The last push result for the withdraw task. */
+  delivery: 'sent' | 'failed' | 'skipped' | null
+  safe: boolean
+  /** From the audit row written when a supervisor marked them safe. Null for an older mark. */
+  safeAt: string | null
+  safeBy: { id: string; name: string | null } | null
+}
+
+/** One volunteer on the incident, counting every report (section 6.3). */
+export interface VolunteerCardData {
+  volunteerId: string
+  name: string | null
+  reportCount: number
+  firstReportAt: string | null
+  lastReportAt: string | null
+  lastSeverity: Severity | null
+  lastLat: number | null
+  lastLng: number | null
+  lastAccuracyM: number | null
+  /** Metres from the incident's centre to their newest report. Not the distance to the flame edge. */
+  distanceM: number | null
+  /** The latest of their newest report arriving and their app showing a task. Null when neither exists. */
+  lastHeardAt: string | null
+  /** A device token is stored for them. Only this yes or no is sent, never the token. */
+  pushReady: boolean
+  withdraw: VolunteerWithdraw | null
+}
+
+/** One line of the incident's history, oldest first (section 6.3). */
+export interface TimelineEntry {
+  kind: 'report' | 'audit'
+  id: string
+  at: string
+  action: AuditAction | null
+  actorId: string | null
+  actorName: string | null
+  volunteerId: string | null
+  taskId: string | null
+  severity: Severity | null
+  source: Observation['source'] | null
+  chip: Observation['chip'] | null
+  text: string | null
+}
+
+/** The stored advisory summary of the incident (section 6.3). It states no severity. */
+export interface DetailSummary {
+  english: string | null
+  bahasa: string | null
+  source: 'model' | 'template' | null
+  at: string | null
+}
+
 /** GET /incidents/{id} (section 6.3). */
 export interface IncidentDetail {
   incident: Incident
@@ -62,6 +120,12 @@ export interface IncidentDetail {
   evidenceFactors?: EvidenceFactor[]
   /** Supervisor read only: phone numbers stored for the volunteers on an active withdraw. */
   volunteerPhones?: Record<string, string>
+  /** Supervisor read only. One card per volunteer, covering every report. Absent from an older API. */
+  volunteers?: VolunteerCardData[]
+  /** Supervisor read only. Reports and audit rows, oldest first. Absent from an older API. */
+  timeline?: TimelineEntry[]
+  /** Supervisor read only. Null until a summary is stored. */
+  summary?: DetailSummary | null
 }
 
 /** Task decisions (section 6.5). */
@@ -76,6 +140,12 @@ export interface TaskDecision {
 export interface IncidentDecision {
   incident: Incident
   auditId: string
+}
+
+/** What a short-lived signed read of one photo report returns (section 6.7). */
+export interface PhotoUrl {
+  url: string
+  expiresAt: string
 }
 
 /** Body of POST /incidents/{id}/withdraw/safe (section 6.5). */
@@ -99,6 +169,7 @@ export type AuditAction =
   | 'task.reject'
   | 'task.edit'
   | 'task.heard'
+  | 'task.instruct'
   | 'task.resend'
   | 'task.withdraw'
   | 'withdraw.safe'

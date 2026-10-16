@@ -94,7 +94,7 @@ Only errors raised by the routes in §6 use this body. `app.py` registers no han
 | Chip | `asap`, `api`, `aman`, `butuh_bantuan` |
 | Severity | `none`, `smoke`, `small_flame`, `large_flame`, `unknown` |
 | Incident status | `open`, `held`, `verified`, `extinguished` |
-| Task type | `verify`, `withdraw`, `investigate` |
+| Task type | `verify`, `withdraw`, `investigate`, `instruct` |
 | Task status | `proposed`, `approved`, `rejected` |
 | Conflict status | `open`, `resolved` |
 | Photo content type | `image/jpeg`, `image/webp` |
@@ -230,17 +230,17 @@ How `withdraw` is written. Code sets `instruction` to `Withdraw upwind. Do not e
 | `id` | string | Server |
 | `incidentId` | string | |
 | `volunteerId` | string | One volunteer per task |
-| `type` | task type | `verify`, `withdraw`, or `investigate` |
-| `status` | task status | `withdraw` is stored as `approved` |
+| `type` | task type | `verify`, `withdraw`, `investigate`, or `instruct` |
+| `status` | task status | `withdraw` and `instruct` are stored as `approved` |
 | `instruction` | string or null | Shown to the volunteer. The edit route may replace this text |
-| `sentAt` | string or null | When the task was last sent: set by approve (the approval is the send), by the withdraw route and by code for a `withdraw` task, and again by resend. `null` until sent, and on a task sent before #94 |
+| `sentAt` | string or null | When the task was last sent: set by approve (the approval is the send), by the instruct route, by the withdraw route and by code for a `withdraw` task, and again by resend. `null` until sent, and on a task sent before #94 |
 | `heardAt` | string or null | When the volunteer's app said it showed or spoke the instruction (`POST /tasks/{id}/heard`). Set once |
 | `sendCount` | number or null | 1 at the first send, plus one for each resend |
 | `resendAt` | string or null | Computed on read, not stored: `sentAt` plus 60 seconds while the task is `approved`, not heard, and has a `sentAt`. `null` otherwise |
 
-A proposed `investigate` task is a dispatch waiting for a supervisor. A `verify` task may be approved while a conflict is open. A `withdraw` task is never proposed and never waits.
+An `instruct` task is one free-text instruction a supervisor sent to one volunteer (§6.5). It is never proposed: the supervisor's send is the decision, so it is stored `approved` with `sentAt` and `sendCount` 1, and it is not held by an open conflict. It is not a WITHDRAW and cannot hold one. A proposed `investigate` task is a dispatch waiting for a supervisor. A `verify` task may be approved while a conflict is open. A `withdraw` task is never proposed and never waits.
 
-Who creates tasks: agents create `verify` tasks (when a conflict opens, one per volunteer on either side, and not again for a volunteer who already has a `verify` task on the incident) with the instruction `Reports disagree here. Check the spot again and report what you see.` Code and the supervisor withdraw route create `withdraw` tasks. **No service in this repository creates an `investigate` task.** The approval route handles one, but nothing proposes one today.
+Who creates tasks: agents create `verify` tasks (when a conflict opens, one per volunteer on either side, and not again for a volunteer who already has a `verify` task on the incident) with the instruction `Reports disagree here. Check the spot again and report what you see.` Code and the supervisor withdraw route create `withdraw` tasks. The supervisor `instruct` route creates `instruct` tasks. **No service in this repository creates an `investigate` task.** The approval route handles one, but nothing proposes one today.
 
 A task has no timestamp field. Lists of tasks are sorted by `id`, and an `id` is not in creation order.
 
@@ -270,6 +270,7 @@ Append-only. Clients do not write audit records. Every supervisor action and eve
 | `action` | string | One of the names below |
 | `targetId` | string | The task or incident id |
 | `at` | string | Server time |
+| `subjectId` | string, optional | The volunteer the action is about. Written only on `withdraw.safe`. Absent on every other row and on `withdraw.safe` rows written before #92. `GET /audit` does not return it; a supervisor's `GET /incidents/{id}` uses it for who was marked safe and when (§6.3) |
 
 `GET /audit` (supervisor) returns these rows newest first, with `actorName`, display `target`, server-built `detail`, and `incidentId` for navigation. Optional `targetId` and `cursor` page the list. Clients do not write audit records.
 
@@ -279,8 +280,9 @@ Append-only. Clients do not write audit records. Every supervisor action and eve
 | `task.approve` | A supervisor approved a proposed task |
 | `task.reject` | A supervisor rejected a proposed task |
 | `task.edit` | A supervisor replaced a task instruction |
-| `withdraw.safe` | A supervisor marked one withdrawn volunteer found safe. `targetId` is the incident id. The volunteer is recorded in `incident.withdraw.safeVolunteerIds`, not in the audit row |
+| `withdraw.safe` | A supervisor marked one withdrawn volunteer found safe. `targetId` is the incident id. The volunteer is in `incident.withdraw.safeVolunteerIds` and, on rows written since #92, in the row's `subjectId` |
 | `task.resend` | A supervisor sent a sent, unheard task again. `targetId` is the task id |
+| `task.instruct` | A supervisor sent a free-text instruction to one volunteer. `targetId` is the new `instruct` task id |
 | `task.heard` | A volunteer's app confirmed it showed or spoke a task. `actorId` is the volunteer, `targetId` the task id |
 | `task.withdraw` | Code or a supervisor issued a withdraw instruction. `targetId` is the incident id. Code writes one per intake that adds a volunteer or a reason |
 | `incident.verify` | A supervisor verified the incident |
@@ -352,6 +354,8 @@ Written by `ember-agents` (spotter). One document per incident, with the inciden
 | `model` | string or null | Null when `source` is `template` |
 | `facts` | object | `incidentId`, `reportCount`, `volunteerCount`, `reportsDisagree`, `reports[]` (`source`, `chip`, `text`, `capturedAt`, `hasPhoto`), and `photoDescriptions[]` (`smokeVisible`, `flameVisible`, `burnScarVisible`, `notes`). It has no severity on purpose |
 | `at` | string | |
+
+A supervisor's `GET /incidents/{id}` returns `english`, `bahasa`, `source` and `at` of this document as `summary` (§6.3). The `facts` object is not returned.
 
 #### `sites` and `sites_meta`
 
@@ -605,6 +609,51 @@ For a supervisor the body has one more key, `evidenceFactors`: the stored factor
 
 `conflict` is `null` when the incident has no `conflictId`. `tasks` are all the incident's tasks for a supervisor, and only the caller's own for a volunteer.
 
+**Supervisor extras (#92, #101).** For a supervisor the body has three more keys. All are read from stored records and none is computed by a model. A volunteer's read has none of them. They are always present for a supervisor: `volunteers` and `timeline` are `[]` and `summary` is `null` when nothing is stored.
+
+`volunteers` has one card for every volunteer the incident knows: anyone with a report in `incident.observationIds` or in the conflict, anyone with a task on it, and the volunteers of an active withdraw. Unlike `observations`, it covers every report, so a conflict does not hide a third volunteer. Sorted by `lastReportAt` newest first (no report last), then `volunteerId`.
+
+| Field | Type | Source |
+|---|---|---|
+| `volunteerId` | string | |
+| `name` | string or null | The newest non-blank `volunteerName` on their observations, else `volunteers/{uid}.displayName`, else `null` |
+| `reportCount` | number | Their observations on this incident. `0` for a volunteer who only has a task or a withdraw entry |
+| `firstReportAt`, `lastReportAt` | string or null | `capturedAt` of their oldest and newest report |
+| `lastSeverity` | severity enum or null | The newest report's severity |
+| `lastLat`, `lastLng`, `lastAccuracyM` | number or null | The newest report's position and accuracy. `lastAccuracyM` is `null` when the report has none. This is where the volunteer last reported, not a live position |
+| `distanceM` | number or null | Straight-line metres from the incident's centre (`incident.lat`, `incident.lng`) to their newest report, rounded. It is not the distance to the flame edge, which no service stores |
+| `lastHeardAt` | string or null | The latest of their newest report's `receivedAt` and the `heardAt` of any of their tasks on this incident. `null` when neither exists |
+| `pushReady` | boolean | `volunteers/{uid}.fcmTokens` holds at least one token. Only this yes or no is returned, never a token or a phone number |
+| `withdraw` | object or null | `null` unless a withdraw is active and lists this volunteer |
+
+`withdraw` on a card:
+
+| Field | Type | Source |
+|---|---|---|
+| `sentAt`, `heardAt`, `sendCount` | string, string, number, each or null | The volunteer's newest `withdraw` task (§5.3). `heardAt` is when their app said it showed the instruction (`POST /tasks/{id}/heard`). The volunteer app calls that route once when the withdraw is on screen, so it stays `null` until the app has shown it. `null` when the volunteer has no withdraw task |
+| `delivery` | `sent`, `failed`, `skipped` or null | The newest `notificationAttempts` record for that task (§5.7). `null` when none was written |
+| `safe` | boolean | The volunteer is in `withdraw.safeVolunteerIds` |
+| `safeAt` | string or null | The `at` of the `withdraw.safe` audit row for them. `null` when not safe, and for a mark whose audit row has no `subjectId` |
+| `safeBy` | `{ "id", "name" }` or null | The row's `actorId`, and that supervisor's `volunteers/{uid}.displayName` or `null`. `null` under the same rules as `safeAt` |
+
+`timeline` is the incident's history, oldest first, at most the newest 100 entries. It merges every report the incident knows with the audit rows whose `targetId` is the incident or one of its tasks. `observation.create` rows are left out because the report is listed itself.
+
+| Field | Type | Notes |
+|---|---|---|
+| `kind` | `report` or `audit` | |
+| `id` | string | The observation id, or the audit id |
+| `at` | string | A report's `capturedAt`, or the audit row's `at` |
+| `action` | string or null | The audit `action` (§5.5). `null` for a report |
+| `actorId` | string or null | The reporter, or the audit actor (`code` when code decided) |
+| `actorName` | string or null | The reporter's `volunteerName`, else the actor's `volunteers/{uid}.displayName`. Always `null` for `code` |
+| `volunteerId` | string or null | The reporter. On an audit row, the `subjectId` or else the volunteer of the task the row is about |
+| `taskId` | string or null | The task an audit row is about |
+| `severity`, `source`, `chip`, `text` | each or null | A report's own values, as in §5.1. `null` on an audit row |
+
+`summary` is `null` unless `incident_summaries/{incident id}` exists with a non-blank `english` or `bahasa`. Then it is `{ "english", "bahasa", "source", "at" }` (§5.7). It is advisory text and states no severity. Nothing calls the summary route today (§8.1), so it is `null` until something does.
+
+Not returned, because no service stores a source: conditions at the site (wind, humidity, air quality, next satellite pass), a volunteer's crew role, battery, network, spoken language or place name, the crew lead, an English translation of a report, and free-form advice. What EMBER proposes is the incident's `tasks` with `status: proposed` (agents write only `verify` proposals, when a conflict opens, §5.3) and the reasons behind the score are `evidenceFactors` (§6.3), so those are the suggestions a screen can show. `weather` and `psi` stay internal (§1 rule 7, §12.4).
+
 Who can read what:
 
 | Route | Supervisor | Volunteer |
@@ -638,11 +687,12 @@ Incident actions return `incident` instead of `task`.
 | `POST /tasks/{id}/approve` | none | `proposed` becomes `approved`. Allowed for `verify`. Allowed for `investigate` only when that incident has no open conflict. Rejected for `withdraw`. A task that is not `proposed` is `409` |
 | `POST /tasks/{id}/reject` | none | `proposed` becomes `rejected`. Rejected for `withdraw`. A task that is not `proposed` is `409` |
 | `POST /tasks/{id}/resend` | none | Supervisor. Sends a sent, unheard task again: `sentAt` becomes now, `sendCount` goes up by one, a `task.resend` audit is appended, and the task is pushed again (§6.6). `409` unless the task is `approved` and not heard. Allowed for `withdraw` tasks. The answer is the task and the `auditId` |
-| `POST /tasks/{id}/heard` | none | **Volunteer, and only for their own task** (a supervisor is `403`, another volunteer's task is `404`). Sets `heardAt` once and appends a `task.heard` audit with the volunteer as `actorId`. A repeat returns the task with `auditId: null` and writes nothing. `409` unless the task is `approved`. No app calls this yet |
+| `POST /tasks/{id}/heard` | none | **Volunteer, and only for their own task** (a supervisor is `403`, another volunteer's task is `404`). Sets `heardAt` once and appends a `task.heard` audit with the volunteer as `actorId`. A repeat returns the task with `auditId: null` and writes nothing. `409` unless the task is `approved`. The volunteer app calls it once when a sent task or WITHDRAW is on screen |
 | `POST /tasks/{id}/edit` | `{ "instruction": "Check the east bank again" }` | Replaces `instruction` only. Type, status, volunteer, and incident stay the same. `instruction` is required, not blank, at most 500 characters. A `withdraw` task is `409`. The route does not check the task's status, so a task that is already `approved` or `rejected` can be edited |
 | `POST /incidents/{id}/verify` | none | `status` becomes `verified`. `409` unless the status is `open` or `held` |
 | `POST /incidents/{id}/extinguish` | none | `status` becomes `extinguished`. `409` when it already is |
 | `POST /incidents/{id}/severity` | `{ "severity": "smoke" }` | Stores the new severity only when it is strictly lower on the scale in §1, otherwise `409`. `severity` must be `none`, `smoke`, `small_flame`, or `large_flame`; `unknown` and anything else is `400`. A stored `unknown` severity is never lowered (`409`) |
+| `POST /incidents/{id}/volunteers/{volunteerId}/instruct` | `{ "instruction": "Move to the east road and report" }` | Sends one free-text instruction to one volunteer. Creates an `instruct` task with `status: approved`, `sentAt` now and `sendCount` 1, pushes it (§6.6) and appends a `task.instruct` audit row. `201` with the task and `auditId`. `instruction` is required, not blank, at most 500 characters (`400`). The volunteer needs a report, a task or a withdraw entry on the incident (`400` on `fields.volunteerId`). `409` when the incident is `extinguished`, or when the volunteer is on an active withdraw and not in `safeVolunteerIds`: an instruction can never hold or replace a WITHDRAW. An open conflict does not block it. It changes nothing on the incident |
 | `POST /incidents/{id}/withdraw` | see below | Issues a withdraw instruction. This is not an approval |
 | `POST /incidents/{id}/withdraw/safe` | `{ "volunteerId": "uid_sari" }` | Adds the volunteer to `incident.withdraw.safeVolunteerIds` and appends a `withdraw.safe` audit. It never changes `active`. `400` when `volunteerId` is missing or not in `withdraw.volunteerIds`. `409` when there is no active withdraw or the volunteer is already marked. Returns the incident and `auditId` |
 
@@ -660,7 +710,7 @@ The route sets `incident.withdraw`, creates one `withdraw` task with `status: ap
 
 A new withdraw also stores `source: supervisor`, `sentAt` (now), and `safeVolunteerIds: []`. If a withdraw is already active, the new `volunteerIds` are added to the existing list and `instruction` and `reasons` are replaced by this request's, and `source`, `sentAt` and `safeVolunteerIds` are kept. A task is still created for every id in the request, including ones already listed.
 
-Pushes. After the commit, `approve` pushes the task to its volunteer, and `withdraw` pushes each task it created (§6.6). `reject`, `edit`, `verify`, `extinguish`, and `severity` send no push. An unknown task or incident is `404`. A volunteer is `403` on every route here except `POST /tasks/{id}/heard`.
+Pushes. After the commit, `approve` pushes the task to its volunteer, `instruct` pushes the task it created, and `withdraw` pushes each task it created (§6.6). `reject`, `edit`, `verify`, `extinguish`, and `severity` send no push. An unknown task or incident is `404`. A volunteer is `403` on every route here except `POST /tasks/{id}/heard`.
 
 Code uses the same writes when it fires WITHDRAW. Its `actorId` is `code`, and its `volunteerIds` are every volunteer who already has an observation or a task on the incident. Code does not call the supervisor route and does not wait.
 
@@ -668,7 +718,7 @@ Code uses the same writes when it fires WITHDRAW. Its `actorId` is `code`, and i
 
 Clients refresh by polling `GET /incidents` and `GET /digest`. The gateway sends one `digest` message on the socket when a Live session starts (§7). It sends no later ones.
 
-FCM is the third channel, used when the app is not in a Live session. `ember-api` sends a push in three cases: a supervisor approves a task, the supervisor withdraw route creates withdraw tasks, and agents report a code WITHDRAW (`POST /internal/notifications/withdraw`, §8). **No code sends a supervisor alert.** Earlier versions of this contract listed one.
+FCM is the third channel, used when the app is not in a Live session. `ember-api` sends a push in four cases: a supervisor approves a task, the supervisor `instruct` route creates a task, the supervisor withdraw route creates withdraw tasks, and agents report a code WITHDRAW (`POST /internal/notifications/withdraw`, §8). **No code sends a supervisor alert.** Earlier versions of this contract listed one.
 
 The payload has a `notification` with `title` `EMBER` and `body` set to the task's stored `instruction` (`New task` when it is blank), and a `data` map with `taskId`, `incidentId`, and `type`. It has no volunteer name and no coordinates. The push goes to every token in `volunteers/{uid}.fcmTokens` for the task's volunteer. Each token gets up to 3 attempts for transient errors. A token that FCM reports as dead is removed. Each task push appends one `notificationAttempts` record (§5.7). The push is sent after the task is committed, and a failed push never undoes it. The service worker opens `/pwa` when a push is tapped, and `/pwa?push=withdraw` for a withdraw.
 
@@ -697,6 +747,16 @@ Request:
 ```
 
 The client sends the file with exactly that `method` and `Content-Type` header. The URL works for 300 seconds by default (`PHOTO_UPLOAD_TTL_SECONDS`, at least 60 and at most 900). `photoPath` is `photos/<uid>/<yyyymmdd>/<32 hex>.jpg` or `.webp`. `ember-api` records the upload in `photoUploads` (§5.7). It sets no size limit on the upload. The agents triage refuses a photo over 8 MB (§8.1).
+
+#### `GET /incidents/{id}/photos/{observationId}`
+
+Supervisor only (a volunteer is `403`). Returns a short-lived signed URL to read one photo report of the incident, so the console can show the snapshot. The object stays private and the bucket is unchanged. Response `200` with `Cache-Control: no-store`:
+
+```json
+{ "url": "https://storage.googleapis.com/...", "expiresAt": "2026-10-13T08:17:00Z" }
+```
+
+The URL is a V4 signed `GET` that works for 300 seconds by default (`PHOTO_READ_TTL_SECONDS`, at least 60 and at most 900). `404` when the incident is unknown, the observation is not one of the incident's (`observationIds` or its conflict), it has no `photoPath`, or the path is not `photos/<the reporter's uid>/...`. `503 unavailable` when the URL cannot be signed. `ember-api` signs through the same IAM `signBlob` path as uploads and reads with its existing object access on the bucket.
 
 ### 6.8 `POST` and `DELETE /notifications/token`
 
@@ -1085,9 +1145,11 @@ Everything here is taken from the code and tests on `main`. Where the code leave
 | `GET /incidents`, `GET /incidents/{id}` | any, scoped (§6.3) | Yes (console, every 5 s) |
 | `POST /tasks/{id}/approve`, `/reject`, `/edit` | supervisor | Yes |
 | `POST /tasks/{id}/resend` | supervisor | Yes |
-| `POST /tasks/{id}/heard` | volunteer | No client method exists yet |
+| `POST /tasks/{id}/heard` | volunteer | Yes. The volunteer app calls it once when a sent task or WITHDRAW is on screen |
 | `POST /incidents/{id}/verify` | supervisor | Yes |
-| `POST /incidents/{id}/extinguish`, `/severity`, `/withdraw`, `/withdraw/safe` | supervisor | No client method exists yet |
+| `POST /incidents/{id}/extinguish`, `/severity`, `/withdraw`, `/withdraw/safe` | supervisor | Yes |
+| `POST /incidents/{id}/volunteers/{volunteerId}/instruct` | supervisor | Yes (volunteer pop-up) |
+| `GET /incidents/{id}/photos/{observationId}` | supervisor | Yes (volunteer pop-up) |
 | WebSocket at the gateway (§7) | any | No. Voice is unavailable in the browser (§7) |
 
 Every route except `/healthz` needs the two headers in §2.
@@ -1103,6 +1165,11 @@ Every route except `/healthz` needs the two headers in §2.
 | `incident.withdraw` | Incident, digest | `null` until a WITHDRAW is issued. When set, `active` is `true` |
 | `withdraw.source`, `withdraw.sentAt`, `withdraw.safeVolunteerIds` | Incident, digest | Absent on a withdraw written before #101. Treat absent `safeVolunteerIds` as empty |
 | `volunteerPhones` | `GET /incidents/{id}`, supervisor only | Absent unless a withdraw is active. May be `{}` |
+| `volunteers`, `timeline`, `summary` | `GET /incidents/{id}`, supervisor only | Always present for a supervisor: `[]`, `[]` and `null` when nothing is stored. Absent from a volunteer's read and from an older API (§6.3) |
+| `volunteers[].name`, `lastReportAt`, `lastSeverity`, `lastLat`, `lastLng`, `lastAccuracyM`, `distanceM` | Same | `null` when the volunteer has no report on the incident, or no name was stored |
+| `volunteers[].lastHeardAt` | Same | `null` when they have no report and no heard task on the incident |
+| `volunteers[].pushReady` | Same | Always a boolean. `false` when no device token is stored |
+| `volunteers[].withdraw` | Same | `null` unless the volunteer is on an active withdraw. Inside it `heardAt`, `delivery`, `safeAt` and `safeBy` are `null` until stored (§6.3) |
 | `editedBy` | `POST /tasks/{id}/edit` response | Absent when the token has no display name. No other route returns it |
 | `incident.conflictId`, `conflict` | Incident, `GET /incidents/{id}` | `null` when there is no conflict |
 | `incident.evidenceScore` | `GET /incidents`, `GET /incidents/{id}` | Not in the digest summary |
@@ -1139,8 +1206,9 @@ Every route except `/healthz` needs the two headers in §2.
 The browser cannot read these. A screen that needs one needs a new REST route first. Do not design on the assumption that it exists.
 
 - `incident.observationIds` (§5.2). `incident.evidenceFactors` is returned only on a supervisor's `GET /incidents/{id}` (§6.3).
-- `photo_triage`, `incident_summaries`, `sites` and their alerts, `leads`, `weather`, `psi`, `ingestRuns`, and `notificationAttempts` (§5.7). `GET /audit` reads the `audit` collection for supervisors (§5.5).
-- Observations that are not on the two sides of a conflict, when the incident has a conflict (§6.3).
+- Photo bytes. `GET /incidents/{id}/photos/{observationId}` returns only a short-lived signed URL (§6.7).
+- `photo_triage`, `sites` and their alerts, the `facts` of `incident_summaries` (its text is `summary` in §6.3), `leads`, `weather`, `psi`, `ingestRuns`, and `notificationAttempts` (§5.7). `GET /audit` reads the `audit` collection for supervisors (§5.5).
+- Observations that are not on the two sides of a conflict, when the incident has a conflict. `observations` in §6.3 lists only the two sides. A supervisor's `volunteers` and `timeline` count every report, but the other reports' own records are not returned.
 - A task or incident created or updated time.
 
 ### 12.5 Undecided
@@ -1190,5 +1258,7 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · #91: `GET /dashboard` adds `seasonImpact` and `charts`. Every field is `null` until a stored source exists (§6.9).
 - 2026-10-16 · #103: `GET /dashboard` adds `reignitionAlert`. `POST /sites/{incidentId}/alerts/{alertId}/dismiss` and `/recheck` dismiss with a reason or create a proposed `verify` without reopening the incident (§6.9, §6.10).
 - 2026-10-16 · `GET /dashboard` fills `liveFires[].code`, `placeName`, and `since`, `seasonImpact`, and `charts` from stored incidents, observations, tasks, audit rows, leads, device records, and `weather/current`. Same keys and null rules. Counts over no records are `0`. Cameras, photo cadence, distance to risk, the next satellite pass, injuries, and the median target stay `null` (§6.9).
+- 2026-10-16 · #92, #101: a supervisor's `GET /incidents/{id}` adds `volunteers` (one card per volunteer, covering every report and the withdraw state of each), `timeline` (reports and audit rows, oldest first, newest 100) and `summary` (the stored incident summary). A `withdraw.safe` audit row now also carries `subjectId`, so a card shows who marked a volunteer safe and when. A volunteer's read is unchanged. Still not stored, so not returned: conditions at the site, volunteer role, crew, battery, network and place, the crew lead, and suggested instructions (§5.5, §5.7, §6.3, §12.2, §12.4).
+- 2026-10-16 · #93, #94: new supervisor route `POST /incidents/{id}/volunteers/{volunteerId}/instruct` sends one free-text instruction to one volunteer as a new task type `instruct` (stored `approved`, pushed, audit `task.instruct`). It is refused for an extinguished incident and for a volunteer under an active withdraw who is not marked safe, so it never holds or replaces a WITHDRAW. New supervisor route `GET /incidents/{id}/photos/{observationId}` returns a short-lived signed read URL for a photo report. A volunteer card adds `lastHeardAt` and `pushReady`. The volunteer app now calls `POST /tasks/{id}/heard` when a sent task is on screen (§5.3, §5.5, §6.3, §6.5, §6.6, §6.7, §12.1).
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).

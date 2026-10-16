@@ -44,6 +44,8 @@ function view(over: Partial<IncidentDetailViewProps> = {}, lang: 'id' | 'en' = '
     lowerSeverity: async () => ({ incident: fixture('normal').incident, auditId: 'aud_1' }),
     serverNow: () => NOW,
     extinguish: async () => ({ incident: fixture('normal').incident, auditId: 'aud_1' }),
+    sendInstruction: async () => ({ task: fixture('normal').tasks[0], auditId: 'aud_i' }),
+    photoUrl: async () => ({ url: 'https://photo.example/x.jpg', expiresAt: '2026-10-17T03:15:00Z' }),
     ...over,
   }
   return renderToStaticMarkup(

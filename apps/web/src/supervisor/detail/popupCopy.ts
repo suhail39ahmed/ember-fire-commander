@@ -33,22 +33,13 @@ export const popupCopy = {
 
   snapshots: { id: 'Foto tersimpan di insiden', en: 'Snapshots saved to the incident' },
   noSnapshots: { id: 'Belum ada foto dari relawan ini.', en: 'No photos from this volunteer yet.' },
-  snapshotsGap: {
-    id: 'Gambar bersifat pribadi dan belum ada rute baca bertanda tangan, jadi hanya waktu dan relawan yang tampil.',
-    en: 'Images are private and there is no signed read route yet, so only the time and the volunteer show.',
-  },
-
   sent: { id: 'Dikirim ke', en: 'Sent to' },
   noInstructions: { id: 'Belum ada instruksi untuk relawan ini.', en: 'No instructions for this volunteer yet.' },
-  heardGap: {
-    id: 'Waktu kirim dan status didengar belum disimpan, jadi hanya teks dan status persetujuan yang tampil.',
-    en: 'Send time and heard status are not stored yet, so only the text and the approval status show.',
-  },
-
   profile: { id: 'Profil', en: 'Profile' },
   role: { id: 'Peran', en: 'Role' },
   incident: { id: 'Insiden', en: 'Incident' },
   position: { id: 'Posisi', en: 'Position' },
+  distance: { id: 'Jarak', en: 'Distance' },
   firstReport: { id: 'Laporan pertama', en: 'First report' },
   lastReport: { id: 'Laporan terakhir', en: 'Last report' },
   reports: { id: 'Laporan', en: 'Reports' },
@@ -56,32 +47,18 @@ export const popupCopy = {
   battery: { id: 'Baterai', en: 'Battery' },
   language: { id: 'Bahasa', en: 'Language' },
   lastHeard: { id: 'Terakhir terdengar', en: 'Last heard' },
-  profileGap: {
-    id: 'Peran, jaringan, baterai, bahasa, dan waktu terakhir terdengar belum dikirim ember-api.',
-    en: 'Role, network, battery, language and last heard are not sent by ember-api yet.',
-  },
-
   suggestions: { id: 'Saran EMBER', en: 'EMBER suggests' },
-  suggestionsGap: {
-    id: 'Saran dan alasannya belum dibuat oleh layanan mana pun. Model tidak pernah menentukan tingkat insiden.',
-    en: 'No service writes suggestions with a rationale yet. The model never sets incident severity.',
-  },
-
   ask: { id: 'Tanya EMBER tentang', en: 'Ask EMBER about' },
   askBefore: { id: 'MINTA SEBELUM DIKIRIM', en: 'ASKS BEFORE IT SENDS' },
   askPlaceholder: { id: 'Tanya EMBER, atau tulis instruksi…', en: 'Ask EMBER, or tell it what to send…' },
   askGap: {
-    id: 'Percakapan dengan EMBER, draf instruksi, dan hasil kirim belum ada di ember-api. Tidak ada yang dikirim dari sini.',
-    en: 'The EMBER chat, the instruction drafts and the send result are not in ember-api yet. Nothing is sent from here.',
+    id: 'Layanan agents belum punya endpoint yang menjawab pertanyaan, jadi obrolan ini belum tersambung. Tidak ada yang dikirim dari sini.',
+    en: 'The agents service has no endpoint that answers questions, so this chat is not connected. Nothing is sent from here.',
   },
 
   send: { id: 'Kirim ke relawan ini', en: 'Send to this volunteer' },
   sendAll: { id: 'Kirim juga ke semua di lokasi', en: 'Also send to everyone on site' },
   sendBtn: { id: 'Kirim', en: 'Send' },
-  sendGap: {
-    id: 'Belum ada rute untuk mengirim instruksi bebas ke satu relawan. Hanya MUNDUR yang bisa dikirim, dari insiden.',
-    en: 'There is no route to send a free instruction to one volunteer yet. Only WITHDRAW can be sent, from the incident.',
-  },
   withdrawRule: {
     id: 'MUNDUR tidak menunggu obrolan ini dan tidak bisa ditahan dari sini.',
     en: 'WITHDRAW never waits on this chat and cannot be blocked here.',
@@ -92,7 +69,5 @@ export const popupCopy = {
 /** What each missing region needs from the backend, for the one line under it. */
 export const popupNeeds = {
   video: { id: 'live media dari voice-gateway ke konsol dan kursi live (#102)', en: 'live media from voice-gateway to the console, and the live seat (#102)' },
-  suggestions: { id: 'saran dengan alasan dari agents', en: 'suggestions with a rationale from agents' },
-  ask: { id: 'utas Tanya EMBER, draf, dan kirim terkonfirmasi', en: 'an Ask EMBER thread, drafts, and a confirmed send' },
-  send: { id: 'rute kirim instruksi ke satu relawan, dengan audit', en: 'a route that sends an instruction to one volunteer, with an audit entry' },
+  ask: { id: 'endpoint di agents yang menjawab pertanyaan, plus utas dan draf instruksi', en: 'an endpoint in agents that answers questions, plus a thread and instruction drafts' },
 } as const

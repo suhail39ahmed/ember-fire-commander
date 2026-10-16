@@ -5,11 +5,13 @@ import { detailCopy, severityName } from './copy'
 import { stateCopy } from './withdrawStateCopy'
 import { popupCopy } from './popupCopy'
 import { DeliveryLine } from './DeliveryLine'
+import { deliveryFacts, distanceLine, placeLine, safeStamp } from './cardModel'
 import { initialsOf, volunteerLabel, type VolunteerRow } from './model'
 
 function reportLine(lang: Lang, row: VolunteerRow): string {
   const n = row.reportCount
-  const time = row.latest ? formatTime(row.latest.capturedAt) : '--:--'
+  const at = row.card?.lastReportAt ?? row.latest?.capturedAt
+  const time = at ? formatTime(at) : '--:--'
   const word = lang === 'id' ? 'laporan' : n === 1 ? 'report' : 'reports'
   return `${n} ${word} · ${time}`
 }
@@ -21,7 +23,11 @@ function reportLine(lang: Lang, row: VolunteerRow): string {
  */
 export function VolunteerCard({ lang, row, safe = null, waiting = null, now = Date.now(), onResend, onOpen }: { lang: Lang; row: VolunteerRow; safe?: boolean | null; waiting?: string | null; onOpen?: () => void; now?: number; onResend?: (taskId: string) => Promise<{ auditId: string }> }) {
   const name = row.name ?? volunteerLabel(row.id, lang)
-  const { latest, task } = row
+  const { latest, task, card } = row
+  const away = distanceLine(lang, card)
+  const place = placeLine(card)
+  const stamp = safeStamp(lang, card)
+  const facts = deliveryFacts(lang, card)
   return (
     <article className={`${row.withdrawn ? 'inc-vol withdrawn' : 'inc-vol'}${row.withdrawn && safe === false ? ' wd-unconfirmed' : ''}`} aria-label={name}>
       <header className="inc-vol-head">
@@ -52,9 +58,16 @@ export function VolunteerCard({ lang, row, safe = null, waiting = null, now = Da
               {t(lang, detailCopy.source[latest.source])} · ±{latest.accuracyM ?? '?'} m
             </p>
           </>
+        ) : card?.lastReportAt ? (
+          // A conflict lists only its two sides, so this volunteer's report is known from the card alone.
+          <p className="inc-vol-sev">
+            <span className={`inc-dot sev-${card.lastSeverity ?? 'unknown'}`} aria-hidden="true" />
+            {t(lang, severityName[card.lastSeverity ?? 'unknown'])}
+          </p>
         ) : (
           <p className="inc-muted">{t(lang, detailCopy.noReport)}</p>
         )}
+        {(away || place) && <p className="inc-muted inc-vol-where">{[away, place].filter(Boolean).join(' · ')}</p>}
       </section>
 
       <section className="inc-vol-task" aria-label={t(lang, detailCopy.lastInstruction)}>
@@ -71,6 +84,8 @@ export function VolunteerCard({ lang, row, safe = null, waiting = null, now = Da
       {row.withdrawn && safe !== null && (
         <p className={safe ? 'inc-vol-wd safe' : 'inc-vol-wd'}>
           {t(lang, stateCopy.withdrawLabel)} · {safe ? t(lang, stateCopy.safeLine) : `${t(lang, stateCopy.notConfirmed)}${waiting ? ` · ${waiting}` : ''}`}
+          {safe && stamp && <span className="inc-vol-wd-facts">{stamp}</span>}
+          {!safe && facts.length > 0 && <span className="inc-vol-wd-facts">{facts.join(' · ')}</span>}
         </p>
       )}
     </article>
