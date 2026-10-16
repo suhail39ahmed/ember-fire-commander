@@ -23,3 +23,11 @@ def fresh_notify_state(monkeypatch):
     monkeypatch.setattr(notify, "_tokens", {})
     monkeypatch.setattr(notify, "_paused_until", 0.0)
     monkeypatch.setattr(notify, "_last_sweep", 0.0)
+
+
+@pytest.fixture(autouse=True)
+def no_profile_read(monkeypatch):
+    """GET /me looks up the volunteer's crew; tests that do not set up Firestore get no crew instead of a real read."""
+    import volunteer_routes
+
+    monkeypatch.setattr(volunteer_routes, "read_profile", lambda uid: {})

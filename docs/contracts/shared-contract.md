@@ -481,7 +481,7 @@ Base URL is the `ember-api` origin. Unless a route says otherwise, the caller is
 
 ### 6.1 `GET /me`
 
-Returns §2. `401` or `403` as in §3.
+Returns §2. For a volunteer it also carries `crewName`: the crew written on their profile (`volunteers/{uid}.crewName`), or `null` when none is set or the profile cannot be read. A supervisor has no `crewName` field. `401` or `403` as in §3.
 
 ### 6.2 `POST /observations`
 
@@ -1312,5 +1312,6 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · console gaps, lists: a supervisor's `GET /incidents` adds `reportCount`, `volunteerCount`, `needsHelp`, `verified` and `verifiedBy` to each record (§6.3), and the new supervisor route `GET /tasks?status=proposed` lists the tasks waiting for a decision with the incident label and the volunteer's name (§6.5, §12.1). A volunteer's `GET /incidents` and `/digest` are unchanged.
 - 2026-10-16 · console gaps, map: `GET /dashboard` `charts` adds the numbers `windKmh` and `windDirDeg` from `weather/current`, `null` when not stored (§6.9). The console draws a wind arrow from them.
 - 2026-10-16 · console gaps, names: `PLACES` gains seven checked towns and the two test cities Bengaluru and Pune (§5.2 naming rules), and `scripts/backfill-incident-names.py` names older incidents with the same code (dry run unless `--apply`). Existing names and areas are never changed.
+- 2026-10-16 · #152: `GET /me` adds `crewName` for a volunteer (`null` when none is stored). The volunteer header and Profile show it instead of a fixed crew line (§6.1).
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).
