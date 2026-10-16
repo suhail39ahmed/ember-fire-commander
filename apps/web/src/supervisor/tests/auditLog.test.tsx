@@ -62,12 +62,15 @@ describe('GET /audit client and mock', () => {
   })
 
   it('calls GET /audit with query params', async () => {
-    const fetchImpl = vi.fn(async (_input: RequestInfo | URL) => new Response(JSON.stringify({ items: [], nextCursor: null }), { status: 200 }))
-    const api = createHttpSupervisorApi(async () => ({ Authorization: 'Bearer t' }), 'https://api.example', fetchImpl as unknown as typeof fetch)
+    const urls: string[] = []
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      urls.push(String(input))
+      return new Response(JSON.stringify({ items: [], nextCursor: null }), { status: 200 })
+    }) as unknown as typeof fetch
+    const api = createHttpSupervisorApi(async () => ({ Authorization: 'Bearer t' }), 'https://api.example', fetchImpl)
     await expect(api.listAudit({ limit: 10, targetId: 'inc_1' })).resolves.toEqual({ items: [], nextCursor: null })
-    const url = String(fetchImpl.mock.calls[0]?.[0] ?? '')
-    expect(url).toContain(`${SUPERVISOR_ENDPOINTS.audit}?`)
-    expect(url).toContain('limit=10')
-    expect(url).toContain('targetId=inc_1')
+    expect(urls[0]).toContain(`${SUPERVISOR_ENDPOINTS.audit}?`)
+    expect(urls[0]).toContain('limit=10')
+    expect(urls[0]).toContain('targetId=inc_1')
   })
 })
