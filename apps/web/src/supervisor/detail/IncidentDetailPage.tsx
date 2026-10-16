@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 
+import { ApiError } from '../../pwa/api/types'
 import { useConsole } from '../ConsoleProvider'
 import { useIncidents } from '../incidentsContext'
 import { incidentIdFromPath } from '../paths'
@@ -11,9 +12,9 @@ const RESTORED_MS = 3000
 
 /** Route element for `/console/incidents/:incidentId`. Reads the shared incident state, draws the detail. */
 export function IncidentDetailPage() {
-  const { language } = useConsole()
+  const { language, supervisor, clockSkewMs } = useConsole()
   const { pathname } = useLocation()
-  const { queue, detail, detailFailure, activeId, select, refresh, connection, actions } = useIncidents()
+  const { queue, detail, detailFailure, activeId, select, api, refresh, connection, actions } = useIncidents()
   const incidentId = incidentIdFromPath(pathname) ?? activeId ?? ''
   const [now, setNow] = useState(() => Date.now())
   const [restoredUntil, setRestoredUntil] = useState<number | null>(null)
@@ -50,6 +51,35 @@ export function IncidentDetailPage() {
       actions={actions}
       onRetry={() => void refresh()}
       onSelect={select}
+      sendWithdraw={async (request) => {
+        const result = await api.withdrawIncident(incidentId, request)
+        await refresh()
+        return result
+      }}
+      actorName={supervisor.displayName}
+      serverNow={() => Date.now() + (clockSkewMs ?? 0)}
+      lowerSeverity={async (severity) => {
+        try {
+          const result = await api.lowerSeverity(incidentId, severity)
+          await refresh()
+          return result
+        } catch (error) {
+          // 409: the severity moved since this screen last read it. Show the new one.
+          if (error instanceof ApiError && error.status === 409) await refresh()
+          throw error
+        }
+      }}
+      extinguish={async () => {
+        try {
+          const result = await api.extinguishIncident(incidentId)
+          await refresh()
+          return result
+        } catch (error) {
+          // 409: it is already out. Read it again so the screen shows that.
+          if (error instanceof ApiError && error.status === 409) await refresh()
+          throw error
+        }
+      }}
     />
   )
 }

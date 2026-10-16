@@ -1,10 +1,11 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { formatTime } from '../../pwa/formatTime'
 import { chipText } from '../../pwa/report/chips'
 import { t, type Lang } from '../../pwa/i18n'
 import { incidentLabel, shortIncidentId } from '../../pwa/incidentName'
-import type { Incident, IncidentDetail } from '../contracts'
+import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, WithdrawRequest } from '../contracts'
 import { conflictPair, withdrawBanner } from '../view'
 import { IncidentMap } from '../map/IncidentMap'
 import { OutcomeLine, TaskRow, type IncidentActions } from '../IncidentView'
@@ -14,8 +15,15 @@ import { CONSOLE_PATHS } from '../paths'
 import { ActionBar } from './ActionBar'
 import { detailCopy, severityName, statusName } from './copy'
 import { formatPosition, highestReport, minutesBetween, timelineOf, volunteerLabel, volunteersOf, type LinkState } from './model'
+import { ExtinguishDialog } from './ExtinguishDialog'
+import { doneText } from './extinguishModel'
+import { extinguishCopy } from './extinguishCopy'
+import { LowerSeverityDialog } from './LowerSeverityDialog'
 import { ReportCard } from './ReportCard'
+import { SendWithdrawDialog } from './SendWithdrawDialog'
+import { loweredText } from './severityModel'
 import { VolunteerCard } from './VolunteerCard'
+import { sentText } from './withdrawModel'
 import './detail.css'
 
 export interface IncidentDetailViewProps {
@@ -33,6 +41,16 @@ export interface IncidentDetailViewProps {
   actions: IncidentActions
   onRetry(): void
   onSelect(id: string): void
+  /** POST /incidents/{id}/withdraw, then a fresh read. Resolves with the route's answer. */
+  sendWithdraw(request: WithdrawRequest): Promise<IncidentDecision>
+  /** The signed-in supervisor's name, for the confirmation line. */
+  actorName: string
+  /** Server-aligned clock in ms, for the "at HH:mm" in the extinguish confirmation. */
+  serverNow(): number
+  /** POST /incidents/{id}/severity, then a fresh read. Resolves with the route's answer. */
+  lowerSeverity(severity: LowerableSeverity): Promise<IncidentDecision>
+  /** POST /incidents/{id}/extinguish, then a fresh read. Resolves with the route's answer. */
+  extinguish(): Promise<IncidentDecision>
   mapsKey?: string
 }
 
@@ -107,8 +125,11 @@ function Stat({ label, value, note, tone }: { label: string; value: string; note
   )
 }
 
-function Body({ lang, detail, link, actions }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions }) {
+function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish'> }) {
   const { incident, conflict } = detail
+  const { actorName, sendWithdraw, lowerSeverity } = view
+  const [dialog, setDialog] = useState<'withdraw' | 'severity' | 'extinguish' | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const offline = link === 'lost'
   const volunteers = volunteersOf(detail)
   const banner = withdrawBanner(incident)
@@ -129,7 +150,17 @@ function Body({ lang, detail, link, actions }: { lang: Lang; detail: IncidentDet
           <span className="inc-pill inc-pill-quiet">{t(lang, detailCopy.idLabel)} {incident.id}</span>
         </div>
         <h1 className="inc-title">{incidentLabel(incident)}</h1>
-        <ActionBar lang={lang} incident={incident} offline={offline} busy={actions.busyId === incident.id} onVerify={actions.onVerify} />
+        <ActionBar
+          lang={lang}
+          incident={incident}
+          offline={offline}
+          busy={actions.busyId === incident.id}
+          onVerify={actions.onVerify}
+          onSendWithdraw={() => { setNotice(null); setDialog('withdraw') }}
+          onLowerSeverity={() => { setNotice(null); setDialog('severity') }}
+          onExtinguish={() => { setNotice(null); setDialog('extinguish') }}
+        />
+        {notice && <p className="sup-ok" role="status">{notice}</p>}
         <OutcomeLine outcome={actions.outcomes[incident.id]} />
       </header>
 
@@ -203,12 +234,50 @@ function Body({ lang, detail, link, actions }: { lang: Lang; detail: IncidentDet
         {offline && <p className="inc-muted">{t(lang, detailCopy.offlineSend)}</p>}
         <p className="inc-callout">{t(lang, detailCopy.withdrawRule)}</p>
       </section>
+      {dialog === 'withdraw' && (
+        <SendWithdrawDialog
+          lang={lang}
+          incident={incident}
+          rows={volunteers}
+          offline={offline}
+          send={sendWithdraw}
+          onSent={(count, auditId) => { setDialog(null); setNotice(sentText(lang, count, auditId)) }}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === 'severity' && (
+        <LowerSeverityDialog
+          lang={lang}
+          incident={incident}
+          offline={offline}
+          send={lowerSeverity}
+          onLowered={(severity, auditId) => {
+            setDialog(null)
+            setNotice(loweredText(lang, t(lang, severityName[severity]), actorName, auditId, Boolean(incident.withdraw?.active)))
+          }}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === 'extinguish' && (
+        <ExtinguishDialog
+          lang={lang}
+          incident={incident}
+          actorName={view.actorName}
+          offline={offline}
+          send={view.extinguish}
+          onDone={(auditId) => { setDialog(null); setNotice(doneText(lang, view.actorName, view.serverNow(), auditId)) }}
+          onAlreadyOut={() => { setDialog(null); setNotice(t(lang, extinguishCopy.alreadyOut)) }}
+          onClose={() => setDialog(null)}
+        />
+      )}
     </>
   )
 }
 
 function Rail({ lang, detail, queue, onSelect, mapsKey }: Pick<IncidentDetailViewProps, 'lang' | 'detail' | 'queue' | 'onSelect' | 'mapsKey'>) {
-  const incidents = queue && queue.length > 0 ? queue : detail ? [detail.incident] : []
+  // An extinguished incident has left the live queue; the map still shows the one that is open.
+  const open = detail?.incident
+  const incidents = queue && queue.length > 0 ? (open && !queue.some((i) => i.id === open.id) ? [...queue, open] : queue) : open ? [open] : []
   const events = detail ? timelineOf(detail) : []
   return (
     <aside className="inc-rail">
@@ -244,7 +313,7 @@ export function IncidentDetailView(props: IncidentDetailViewProps) {
     : shortIncidentId(incidentId)
   let body
   if (detail) {
-    body = <Body lang={lang} detail={detail} link={link} actions={actions} />
+    body = <Body lang={lang} detail={detail} link={link} actions={actions} view={props} />
   } else if (failure === 'not_found') {
     body = (
       <section className="inc-card inc-state" role="alert">

@@ -101,3 +101,12 @@
 .inc-modal-actions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 20px; }
 .inc-modal-actions .inc-btn-plain { border: 0; background: transparent; padding: 8px 12px; }
 .inc-modal :focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+
+/* Lower severity dialog */
+.inc-current { color: var(--ember); }
+.inc-choice.sev.on { border-color: var(--ember); background: #fdeee6; }
+.inc-choice input[type="radio"] { accent-color: var(--ember); }
+/* Mark extinguished dialog */
+.inc-modal-text { margin: 0 0 14px; color: var(--ink-muted); font-size: 14px; line-height: 1.45; }
+.inc-watch { padding: 12px 14px; border: 1px solid var(--data); border-radius: 12px; background: #eef3fe; }
+.inc-watch-title { margin: 0 0 2px; font-weight: 700; }

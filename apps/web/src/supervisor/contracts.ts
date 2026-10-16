@@ -68,6 +68,15 @@ export interface IncidentDecision {
   auditId: string
 }
 
+/** Body of POST /incidents/{id}/withdraw (section 6.5). `reasons` defaults to [] on the server. */
+export interface WithdrawRequest {
+  volunteerIds: string[]
+  instruction: string
+  reasons?: string[]
+}
+/** Severities `POST /incidents/{id}/severity` accepts (section 6.5). `unknown` is refused with 400. */
+export type LowerableSeverity = Exclude<Severity, 'unknown'>
+
 /** Audit actions (section 5.5). `site.reinspect` is written by code when the re-ignition watch raises an alert. */
 export type AuditAction =
   | 'observation.create'

@@ -37,6 +37,11 @@ function view(over: Partial<IncidentDetailViewProps> = {}, lang: 'id' | 'en' = '
     actions: noop,
     onRetry: () => undefined,
     onSelect: () => undefined,
+    sendWithdraw: async () => ({ incident: fixture('normal').incident, auditId: 'aud_1' }),
+    actorName: 'Bu Maya',
+    lowerSeverity: async () => ({ incident: fixture('normal').incident, auditId: 'aud_1' }),
+    serverNow: () => NOW,
+    extinguish: async () => ({ incident: fixture('normal').incident, auditId: 'aud_1' }),
     ...over,
   }
   return renderToStaticMarkup(
