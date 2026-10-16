@@ -458,7 +458,7 @@ def test_incident_detail_reads_observations_in_one_batch(client, monkeypatch, db
     _as(monkeypatch)
     body = client.get("/incidents/inc_01", headers=AUTH).get_json()
     assert [o["id"] for o in body["observations"]] == ["obs_01", "obs_02"]
-    assert db.batch_reads == [("observations", 2)]
+    assert [r for r in db.batch_reads if r[0] == "observations"] == [("observations", 2)]
     assert "observations" not in db.doc_reads
 
 
@@ -763,3 +763,191 @@ def test_resend_at_is_a_minute_after_the_send_and_only_while_unheard():
     assert rules.with_receipt({"status": "approved", "sentAt": "2026-10-13T08:20:00.000Z", "heardAt": "2026-10-13T08:20:10Z"})["resendAt"] is None
     assert rules.with_receipt({"status": "proposed", "sentAt": None})["resendAt"] is None
     assert rules.with_receipt({"status": "approved", "sentAt": "garbage"})["resendAt"] is None
+
+
+# Incident detail extras: volunteer cards, timeline, summary ---------------------------
+
+EXTRA_KEYS = ("volunteers", "timeline", "summary")
+
+
+def _third_reporter(db):
+    """A volunteer whose report is on the incident but not on either side of the conflict."""
+    db.add("observations", "obs_03", {
+        "volunteerId": "uid_ayu", "volunteerName": "Ayu", "capturedAt": "2026-10-13T08:14:00Z",
+        "receivedAt": "2026-10-13T08:14:02Z", "source": "text", "lat": 1.483, "lng": 102.115,
+        "accuracyM": 30, "chip": None, "text": "Smoke near the canal", "severity": "unknown",
+        "photoPath": None, "immutable": True,
+    })
+    db.data["incidents"]["inc_01"]["observationIds"] = ["obs_01", "obs_02", "obs_03"]
+
+
+def _card(body, uid):
+    return next(c for c in body["volunteers"] if c["volunteerId"] == uid)
+
+
+def test_supervisor_cards_cover_every_report_not_only_the_conflict_pair(client, monkeypatch, db):
+    _third_reporter(db)
+    db.data["observations"]["obs_01"]["volunteerName"] = "Sari"
+    db.add("volunteers", "uid_rizal", {"displayName": "Rizal", "phone": "+62 812 0000 222", "fcmTokens": ["secret"]})
+    _as(monkeypatch)
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    assert [o["id"] for o in body["observations"]] == ["obs_01", "obs_02"]  # unchanged
+    assert [c["volunteerId"] for c in body["volunteers"]] == ["uid_ayu", "uid_rizal", "uid_sari"]
+    ayu = _card(body, "uid_ayu")
+    assert (ayu["name"], ayu["reportCount"], ayu["lastSeverity"], ayu["lastLat"], ayu["lastLng"]) == ("Ayu", 1, "unknown", 1.483, 102.115)
+    assert ayu["lastReportAt"] == ayu["firstReportAt"] == "2026-10-13T08:14:00Z"
+    assert ayu["lastAccuracyM"] == 30
+    assert ayu["distanceM"] == 111
+    assert ayu["withdraw"] is None
+    # A name falls back to volunteers/{uid}.displayName, and is None when neither exists.
+    assert _card(body, "uid_rizal")["name"] == "Rizal"
+    assert _card(body, "uid_sari")["name"] == "Sari"
+    assert _card(body, "uid_sari")["distanceM"] == 0
+    # No phone number and no device token ever ride on a card (phones stay in volunteerPhones).
+    assert "secret" not in str(body) and "812" not in str(body)
+    assert "volunteerPhones" not in body
+
+
+def test_card_for_a_volunteer_with_only_a_task_has_no_report_fields(client, monkeypatch, db):
+    db.add("tasks", "task_new", {
+        "incidentId": "inc_01", "volunteerId": "uid_new", "type": "verify", "status": "proposed", "instruction": "Look",
+    })
+    _as(monkeypatch)
+    card = _card(client.get("/incidents/inc_01", headers=AUTH).get_json(), "uid_new")
+    assert card["name"] is None and card["reportCount"] == 0
+    for key in ("firstReportAt", "lastReportAt", "lastSeverity", "lastLat", "lastLng", "lastAccuracyM", "distanceM", "withdraw"):
+        assert card[key] is None
+
+
+def test_an_incident_with_nothing_stored_has_empty_extras(client, monkeypatch, db):
+    _as(monkeypatch)
+    body = client.get("/incidents/inc_old", headers=AUTH).get_json()
+    assert body["volunteers"] == [] and body["timeline"] == [] and body["summary"] is None
+    assert body["observations"] == [] and body["tasks"] == []
+
+
+def _withdrawn(db, **extra):
+    db.data["incidents"]["inc_01"]["withdraw"] = dict(ACTIVE_WITHDRAW, **extra)
+    db.add("tasks", "task_wd_sari", {
+        "incidentId": "inc_01", "volunteerId": "uid_sari", "type": "withdraw", "status": "approved",
+        "instruction": "Withdraw upwind. Do not engage.", "sentAt": "2026-10-13T08:20:00.000Z",
+        "heardAt": "2026-10-13T08:20:09.000Z", "sendCount": 1,
+    })
+    db.add("tasks", "task_wd_rizal", {
+        "incidentId": "inc_01", "volunteerId": "uid_rizal", "type": "withdraw", "status": "approved",
+        "instruction": "Withdraw upwind. Do not engage.", "sentAt": "2026-10-13T08:20:00.000Z",
+        "heardAt": None, "sendCount": 2,
+    })
+    db.add("notificationAttempts", "att_1", {"kind": "withdraw", "targetId": "task_wd_sari", "volunteerId": "uid_sari", "result": "failed", "attempts": 3, "at": "2026-10-13T08:20:01Z"})
+    db.add("notificationAttempts", "att_2", {"kind": "withdraw", "targetId": "task_wd_sari", "volunteerId": "uid_sari", "result": "sent", "attempts": 1, "at": "2026-10-13T08:21:01Z"})
+    db.add("notificationAttempts", "att_3", {"kind": "withdraw", "targetId": "task_wd_rizal", "volunteerId": "uid_rizal", "result": "skipped", "attempts": 0, "at": "2026-10-13T08:20:01Z"})
+
+
+def test_withdrawn_cards_carry_what_was_heard_and_delivered(client, monkeypatch, db):
+    _withdrawn(db)
+    _as(monkeypatch)
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    sari, rizal = _card(body, "uid_sari")["withdraw"], _card(body, "uid_rizal")["withdraw"]
+    assert sari == {
+        "sentAt": "2026-10-13T08:20:00.000Z", "heardAt": "2026-10-13T08:20:09.000Z", "sendCount": 1,
+        "delivery": "sent", "safe": False, "safeAt": None, "safeBy": None,
+    }
+    assert (rizal["heardAt"], rizal["sendCount"], rizal["delivery"]) == (None, 2, "skipped")
+
+
+def test_marking_safe_records_who_and_when_for_the_card_and_the_timeline(client, monkeypatch, db):
+    _withdrawn(db)
+    db.add("volunteers", "uid_maya", {"displayName": "Bu Maya"})
+    _as(monkeypatch)
+    done = client.post("/incidents/inc_01/withdraw/safe", headers=AUTH, json={"volunteerId": "uid_sari"}).get_json()
+    assert db.data["audit"][done["auditId"]]["subjectId"] == "uid_sari"
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    safe = _card(body, "uid_sari")["withdraw"]
+    assert safe["safe"] is True
+    assert safe["safeAt"] == db.data["audit"][done["auditId"]]["at"]
+    assert safe["safeBy"] == {"id": "uid_maya", "name": "Bu Maya"}
+    assert _card(body, "uid_rizal")["withdraw"]["safe"] is False
+    row = next(e for e in body["timeline"] if e["action"] == "withdraw.safe")
+    assert (row["volunteerId"], row["actorId"], row["actorName"], row["kind"]) == ("uid_sari", "uid_maya", "Bu Maya", "audit")
+    assert "subjectId" not in str(client.get("/audit", headers=AUTH).get_json())
+
+
+def test_a_safe_mark_from_before_the_audit_row_carried_the_volunteer_has_no_time(client, monkeypatch, db):
+    _withdrawn(db, safeVolunteerIds=["uid_sari"])
+    _as(monkeypatch)
+    safe = _card(client.get("/incidents/inc_01", headers=AUTH).get_json(), "uid_sari")["withdraw"]
+    assert safe["safe"] is True and safe["safeAt"] is None and safe["safeBy"] is None
+
+
+def test_only_the_safe_mark_audit_row_carries_a_subject(client, monkeypatch, db):
+    _as(monkeypatch)
+    client.post("/incidents/inc_01/verify", headers=AUTH)
+    client.post("/tasks/task_verify_sari/reject", headers=AUTH)
+    assert all("subjectId" not in row for row in _audit(db))
+
+
+def test_timeline_merges_reports_and_audit_rows_oldest_first(client, monkeypatch, db):
+    _third_reporter(db)
+    db.add("audit", "aud_a", {"id": "aud_a", "actorId": "code", "action": "task.withdraw", "targetId": "inc_01", "at": "2026-10-13T08:20:00.000Z"})
+    db.add("audit", "aud_b", {"id": "aud_b", "actorId": "uid_maya", "action": "task.approve", "targetId": "task_verify_rizal", "at": "2026-10-13T08:25:00.000Z"})
+    db.add("audit", "aud_c", {"id": "aud_c", "actorId": "uid_maya", "action": "incident.verify", "targetId": "inc_01", "at": "2026-10-13T08:30:00.000Z"})
+    db.add("audit", "aud_obs", {"id": "aud_obs", "actorId": "uid_sari", "action": "observation.create", "targetId": "obs_01", "at": "2026-10-13T08:12:04.000Z"})
+    db.add("audit", "aud_other", {"id": "aud_other", "actorId": "uid_maya", "action": "incident.verify", "targetId": "inc_old", "at": "2026-10-13T08:31:00.000Z"})
+    db.add("volunteers", "uid_maya", {"displayName": "Bu Maya"})
+    _as(monkeypatch)
+    timeline = client.get("/incidents/inc_01", headers=AUTH).get_json()["timeline"]
+    assert [e["id"] for e in timeline] == ["obs_01", "obs_02", "obs_03", "aud_a", "aud_b", "aud_c"]
+    assert [e["kind"] for e in timeline] == ["report"] * 3 + ["audit"] * 3
+    code, approve, verify = timeline[3:]
+    assert (code["actorId"], code["actorName"], code["action"]) == ("code", None, "task.withdraw")
+    assert (approve["actorName"], approve["taskId"], approve["volunteerId"]) == ("Bu Maya", "task_verify_rizal", "uid_rizal")
+    assert (verify["taskId"], verify["volunteerId"]) == (None, None)
+    report = timeline[2]
+    assert (report["volunteerId"], report["actorName"], report["text"], report["severity"], report["source"]) == (
+        "uid_ayu", "Ayu", "Smoke near the canal", "unknown", "text")
+
+
+def test_timeline_keeps_only_the_newest_hundred_entries(client, monkeypatch, db):
+    for i in range(120):
+        db.add("audit", f"aud_{i:03}", {"id": f"aud_{i:03}", "actorId": "code", "action": "task.withdraw", "targetId": "inc_01", "at": f"2026-10-13T09:{i // 60:02}:{i % 60:02}.000Z"})
+    _as(monkeypatch)
+    timeline = client.get("/incidents/inc_01", headers=AUTH).get_json()["timeline"]
+    assert len(timeline) == 100
+    assert timeline[-1]["id"] == "aud_119"
+    assert timeline[0]["id"] == "aud_020"  # 122 entries: the two older reports and the 20 oldest audit rows drop out
+
+
+def test_summary_is_returned_when_stored_and_left_out_when_blank(client, monkeypatch, db):
+    db.add("incident_summaries", "inc_01", {
+        "id": "inc_01", "incidentId": "inc_01", "english": "Two reports, they disagree.", "bahasa": "Dua laporan, berbeda.",
+        "source": "template", "advisory": True, "model": None, "facts": {"reportCount": 2}, "at": "2026-10-13T08:15:00Z",
+    })
+    _as(monkeypatch)
+    summary = client.get("/incidents/inc_01", headers=AUTH).get_json()["summary"]
+    assert summary == {"english": "Two reports, they disagree.", "bahasa": "Dua laporan, berbeda.", "source": "template", "at": "2026-10-13T08:15:00Z"}
+    db.data["incident_summaries"]["inc_01"].update(english="  ", bahasa=None)
+    assert client.get("/incidents/inc_01", headers=AUTH).get_json()["summary"] is None
+
+
+def test_a_volunteer_read_has_none_of_the_supervisor_extras(client, monkeypatch, db):
+    _third_reporter(db)
+    _withdrawn(db)
+    db.add("incident_summaries", "inc_01", {"english": "Two reports.", "bahasa": "Dua laporan."})
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    assert not [key for key in EXTRA_KEYS + ("volunteerPhones",) if key in body]
+    assert "Two reports" not in str(body) and "Ayu" not in str(body)
+    # A volunteer who is not on the incident still gets a 404, not the extras.
+    _as(monkeypatch, role="volunteer", uid="uid_other")
+    assert client.get("/incidents/inc_01", headers=AUTH).status_code == 404
+
+
+def test_extras_read_in_batches_not_per_volunteer(client, monkeypatch, db):
+    _third_reporter(db)
+    _withdrawn(db)
+    _as(monkeypatch)
+    assert client.get("/incidents/inc_01", headers=AUTH).status_code == 200
+    assert [r for r in db.batch_reads if r[0] == "observations"] == [("observations", 3)]
+    assert len([r for r in db.batch_reads if r[0] == "volunteers"]) <= 2
+    assert "volunteers" not in db.doc_reads and "observations" not in db.doc_reads
+    assert all(fields for _, fields in db.queries)

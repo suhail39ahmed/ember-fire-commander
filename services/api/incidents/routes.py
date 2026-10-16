@@ -10,7 +10,7 @@ import logging
 from flask import Blueprint, g, jsonify, request
 
 from identity import AuthError
-from incidents import rules, store
+from incidents import detail as incident_detail, rules, store
 from incidents.errors import ApiError, conflict, error_response, not_found, validation
 from notifications.send import deliver_task
 
@@ -143,6 +143,9 @@ def get_incident(incident_id):
         for snap in store.where(store.CONFLICTS, "incidentId", "==", incident_id):
             wanted_ids += (snap.to_dict() or {}).get("observationIds") or []
         wanted_ids += data.get("observationIds") or []
+    else:
+        # The supervisor extras cover every report the incident knows, not only the two sides of a conflict.
+        wanted_ids += (data.get("observationIds") or []) + ((conflict_body or {}).get("observationIds") or [])
     found = store.get_many(store.OBSERVATIONS, wanted_ids)  # one batched read
 
     if user["role"] != "supervisor":
@@ -174,6 +177,9 @@ def get_incident(incident_id):
                 if phone:
                     phones[uid] = phone
             body["volunteerPhones"] = phones
+        # Supervisor only: volunteer cards, a timeline and the advisory summary, from stored records.
+        known = [found[i].to_dict() | {"id": i} for i in dict.fromkeys(wanted_ids) if i in found]
+        body.update(incident_detail.build(incident_id, data, known, conflict_body, tasks))
     return jsonify(body), 200
 
 
@@ -192,11 +198,11 @@ def digest():
 
 # Supervisor decisions ------------------------------------------------------
 
-def _commit_with_audit(transaction, target_ref, changes, action, target_id):
+def _commit_with_audit(transaction, target_ref, changes, action, target_id, subject_id=None):
     audit_ref = store.db().collection(store.AUDIT).document()
     if changes:
         transaction.update(target_ref, changes)
-    transaction.set(audit_ref, rules.audit_record(audit_ref.id, g.user["id"], action, target_id))
+    transaction.set(audit_ref, rules.audit_record(audit_ref.id, g.user["id"], action, target_id, subject_id))
     return audit_ref.id
 
 
@@ -347,7 +353,7 @@ def edit_task(task_id):
     return response, status
 
 
-def _decide_incident(incident_id, action, apply):
+def _decide_incident(incident_id, action, apply, subject_id=None):
     _require_supervisor()
     if _get(store.INCIDENTS, incident_id) is None:
         raise not_found("incident")
@@ -359,7 +365,7 @@ def _decide_incident(incident_id, action, apply):
             raise not_found("incident")
         incident = snapshot.to_dict() or {}
         changes = apply(incident)
-        audit_id = _commit_with_audit(transaction, ref, changes, action, incident_id)
+        audit_id = _commit_with_audit(transaction, ref, changes, action, incident_id, subject_id)
         incident.update(changes)
         incident["id"] = incident_id
         return rules.pick(incident, rules.INCIDENT_FIELDS), audit_id
@@ -443,7 +449,7 @@ def mark_safe(incident_id):
             raise conflict("This volunteer is already marked safe")
         return {"withdraw": dict(current, safeVolunteerIds=safe + [volunteer_id])}
 
-    return _decide_incident(incident_id, "withdraw.safe", apply)
+    return _decide_incident(incident_id, "withdraw.safe", apply, subject_id=volunteer_id)
 
 
 def _volunteers_on(incident_id, data):

@@ -95,5 +95,9 @@ def to_record(snapshot, fields):
     return pick(data, fields)
 
 
-def audit_record(audit_id, actor_id, action, target_id):
-    return {"id": audit_id, "actorId": actor_id, "action": action, "targetId": target_id, "at": now_iso()}
+def audit_record(audit_id, actor_id, action, target_id, subject_id=None):
+    """`subjectId` is the volunteer an action is about, written only when there is one (found safe)."""
+    record = {"id": audit_id, "actorId": actor_id, "action": action, "targetId": target_id, "at": now_iso()}
+    if subject_id:
+        record["subjectId"] = subject_id
+    return record

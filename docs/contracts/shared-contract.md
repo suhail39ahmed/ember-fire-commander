@@ -270,6 +270,7 @@ Append-only. Clients do not write audit records. Every supervisor action and eve
 | `action` | string | One of the names below |
 | `targetId` | string | The task or incident id |
 | `at` | string | Server time |
+| `subjectId` | string, optional | The volunteer the action is about. Written only on `withdraw.safe`. Absent on every other row and on `withdraw.safe` rows written before #92. `GET /audit` does not return it; a supervisor's `GET /incidents/{id}` uses it for who was marked safe and when (§6.3) |
 
 `GET /audit` (supervisor) returns these rows newest first, with `actorName`, display `target`, server-built `detail`, and `incidentId` for navigation. Optional `targetId` and `cursor` page the list. Clients do not write audit records.
 
@@ -279,7 +280,7 @@ Append-only. Clients do not write audit records. Every supervisor action and eve
 | `task.approve` | A supervisor approved a proposed task |
 | `task.reject` | A supervisor rejected a proposed task |
 | `task.edit` | A supervisor replaced a task instruction |
-| `withdraw.safe` | A supervisor marked one withdrawn volunteer found safe. `targetId` is the incident id. The volunteer is recorded in `incident.withdraw.safeVolunteerIds`, not in the audit row |
+| `withdraw.safe` | A supervisor marked one withdrawn volunteer found safe. `targetId` is the incident id. The volunteer is in `incident.withdraw.safeVolunteerIds` and, on rows written since #92, in the row's `subjectId` |
 | `task.resend` | A supervisor sent a sent, unheard task again. `targetId` is the task id |
 | `task.heard` | A volunteer's app confirmed it showed or spoke a task. `actorId` is the volunteer, `targetId` the task id |
 | `task.withdraw` | Code or a supervisor issued a withdraw instruction. `targetId` is the incident id. Code writes one per intake that adds a volunteer or a reason |
@@ -350,6 +351,8 @@ Written by `ember-agents` (spotter). One document per incident, with the inciden
 | `model` | string or null | Null when `source` is `template` |
 | `facts` | object | `incidentId`, `reportCount`, `volunteerCount`, `reportsDisagree`, `reports[]` (`source`, `chip`, `text`, `capturedAt`, `hasPhoto`), and `photoDescriptions[]` (`smokeVisible`, `flameVisible`, `burnScarVisible`, `notes`). It has no severity on purpose |
 | `at` | string | |
+
+A supervisor's `GET /incidents/{id}` returns `english`, `bahasa`, `source` and `at` of this document as `summary` (§6.3). The `facts` object is not returned.
 
 #### `sites` and `sites_meta`
 
@@ -602,6 +605,49 @@ The hand-off to agents happens after the write. If it fails, the response is sti
 For a supervisor the body has one more key, `evidenceFactors`: the stored factors of §5.2 as `[{ "factor", "points", "detail" }]`, or `[]` when none are stored. A volunteer's read does not have the key. `detail` is an English sentence, as in §12.3.
 
 `conflict` is `null` when the incident has no `conflictId`. `tasks` are all the incident's tasks for a supervisor, and only the caller's own for a volunteer.
+
+**Supervisor extras (#92, #101).** For a supervisor the body has three more keys. All are read from stored records and none is computed by a model. A volunteer's read has none of them. They are always present for a supervisor: `volunteers` and `timeline` are `[]` and `summary` is `null` when nothing is stored.
+
+`volunteers` has one card for every volunteer the incident knows: anyone with a report in `incident.observationIds` or in the conflict, anyone with a task on it, and the volunteers of an active withdraw. Unlike `observations`, it covers every report, so a conflict does not hide a third volunteer. Sorted by `lastReportAt` newest first (no report last), then `volunteerId`.
+
+| Field | Type | Source |
+|---|---|---|
+| `volunteerId` | string | |
+| `name` | string or null | The newest non-blank `volunteerName` on their observations, else `volunteers/{uid}.displayName`, else `null` |
+| `reportCount` | number | Their observations on this incident. `0` for a volunteer who only has a task or a withdraw entry |
+| `firstReportAt`, `lastReportAt` | string or null | `capturedAt` of their oldest and newest report |
+| `lastSeverity` | severity enum or null | The newest report's severity |
+| `lastLat`, `lastLng`, `lastAccuracyM` | number or null | The newest report's position and accuracy. `lastAccuracyM` is `null` when the report has none. This is where the volunteer last reported, not a live position |
+| `distanceM` | number or null | Straight-line metres from the incident's centre (`incident.lat`, `incident.lng`) to their newest report, rounded. It is not the distance to the flame edge, which no service stores |
+| `withdraw` | object or null | `null` unless a withdraw is active and lists this volunteer |
+
+`withdraw` on a card:
+
+| Field | Type | Source |
+|---|---|---|
+| `sentAt`, `heardAt`, `sendCount` | string, string, number, each or null | The volunteer's newest `withdraw` task (§5.3). `heardAt` is when their app said it showed the instruction (`POST /tasks/{id}/heard`). No app calls that route yet, so it stays `null` until one does. `null` when the volunteer has no withdraw task |
+| `delivery` | `sent`, `failed`, `skipped` or null | The newest `notificationAttempts` record for that task (§5.7). `null` when none was written |
+| `safe` | boolean | The volunteer is in `withdraw.safeVolunteerIds` |
+| `safeAt` | string or null | The `at` of the `withdraw.safe` audit row for them. `null` when not safe, and for a mark whose audit row has no `subjectId` |
+| `safeBy` | `{ "id", "name" }` or null | The row's `actorId`, and that supervisor's `volunteers/{uid}.displayName` or `null`. `null` under the same rules as `safeAt` |
+
+`timeline` is the incident's history, oldest first, at most the newest 100 entries. It merges every report the incident knows with the audit rows whose `targetId` is the incident or one of its tasks. `observation.create` rows are left out because the report is listed itself.
+
+| Field | Type | Notes |
+|---|---|---|
+| `kind` | `report` or `audit` | |
+| `id` | string | The observation id, or the audit id |
+| `at` | string | A report's `capturedAt`, or the audit row's `at` |
+| `action` | string or null | The audit `action` (§5.5). `null` for a report |
+| `actorId` | string or null | The reporter, or the audit actor (`code` when code decided) |
+| `actorName` | string or null | The reporter's `volunteerName`, else the actor's `volunteers/{uid}.displayName`. Always `null` for `code` |
+| `volunteerId` | string or null | The reporter. On an audit row, the `subjectId` or else the volunteer of the task the row is about |
+| `taskId` | string or null | The task an audit row is about |
+| `severity`, `source`, `chip`, `text` | each or null | A report's own values, as in §5.1. `null` on an audit row |
+
+`summary` is `null` unless `incident_summaries/{incident id}` exists with a non-blank `english` or `bahasa`. Then it is `{ "english", "bahasa", "source", "at" }` (§5.7). It is advisory text and states no severity. Nothing calls the summary route today (§8.1), so it is `null` until something does.
+
+Not returned, because no service stores a source: conditions at the site (wind, humidity, air quality, next satellite pass), a volunteer's role, crew, battery, network or place name, the crew lead, and suggested instructions. `weather` and `psi` stay internal (§1 rule 7, §12.4).
 
 Who can read what:
 
@@ -1079,6 +1125,9 @@ Every route except `/healthz` needs the two headers in §2.
 | `incident.withdraw` | Incident, digest | `null` until a WITHDRAW is issued. When set, `active` is `true` |
 | `withdraw.source`, `withdraw.sentAt`, `withdraw.safeVolunteerIds` | Incident, digest | Absent on a withdraw written before #101. Treat absent `safeVolunteerIds` as empty |
 | `volunteerPhones` | `GET /incidents/{id}`, supervisor only | Absent unless a withdraw is active. May be `{}` |
+| `volunteers`, `timeline`, `summary` | `GET /incidents/{id}`, supervisor only | Always present for a supervisor: `[]`, `[]` and `null` when nothing is stored. Absent from a volunteer's read and from an older API (§6.3) |
+| `volunteers[].name`, `lastReportAt`, `lastSeverity`, `lastLat`, `lastLng`, `lastAccuracyM`, `distanceM` | Same | `null` when the volunteer has no report on the incident, or no name was stored |
+| `volunteers[].withdraw` | Same | `null` unless the volunteer is on an active withdraw. Inside it `heardAt`, `delivery`, `safeAt` and `safeBy` are `null` until stored (§6.3) |
 | `editedBy` | `POST /tasks/{id}/edit` response | Absent when the token has no display name. No other route returns it |
 | `incident.conflictId`, `conflict` | Incident, `GET /incidents/{id}` | `null` when there is no conflict |
 | `incident.evidenceScore` | `GET /incidents`, `GET /incidents/{id}` | Not in the digest summary |
@@ -1114,8 +1163,8 @@ Every route except `/healthz` needs the two headers in §2.
 The browser cannot read these. A screen that needs one needs a new REST route first. Do not design on the assumption that it exists.
 
 - `incident.observationIds` (§5.2). `incident.evidenceFactors` is returned only on a supervisor's `GET /incidents/{id}` (§6.3).
-- `photo_triage`, `incident_summaries`, `sites` and their alerts, `leads`, `weather`, `psi`, `ingestRuns`, and `notificationAttempts` (§5.7). `GET /audit` reads the `audit` collection for supervisors (§5.5).
-- Observations that are not on the two sides of a conflict, when the incident has a conflict (§6.3).
+- `photo_triage`, `sites` and their alerts, the `facts` of `incident_summaries` (its text is `summary` in §6.3), `leads`, `weather`, `psi`, `ingestRuns`, and `notificationAttempts` (§5.7). `GET /audit` reads the `audit` collection for supervisors (§5.5).
+- Observations that are not on the two sides of a conflict, when the incident has a conflict. `observations` in §6.3 lists only the two sides. A supervisor's `volunteers` and `timeline` count every report, but the other reports' own records are not returned.
 - A task or incident created or updated time.
 
 ### 12.5 Undecided
@@ -1164,5 +1213,6 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · #91: the same `GET /dashboard` body adds the live banner: `updatedAt`, `nextSatellitePass` (`null`), and `liveFires` for `open`, `held`, and `verified` incidents (§6.9).
 - 2026-10-16 · #91: `GET /dashboard` adds `seasonImpact` and `charts`. Every field is `null` until a stored source exists (§6.9).
 - 2026-10-16 · `GET /dashboard` fills `liveFires[].code`, `placeName`, and `since`, `seasonImpact`, and `charts` from stored incidents, observations, tasks, audit rows, leads, device records, and `weather/current`. Same keys and null rules. Counts over no records are `0`. Cameras, photo cadence, distance to risk, the next satellite pass, injuries, and the median target stay `null` (§6.9).
+- 2026-10-16 · #92, #101: a supervisor's `GET /incidents/{id}` adds `volunteers` (one card per volunteer, covering every report and the withdraw state of each), `timeline` (reports and audit rows, oldest first, newest 100) and `summary` (the stored incident summary). A `withdraw.safe` audit row now also carries `subjectId`, so a card shows who marked a volunteer safe and when. A volunteer's read is unchanged. Still not stored, so not returned: conditions at the site, volunteer role, crew, battery, network and place, the crew lead, and suggested instructions (§5.5, §5.7, §6.3, §12.2, §12.4).
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).
