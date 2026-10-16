@@ -44,5 +44,8 @@ export const timelineCopy = {
     'site.reinspect': { id: 'menemukan aktivitas baru di lokasi padam', en: 'found new activity at the extinguished site' },
     'site.dismiss': { id: 'menutup peringatan nyala ulang', en: 'dismissed a re-ignition alert' },
     'site.recheck': { id: 'meminta pemeriksaan ulang lokasi padam', en: 'asked for a re-check of the extinguished site' },
+    'live.make': { id: 'menempatkan kursi live', en: 'assigned the live seat' },
+    'live.retry': { id: 'mencoba video live lagi', en: 'retried live video' },
+    'live.drop': { id: 'video live terputus', en: 'live video dropped' },
   } satisfies Record<AuditAction, { id: string; en: string }>,
 } as const

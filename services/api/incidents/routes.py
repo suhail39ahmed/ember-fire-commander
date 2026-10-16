@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from flask import Blueprint, g, jsonify, request
 
 from identity import AuthError
-from incidents import detail as incident_detail, rules, store
+from incidents import detail as incident_detail, live_seat, rules, store
 from incidents.errors import ApiError, conflict, error_response, not_found, validation
 from notifications.send import deliver_task
 from photos import paths as photo_paths, signing
@@ -189,6 +189,7 @@ def get_incident(incident_id):
         # Supervisor only: volunteer cards, a timeline and the advisory summary, from stored records.
         known = [found[i].to_dict() | {"id": i} for i in dict.fromkeys(wanted_ids) if i in found]
         body.update(incident_detail.build(incident_id, data, known, conflict_body, tasks))
+        body["liveSeat"] = live_seat.seat_for_response(incident_id, observations)
     return jsonify(body), 200
 
 
@@ -415,6 +416,32 @@ def _decide_incident(incident_id, action, apply, subject_id=None):
 
     incident, audit_id = store.run_transaction(run)
     return jsonify({"incident": incident, "auditId": audit_id}), 200
+
+
+@incidents_bp.route("/incidents/<incident_id>/live/make-live", methods=["POST"])
+def make_live(incident_id):
+    """Hold the live seat for a volunteer with 3G or better. Does not reopen the incident."""
+    _require_supervisor()
+    body = _body()
+    volunteer_id = body.get("volunteerId")
+    seat, audit_id = live_seat.make_live(incident_id, volunteer_id)
+    return jsonify({
+        "liveSeat": live_seat.client_seat(seat),
+        "auditId": audit_id,
+    }), 200
+
+
+@incidents_bp.route("/incidents/<incident_id>/live/retry", methods=["POST"])
+def retry_live(incident_id):
+    """Retry live for a dropped volunteer when their signal is 3G or better."""
+    _require_supervisor()
+    body = _body()
+    volunteer_id = body.get("volunteerId")
+    seat, audit_id = live_seat.retry_live(incident_id, volunteer_id)
+    return jsonify({
+        "liveSeat": live_seat.client_seat(seat),
+        "auditId": audit_id,
+    }), 200
 
 
 @incidents_bp.route("/incidents/<incident_id>/verify", methods=["POST"])

@@ -63,6 +63,40 @@ export interface Conflict {
   dispatchHeld: true
 }
 
+/** Signal quality for the live seat (#102). Retry / make-live need 3g, 4g, or wifi. */
+export type LiveSignal = '2g' | '3g' | '4g' | 'wifi' | 'unknown'
+
+/** Why the live seat was freed (#102). */
+export type LiveDropReason = 'signal_below_3g' | 'connection_lost'
+
+/** Per-volunteer media state on the live seat (#102). */
+export interface LiveSeatVolunteer {
+  signal: LiveSignal
+  media: 'live' | 'photo_60s' | 'none'
+  photoCadence: 'every_60s' | null
+  canRetry: boolean
+  canMakeLive: boolean
+}
+
+/** Last video-drop event on the live seat (#102). */
+export interface LiveDrop {
+  volunteerId: string
+  volunteerName?: string | null
+  at: string | null
+  reason: LiveDropReason
+  signal: LiveSignal
+}
+
+/** One live-camera seat per incident (#102). Supervisor GET /incidents/{id} only. */
+export interface LiveSeat {
+  incidentId: string
+  status: 'free' | 'held'
+  holderId: string | null
+  holderName?: string | null
+  lastDrop: LiveDrop | null
+  volunteers: Record<string, LiveSeatVolunteer>
+}
+
 /** What a supervisor's read says about one volunteer's withdraw (section 6.3). Every field is null until stored. */
 export interface VolunteerWithdraw {
   sentAt: string | null
@@ -152,6 +186,8 @@ export interface IncidentDetail {
   conflictContext?: ConflictContext | null
   /** Supervisor read only. The agency stored on the incident. Null until one is stored, which nothing does yet. Absent from an older API. */
   agencyInCharge?: string | null
+  /** Supervisor read only: live camera seat, drop event, and per-volunteer media (#102). */
+  liveSeat?: LiveSeat
 }
 
 /** Task decisions (section 6.5). */
@@ -206,6 +242,9 @@ export type AuditAction =
   | 'site.reinspect'
   | 'site.dismiss'
   | 'site.recheck'
+  | 'live.make'
+  | 'live.retry'
+  | 'live.drop'
 
 /** Advisory photo triage, collection `photo_triage`, one per observation (section 5.7). */
 export interface PhotoTriage {

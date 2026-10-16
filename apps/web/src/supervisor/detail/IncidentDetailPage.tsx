@@ -115,6 +115,24 @@ export function IncidentDetailPage() {
           throw error
         }
       }}
+      makeLive={async (volunteerId) => {
+        try {
+          await api.makeLive(incidentId, volunteerId)
+          await refresh()
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 409) await refresh()
+          throw error
+        }
+      }}
+      retryLive={async (volunteerId) => {
+        try {
+          await api.retryLive(incidentId, volunteerId)
+          await refresh()
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 409) await refresh()
+          throw error
+        }
+      }}
     />
   )
 }

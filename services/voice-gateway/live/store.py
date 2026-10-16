@@ -3,6 +3,7 @@ import os
 import uuid
 
 from live.digest import digest_for
+from live.seat import apply_disconnect, apply_signal, parse_signal
 
 SEVERITIES = ("none", "smoke", "small_flame", "large_flame", "unknown")
 MAX_VOLUNTEER_NAME = 80
@@ -89,6 +90,7 @@ class MemoryStore:
         self.incidents = []
         self.tasks = []
         self.conflicts = []
+        self.live_seats = {}
 
     def create(self, record):
         stored = dict(record)
@@ -115,6 +117,56 @@ class MemoryStore:
         return digest_for(
             user, self.incidents, self.tasks, self.observations, now, self.conflicts,
         )
+
+    def report_signal(self, user, signal, now):
+        """Update signal on digest incidents; drop the seat when the holder is below 3G."""
+        signal = parse_signal(signal)
+        if signal is None:
+            return []
+        digest = self.digest(user, now)
+        dropped = []
+        for summary in digest.get("incidents") or []:
+            incident_id = summary.get("id")
+            if not incident_id:
+                continue
+            seat = dict(self.live_seats.get(incident_id) or {
+                "incidentId": incident_id,
+                "status": "free",
+                "holderId": None,
+                "lastDrop": None,
+                "volunteers": {},
+            })
+            updated, action = apply_signal(seat, user["id"], signal, now)
+            if updated is None:
+                continue
+            self.live_seats[incident_id] = updated
+            if action:
+                self.audits.append({
+                    "actorId": "code",
+                    "action": action,
+                    "targetId": incident_id,
+                    "at": now,
+                })
+                dropped.append(incident_id)
+        return dropped
+
+    def holder_disconnect(self, user, now, last_signal=None):
+        """Free any seat this volunteer holds."""
+        dropped = []
+        for incident_id, seat in list(self.live_seats.items()):
+            updated, action = apply_disconnect(seat, user["id"], now, last_signal or "unknown")
+            if updated is None:
+                continue
+            self.live_seats[incident_id] = updated
+            if action:
+                self.audits.append({
+                    "actorId": "code",
+                    "action": action,
+                    "targetId": incident_id,
+                    "at": now,
+                })
+                dropped.append(incident_id)
+        return dropped
 
 
 class FirestoreStore:
@@ -185,6 +237,105 @@ class FirestoreStore:
             incidents += self._where("incidents", "observationIds", "array_contains_any", chunk)
             conflicts += self._where("conflicts", "observationIds", "array_contains_any", chunk)
         return digest_for(user, _unique(incidents), tasks, observations, now, conflicts)
+
+    def report_signal(self, user, signal, now):
+        """Update signal on digest incidents in a transaction so concurrent writers do not clobber each other."""
+        signal = parse_signal(signal)
+        if signal is None:
+            return []
+        digest = self.digest(user, now)
+        dropped = []
+        db = self._db()
+        for summary in digest.get("incidents") or []:
+            incident_id = summary.get("id")
+            if not incident_id:
+                continue
+            if self._txn_report_signal(db, incident_id, user["id"], signal, now):
+                dropped.append(incident_id)
+        return dropped
+
+    def holder_disconnect(self, user, now, last_signal=None):
+        """Free seats this volunteer holds. Each seat update runs in a transaction."""
+        dropped = []
+        db = self._db()
+        from google.cloud.firestore_v1.base_query import FieldFilter
+        # Find candidates outside the transaction; each write re-reads holderId inside.
+        seat_ids = [
+            snap.id for snap in db.collection("liveSeats").where(
+                filter=FieldFilter("holderId", "==", user["id"])
+            ).stream()
+        ]
+        for incident_id in seat_ids:
+            if self._txn_holder_disconnect(db, incident_id, user["id"], now, last_signal or "unknown"):
+                dropped.append(incident_id)
+        return dropped
+
+    def _txn_report_signal(self, db, incident_id, volunteer_id, signal, now):
+        from google.cloud import firestore
+
+        ref = db.collection("liveSeats").document(incident_id)
+        dropped = False
+
+        @firestore.transactional
+        def run(transaction):
+            nonlocal dropped
+            snap = ref.get(transaction=transaction)
+            seat = snap.to_dict() if snap.exists else {
+                "incidentId": incident_id,
+                "status": "free",
+                "holderId": None,
+                "lastDrop": None,
+                "volunteers": {},
+            }
+            updated, action = apply_signal(seat, volunteer_id, signal, now)
+            if updated is None:
+                return
+            transaction.set(ref, updated)
+            if action:
+                audit_ref = db.collection("audit").document()
+                transaction.set(audit_ref, {
+                    "id": audit_ref.id,
+                    "actorId": "code",
+                    "action": action,
+                    "targetId": incident_id,
+                    "at": now,
+                })
+                dropped = True
+
+        run(db.transaction())
+        return dropped
+
+    def _txn_holder_disconnect(self, db, incident_id, volunteer_id, now, last_signal):
+        from google.cloud import firestore
+
+        ref = db.collection("liveSeats").document(incident_id)
+        dropped = False
+
+        @firestore.transactional
+        def run(transaction):
+            nonlocal dropped
+            snap = ref.get(transaction=transaction)
+            if not snap.exists:
+                return
+            updated, action = apply_disconnect(
+                snap.to_dict() or {}, volunteer_id, now, last_signal,
+            )
+            if updated is None:
+                return
+            transaction.set(ref, updated)
+            if action:
+                audit_ref = db.collection("audit").document()
+                transaction.set(audit_ref, {
+                    "id": audit_ref.id,
+                    "actorId": "code",
+                    "action": action,
+                    "targetId": incident_id,
+                    "at": now,
+                })
+                dropped = True
+
+        run(db.transaction())
+        return dropped
 
     def _where(self, collection, field, op, value):
         from google.cloud.firestore_v1.base_query import FieldFilter

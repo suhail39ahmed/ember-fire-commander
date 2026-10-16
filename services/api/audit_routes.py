@@ -231,6 +231,12 @@ def _detail(action, target_id, tasks, incidents, observations, names):
         return "Instruction sent again"
     if action == "task.heard":
         return "Heard on device"
+    if action == "live.make":
+        return "Live seat assigned"
+    if action == "live.retry":
+        return "Live video retry"
+    if action == "live.drop":
+        return "Live video dropped"
     if action == "site.dismiss":
         site = store.db().collection(store.SITES).document(target_id).get()
         if site.exists:
