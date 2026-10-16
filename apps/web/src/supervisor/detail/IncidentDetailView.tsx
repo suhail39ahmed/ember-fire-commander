@@ -209,7 +209,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         <section aria-labelledby="inc-prop-title">
           <h2 className="inc-h2" id="inc-prop-title">{t(lang, disagreeCopy.proposals)}</h2>
           <ul className="prop-list">
-            {proposals.map((task) => <ProposalRow key={task.id} lang={lang} task={task} detail={detail} actions={actions} offline={offline || paused} />)}
+            {proposals.map((task) => <ProposalRow key={task.id} lang={lang} task={task} detail={detail} actions={actions} offline={offline || paused} editor={actorName} />)}
           </ul>
         </section>
       )}
@@ -253,7 +253,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           <p className="inc-muted">{t(lang, detailCopy.tasksEmpty)}</p>
         ) : others.length > 0 && (
           <ul className="sup sup-tasks">
-            {others.map((task) => <TaskRow key={task.id} task={task} detail={detail} actions={actions} offline={offline || paused} lang={lang} />)}
+            {others.map((task) => <TaskRow key={task.id} task={task} detail={detail} actions={actions} offline={offline || paused} lang={lang} editor={actorName} />)}
           </ul>
         )}
         {offline && <p className="inc-muted">{t(lang, detailCopy.offlineSend)}</p>}

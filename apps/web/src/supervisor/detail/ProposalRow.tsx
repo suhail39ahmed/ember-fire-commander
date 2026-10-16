@@ -6,6 +6,7 @@ import { OutcomeLine, type IncidentActions } from '../IncidentView'
 import { taskControls } from '../view'
 import { taskCopy } from './copy'
 import { disagreeCopy } from './disagreeCopy'
+import { EditInstructionDialog } from './EditInstructionDialog'
 import { nameOf } from './model'
 import './disagree.css'
 
@@ -14,9 +15,9 @@ import './disagree.css'
  * Approve for a dispatch is off while the incident has an open conflict, and the line under it says why.
  * `offline` blocks every write button: nothing is queued.
  */
-export function ProposalRow({ lang, task, detail, actions, offline }: { lang: Lang; task: Task; detail: IncidentDetail; actions: IncidentActions; offline: boolean }) {
+export function ProposalRow({ lang, task, detail, actions, offline, editor = '' }: { lang: Lang; task: Task; detail: IncidentDetail; actions: IncidentActions; offline: boolean; editor?: string }) {
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(task.instruction ?? '')
+  const [saved, setSaved] = useState<string | null>(null)
   const { approveBlocked } = taskControls(task, detail)
   const busy = actions.busyId === task.id || offline
   const who = nameOf(detail, task.volunteerId, lang).toUpperCase()
@@ -25,31 +26,11 @@ export function ProposalRow({ lang, task, detail, actions, offline }: { lang: La
       <div className="prop-row">
         <div className="prop-main">
           <p className="prop-eyebrow">{t(lang, taskCopy.type[task.type]).toUpperCase()} · {t(lang, disagreeCopy.proposedWord)} · {who}</p>
-          {editing ? (
-            <form
-              className="sup-edit"
-              onSubmit={(e) => {
-                e.preventDefault()
-                actions.onEdit(task.id, draft)
-                setEditing(false)
-              }}
-            >
-              <label>
-                {t(lang, taskCopy.instruction)}
-                <textarea value={draft} maxLength={500} onChange={(e) => setDraft(e.target.value)} />
-              </label>
-              <div className="sup-buttons">
-                <button type="submit" className="btn-ink" disabled={busy || !draft.trim()}>{t(lang, taskCopy.save)}</button>
-                <button type="button" className="btn-secondary" onClick={() => setEditing(false)}>{t(lang, taskCopy.cancel)}</button>
-              </div>
-            </form>
-          ) : (
-            <p className="prop-text">{task.instruction ?? '—'}</p>
-          )}
+          <p className="prop-text">{task.instruction ?? '—'}</p>
         </div>
-        {!editing && (
+        {(
           <div className="prop-actions">
-            <button type="button" className="prop-link" disabled={busy} onClick={() => { setDraft(task.instruction ?? ''); setEditing(true) }}>
+            <button type="button" className="prop-link" disabled={busy} onClick={() => { setSaved(null); setEditing(true) }}>
               {t(lang, taskCopy.edit)}
             </button>
             <button type="button" className="inc-btn" disabled={busy} onClick={() => actions.onReject(task.id)}>
@@ -61,8 +42,22 @@ export function ProposalRow({ lang, task, detail, actions, offline }: { lang: La
           </div>
         )}
       </div>
+      {saved && <p className="sup-ok" role="status">{saved}</p>}
       {approveBlocked && <p className="prop-held" role="note">{t(lang, disagreeCopy.heldLine)}</p>}
       <OutcomeLine outcome={actions.outcomes[task.id]} lang={lang} />
+      {editing && (
+        <EditInstructionDialog
+          lang={lang}
+          task={task}
+          incident={detail.incident}
+          editor={editor}
+          volunteerName={nameOf(detail, task.volunteerId, lang)}
+          offline={offline}
+          send={(instruction) => actions.saveEdit(task.id, instruction)}
+          onSaved={(text) => { setEditing(false); setSaved(text) }}
+          onClose={() => setEditing(false)}
+        />
+      )}
     </li>
   )
 }

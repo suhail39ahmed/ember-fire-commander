@@ -627,7 +627,7 @@ Incident actions return `incident` instead of `task`.
 |---|---|---|
 | `POST /tasks/{id}/approve` | none | `proposed` becomes `approved`. Allowed for `verify`. Allowed for `investigate` only when that incident has no open conflict. Rejected for `withdraw`. A task that is not `proposed` is `409` |
 | `POST /tasks/{id}/reject` | none | `proposed` becomes `rejected`. Rejected for `withdraw`. A task that is not `proposed` is `409` |
-| `POST /tasks/{id}/edit` | `{ "instruction": "Check the east bank again" }` | Replaces `instruction` only. Type, status, volunteer, and incident stay the same. `instruction` is required, not blank, at most 500 characters. A `withdraw` task is `409`. The route does not check the task's status, so a task that is already `approved` or `rejected` can be edited |
+| `POST /tasks/{id}/edit` | `{ "instruction": "Check the east bank again" }` | Replaces `instruction` only. Type, status, volunteer, and incident stay the same. `instruction` is required, not blank, at most 500 characters. A `withdraw` task is `409`. The route does not check the task's status, so a task that is already `approved` or `rejected` can be edited. The answer also carries `editedBy`, the caller's display name from the token, so the screen can say who saved it. The key is absent when the token has no name |
 | `POST /incidents/{id}/verify` | none | `status` becomes `verified`. `409` unless the status is `open` or `held` |
 | `POST /incidents/{id}/extinguish` | none | `status` becomes `extinguished`. `409` when it already is |
 | `POST /incidents/{id}/severity` | `{ "severity": "smoke" }` | Stores the new severity only when it is strictly lower on the scale in §1, otherwise `409`. `severity` must be `none`, `smoke`, `small_flame`, or `large_flame`; `unknown` and anything else is `400`. A stored `unknown` severity is never lowered (`409`) |
@@ -973,6 +973,7 @@ Every route except `/healthz` needs the two headers in §2.
 | `incident.withdraw` | Incident, digest | `null` until a WITHDRAW is issued. When set, `active` is `true` |
 | `withdraw.source`, `withdraw.sentAt`, `withdraw.safeVolunteerIds` | Incident, digest | Absent on a withdraw written before #101. Treat absent `safeVolunteerIds` as empty |
 | `volunteerPhones` | `GET /incidents/{id}`, supervisor only | Absent unless a withdraw is active. May be `{}` |
+| `editedBy` | `POST /tasks/{id}/edit` response | Absent when the token has no display name. No other route returns it |
 | `incident.conflictId`, `conflict` | Incident, `GET /incidents/{id}` | `null` when there is no conflict |
 | `incident.evidenceScore` | `GET /incidents`, `GET /incidents/{id}` | Not in the digest summary |
 | `task.instruction` | Task | Typed as `string or null`. Every task the services create today has one |
@@ -1046,5 +1047,6 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · #108: `GET /dashboard` returns `agency`, `serverTime`, and `approvalsCount` for the supervisor console chrome (§5.7, §6.9).
 - 2026-10-16 · #95: a supervisor's `GET /incidents/{id}` adds `volunteerName` on each observation that has one and an `evidenceFactors` list (§5.2, §6.3). Both are optional additions; a volunteer's read is unchanged.
 - 2026-10-16 · #101: `incident.withdraw` gains optional `source`, `sentAt` and `safeVolunteerIds`, written by code and by the withdraw route. New `POST /incidents/{id}/withdraw/safe` (audit `withdraw.safe`) marks a volunteer found safe and never clears the withdraw. A supervisor's `GET /incidents/{id}` adds `volunteerPhones` (§5.2, §5.5, §6.3, §6.5). Open decision: whether all-safe ends a withdraw.
+- 2026-10-16 · #96: `POST /tasks/{id}/edit` also returns `editedBy`, the editor's display name, when the token has one (§6.5, §12.2). The audit row is unchanged.
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).

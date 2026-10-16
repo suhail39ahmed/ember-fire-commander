@@ -289,7 +289,14 @@ def edit_task(task_id):
             raise conflict("A withdraw instruction cannot be edited")
         return {"instruction": instruction.strip()}
 
-    return _task_response(*_decide_task(task_id, "task.edit", apply))
+    response, status = _task_response(*_decide_task(task_id, "task.edit", apply))
+    # The editor's own name, so the screen can say who saved it. Absent when the token has no name.
+    name = (g.user.get("displayName") or "").strip()
+    if name:
+        body = response.get_json()
+        body["editedBy"] = name
+        response = jsonify(body)
+    return response, status
 
 
 def _decide_incident(incident_id, action, apply):

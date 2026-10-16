@@ -160,10 +160,14 @@ export function IncidentsShell({ api: apiOverride, children }: { api?: Superviso
         const r = await api.rejectTask(id)
         return { kind: 'ok', text: `Confirmed by ember-api: ${r.task.status} · audit ${r.auditId}`, action: 'reject', auditId: r.auditId }
       }),
-      onEdit: (id: string, instruction: string) => void run(id, async () => {
-        const r = await api.editTask(id, instruction)
-        return { kind: 'ok', text: `Instruction saved · audit ${r.auditId}`, action: 'edit', auditId: r.auditId }
-      }),
+      saveEdit: async (id: string, instruction: string) => {
+        try {
+          return await api.editTask(id, instruction)
+        } finally {
+          // Success changes the text. A refusal may mean the task moved. Either way show what is stored.
+          await load()
+        }
+      },
       onVerify: (id: string) => void run(id, async () => {
         const r = await api.verifyIncident(id)
         return { kind: 'ok', text: `Confirmed by ember-api: ${r.incident.status} · audit ${r.auditId}`, action: 'verify', auditId: r.auditId }

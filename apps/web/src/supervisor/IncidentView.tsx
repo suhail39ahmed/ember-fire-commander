@@ -3,9 +3,10 @@ import { useState } from 'react'
 import { t as tr, type Lang } from '../pwa/i18n'
 import { incidentLabel } from '../pwa/incidentName'
 import { taskCopy, taskStatusName } from './detail/copy'
+import { EditInstructionDialog } from './detail/EditInstructionDialog'
 import { nameOf } from './detail/model'
 import { outcomeText } from './detail/outcomeCopy'
-import type { IncidentDetail, Observation, Task } from './contracts'
+import type { IncidentDetail, Observation, Task, TaskDecision } from './contracts'
 import {
   canVerify, conflictPair, SEVERITY_LABEL, STATUS_LABEL, TASK_LABEL, taskControls, timeOf, volunteerName, withdrawBanner,
 } from './view'
@@ -29,7 +30,8 @@ export interface IncidentActions {
   outcomes: Record<string, Outcome>
   onApprove(taskId: string): void
   onReject(taskId: string): void
-  onEdit(taskId: string, instruction: string): void
+  /** POST /tasks/{id}/edit, then a fresh read. Resolves with the route's answer and throws the route's refusal. */
+  saveEdit(taskId: string, instruction: string): Promise<TaskDecision>
   onVerify(incidentId: string): void
 }
 
@@ -54,12 +56,16 @@ export function OutcomeLine({ outcome, lang }: { outcome?: Outcome; lang?: Lang 
   )
 }
 
-/** `offline` blocks every write button: nothing typed while ember-api is unreachable is queued. */
-export function TaskRow({ task, detail, actions, offline = false, lang }: { task: Task; detail: IncidentDetail; actions: IncidentActions; offline?: boolean; lang?: Lang }) {
+/**
+ * `offline` blocks every write button: nothing typed while ember-api is unreachable is queued.
+ * `editor` is the signed-in supervisor's name, shown in the edit dialog before the route answers.
+ */
+export function TaskRow({ task, detail, actions, offline = false, lang, editor = '' }: { task: Task; detail: IncidentDetail; actions: IncidentActions; offline?: boolean; lang?: Lang; editor?: string }) {
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(task.instruction ?? '')
+  const [saved, setSaved] = useState<string | null>(null)
   const { canDecide, approveBlocked } = taskControls(task, detail)
   const busy = actions.busyId === task.id || offline
+  const language: Lang = lang ?? 'en'
   return (
     <li className={`sup-task type-${task.type}`}>
       <div className="sup-task-head">
@@ -67,33 +73,13 @@ export function TaskRow({ task, detail, actions, offline = false, lang }: { task
         <strong>{lang ? nameOf(detail, task.volunteerId, lang) : volunteerName(task.volunteerId)}</strong>
         <span className={`sup-status status-${task.status}`}>{lang ? tr(lang, taskStatusName[task.status]) : task.status}</span>
       </div>
-      {editing ? (
-        <form
-          className="sup-edit"
-          onSubmit={(e) => {
-            e.preventDefault()
-            actions.onEdit(task.id, draft)
-            setEditing(false)
-          }}
-        >
-          <label>
-            {lang ? tr(lang, taskCopy.instruction) : 'Instruction'}
-            <textarea value={draft} maxLength={500} onChange={(e) => setDraft(e.target.value)} />
-          </label>
-          <div className="sup-buttons">
-            <button type="submit" className="btn-ink" disabled={busy || !draft.trim()}>{lang ? tr(lang, taskCopy.save) : 'Save'}</button>
-            <button type="button" className="btn-secondary" onClick={() => setEditing(false)}>{lang ? tr(lang, taskCopy.cancel) : 'Cancel'}</button>
-          </div>
-        </form>
-      ) : (
-        <p className="sup-task-text">{task.instruction ?? '—'}</p>
-      )}
-      {canDecide && !editing && (
+      <p className="sup-task-text">{task.instruction ?? '—'}</p>
+      {canDecide && (
         <div className="sup-buttons">
           <button type="button" className="btn-safe" disabled={busy || approveBlocked !== null} onClick={() => actions.onApprove(task.id)}>
             {lang ? tr(lang, taskCopy.approve) : 'Approve'}
           </button>
-          <button type="button" className="btn-secondary" disabled={busy} onClick={() => { setDraft(task.instruction ?? ''); setEditing(true) }}>
+          <button type="button" className="btn-secondary" disabled={busy} onClick={() => { setSaved(null); setEditing(true) }}>
             {lang ? tr(lang, taskCopy.edit) : 'Edit'}
           </button>
           <button type="button" className="btn-secondary" disabled={busy} onClick={() => actions.onReject(task.id)}>
@@ -102,7 +88,21 @@ export function TaskRow({ task, detail, actions, offline = false, lang }: { task
         </div>
       )}
       {approveBlocked && <p className="sup-hold">{lang ? tr(lang, taskCopy.held) : approveBlocked}</p>}
+      {saved && <p className="sup-ok" role="status">{saved}</p>}
       <OutcomeLine outcome={actions.outcomes[task.id]} lang={lang} />
+      {editing && (
+        <EditInstructionDialog
+          lang={language}
+          task={task}
+          incident={detail.incident}
+          editor={editor}
+          volunteerName={lang ? nameOf(detail, task.volunteerId, lang) : undefined}
+          offline={offline}
+          send={(instruction) => actions.saveEdit(task.id, instruction)}
+          onSaved={(text) => { setEditing(false); setSaved(text) }}
+          onClose={() => setEditing(false)}
+        />
+      )}
     </li>
   )
 }

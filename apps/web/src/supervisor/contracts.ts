@@ -68,6 +68,8 @@ export interface IncidentDetail {
 export interface TaskDecision {
   task: Task
   auditId: string
+  /** The supervisor who saved an edit, from their token. Only on the edit route, and absent when the token has no name. */
+  editedBy?: string
 }
 
 /** Incident decisions (section 6.5). */

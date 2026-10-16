@@ -16,7 +16,7 @@ const noop: IncidentActions = {
   outcomes: {},
   onApprove: () => undefined,
   onReject: () => undefined,
-  onEdit: () => undefined,
+  saveEdit: async () => { throw new Error('not used') },
   onVerify: () => undefined,
 }
 const render = (name: Parameters<typeof fixture>[0], actions: IncidentActions = noop) =>

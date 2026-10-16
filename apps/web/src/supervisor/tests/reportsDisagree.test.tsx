@@ -16,7 +16,7 @@ import type { IncidentActions, Outcome } from '../IncidentView'
 const NOW = Date.parse('2026-10-17T03:10:00Z')
 
 function actions(over: Partial<IncidentActions> = {}): IncidentActions {
-  return { busyId: null, outcomes: {}, onApprove: () => undefined, onReject: () => undefined, onEdit: () => undefined, onVerify: () => undefined, ...over }
+  return { busyId: null, outcomes: {}, onApprove: () => undefined, onReject: () => undefined, saveEdit: async () => ({ task: fixture('normal').tasks[0], auditId: 'aud_1' } as never), onVerify: () => undefined, ...over }
 }
 
 function view(over: Partial<IncidentDetailViewProps> = {}, lang: 'id' | 'en' = 'en') {

@@ -55,10 +55,10 @@ def db(monkeypatch):
     return fake
 
 
-def _as(monkeypatch, role="supervisor", uid="uid_maya"):
+def _as(monkeypatch, role="supervisor", uid="uid_maya", name="Bu Maya"):
     monkeypatch.setattr(
         identity, "verify_id_token",
-        lambda token: {"uid": uid, "name": "Bu Maya", "role": role},
+        lambda token: {"uid": uid, "name": name, "role": role},
     )
 
 
@@ -643,3 +643,20 @@ def test_no_phones_without_an_active_withdraw(client, monkeypatch, db):
     db.add("volunteers", "uid_sari", {"phone": "+62 812 0000 111"})
     _as(monkeypatch)
     assert "volunteerPhones" not in client.get("/incidents/inc_01", headers=AUTH).get_json()
+
+
+# Edit: the editor's name ------------------------------------------------------------
+
+def test_edit_returns_the_editors_name_when_the_token_has_one(client, monkeypatch, db):
+    _as(monkeypatch)
+    body = client.post("/tasks/task_verify_sari/edit", headers=AUTH, json={"instruction": "Check the west ditch"}).get_json()
+    assert body["editedBy"] == "Bu Maya"
+    assert set(body) == {"task", "auditId", "editedBy"}
+    assert body["task"]["instruction"] == "Check the west ditch"
+    assert db.data["audit"][body["auditId"]]["action"] == "task.edit"
+
+
+def test_edit_has_no_editor_name_when_the_token_has_none(client, monkeypatch, db):
+    _as(monkeypatch, name="")
+    body = client.post("/tasks/task_verify_sari/edit", headers=AUTH, json={"instruction": "Check the west ditch"}).get_json()
+    assert "editedBy" not in body

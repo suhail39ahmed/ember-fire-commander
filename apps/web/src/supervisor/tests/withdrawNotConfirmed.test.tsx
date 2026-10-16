@@ -14,7 +14,7 @@ import { submitSafe } from '../detail/markSafe'
 import { elapsedSince, telHref, unconfirmed, withdrawState } from '../detail/withdrawState'
 import { safeFailureOf, safeFailureText, stateCopy } from '../detail/withdrawStateCopy'
 
-const noop: IncidentActions = { busyId: null, outcomes: {}, onApprove: () => undefined, onReject: () => undefined, onEdit: () => undefined, onVerify: () => undefined }
+const noop: IncidentActions = { busyId: null, outcomes: {}, onApprove: () => undefined, onReject: () => undefined, saveEdit: async () => ({ task: fixture('normal').tasks[0], auditId: 'aud_1' } as never), onVerify: () => undefined }
 const NOW = Date.parse('2026-10-17T03:10:00Z')
 const decision = { incident: fixture('normal').incident, auditId: 'aud_9' }
 
