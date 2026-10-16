@@ -1,0 +1,109 @@
+/**
+ * What the incident detail screen shows, derived from `GET /incidents/{id}` only.
+ * Nothing here decides incident state: no severity, no withdraw, no dispatch.
+ */
+import type { Incident, IncidentDetail, Observation, Severity, Task } from '../contracts'
+
+const SEVERITY_ORDER: Record<Severity, number> = { none: 0, unknown: 1, smoke: 2, small_flame: 3, large_flame: 4 }
+
+/** The route does not return `volunteerName` on observations, so the id is all there is. */
+export function volunteerLabel(id: string, lang: 'id' | 'en'): string {
+  if (id.startsWith('uid_') && id.length > 4) {
+    const base = id.slice(4)
+    return base.charAt(0).toUpperCase() + base.slice(1)
+  }
+  return `${lang === 'id' ? 'Relawan' : 'Volunteer'} ${id.slice(-4).toUpperCase()}`
+}
+
+export function initialsOf(label: string): string {
+  const words = label.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return '?'
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase()
+}
+
+/** Observations newest first by the phone time, then by id so the order never flickers. */
+export function newestFirst(observations: Observation[]): Observation[] {
+  return [...observations].sort((a, b) => {
+    const at = Date.parse(b.capturedAt) - Date.parse(a.capturedAt)
+    return (Number.isNaN(at) ? 0 : at) || a.id.localeCompare(b.id)
+  })
+}
+
+const TASK_RANK = { withdraw: 3, approved: 2, proposed: 1, rejected: 0 } as const
+
+/**
+ * The instruction shown on a volunteer's card. Tasks have no time, so the rule is:
+ * an incident withdraw task first, then an approved task, then a proposed one, then a
+ * rejected one. Among equals the later one in the list wins.
+ */
+export function lastTaskFor(tasks: Task[], volunteerId: string): Task | null {
+  let best: Task | null = null
+  let bestRank = -1
+  for (const task of tasks) {
+    if (task.volunteerId !== volunteerId) continue
+    const rank = task.type === 'withdraw' ? TASK_RANK.withdraw : TASK_RANK[task.status]
+    if (rank >= bestRank) {
+      best = task
+      bestRank = rank
+    }
+  }
+  return best
+}
+
+export interface VolunteerRow {
+  id: string
+  reportCount: number
+  latest: Observation | null
+  task: Task | null
+  /** True when the incident's active withdraw lists this volunteer. */
+  withdrawn: boolean
+}
+
+/** Everyone the incident knows: reporters, task recipients and withdraw recipients. */
+export function volunteersOf(detail: IncidentDetail): VolunteerRow[] {
+  const ids = new Set<string>()
+  detail.observations.forEach((o) => ids.add(o.volunteerId))
+  detail.tasks.forEach((t) => ids.add(t.volunteerId))
+  if (detail.incident.withdraw?.active) detail.incident.withdraw.volunteerIds.forEach((id) => ids.add(id))
+  const withdrawn = new Set(detail.incident.withdraw?.active ? detail.incident.withdraw.volunteerIds : [])
+  const rows = [...ids].map<VolunteerRow>((id) => {
+    const mine = newestFirst(detail.observations.filter((o) => o.volunteerId === id))
+    return { id, reportCount: mine.length, latest: mine[0] ?? null, task: lastTaskFor(detail.tasks, id), withdrawn: withdrawn.has(id) }
+  })
+  const time = (r: VolunteerRow) => (r.latest ? Date.parse(r.latest.capturedAt) || 0 : -1)
+  return rows.sort((a, b) => time(b) - time(a) || a.id.localeCompare(b.id))
+}
+
+/** The report that set the incident's severity: the newest observation at the incident's level. */
+export function highestReport(detail: IncidentDetail): Observation | null {
+  const level = SEVERITY_ORDER[detail.incident.severity]
+  const match = newestFirst(detail.observations).find((o) => SEVERITY_ORDER[o.severity] === level)
+  return match ?? null
+}
+
+/** Reports oldest first, as the timeline reads. */
+export function timelineOf(detail: IncidentDetail): Observation[] {
+  return newestFirst(detail.observations).reverse()
+}
+
+export function formatPosition(incident: Pick<Incident, 'lat' | 'lng'>): string {
+  const ok = Number.isFinite(incident.lat) && Number.isFinite(incident.lng)
+  return ok ? `${incident.lat.toFixed(3)}, ${incident.lng.toFixed(3)}` : '—'
+}
+
+/** Whole minutes between two instants, never negative. */
+export function minutesBetween(fromMs: number, toMs: number): number {
+  return Math.max(0, Math.floor((toMs - fromMs) / 60000))
+}
+
+export type LinkState = 'online' | 'lost' | 'restored'
+
+/**
+ * `restored` shows for a few seconds after a lost connection comes back, then `online`.
+ * `lost` is set while the last read failed.
+ */
+export function linkState(lost: boolean, restoredUntil: number | null, now: number): LinkState {
+  if (lost) return 'lost'
+  return restoredUntil !== null && now < restoredUntil ? 'restored' : 'online'
+}

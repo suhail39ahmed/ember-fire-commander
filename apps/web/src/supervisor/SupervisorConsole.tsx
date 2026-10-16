@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../auth/AuthProvider'
@@ -11,13 +11,23 @@ import type { SupervisorApi } from './api/types'
 import type { Incident, IncidentDetail } from './contracts'
 import { IncidentQueue } from './IncidentQueue'
 import { IncidentView, type Outcome } from './IncidentView'
+import { IncidentsContext, POLL_MS, useIncidents, type DetailFailure, type IncidentsState } from './incidentsContext'
 import { IncidentMap } from './map/IncidentMap'
 import { incidentIdFromPath, consoleIncidentPath } from './paths'
 import { flattenGroups, groupByArea } from './queueGroups'
 import { sortQueue } from './view'
 import './supervisor.css'
 
-const POLL_MS = 5000
+
+
+function isNetworkError(e: unknown): boolean {
+  return e instanceof ApiError && e.code === 'network'
+}
+
+function failureOf(e: unknown): DetailFailure {
+  if (isNetworkError(e)) return 'network'
+  return e instanceof ApiError && e.status === 404 ? 'not_found' : 'failed'
+}
 
 function errorText(e: unknown): string {
   if (e instanceof ApiError) {
@@ -26,24 +36,6 @@ function errorText(e: unknown): string {
   }
   return 'Something went wrong. Nothing was changed.'
 }
-
-interface IncidentsState {
-  queue: Incident[] | null
-  detail: IncidentDetail | null
-  loadError: string | null
-  activeId: string | null
-  select: (id: string) => void
-  actions: {
-    busyId: string | null
-    outcomes: Record<string, Outcome>
-    onApprove: (id: string) => void
-    onReject: (id: string) => void
-    onEdit: (id: string, instruction: string) => void
-    onVerify: (id: string) => void
-  }
-}
-
-const IncidentsContext = createContext<IncidentsState | null>(null)
 
 /**
  * Incident queue, map, and the open incident. State stays here, not in the
@@ -64,6 +56,9 @@ export function IncidentsShell({ api: apiOverride, children }: { api?: Superviso
   const [loadError, setLoadError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [outcomes, setOutcomes] = useState<Record<string, Outcome>>({})
+  const [detailFailure, setDetailFailure] = useState<DetailFailure | null>(null)
+  const [lost, setLost] = useState(false)
+  const [lastOkAt, setLastOkAt] = useState<number | null>(null)
 
   const routeId = incidentIdFromPath(pathname)
   const activeId = routeId ?? queue?.[0]?.id ?? null
@@ -73,20 +68,27 @@ export function IncidentsShell({ api: apiOverride, children }: { api?: Superviso
       const incidents = flattenGroups(groupByArea(sortQueue(await api.listIncidents())))
       setQueue(incidents)
       setLoadError(null)
+      setLost(false)
+      setLastOkAt(Date.now())
     } catch (e) {
       setLoadError(errorText(e))
+      if (isNetworkError(e)) setLost(true)
     }
   }, [api])
 
   const loadDetail = useCallback(async (id: string | null) => {
     if (!id) {
       setDetail(null)
+      setDetailFailure(null)
       return
     }
     try {
       setDetail(await api.getIncident(id))
+      setDetailFailure(null)
     } catch (e) {
       setLoadError(errorText(e))
+      setDetailFailure(failureOf(e))
+      if (isNetworkError(e)) setLost(true)
     }
   }, [api])
 
@@ -97,8 +99,24 @@ export function IncidentsShell({ api: apiOverride, children }: { api?: Superviso
   }, [load])
 
   useEffect(() => {
+    setDetailFailure(null)
+  }, [activeId])
+
+  useEffect(() => {
     void loadDetail(activeId)
   }, [activeId, queue, loadDetail])
+
+  // The device going offline or coming back is a signal too. The next read decides what is true.
+  useEffect(() => {
+    const goOffline = () => setLost(true)
+    const goOnline = () => void load()
+    window.addEventListener('offline', goOffline)
+    window.addEventListener('online', goOnline)
+    return () => {
+      window.removeEventListener('offline', goOffline)
+      window.removeEventListener('online', goOnline)
+    }
+  }, [load])
 
   const run = useCallback(
     async (targetId: string, call: () => Promise<string>) => {
@@ -124,8 +142,12 @@ export function IncidentsShell({ api: apiOverride, children }: { api?: Superviso
     queue,
     detail,
     loadError,
+    detailFailure,
     activeId,
     select,
+    api,
+    refresh: load,
+    connection: { lost, lastOkAt },
     actions: {
       busyId,
       outcomes,
@@ -146,19 +168,13 @@ export function IncidentsShell({ api: apiOverride, children }: { api?: Superviso
         return `Confirmed by ember-api: ${r.incident.status} · audit ${r.auditId}`
       }),
     },
-  }), [queue, detail, loadError, activeId, select, busyId, outcomes, run, api])
+  }), [queue, detail, loadError, detailFailure, activeId, select, busyId, outcomes, run, api, load, lost, lastOkAt])
 
   return (
     <IncidentsContext.Provider value={value}>
       {children ?? <Outlet />}
     </IncidentsContext.Provider>
   )
-}
-
-function useIncidents(): IncidentsState {
-  const value = useContext(IncidentsContext)
-  if (!value) throw new Error('IncidentsPage must be used within IncidentsShell')
-  return value
 }
 
 /** Temporary incidents content: the current queue, map, and incident, inside the console chrome. */
