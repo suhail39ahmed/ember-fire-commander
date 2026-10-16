@@ -4,12 +4,74 @@
  * is exercised against the real outcomes, including 409 while dispatch is held.
  */
 import { ApiError } from '../../pwa/api/types'
-import type { IncidentDetail, Task } from '../contracts'
+import type { IncidentDetail, LiveSeat, LiveSeatVolunteer, Task } from '../contracts'
 import { lowerChoices } from '../detail/severityModel'
 import { fixture, type FixtureName } from '../fixtures'
 import { regionFixtures } from '../map/fixtures'
 import { volunteerName } from '../view'
-import type { AuditEntry, AuditPage, SupervisorApi } from './types'
+import type { AuditEntry, AuditPage, LiveSeatDecision, SupervisorApi } from './types'
+
+const SIGNAL_OK = new Set(['3g', '4g', 'wifi'])
+
+function emptySeat(incidentId: string): LiveSeat {
+  return {
+    incidentId,
+    status: 'free',
+    holderId: null,
+    holderName: null,
+    lastDrop: null,
+    volunteers: {},
+  }
+}
+
+function refreshFlags(seat: LiveSeat): LiveSeat {
+  const volunteers: Record<string, LiveSeatVolunteer> = {}
+  for (const [id, entry] of Object.entries(seat.volunteers)) {
+    volunteers[id] = {
+      ...entry,
+      photoCadence: entry.media === 'photo_60s' ? 'every_60s' : null,
+      canRetry: entry.media === 'photo_60s' && SIGNAL_OK.has(entry.signal) && seat.status === 'free',
+      canMakeLive: entry.media !== 'live' && SIGNAL_OK.has(entry.signal) && seat.status === 'free' && id !== seat.holderId,
+    }
+  }
+  return { ...seat, volunteers }
+}
+
+function assignLive(
+  details: IncidentDetail[],
+  incidentId: string,
+  volunteerId: string,
+  action: 'live.make' | 'live.retry',
+  append: (action: string, targetId: string) => string,
+): LiveSeatDecision {
+  const d = details.find((x) => x.incident.id === incidentId)
+  if (!d) throw notFound()
+  const seat = refreshFlags(d.liveSeat ?? emptySeat(incidentId))
+  const entry = seat.volunteers[volunteerId]
+  if (!entry) throw conflictError('No signal recorded for this volunteer yet')
+  if (!SIGNAL_OK.has(entry.signal)) {
+    throw conflictError('Signal is below 3G. Retry when the volunteer has 3G or better.')
+  }
+  if (seat.holderId && seat.holderId !== volunteerId) throw conflictError('The live seat is already held')
+  if (action === 'live.retry' && entry.media !== 'photo_60s') {
+    throw conflictError('Retry is only for a volunteer who dropped to photo cadence')
+  }
+  const volunteers = { ...seat.volunteers }
+  if (seat.holderId && seat.holderId !== volunteerId) {
+    const prev = volunteers[seat.holderId]
+    if (prev) volunteers[seat.holderId] = { ...prev, media: 'photo_60s' }
+  }
+  volunteers[volunteerId] = { ...entry, media: 'live' }
+  const next = refreshFlags({
+    ...seat,
+    status: 'held',
+    holderId: volunteerId,
+    holderName: volunteerName(volunteerId),
+    volunteers,
+  })
+  d.liveSeat = next
+  return { liveSeat: structuredClone(next), auditId: append(action, incidentId) }
+}
 
 /** `region` loads three incidents at distinct positions for the map. */
 export type MockScenario = FixtureName | 'region' | 'empty'
@@ -285,6 +347,14 @@ export function createMockSupervisorApi(
       if (d.incident.status === 'extinguished') throw conflictError('The incident is already extinguished')
       d.incident.status = 'extinguished'
       return { incident: structuredClone(d.incident), auditId: append('incident.extinguish', id) }
+    },
+    async makeLive(incidentId, volunteerId) {
+      await wait()
+      return assignLive(details, incidentId, volunteerId, 'live.make', append)
+    },
+    async retryLive(incidentId, volunteerId) {
+      await wait()
+      return assignLive(details, incidentId, volunteerId, 'live.retry', append)
     },
     mock: {
       load,

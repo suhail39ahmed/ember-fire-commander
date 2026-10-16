@@ -107,7 +107,7 @@ Timestamps are ISO-8601 UTC strings. Ids are server-generated strings.
 
 Collections used by this contract: `observations`, `incidents`, `conflicts`, `tasks`, `audit`. The digest (§5.6) is not a collection. `ember-api` and `voice-gateway` each build it from `incidents` and `tasks` when asked, and nothing stores it.
 
-Services also keep collections that no REST route returns. They are listed in §5.7 with the field types and the service that writes them: `photo_triage`, `incident_summaries`, `sites`, `sites_meta`, `notificationAttempts`, `photoUploads`, `intakePending`, `volunteers`, `counters`, `leads`, `weather`, `psi`, and `ingestRuns`.
+Services also keep collections that no REST route returns (or that only return a safe subset). They are listed in §5.7 with the field types and the service that writes them: `liveSeats`, `photo_triage`, `incident_summaries`, `sites`, `sites_meta`, `notificationAttempts`, `photoUploads`, `intakePending`, `volunteers`, `counters`, `leads`, `weather`, `psi`, and `ingestRuns`.
 
 ### 5.1 Observation
 
@@ -288,6 +288,9 @@ Append-only. Clients do not write audit records. Every supervisor action and eve
 | `incident.severity.lower` | A supervisor lowered severity |
 | `incident.severity.raise` | Code raised severity on an existing incident. A new incident's first severity writes none |
 | `site.reinspect` | Code found new activity near an extinguished site (§5.7). `actorId` is `code` and `targetId` is the incident id |
+| `live.make` | A supervisor assigned the live-camera seat to a volunteer. `targetId` is the incident id |
+| `live.retry` | A supervisor retried live for a volunteer who had dropped to photo cadence. `targetId` is the incident id |
+| `live.drop` | Code freed the live seat after a weak signal or a disconnect. `actorId` is `code`. `targetId` is the incident id |
 
 ### 5.6 Digest
 
@@ -305,7 +308,20 @@ The digest is built on request. A volunteer receives every incident, in any stat
 
 ### 5.7 Service-written collections
 
-These are written and read by the backend services only. No REST route in §6 returns them, and no client reads Firestore. All timestamps are ISO-8601 UTC strings. Advisory records never change an incident, an observation, or a severity.
+These are written and read by the backend services only, except the live-seat fields that a supervisor's `GET /incidents/{id}` returns (§6.3). No client reads Firestore. All timestamps are ISO-8601 UTC strings. Advisory records never change an incident, an observation, or a severity.
+
+#### `liveSeats`
+
+One document per incident, with the incident id as the document id. Supervisors assign the seat through ember-api (`live.make`, `live.retry`). `voice-gateway` updates `signal` from `location.signal` and frees the seat (`live.drop`) when the holder falls below 3G or disconnects. Photo cadence is a media state (`photo_60s`); the browser does not schedule uploads.
+
+| Field | Type | Notes |
+|---|---|---|
+| `incidentId` | string | |
+| `status` | `free` \| `held` | |
+| `holderId` | string or null | The volunteer on the live seat |
+| `updatedAt` | string or null | |
+| `lastDrop` | object or null | `volunteerId`, `at`, `reason` (`signal_below_3g` \| `connection_lost`), `signal` |
+| `volunteers` | map | Per volunteer id: `signal` (`2g` \| `3g` \| `4g` \| `wifi` \| `unknown`), `media` (`live` \| `photo_60s` \| `none`), `updatedAt` |
 
 #### `photo_triage`
 
@@ -612,6 +628,8 @@ Who can read what:
 
 A supervisor's `GET /incidents/{id}` also carries `volunteerPhones`, an object of `volunteerId` to phone number, while a withdraw is active. It has an entry only for a volunteer on that withdraw whose `volunteers/{uid}.phone` is a non-blank string, and is `{}` when there is none. No service writes `phone` yet. A volunteer's read never has it.
 
+A supervisor's `GET /incidents/{id}` also carries `liveSeat` from `liveSeats/{incidentId}` (§5.7): `status` (`free` \| `held`), `holderId`, `holderName`, `lastDrop` (`volunteerId`, `volunteerName`, `at`, `reason`, `signal`), and `volunteers` keyed by volunteer id with `signal`, `media` (`live` \| `photo_60s` \| `none`), `photoCadence` (`every_60s` or `null`), `canRetry`, and `canMakeLive`. When no seat document exists the body still has `liveSeat` with `status: free`, empty `volunteers`, and `lastDrop: null`. A volunteer's read never has the key. `signal` is `2g`, `3g`, `4g`, `wifi`, or `unknown`. `canRetry` / `canMakeLive` are true only when the seat is free and that volunteer's signal is `3g`, `4g`, or `wifi` (and for retry, `media` is `photo_60s`).
+
 `GET /incidents` returns the full incident record of §5.2 without `observationIds` and `evidenceFactors`, sorted by `id`.
 
 ### 6.4 `GET /digest`
@@ -643,6 +661,8 @@ Incident actions return `incident` instead of `task`.
 | `POST /incidents/{id}/severity` | `{ "severity": "smoke" }` | Stores the new severity only when it is strictly lower on the scale in §1, otherwise `409`. `severity` must be `none`, `smoke`, `small_flame`, or `large_flame`; `unknown` and anything else is `400`. A stored `unknown` severity is never lowered (`409`) |
 | `POST /incidents/{id}/withdraw` | see below | Issues a withdraw instruction. This is not an approval |
 | `POST /incidents/{id}/withdraw/safe` | `{ "volunteerId": "uid_sari" }` | Adds the volunteer to `incident.withdraw.safeVolunteerIds` and appends a `withdraw.safe` audit. It never changes `active`. `400` when `volunteerId` is missing or not in `withdraw.volunteerIds`. `409` when there is no active withdraw or the volunteer is already marked. Returns the incident and `auditId` |
+| `POST /incidents/{id}/live/make-live` | `{ "volunteerId": "uid_rizal" }` | Holds the live seat for that volunteer when their stored signal is `3g`, `4g`, or `wifi`. Sets `media: live`. Writes `live.make`. `409` when the seat is held by someone else or the signal is below 3G. Returns `{ liveSeat, auditId }`. Does not change incident status |
+| `POST /incidents/{id}/live/retry` | `{ "volunteerId": "uid_sari" }` | Same seat write as make-live, only when that volunteer's `media` is `photo_60s`. Writes `live.retry`. `409` when signal is below 3G (seat stays free) or retry does not apply |
 
 Withdraw request:
 
@@ -843,7 +863,7 @@ Client to gateway:
 
 Message details:
 
-- `location` needs `lat` (−90 to 90), `lng` (−180 to 180), and a non-empty `capturedAt` string. `accuracyM` is optional and kept only when it is a number from 0 to 1,000,000, otherwise it is `null`. The latest valid `location` is kept, and it may arrive before or after `session.start`. The gateway does not check that `capturedAt` is an ISO timestamp.
+- `location` needs `lat` (−90 to 90), `lng` (−180 to 180), and a non-empty `capturedAt` string. `accuracyM` is optional and kept only when it is a number from 0 to 1,000,000, otherwise it is `null`. Optional `signal` is `2g`, `3g`, `4g`, `wifi`, or `unknown` (case-insensitive); when present, the gateway writes it on `liveSeats` for the caller's digest incidents and frees the seat if that volunteer is the holder and signal is below 3G (§5.7). The latest valid `location` is kept, and it may arrive before or after `session.start`. The gateway does not check that `capturedAt` is an ISO timestamp.
 - `audio` is base64 of raw 16-bit PCM at 16 kHz. The gateway forwards it as `audio/pcm;rate=16000`. When no `audio` has arrived for 1 second, the gateway tells Gemini the turn has ended. It does this once per session.
 - `frame` is base64 of a JPEG, forwarded as `image/jpeg`. `capturedAt` is optional. A frame less than 1 second after the previous kept frame is dropped. The gateway compares `capturedAt`, or its own clock when `capturedAt` is missing or unreadable.
 - `session.stop` closes the session and the gateway answers `session.closed` with `idle_timeout`.
@@ -1155,6 +1175,7 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-15 · #85: new incidents store `area`, and the console groups the queue by it (§5.2).
 - 2026-10-15 · #86 (`Naushad/N06`): `.env.example` moved from `apps/web/` to the repository root, with more variables, and `.gitignore` now ignores `/.env.local` and `/.local` (§11.5).
 - 2026-10-15 · #87: `voice-gateway` relays Gemini Live and writes `live` observations (§7), adds the Live-minute caps, and sets `EMBER_AGENTS_URL` for the gateway in Terraform.
+- 2026-10-16 · #102: `liveSeats/{incidentId}` holds the live-camera seat, last drop, and per-volunteer signal/media. A supervisor's `GET /incidents/{id}` returns `liveSeat`. `POST .../live/make-live` and `.../live/retry` assign the seat when signal is 3G+. The gateway updates signal from `location.signal` and writes `live.drop` (§5.5, §5.7, §6.3, §6.5, §7).
 - 2026-10-16 · #108: `GET /dashboard` returns `agency`, `serverTime`, and `approvalsCount` for the supervisor console chrome (§5.7, §6.9).
 - 2026-10-16 · #95: a supervisor's `GET /incidents/{id}` adds `volunteerName` on each observation that has one and an `evidenceFactors` list (§5.2, §6.3). Both are optional additions; a volunteer's read is unchanged.
 - 2026-10-16 · #99: `GET /audit` returns append-only rows for supervisors with `actorName`, `target`, `detail`, `incidentId`, and cursor paging (§5.5, §6).

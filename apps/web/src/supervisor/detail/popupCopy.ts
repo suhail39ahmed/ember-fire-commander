@@ -91,7 +91,7 @@ export const popupCopy = {
 
 /** What each missing region needs from the backend, for the one line under it. */
 export const popupNeeds = {
-  video: { id: 'live media dari voice-gateway ke konsol dan kursi live (#102)', en: 'live media from voice-gateway to the console, and the live seat (#102)' },
+  video: { id: 'streaming video dari voice-gateway ke konsol (piksel video)', en: 'streaming video pixels from voice-gateway to the console' },
   suggestions: { id: 'saran dengan alasan dari agents', en: 'suggestions with a rationale from agents' },
   ask: { id: 'utas Tanya EMBER, draf, dan kirim terkonfirmasi', en: 'an Ask EMBER thread, drafts, and a confirmed send' },
   send: { id: 'rute kirim instruksi ke satu relawan, dengan audit', en: 'a route that sends an instruction to one volunteer, with an audit entry' },

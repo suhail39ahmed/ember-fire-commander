@@ -32,6 +32,7 @@ import { VolunteerPopup } from './VolunteerPopup'
 import { HeardToast } from './HeardToast'
 import { heardEvents, needsClock, type HeardEvent } from './deliveryModel'
 import { sentText } from './withdrawModel'
+import { LiveDropBanner } from './LiveDropBanner'
 import './detail.css'
 
 export interface IncidentDetailViewProps {
@@ -63,6 +64,10 @@ export interface IncidentDetailViewProps {
   extinguish(): Promise<IncidentDecision>
   /** POST /incidents/{id}/withdraw/safe, then a fresh read. Resolves with the route's answer. */
   markSafe(volunteerId: string): Promise<IncidentDecision>
+  /** POST /incidents/{id}/live/make-live, then a fresh read (#102). */
+  makeLive?(volunteerId: string): Promise<void>
+  /** POST /incidents/{id}/live/retry, then a fresh read (#102). */
+  retryLive?(volunteerId: string): Promise<void>
   mapsKey?: string
 }
 
@@ -137,9 +142,9 @@ function Stat({ label, value, note, tone }: { label: string; value: string; note
   )
 }
 
-function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask'> }) {
+function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask' | 'makeLive' | 'retryLive'> }) {
   const { incident, conflict } = detail
-  const { actorName, sendWithdraw, lowerSeverity, markSafe, resendTask, serverNow } = view
+  const { actorName, sendWithdraw, lowerSeverity, markSafe, resendTask, serverNow, makeLive, retryLive } = view
   const [dialog, setDialog] = useState<'withdraw' | 'severity' | 'extinguish' | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [popupId, setPopupId] = useState<string | null>(null)
@@ -205,6 +210,8 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
 
       {wd && <WithdrawPanel lang={lang} state={wd} now={serverNow} offline={offline} markSafe={markSafe} nameOf={(id) => nameOf(detail, id, lang)} />}
 
+      <LiveDropBanner lang={lang} seat={detail.liveSeat} />
+
       {conflict && (
         <section aria-label={t(lang, detailCopy.conflictTitle)}>
           <div className={conflict.status === 'open' ? 'dis-banner' : 'dis-banner resolved'} role={conflict.status === 'open' ? 'alert' : undefined}>
@@ -261,7 +268,21 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           <p className="inc-muted">{t(lang, detailCopy.fieldEmpty)}</p>
         ) : (
           <div className="inc-field">
-            {volunteers.map((row) => <VolunteerCard key={row.id} lang={lang} row={row} safe={wd ? wd.people.find((x) => x.id === row.id)?.safe ?? null : null} waiting={waiting.get(row.id) ?? null} now={clock} onResend={resendTask} onOpen={() => setPopupId(row.id)} />)}
+            {volunteers.map((row) => (
+              <VolunteerCard
+                key={row.id}
+                lang={lang}
+                row={row}
+                safe={wd ? wd.people.find((x) => x.id === row.id)?.safe ?? null : null}
+                waiting={waiting.get(row.id) ?? null}
+                now={clock}
+                onResend={resendTask}
+                onOpen={() => setPopupId(row.id)}
+                live={detail.liveSeat?.volunteers[row.id] ?? null}
+                onMakeLive={makeLive}
+                onRetryLive={retryLive}
+              />
+            ))}
           </div>
         )}
       </section>

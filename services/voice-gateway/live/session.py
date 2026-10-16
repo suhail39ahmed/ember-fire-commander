@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from live.caps import MemoryUsage, MinuteCaps
 from live.digest import current_task
 from live.notify import notify_observation
+from live.seat import parse_signal
 from live.store import (
     FirestoreStore,
     MemoryStore,
@@ -79,6 +80,7 @@ class Relay:
         self.last_frame_clock = None
         self.turn_ended = False
         self.closed_reason = None
+        self.last_signal = None
 
     def run(self):
         while self.closed_reason is None:
@@ -140,6 +142,12 @@ class Relay:
             found = phone_location(message)
             if found is not None:
                 self.location = found
+            signal = parse_signal(message.get("signal"))
+            if signal is not None:
+                self.last_signal = signal
+                report = getattr(self.store, "report_signal", None)
+                if report is not None:
+                    report(self.user, signal, self.timestamp())
             return
         if kind == "session.start":
             self._start()
@@ -248,6 +256,12 @@ class Relay:
     def _finish(self):
         if self.started_at is not None:
             self.caps.add(self.user["id"], self.clock() - self.started_at)
+        disconnect = getattr(self.store, "holder_disconnect", None)
+        if disconnect is not None and self.live:
+            try:
+                disconnect(self.user, self.timestamp(), self.last_signal)
+            except Exception:
+                logger.exception("live seat disconnect update failed")
         if self.client is not None and self.live and self.closed_reason is None:
             try:
                 self.client.close()

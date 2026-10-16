@@ -7,7 +7,7 @@ import type { AuthHeadersProvider } from '../../pwa/api/authHeaders'
 import { API_BASE_URL } from '../../pwa/api/config'
 import { ApiError } from '../../pwa/api/types'
 import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, TaskDecision, WithdrawRequest } from '../contracts'
-import type { AuditPage, AuditQuery, SupervisorApi } from './types'
+import type { AuditPage, AuditQuery, LiveSeatDecision, SupervisorApi } from './types'
 
 export const SUPERVISOR_ENDPOINTS = {
   incidents: '/incidents',
@@ -18,6 +18,8 @@ export const SUPERVISOR_ENDPOINTS = {
   withdrawSafe: (id: string) => `/incidents/${encodeURIComponent(id)}/withdraw/safe`,
   severity: (id: string) => `/incidents/${encodeURIComponent(id)}/severity`,
   extinguish: (id: string) => `/incidents/${encodeURIComponent(id)}/extinguish`,
+  makeLive: (id: string) => `/incidents/${encodeURIComponent(id)}/live/make-live`,
+  retryLive: (id: string) => `/incidents/${encodeURIComponent(id)}/live/retry`,
   approve: (id: string) => `/tasks/${encodeURIComponent(id)}/approve`,
   reject: (id: string) => `/tasks/${encodeURIComponent(id)}/reject`,
   resend: (id: string) => `/tasks/${encodeURIComponent(id)}/resend`,
@@ -81,5 +83,7 @@ export function createHttpSupervisorApi(
     markWithdrawSafe: (id, volunteerId) => post<IncidentDecision>(SUPERVISOR_ENDPOINTS.withdrawSafe(id), { volunteerId }),
     lowerSeverity: (id, severity: LowerableSeverity) => post<IncidentDecision>(SUPERVISOR_ENDPOINTS.severity(id), { severity }),
     extinguishIncident: (id) => post<IncidentDecision>(SUPERVISOR_ENDPOINTS.extinguish(id)),
+    makeLive: (id, volunteerId) => post<LiveSeatDecision>(SUPERVISOR_ENDPOINTS.makeLive(id), { volunteerId }),
+    retryLive: (id, volunteerId) => post<LiveSeatDecision>(SUPERVISOR_ENDPOINTS.retryLive(id), { volunteerId }),
   }
 }

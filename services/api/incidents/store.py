@@ -13,6 +13,7 @@ TASKS = "tasks"
 OBSERVATIONS = "observations"
 AUDIT = "audit"
 VOLUNTEERS = "volunteers"
+LIVE_SEATS = "liveSeats"
 
 _client = None
 

@@ -1,4 +1,9 @@
-import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, TaskDecision, WithdrawRequest } from '../contracts'
+import type { Incident, IncidentDecision, IncidentDetail, LiveSeat, LowerableSeverity, TaskDecision, WithdrawRequest } from '../contracts'
+
+export interface LiveSeatDecision {
+  liveSeat: LiveSeat
+  auditId: string
+}
 
 /** One row from GET /audit (issue #99). Display fields are built by ember-api. */
 export interface AuditEntry {
@@ -48,4 +53,8 @@ export interface SupervisorApi {
   lowerSeverity(id: string, severity: LowerableSeverity): Promise<IncidentDecision>
   /** Human only, and the console cannot undo it. `409` when the incident is already extinguished. */
   extinguishIncident(id: string): Promise<IncidentDecision>
+  /** Hold the free live seat for a volunteer with 3G or better (#102). */
+  makeLive(incidentId: string, volunteerId: string): Promise<LiveSeatDecision>
+  /** Retry live for a dropped volunteer when signal is 3G or better (#102). */
+  retryLive(incidentId: string, volunteerId: string): Promise<LiveSeatDecision>
 }
