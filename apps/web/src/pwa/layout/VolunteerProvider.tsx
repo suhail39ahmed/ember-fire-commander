@@ -15,6 +15,7 @@ import { useOutbox } from '../outbox/useOutbox'
 import { usePermissions } from '../permissions/usePermissions'
 import { createMockUpload, createXhrUpload } from '../photo/upload'
 import { usePushRegistration } from '../push/usePushRegistration'
+import { useDevicePosition } from '../screens/useDevicePosition'
 import { useDigest } from '../useDigest'
 import { VolunteerContext, type VolunteerValue } from './volunteerContext'
 
@@ -40,7 +41,18 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
 
   useEffect(() => registerServiceWorker(), [])
 
-  const { digest, status: digestStatus, lastSyncAt, refresh } = useDigest(api, recordDigestClock)
+  // Phone GPS for nearby distance on the digest (#134). Waiting/denied means nearby stays empty.
+  const devicePosition = useDevicePosition(true)
+  const getDigestPosition = () =>
+    devicePosition.kind === 'ok' ? { lat: devicePosition.lat, lng: devicePosition.lng } : null
+  const { digest, status: digestStatus, lastSyncAt, refresh } = useDigest(api, recordDigestClock, getDigestPosition)
+  // Re-read once the first fix arrives so nearby is not stuck empty until the next poll.
+  const hadFix = useRef(false)
+  useEffect(() => {
+    if (devicePosition.kind !== 'ok' || hadFix.current) return
+    hadFix.current = true
+    refresh()
+  }, [devicePosition.kind, refresh])
   usePushRegistration(user, perms.notifications, refresh)
 
   const ptt = useMemo(

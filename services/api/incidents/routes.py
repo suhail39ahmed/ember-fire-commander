@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from flask import Blueprint, g, jsonify, request
 
 from identity import AuthError
-from incidents import detail as incident_detail, live_seat, rules, store
+from incidents import detail as incident_detail, live_seat, members, rules, store
 from incidents.errors import ApiError, conflict, error_response, not_found, validation
 from notifications.send import deliver_task
 from photos import paths as photo_paths, signing
@@ -82,6 +82,8 @@ def _volunteer_incident_snapshots(uid):
         linked[snap.id] = snap
     for snap in store.where(store.INCIDENTS, "withdraw.volunteerIds", "array_contains", uid):
         linked[snap.id] = snap
+    # Joined through POST /incidents/{id}/join (#134), with or without a report or task.
+    linked.update(store.get_many(store.INCIDENTS, [i for i in members.member_incident_ids(uid) if i not in linked]))
     return linked
 
 
@@ -94,11 +96,13 @@ def _scoped_incidents():
     return sorted(snaps, key=lambda s: s.id)
 
 
-def _volunteer_on_incident(uid, data, observations, tasks):
-    """True when the caller has a task, a withdraw instruction or an observation on this incident."""
+def _volunteer_on_incident(uid, data, observations, tasks, incident_id=None):
+    """True when the caller has a task, a withdraw instruction, a join, or an observation on this incident."""
     if any(t["volunteerId"] == uid for t in tasks):
         return True
     if uid in ((data.get("withdraw") or {}).get("volunteerIds") or []):
+        return True
+    if incident_id and members.is_member(uid, incident_id):
         return True
     return any((obs.to_dict() or {}).get("volunteerId") == uid for obs in observations.values())
 
@@ -158,7 +162,7 @@ def get_incident(incident_id):
     found = store.get_many(store.OBSERVATIONS, wanted_ids)  # one batched read
 
     if user["role"] != "supervisor":
-        if not _volunteer_on_incident(user["id"], data, found, tasks):
+        if not _volunteer_on_incident(user["id"], data, found, tasks, incident_id):
             raise not_found("incident")
         tasks = [t for t in tasks if t["volunteerId"] == user["id"]]
 
@@ -170,6 +174,11 @@ def get_incident(incident_id):
         "conflict": conflict_body,
         "tasks": tasks,
     }
+    if user["role"] != "supervisor":
+        # Optional join fields for the joined-incident screen (#135). Absent when they only have a report or task.
+        membership = members.read_member(incident_id, user["id"])
+        if membership is not None:
+            body["membership"] = membership
     if user["role"] == "supervisor":
         # Supervisor only: the reporter's name, when one was stored, and the factors behind evidenceScore.
         for record in observations:
@@ -227,14 +236,121 @@ def list_tasks():
 @incidents_bp.route("/digest", methods=["GET"])
 def digest():
     user = g.user
-    incidents = [rules.to_record(s, rules.SUMMARY_FIELDS) for s in _scoped_incidents()]
+    scoped = _scoped_incidents()
+    incidents = [rules.to_record(s, rules.SUMMARY_FIELDS) for s in scoped]
     my_tasks = []
+    nearby = []
     if user["role"] == "volunteer":
         my_tasks = sorted(
             (rules.with_receipt(rules.to_record(s, rules.TASK_FIELDS)) for s in store.where(store.TASKS, "volunteerId", "==", user["id"])),
             key=lambda t: t["id"],
         )
-    return jsonify({"updatedAt": rules.now_iso(), "incidents": incidents, "myTasks": my_tasks}), 200
+        # Nearby fires the volunteer has not joined (#134). Needs the phone's lat/lng; otherwise [].
+        position = members.parse_position(request.args)
+        if position is not None:
+            nearby = members.nearby_for(user["id"], position[0], position[1], {s.id for s in scoped})
+    body = {"updatedAt": rules.now_iso(), "incidents": incidents, "myTasks": my_tasks}
+    if user["role"] == "volunteer":
+        body["nearby"] = nearby
+    return jsonify(body), 200
+
+
+@incidents_bp.route("/incidents/<incident_id>/join", methods=["POST"])
+def join_incident(incident_id):
+    """Join now (#134): add this volunteer to the incident with no approval step."""
+    if g.user["role"] != "volunteer":
+        raise AuthError(403, "forbidden", "Only a volunteer can do this")
+    snapshot = _get(store.INCIDENTS, incident_id)
+    if snapshot is None:
+        raise not_found("incident")
+    data = snapshot.to_dict() or {}
+    if data.get("status") not in rules.LIVE_STATUSES:
+        raise conflict("Only a live incident can be joined")
+
+    uid = g.user["id"]
+    existing = members.read_member(incident_id, uid)
+    if existing is not None:
+        return jsonify({"membership": existing, "auditId": None}), 200
+
+    record = members.join_record(incident_id, uid, g.user.get("displayName"))
+
+    def run(transaction):
+        ref = members.member_ref(incident_id, uid)
+        if ref.get(transaction=transaction).exists:
+            return None
+        transaction.set(ref, record)
+        audit_ref = store.db().collection(store.AUDIT).document()
+        transaction.set(
+            audit_ref,
+            rules.audit_record(audit_ref.id, uid, "incident.join", incident_id, uid, g.user.get("displayName")),
+        )
+        return audit_ref.id
+
+    audit_id = store.run_transaction(run)
+    membership = members.read_member(incident_id, uid) or _public_join(record)
+    return jsonify({"membership": membership, "auditId": audit_id}), 200
+
+
+def _public_join(record):
+    return members._public_member(record)
+
+
+@incidents_bp.route("/incidents/<incident_id>/en-route", methods=["POST"])
+def en_route(incident_id):
+    """I'm on my way (#135): mark this joined volunteer as en route. Persists across reload."""
+    if g.user["role"] != "volunteer":
+        raise AuthError(403, "forbidden", "Only a volunteer can do this")
+    snapshot = _get(store.INCIDENTS, incident_id)
+    if snapshot is None:
+        raise not_found("incident")
+    uid = g.user["id"]
+    if not members.is_member(uid, incident_id) and not _volunteer_linked_without_member(uid, incident_id, snapshot.to_dict() or {}):
+        # Must be on the incident. Prefer a join membership; a task or report also allows en-route.
+        raise not_found("incident")
+
+    def run(transaction):
+        ref = members.member_ref(incident_id, uid)
+        snap = ref.get(transaction=transaction)
+        if snap.exists:
+            data = snap.to_dict() or {}
+            if data.get("enRouteAt"):
+                return members._public_member(data | {"id": snap.id}), None
+            at = rules.now_iso()
+            transaction.update(ref, {"enRouteAt": at})
+            audit_ref = store.db().collection(store.AUDIT).document()
+            transaction.set(
+                audit_ref,
+                rules.audit_record(audit_ref.id, uid, "incident.en_route", incident_id, uid, g.user.get("displayName")),
+            )
+            return members._public_member(data | {"enRouteAt": at}), audit_ref.id
+        # Linked by task/report but no join row yet: create one with enRouteAt set.
+        record = members.join_record(incident_id, uid, g.user.get("displayName"))
+        record["enRouteAt"] = rules.now_iso()
+        transaction.set(ref, record)
+        audit_ref = store.db().collection(store.AUDIT).document()
+        transaction.set(
+            audit_ref,
+            rules.audit_record(audit_ref.id, uid, "incident.en_route", incident_id, uid, g.user.get("displayName")),
+        )
+        return members._public_member(record), audit_ref.id
+
+    membership, audit_id = store.run_transaction(run)
+    return jsonify({"membership": membership, "auditId": audit_id}), 200
+
+
+def _volunteer_linked_without_member(uid, incident_id, data):
+    """True when the volunteer is on the incident via a task, report or withdraw (not only a join)."""
+    if uid in ((data.get("withdraw") or {}).get("volunteerIds") or []):
+        return True
+    if any((s.to_dict() or {}).get("volunteerId") == uid for s in store.where(store.TASKS, "incidentId", "==", incident_id)):
+        return True
+    mine = _my_observation_ids(uid)
+    if mine & set(data.get("observationIds") or []):
+        return True
+    for snap in store.where(store.CONFLICTS, "incidentId", "==", incident_id):
+        if mine & set((snap.to_dict() or {}).get("observationIds") or []):
+            return True
+    return False
 
 
 # Supervisor decisions ------------------------------------------------------

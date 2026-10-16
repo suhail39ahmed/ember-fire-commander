@@ -109,12 +109,30 @@ export interface Conflict {
   dispatchHeld: boolean
 }
 
+/** Join row on `incident_members` (section 5.7 / 6.11). Optional fields are null until stored. */
+export interface IncidentMembership {
+  incidentId: string
+  volunteerId: string
+  joinedAt: string
+  addedBy: string
+  addedByName: string | null
+  teamRole: string | null
+  enRouteAt: string | null
+  destination: string | null
+  approach: string | null
+  meetPoint: string | null
+  meetPerson: string | null
+  meetNote: string | null
+}
+
 /** `GET /incidents/{id}` for a volunteer who is on the incident (section 6.3). */
 export interface IncidentDetail {
   incident: IncidentRecord
   observations: Observation[]
   conflict: Conflict | null
   tasks: Task[]
+  /** Present when this volunteer has an `incident_members` row (#135). */
+  membership?: IncidentMembership | null
 }
 
 /** Incident summary as carried in the digest (section 5.6). */
@@ -176,11 +194,28 @@ export interface WithdrawAnswerRequest {
   accuracyM?: number | null
 }
 
+/** Nearby live incident on a volunteer's digest (section 5.6). */
+export interface NearbyIncident extends IncidentSummary {
+  distanceM: number
+  bearingDeg: number | null
+  crewOnSite: number
+  /** What the supervisor asked for. Null until stored — the phone omits the line. */
+  ask: string | null
+}
+
+/** Optional phone position for `GET /digest?lat=&lng=` so nearby can be computed. */
+export interface DigestPosition {
+  lat: number
+  lng: number
+}
+
 /** GET /digest (section 6.4). */
 export interface Digest {
   updatedAt: string
   incidents: IncidentSummary[]
   myTasks: Task[]
+  /** Volunteer only. Empty without a usable position. Omitted for a supervisor. */
+  nearby?: NearbyIncident[]
 }
 
 /** Error body (section 3). `fields` is present on validation_error only. */

@@ -5,8 +5,9 @@
  * Task and WITHDRAW state is produced here, standing in for backend code.
  * The UI only displays what the API returns.
  */
-import { CHIP_VALUES, type Digest, type IncidentDetail, type Observation, type ObservationRequest } from '../contracts/types'
+import { CHIP_VALUES, type Digest, type IncidentDetail, type IncidentMembership, type NearbyIncident, type Observation, type ObservationRequest } from '../contracts/types'
 import { ApiError, type EmberApi } from './types'
+import { bearingDeg, distanceM } from '../screens/geo'
 
 export interface MockControls {
   /** Simulate the backend safety rule firing (code WITHDRAW). */
@@ -21,7 +22,23 @@ export interface MockControls {
 
 const INCIDENT_ID = 'inc_demo_01'
 const INCIDENT_NAME = 'Ketapang, Kalimantan Barat · Pak Dedi · #1'
+const NEARBY_ID = 'inc_demo_near'
 const WITHDRAW_TEXT = 'MUNDUR sekarang ke titik kumpul di arah datangnya angin. Jangan padamkan sendiri.'
+
+const NEARBY_BASE: NearbyIncident = {
+  id: NEARBY_ID,
+  name: 'TOHOR-3 · Peat field behind SDN 2',
+  area: 'Peat field behind SDN 2',
+  status: 'open',
+  severity: 'small_flame',
+  withdraw: null,
+  lat: -1.84,
+  lng: 110.06,
+  distanceM: 1400,
+  bearingDeg: 45,
+  crewOnSite: 4,
+  ask: null,
+}
 
 function validationError(field: string, hint: string): ApiError {
   return new ApiError('validation_error', `${field} is not valid`, 400, false, { [field]: hint })
@@ -49,6 +66,8 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
   let digest: Digest
   let failure: 'network' | 'validation' | null = null
   const observations: Observation[] = []
+  const memberships = new Map<string, IncidentMembership>()
+  let nearbyAvailable = true
 
   const reset = () => {
     digest = {
@@ -64,18 +83,32 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
           instruction: 'Foto lebih lebar ke arah tanah. Jaga jarak aman. Katakan apakah api terlihat.',
         },
       ],
+      nearby: [],
     }
     failure = null
     observations.length = 0
+    memberships.clear()
+    nearbyAvailable = true
   }
   reset()
 
   const wait = () => new Promise((r) => setTimeout(r, latencyMs))
 
   return {
-    async getDigest() {
+    async getDigest(position) {
       await wait()
-      return structuredClone(digest)
+      const next = structuredClone(digest)
+      if (position && nearbyAvailable && !digest.incidents.some((i) => i.id === NEARBY_ID)) {
+        const distance = distanceM(position, { lat: NEARBY_BASE.lat, lng: NEARBY_BASE.lng })
+        next.nearby = [{
+          ...NEARBY_BASE,
+          distanceM: Math.round(distance),
+          bearingDeg: Math.round(bearingDeg(position, { lat: NEARBY_BASE.lat, lng: NEARBY_BASE.lng })),
+        }]
+      } else {
+        next.nearby = []
+      }
+      return next
     },
     async getIncident(incidentId) {
       await wait()
@@ -86,6 +119,7 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
         observations: structuredClone(observations),
         conflict: null,
         tasks: structuredClone(digest.myTasks.filter((t) => t.incidentId === incidentId)),
+        membership: memberships.get(incidentId) ?? null,
       }
       return detail
     },
@@ -139,6 +173,75 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
       if (!mine) throw new ApiError('not_found', 'observation id is unknown', 404, false)
       if (mine.volunteerId === volunteerId) throw new ApiError('conflict', 'You cannot flag your own report', 409, false)
     },
+    async joinIncident(incidentId) {
+      await wait()
+      const existing = memberships.get(incidentId)
+      if (existing) return structuredClone(existing)
+      if (incidentId !== NEARBY_ID && !digest.incidents.some((i) => i.id === incidentId)) {
+        throw new ApiError('not_found', 'incident id is unknown', 404, false)
+      }
+      const membership: IncidentMembership = {
+        incidentId,
+        volunteerId,
+        joinedAt: new Date().toISOString(),
+        addedBy: volunteerId,
+        addedByName: 'Pak Dedi',
+        teamRole: null,
+        enRouteAt: null,
+        destination: null,
+        approach: null,
+        meetPoint: null,
+        meetPerson: null,
+        meetNote: null,
+      }
+      memberships.set(incidentId, membership)
+      nearbyAvailable = false
+      if (!digest.incidents.some((i) => i.id === incidentId)) {
+        // Only the mock nearby fire is joinable when it is not already in incidents.
+        const source = incidentId === NEARBY_ID ? NEARBY_BASE : null
+        if (!source) throw new ApiError('not_found', 'incident id is unknown', 404, false)
+        digest = {
+          ...digest,
+          updatedAt: new Date().toISOString(),
+          incidents: [...digest.incidents, {
+            id: incidentId,
+            name: source.name,
+            area: source.area,
+            status: 'open',
+            severity: source.severity,
+            withdraw: null,
+            lat: source.lat,
+            lng: source.lng,
+          }],
+          nearby: [],
+        }
+      }
+      return structuredClone(membership)
+    },
+    async markEnRoute(incidentId) {
+      await wait()
+      let membership = memberships.get(incidentId)
+      if (!membership) {
+        if (!digest.incidents.some((i) => i.id === incidentId)) throw new ApiError('not_found', 'incident id is unknown', 404, false)
+        membership = {
+          incidentId,
+          volunteerId,
+          joinedAt: new Date().toISOString(),
+          addedBy: volunteerId,
+          addedByName: 'Pak Dedi',
+          teamRole: null,
+          enRouteAt: null,
+          destination: null,
+          approach: null,
+          meetPoint: null,
+          meetPerson: null,
+          meetNote: null,
+        }
+      }
+      membership.enRouteAt ??= new Date().toISOString()
+      memberships.set(incidentId, membership)
+      return structuredClone(membership)
+    },
     async createUploadUrl(contentType) {
       await wait()
       const id = Math.random().toString(16).slice(2).padEnd(12, '0')
@@ -163,6 +266,7 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
             ...digest.myTasks,
             { id: 'task_demo_withdraw', incidentId: INCIDENT_ID, volunteerId, type: 'withdraw', status: 'approved', instruction: WITHDRAW_TEXT },
           ],
+          nearby: digest.nearby ?? [],
         }
       },
       clearWithdraw() {
@@ -170,6 +274,7 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
           updatedAt: new Date().toISOString(),
           incidents: digest.incidents.map((i) => ({ ...i, withdraw: null })),
           myTasks: digest.myTasks.filter((x) => x.type !== 'withdraw'),
+          nearby: digest.nearby ?? [],
         }
       },
       failNext(kind) {
