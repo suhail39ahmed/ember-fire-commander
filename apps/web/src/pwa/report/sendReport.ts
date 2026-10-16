@@ -1,6 +1,6 @@
 import type { ObservationCreate } from '../contracts/types'
 import { ApiError } from '../api/types'
-import { buildObservation, validateDraft, type DraftError, type ReportDraft } from './buildObservation'
+import { buildObservation, validateDraft, type DraftError, type Position, type ReportDraft } from './buildObservation'
 import { isClockRejection } from '../clock'
 import type { LocationResult } from './location'
 
@@ -20,6 +20,8 @@ export interface SendDeps {
   create: (body: ObservationCreate) => Promise<unknown>
   /** Called when the send moves on to the next step, so the screen can show where it is. */
   onPhase?: (phase: SendPhase) => void
+  /** Called with the position that was used, so the screen can keep its accuracy for the sent list. */
+  onPosition?: (pos: Position) => void
 }
 
 /**
@@ -34,6 +36,7 @@ export async function sendReport(draft: ReportDraft, deps: SendDeps): Promise<Se
   deps.onPhase?.('locating')
   const loc = await deps.locate()
   if (loc.kind !== 'ok') return { kind: 'no-location', reason: loc.kind }
+  deps.onPosition?.(loc.pos)
   deps.onPhase?.('sending')
   try {
     const body = buildObservation(draft, loc.pos)

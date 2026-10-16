@@ -26,6 +26,7 @@ from dashboard import dashboard_bp
 from config_route import config_bp
 from audit_routes import audit_bp
 from sites_routes import sites_bp
+import volunteer_routes
 
 app = Flask(__name__)
 
@@ -48,6 +49,7 @@ app.register_blueprint(dashboard_bp)
 app.register_blueprint(config_bp)
 app.register_blueprint(audit_bp)
 app.register_blueprint(sites_bp)
+app.register_blueprint(volunteer_routes.volunteer_bp)
 
 
 def error_body(code, message):
@@ -71,8 +73,11 @@ def healthz():
 
 @app.route("/me")
 def me():
-    """Return the signed-in user. Role comes only from the ID token."""
-    return jsonify(g.user), 200
+    """Return the signed-in user. Role comes only from the ID token; a volunteer's crew comes from their profile."""
+    body = dict(g.user)
+    if body.get("role") == "volunteer":
+        body["crewName"] = volunteer_routes.crew_name_of(body["id"])
+    return jsonify(body), 200
 
 
 if __name__ == "__main__":

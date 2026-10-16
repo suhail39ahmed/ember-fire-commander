@@ -24,6 +24,13 @@ describe('sendReport', () => {
     expect(create).toHaveBeenCalledWith(expect.objectContaining({ source: 'chip', chip: 'api', lat: pos.lat, lng: pos.lng, capturedAt: draft.capturedAt }))
   })
 
+  it('hands over the position it used, so the sent list can show its accuracy', async () => {
+    const seen: unknown[] = []
+    const { d } = deps({ onPosition: (p) => seen.push(p) })
+    await sendReport(draft, d)
+    expect(seen).toEqual([pos])
+  })
+
   it('stays in the locating step, with no failure, while the permission prompt is open', async () => {
     let answer!: (r: LocationResult) => void
     const { d, phases, create } = deps({ locate: () => new Promise((res) => (answer = res)) })

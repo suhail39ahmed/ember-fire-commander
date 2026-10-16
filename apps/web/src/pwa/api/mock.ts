@@ -5,12 +5,14 @@
  * Task and WITHDRAW state is produced here, standing in for backend code.
  * The UI only displays what the API returns.
  */
-import { CHIP_VALUES, type Digest, type Observation, type ObservationRequest } from '../contracts/types'
+import { CHIP_VALUES, type Digest, type IncidentDetail, type Observation, type ObservationRequest } from '../contracts/types'
 import { ApiError, type EmberApi } from './types'
 
 export interface MockControls {
   /** Simulate the backend safety rule firing (code WITHDRAW). */
   triggerWithdraw(): void
+  /** Simulate the withdraw leaving the digest (nothing in the real API does this yet). */
+  clearWithdraw(): void
   /** Make the next createObservation call fail. */
   failNext(kind: 'network' | 'validation'): void
   reset(): void
@@ -75,6 +77,18 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
       await wait()
       return structuredClone(digest)
     },
+    async getIncident(incidentId) {
+      await wait()
+      const incident = digest.incidents.find((i) => i.id === incidentId)
+      if (!incident) throw new ApiError('not_found', 'incident id is unknown', 404, false)
+      const detail: IncidentDetail = {
+        incident: { ...incident, evidenceScore: null, conflictId: null },
+        observations: structuredClone(observations),
+        conflict: null,
+        tasks: structuredClone(digest.myTasks.filter((t) => t.incidentId === incidentId)),
+      }
+      return detail
+    },
     async createObservation(body) {
       await wait()
       if (failure) {
@@ -103,6 +117,28 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
       if (task.status !== 'approved') throw new ApiError('conflict', 'Only a sent instruction can be heard', 409, false)
       task.heardAt ??= new Date().toISOString()
     },
+    async acceptTask(taskId) {
+      await wait()
+      const task = digest.myTasks.find((t) => t.id === taskId)
+      if (!task) throw new ApiError('not_found', 'task id is unknown', 404, false)
+      task.acceptedAt ??= new Date().toISOString()
+    },
+    async declineTask(taskId, reason, note) {
+      await wait()
+      const task = digest.myTasks.find((t) => t.id === taskId)
+      if (!task) throw new ApiError('not_found', 'task id is unknown', 404, false)
+      if (!task.declinedAt) Object.assign(task, { declinedAt: new Date().toISOString(), declineReason: reason, declineNote: note?.trim() || null })
+    },
+    async answerWithdraw(incidentId) {
+      await wait()
+      if (!digest.incidents.some((i) => i.id === incidentId && i.withdraw?.active)) throw new ApiError('conflict', 'There is no active withdraw on this incident', 409, false)
+    },
+    async flagObservation(observationId) {
+      await wait()
+      const mine = observations.find((o) => o.id === observationId)
+      if (!mine) throw new ApiError('not_found', 'observation id is unknown', 404, false)
+      if (mine.volunteerId === volunteerId) throw new ApiError('conflict', 'You cannot flag your own report', 409, false)
+    },
     async createUploadUrl(contentType) {
       await wait()
       const id = Math.random().toString(16).slice(2).padEnd(12, '0')
@@ -121,12 +157,19 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
           updatedAt: new Date().toISOString(),
           incidents: digest.incidents.map((i) => ({
             ...i,
-            withdraw: { active: true, instruction: WITHDRAW_TEXT, reasons: ['large flame reported'], volunteerIds: [volunteerId] },
+            withdraw: { active: true, instruction: WITHDRAW_TEXT, reasons: ['large flame reported'], volunteerIds: [volunteerId], source: 'code', sentAt: new Date().toISOString(), safeVolunteerIds: [] },
           })),
           myTasks: [
             ...digest.myTasks,
             { id: 'task_demo_withdraw', incidentId: INCIDENT_ID, volunteerId, type: 'withdraw', status: 'approved', instruction: WITHDRAW_TEXT },
           ],
+        }
+      },
+      clearWithdraw() {
+        digest = {
+          updatedAt: new Date().toISOString(),
+          incidents: digest.incidents.map((i) => ({ ...i, withdraw: null })),
+          myTasks: digest.myTasks.filter((x) => x.type !== 'withdraw'),
         }
       },
       failNext(kind) {

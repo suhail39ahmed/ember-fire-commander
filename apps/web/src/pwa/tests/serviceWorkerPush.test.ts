@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it, vi } from 'vitest'
 
+import { pushPath } from '../push/target'
+
 type Listener = (event: Record<string, unknown>) => void
 
 function openPage(url: string) {
@@ -80,11 +82,40 @@ describe('service worker push', () => {
     expect(showNotification).toHaveBeenCalledWith('EMBER', expect.any(Object))
   })
 
-  it('opens the volunteer screen on tap when the app is closed', async () => {
+  it('opens the volunteer screen on tap when the app is closed and the push names no task', async () => {
     const { listeners, openWindow } = loadWorker([])
     const close = await tap(listeners, { type: 'verify' })
     expect(close).toHaveBeenCalled()
     expect(openWindow).toHaveBeenCalledWith('/pwa')
+  })
+
+  it('opens the task a push names when the app is closed (#133)', async () => {
+    const { listeners, openWindow } = loadWorker([])
+    await tap(listeners, { type: 'verify', taskId: 'task_1', incidentId: 'inc_1' })
+    expect(openWindow).toHaveBeenCalledWith('/pwa/task/task_1')
+  })
+
+  it('moves an open app on another page to the task', async () => {
+    const open = openPage('https://app.test/')
+    const { listeners } = loadWorker([open])
+    await tap(listeners, { type: 'instruct', taskId: 'task_9' })
+    expect(open.navigate).toHaveBeenCalledWith('/pwa/task/task_9')
+  })
+
+  it('goes where src/pwa/push/target.ts goes, for every kind of push', async () => {
+    const cases = [
+      { type: 'withdraw', taskId: 't2' },
+      { type: 'verify', taskId: 'task_1' },
+      { type: 'instruct', taskId: 'a b/c' },
+      { type: 'verify' },
+      { type: 'verify', taskId: '   ' },
+      {},
+    ]
+    for (const data of cases) {
+      const { listeners, openWindow } = loadWorker([])
+      await tap(listeners, data)
+      expect(openWindow, JSON.stringify(data)).toHaveBeenCalledWith(pushPath(data))
+    }
   })
 
   it('opens the WITHDRAW screen on tap when the app is closed', async () => {

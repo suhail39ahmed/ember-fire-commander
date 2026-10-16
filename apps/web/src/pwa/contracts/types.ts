@@ -94,6 +94,29 @@ export interface Withdraw {
   safeVolunteerIds?: string[]
 }
 
+/** Incident as `GET /incidents/{id}` returns it (section 5.2). The digest summary plus the evidence score. */
+export interface IncidentRecord extends IncidentSummary {
+  evidenceScore?: number | null
+  conflictId?: string | null
+}
+
+export interface Conflict {
+  id: string
+  incidentId: string
+  observationIds: string[]
+  higherSeverity: Severity
+  status: 'open' | 'resolved' | string
+  dispatchHeld: boolean
+}
+
+/** `GET /incidents/{id}` for a volunteer who is on the incident (section 6.3). */
+export interface IncidentDetail {
+  incident: IncidentRecord
+  observations: Observation[]
+  conflict: Conflict | null
+  tasks: Task[]
+}
+
 /** Incident summary as carried in the digest (section 5.6). */
 export interface IncidentSummary {
   id: string
@@ -123,6 +146,34 @@ export interface Task {
   sendCount?: number | null
   /** When a sent, unheard task can be sent again. Computed by ember-api, null otherwise. */
   resendAt?: string | null
+  /** When the volunteer tapped Doing it. Absent or null until then. */
+  acceptedAt?: string | null
+  /** When the volunteer said they cannot do it, with the reason key and the optional note. Absent or null until then. */
+  declinedAt?: string | null
+  declineReason?: DeclineReason | null
+  declineNote?: string | null
+}
+
+/** Why a volunteer cannot follow an instruction (contract section 6.11). Labels come from the copy bundle. */
+export const DECLINE_REASONS = ['unsafe', 'too_far', 'no_equipment', 'other'] as const
+export type DeclineReason = (typeof DECLINE_REASONS)[number]
+
+/** Why a volunteer says someone else's report is wrong (contract section 6.11). Labels come from the copy bundle. */
+export const FLAG_REASONS = ['no_fire', 'duplicate', 'old_photo', 'wrong_place', 'fake'] as const
+export type FlagReason = (typeof FLAG_REASONS)[number]
+
+/** Body of POST /observations/{id}/flag (section 6.11). `photoPath` comes from POST /photos/upload-url. */
+export interface FlagRequest {
+  reason: FlagReason
+  photoPath?: string | null
+}
+
+/** Body of POST /incidents/{id}/withdraw/answer (section 6.11). */
+export interface WithdrawAnswerRequest {
+  state: 'safe' | 'stuck'
+  lat?: number
+  lng?: number
+  accuracyM?: number | null
 }
 
 /** GET /digest (section 6.4). */

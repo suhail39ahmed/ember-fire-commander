@@ -30,7 +30,7 @@ def test_me_returns_volunteer(client, monkeypatch):
     response = client.get("/me", headers={"Authorization": "Bearer valid"})
     body = response.get_json()
     assert response.status_code == 200
-    assert body == {"id": "uid_sari", "displayName": "Sari", "role": "volunteer"}
+    assert body == {"id": "uid_sari", "displayName": "Sari", "role": "volunteer", "crewName": None}
 
 
 def test_me_returns_supervisor(client, monkeypatch):
@@ -86,3 +86,31 @@ def test_me_ignores_role_in_query_and_body(client, monkeypatch):
     )
     assert response.status_code == 200
     assert response.get_json()["role"] == "volunteer"
+
+
+def test_me_returns_the_crew_from_the_volunteer_profile(client, monkeypatch):
+    import volunteer_routes
+
+    monkeypatch.setattr(identity, "verify_id_token", lambda token: _claims())
+    monkeypatch.setattr(volunteer_routes, "read_profile", lambda uid: {"crewName": "  Regu Tohor "})
+    body = client.get("/me", headers={"Authorization": "Bearer valid"}).get_json()
+    assert body["crewName"] == "Regu Tohor"
+
+
+def test_me_keeps_working_when_the_profile_read_fails(client, monkeypatch):
+    import volunteer_routes
+
+    def broken(uid):
+        raise RuntimeError("firestore down")
+
+    monkeypatch.setattr(identity, "verify_id_token", lambda token: _claims())
+    monkeypatch.setattr(volunteer_routes, "read_profile", broken)
+    response = client.get("/me", headers={"Authorization": "Bearer valid"})
+    assert response.status_code == 200
+    assert response.get_json()["crewName"] is None
+
+
+def test_me_for_a_supervisor_has_no_crew_field(client, monkeypatch):
+    monkeypatch.setattr(identity, "verify_id_token", lambda token: _claims(role="supervisor", uid="uid_bpbd", name="Dewi"))
+    body = client.get("/me", headers={"Authorization": "Bearer valid"}).get_json()
+    assert "crewName" not in body
