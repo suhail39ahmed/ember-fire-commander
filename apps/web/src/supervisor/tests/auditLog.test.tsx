@@ -6,7 +6,6 @@ import { createLanguageStore } from '../../pwa/language'
 import { LanguageProvider } from '../../pwa/LanguageProvider'
 import { createMockSupervisorApi } from '../api/mock'
 import { createHttpSupervisorApi, SUPERVISOR_ENDPOINTS } from '../api/client'
-import { AuditLogPage } from '../AuditLogPage'
 
 vi.mock('../../auth/AuthProvider', () => ({
   useAuth: () => ({
@@ -19,6 +18,13 @@ vi.mock('../../auth/AuthProvider', () => ({
     refreshMe: async () => undefined,
   }),
 }))
+
+// AuditLogPage imports authHeadersFor → auth/firebase. CI has no Firebase key.
+vi.mock('../../pwa/api/authHeaders', () => ({
+  authHeadersFor: () => async () => ({ Authorization: 'Bearer test' }),
+}))
+
+import { AuditLogPage } from '../AuditLogPage'
 
 function renderPage(lang: 'id' | 'en' = 'en') {
   const store = createLanguageStore({ storage: { getItem: () => lang, setItem: () => undefined }, root: { lang: '' } })
