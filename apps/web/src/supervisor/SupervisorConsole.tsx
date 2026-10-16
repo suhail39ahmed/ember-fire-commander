@@ -11,6 +11,7 @@ import type { SupervisorApi } from './api/types'
 import type { Incident, IncidentDetail } from './contracts'
 import { reasonOf } from './detail/outcomeCopy'
 import { LiveBanner } from './LiveBanner'
+import { UpdatedLine } from './UpdatedLine'
 import { ReignitionAlertBanner } from './ReignitionAlert'
 import { SeasonImpact } from './SeasonImpact'
 import { Charts } from './Charts'
@@ -205,6 +206,13 @@ function DashboardLiveBanner() {
   )
 }
 
+function DashboardUpdated() {
+  const { liveFires, updatedAt, language } = useConsole()
+  // With fires on screen the banner already says when it was updated.
+  if (liveFires !== null && liveFires.length > 0) return null
+  return <UpdatedLine updatedAt={updatedAt} lang={language} />
+}
+
 function DashboardReignitionAlert() {
   const { pathname } = useLocation()
   const { reignitionAlert, language, setReignitionAlert } = useConsole()
@@ -256,6 +264,7 @@ export function IncidentsPage() {
     <div className="sup">
       <div className="sup-main">
         <DashboardLiveBanner />
+        <DashboardUpdated />
         <DashboardReignitionAlert />
         <DashboardSeasonImpact />
         <DashboardCharts />

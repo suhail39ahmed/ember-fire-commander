@@ -7,6 +7,7 @@ export const bannerCopy = {
   oneFire: { id: '1 KEBAKARAN PERLU ANDA', en: '1 FIRE NEEDS YOU' },
   manyFires: { id: 'KEBAKARAN PERLU ANDA', en: 'FIRES NEED YOU' },
   updated: { id: 'Diperbarui', en: 'Updated' },
+  checks: { id: 'memeriksa tiap 15 detik', en: 'checks every 15 s' },
   satellite: { id: 'lintasan satelit berikutnya', en: 'next satellite pass' },
   empty: { id: '—', en: '—' },
   onSite: { id: 'di lokasi', en: 'on site' },

@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import { formatTimeZone } from '../../pwa/formatTime'
 import { LiveBanner } from '../LiveBanner'
+import { UpdatedLine } from '../UpdatedLine'
 import type { LiveFire } from '../chromeClient'
 import { fixture } from '../fixtures'
 
@@ -107,5 +108,17 @@ describe('live banner', () => {
     const markup = html({ fires: null, loading: false, retrying: true })
     expect(markup).toContain('Could not load live fires. Retrying.')
     expect(markup).not.toContain('FIRES NEED YOU')
+  })
+})
+
+describe('updated line', () => {
+  it('says when the dashboard was last read and how often it checks, in the viewer’s time zone', () => {
+    const markup = renderToStaticMarkup(<UpdatedLine updatedAt={updatedAt} lang="en" />).replace(/<!-- -->/g, '')
+    expect(markup).toContain(`Updated <time dateTime="${updatedAt}">${formatTimeZone(updatedAt)}</time> · checks every 15 s`)
+    expect(renderToStaticMarkup(<UpdatedLine updatedAt={updatedAt} lang="id" />)).toContain('memeriksa tiap 15 detik')
+  })
+
+  it('shows nothing when there has been no read yet', () => {
+    expect(renderToStaticMarkup(<UpdatedLine updatedAt={null} lang="en" />)).toBe('')
   })
 })

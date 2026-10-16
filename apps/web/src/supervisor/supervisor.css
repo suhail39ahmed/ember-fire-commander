@@ -373,3 +373,4 @@
 .approvals-group { display: flex; flex-direction: column; gap: 8px; }
 .approvals-incident { margin: 0; font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
 .approvals-incident a { color: inherit; }
+.dash-updated { margin: 0; font-size: 13px; color: var(--ink-muted); }
