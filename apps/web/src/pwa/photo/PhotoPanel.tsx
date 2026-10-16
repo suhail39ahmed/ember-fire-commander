@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PhotoContentType, PhotoObservationCreate } from '../contracts/types'
 import { ApiError, type EmberApi } from '../api/types'
+import { clockMessage, isClockRejection, stampNow } from '../clock'
 import { outboxStrings } from '../outbox/strings'
 import type { PendingPhoto } from '../outbox/types'
 import { t, type Lang } from '../i18n'
@@ -44,6 +45,7 @@ interface Props {
 function describe(e: unknown, lang: Lang): { message: string; retryable: boolean } {
   if (e instanceof UploadError) return { message: t(lang, s.failed), retryable: e.retryable }
   if (e instanceof ApiError && !e.retryable) {
+    if (isClockRejection(e.fields)) return { message: clockMessage(lang), retryable: false }
     const detail = Object.values(e.fields).join('; ') || e.message
     return { message: `${t(lang, s.rejected)} ${detail}`, retryable: false }
   }
@@ -114,7 +116,7 @@ export function PhotoPanel({ api, upload, lang, getPosition, submit, queuePhoto 
       setStatus({ kind: 'error', message: t(lang, s.badFile), retryable: false })
       return
     }
-    const capturedAt = new Date().toISOString()
+    const capturedAt = stampNow()
     setStatus({ kind: 'preparing' })
     const pos = await getPosition()
     if (!pos) {

@@ -1,6 +1,7 @@
 import type { ObservationCreate } from '../contracts/types'
 import { ApiError } from '../api/types'
 import { buildObservation, validateDraft, type DraftError, type ReportDraft } from './buildObservation'
+import { isClockRejection } from '../clock'
 import type { LocationResult } from './location'
 
 export type SendPhase = 'locating' | 'sending'
@@ -10,7 +11,7 @@ export type SendOutcome =
   | { kind: 'no-location'; reason: 'denied' | 'unavailable' }
   | { kind: 'sent' }
   | { kind: 'queued' }
-  | { kind: 'failed'; retryable: boolean; detail: string }
+  | { kind: 'failed'; retryable: boolean; detail: string; /** The server refused the report's time. */ clock?: boolean }
 
 export interface SendDeps {
   locate: () => Promise<LocationResult>
@@ -41,6 +42,11 @@ export async function sendReport(draft: ReportDraft, deps: SendDeps): Promise<Se
     return { kind: 'sent' }
   } catch (e) {
     const err = e instanceof ApiError ? e : new ApiError('network', String(e), null, true)
-    return { kind: 'failed', retryable: err.retryable, detail: Object.values(err.fields).join('; ') || err.message }
+    return {
+      kind: 'failed',
+      retryable: err.retryable,
+      detail: Object.values(err.fields).join('; ') || err.message,
+      ...(isClockRejection(err.fields) ? { clock: true } : {}),
+    }
   }
 }

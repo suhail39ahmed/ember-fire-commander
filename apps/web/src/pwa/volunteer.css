@@ -6,6 +6,9 @@
   --safe: #2f7d4f;
   --safe-tint: #e3f2e8;
   --haze: #b7791f;
+  /* Text-safe variants of haze and safe: 4.5:1 or better for small text on white and on the tint. */
+  --haze-strong: #8f5d12;
+  --safe-text: #276b43;
   --data: #2563eb;
   --ink: #1c1917;
   --ink-muted: #6b645c;
@@ -29,7 +32,7 @@
 .vol-sub { color: #bdb5aa; font-size: 12px; }
 .vol-header .lang-toggle { flex: none; }
 .vol-simulated { align-self: flex-start; }
-.badge-simulated { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; background: var(--haze); color: #fff; border-radius: 999px; padding: 3px 8px; white-space: nowrap; }
+.badge-simulated { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; background: var(--haze-strong); color: #fff; border-radius: 999px; padding: 3px 8px; white-space: nowrap; }
 .badge-simulated.on-dark { background: rgba(255,255,255,0.15); margin-top: 16px; align-self: center; }
 .vol-main { display: flex; flex-direction: column; gap: 12px; padding: 12px 20px 32px; }
 .card { background: #fff; border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
@@ -38,7 +41,7 @@
 .muted { color: var(--ink-muted); }
 .small { font-size: 13px; }
 .instruction { background: var(--night); color: var(--paper); border-radius: 12px; padding: 12px 14px; font-weight: 500; }
-.tip { background: var(--safe-tint); color: var(--safe); border-radius: 12px; padding: 10px 14px; font-size: 14px; }
+.tip { background: var(--safe-tint); color: var(--safe-text); border-radius: 12px; padding: 10px 14px; font-size: 14px; }
 .btn { height: 54px; border-radius: 14px; border: none; font-size: 16px; font-weight: 600; padding: 0 20px; cursor: pointer; }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .btn.primary { background: var(--ember); color: #fff; }
@@ -54,8 +57,8 @@
 .error { color: var(--danger); font-size: 13px; font-weight: 500; }
 .error-card { border: 1.5px solid var(--danger); }
 .sent { background: var(--safe-tint); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
-.sent strong { color: var(--safe); font-size: 18px; }
-.install { text-align: center; }
+.sent strong { color: var(--safe-text); font-size: 18px; }
+.install { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
 .dev { border: 1.5px dashed var(--line); flex-direction: row; flex-wrap: wrap; }
 .dev .section-label { width: 100%; }
 .withdraw { position: fixed; inset: 0; z-index: 10; background: var(--withdraw); color: #fff; display: flex; flex-direction: column; justify-content: center; gap: 16px; padding: 32px 24px; text-align: left; }
@@ -64,3 +67,13 @@
 .withdraw-instruction { font-size: 20px; font-weight: 500; color: #ffe4e4; }
 .withdraw-why { font-size: 15px; }
 .task-actions { display: flex; gap: 8px; } .task-actions .btn { flex: 1; }
+
+/* Keyboard and screen-reader focus (#159): one visible ring on every control, white where the surface is dark or red. */
+.vol :focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+.vol-header :focus-visible, .withdraw :focus-visible { outline-color: #fff; }
+
+/* Reduced motion (#159): nothing in the volunteer app animates or eases when the phone asks for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .vol *, .vol *::before, .vol *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+.vol-live:empty { display: none; }

@@ -1,47 +1,48 @@
-import { useEffect, useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { strings, t, type Lang } from '../i18n'
+import { dismissInstall, getInstallPromptStore, isDismissed, isIosDevice } from './installPrompt'
 
-interface BeforeInstallPromptEvent extends Event {
-  prompt(): Promise<void>
-}
+const idle = { offer: null, installed: false } as const
+const noop = () => () => undefined
 
-function isStandalone(): boolean {
-  return (
-    window.matchMedia?.('(display-mode: standalone)').matches ||
-    (navigator as Navigator & { standalone?: boolean }).standalone === true
-  )
-}
-
-const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent)
-
-/** Install prompt (Android/desktop Chrome) or iPhone instructions; hidden once installed. */
+/**
+ * Install prompt (Android/desktop Chrome) or iPhone/iPad instructions. Hidden once installed, and for 7 days after
+ * "Not now". The browser's offer is captured at start-up (see installPrompt.ts), so it is still here when this mounts.
+ */
 export function InstallBanner({ lang }: { lang: Lang }) {
-  const [evt, setEvt] = useState<BeforeInstallPromptEvent | null>(null)
-  const [installed, setInstalled] = useState(isStandalone())
+  const store = getInstallPromptStore()
+  const state = useSyncExternalStore(store?.subscribe ?? noop, store?.getSnapshot ?? (() => idle), () => idle)
+  const [dismissed, setDismissed] = useState(() => isDismissed())
 
-  useEffect(() => {
-    const onPrompt = (e: Event) => {
-      e.preventDefault()
-      setEvt(e as BeforeInstallPromptEvent)
-    }
-    const onInstalled = () => setInstalled(true)
-    window.addEventListener('beforeinstallprompt', onPrompt)
-    window.addEventListener('appinstalled', onInstalled)
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onPrompt)
-      window.removeEventListener('appinstalled', onInstalled)
-    }
-  }, [])
-
-  if (installed) return null
-  if (evt)
+  if (state.installed || dismissed) return null
+  const notNow = (
+    <button
+      type="button"
+      className="btn small"
+      onClick={() => {
+        dismissInstall()
+        setDismissed(true)
+      }}
+    >
+      {t(lang, strings.installLater)}
+    </button>
+  )
+  if (state.offer)
     return (
       <div className="install">
-        <button type="button" className="btn secondary" onClick={() => void evt.prompt().then(() => setEvt(null))}>
+        <button type="button" className="btn secondary" onClick={() => void store?.install()}>
           {t(lang, strings.install)}
         </button>
+        {notNow}
       </div>
     )
-  if (isIos()) return <p className="install muted">{t(lang, strings.installIos)}</p>
+  if (isIosDevice(navigator)) {
+    return (
+      <div className="install">
+        <p className="muted">{t(lang, strings.installIos)}</p>
+        {notNow}
+      </div>
+    )
+  }
   return null
 }

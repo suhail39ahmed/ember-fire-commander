@@ -24,6 +24,10 @@ const strings = {
   team: { id: 'Regu A · Desa (fiktif)', en: 'Crew A · Village (fictional)' },
   loading: { id: 'Memuat tugas…', en: 'Loading your tasks…' },
   loadError: { id: 'Tidak bisa terhubung ke EMBER.', en: 'Could not reach EMBER.' },
+  loadRefused: {
+    id: 'EMBER menolak akses ini. Coba lagi; jika tetap gagal, masuk ulang atau hubungi supervisor.',
+    en: 'EMBER refused this request. Try again; if it keeps failing, sign in again or contact your supervisor.',
+  },
   retry: { id: 'Coba lagi', en: 'Try again' },
   noTask: { id: 'Belum ada tugas', en: 'No tasks right now' },
   noTaskHint: {
@@ -76,6 +80,7 @@ const strings = {
     en: 'Push is unavailable. EMBER still checks for tasks while the app is open.',
   },
   install: { id: 'Pasang EMBER', en: 'Install EMBER' },
+  installLater: { id: 'Nanti saja', en: 'Not now' },
   installIos: {
     id: 'Di iPhone: Bagikan → Tambahkan ke Layar Utama, lalu buka dari sana.',
     en: 'On iPhone: Share → Add to Home Screen, then open it from there.',
@@ -95,6 +100,10 @@ const strings = {
   },
   errTooLong: { id: 'Catatan terlalu panjang.', en: 'Note is too long.' },
   errNetwork: { id: 'Gagal mengirim. Periksa sinyal lalu coba lagi.', en: 'Could not send. Check signal and try again.' },
+  errClock: {
+    id: 'Jam ponsel Anda tampaknya tidak tepat. Perbaiki tanggal dan jam, lalu coba lagi.',
+    en: "Your phone's clock looks wrong. Fix the date and time, then try again.",
+  },
   errApi: { id: 'Laporan ditolak oleh server:', en: 'The server rejected the report:' },
   locating: {
     id: 'Mengambil lokasi… jawab permintaan izin di browser jika muncul.',
