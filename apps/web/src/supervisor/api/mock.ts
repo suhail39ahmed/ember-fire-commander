@@ -5,6 +5,7 @@
  */
 import { ApiError } from '../../pwa/api/types'
 import type { IncidentDetail, Task } from '../contracts'
+import { lowerChoices } from '../detail/severityModel'
 import { fixture, type FixtureName } from '../fixtures'
 import { regionFixtures } from '../map/fixtures'
 import type { SupervisorApi } from './types'
@@ -61,7 +62,8 @@ export function createMockSupervisorApi(
   return {
     async listIncidents() {
       await wait()
-      return details.map((d) => structuredClone(d.incident))
+      // Like GET /incidents for a supervisor: an extinguished incident leaves the live list.
+      return details.filter((d) => d.incident.status !== 'extinguished').map((d) => structuredClone(d.incident))
     },
     async getIncident(id) {
       await wait()
@@ -95,6 +97,56 @@ export function createMockSupervisorApi(
       }
       d.incident.status = 'verified'
       return { incident: structuredClone(d.incident), auditId: append('incident.verify', id) }
+    },
+    async withdrawIncident(id, request) {
+      await wait()
+      const d = details.find((x) => x.incident.id === id)
+      if (!d) throw notFound()
+      const ids = [...new Set(request.volunteerIds)]
+      if (ids.length === 0 || ids.some((v) => typeof v !== 'string' || !v)) {
+        throw new ApiError('validation_error', 'volunteerIds is not valid', 400, false, { volunteerIds: 'required, a non-empty list of volunteer ids' })
+      }
+      const instruction = request.instruction.trim()
+      if (!instruction || instruction.length > 500) {
+        throw new ApiError('validation_error', 'instruction is not valid', 400, false, { instruction: 'required, not blank, at most 500 characters' })
+      }
+      const known = new Set([...d.observations.map((o) => o.volunteerId), ...d.tasks.map((t) => t.volunteerId)])
+      if (ids.some((v) => !known.has(v))) {
+        throw new ApiError('validation_error', 'volunteerIds is not valid', 400, false, { volunteerIds: 'every id must already have an observation or a task on this incident' })
+      }
+      const before = d.incident.withdraw
+      d.incident.withdraw = {
+        active: true,
+        instruction,
+        reasons: request.reasons ?? [],
+        volunteerIds: [...new Set([...(before?.volunteerIds ?? []), ...ids])],
+      }
+      for (const volunteerId of ids) {
+        d.tasks.push({ id: `task_mock_withdraw_${d.tasks.length + 1}`, incidentId: id, volunteerId, type: 'withdraw', status: 'approved', instruction })
+      }
+      return { incident: structuredClone(d.incident), auditId: append('task.withdraw', id) }
+    },
+    async lowerSeverity(id, severity) {
+      await wait()
+      const d = details.find((x) => x.incident.id === id)
+      if (!d) throw notFound()
+      if (!(['none', 'smoke', 'small_flame', 'large_flame'] as string[]).includes(severity)) {
+        throw new ApiError('validation_error', 'severity is not valid', 400, false, { severity: 'use none, smoke, small_flame, or large_flame' })
+      }
+      if (!lowerChoices(d.incident.severity).includes(severity)) {
+        throw conflictError('Severity can only be lowered')
+      }
+      // Only severity changes. An active withdraw stays in effect.
+      d.incident.severity = severity
+      return { incident: structuredClone(d.incident), auditId: append('incident.severity.lower', id) }
+    },
+    async extinguishIncident(id) {
+      await wait()
+      const d = details.find((x) => x.incident.id === id)
+      if (!d) throw notFound()
+      if (d.incident.status === 'extinguished') throw conflictError('The incident is already extinguished')
+      d.incident.status = 'extinguished'
+      return { incident: structuredClone(d.incident), auditId: append('incident.extinguish', id) }
     },
     mock: {
       load,

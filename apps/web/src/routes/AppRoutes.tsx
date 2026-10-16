@@ -12,6 +12,7 @@ const VolunteerApp = lazyPage(() => import('../pwa/VolunteerApp').then((m) => m.
 const ConsoleLayout = lazyPage(() => import('../supervisor/ConsoleLayout').then((m) => m.ConsoleLayout))
 const IncidentsShell = lazyPage(() => import('../supervisor/SupervisorConsole').then((m) => m.IncidentsShell))
 const IncidentsPage = lazyPage(() => import('../supervisor/SupervisorConsole').then((m) => m.IncidentsPage))
+const IncidentDetailPage = lazyPage(() => import('../supervisor/detail/IncidentDetailPage').then((m) => m.IncidentDetailPage))
 
 /** Empty content slot. Later issues fill these routes; this one does not invent the page. */
 function ConsoleSlot() {
@@ -43,7 +44,7 @@ export function AppRoutes() {
       >
         <Route element={<IncidentsShell />}>
           <Route path="/console" element={<IncidentsPage />} />
-          <Route path="/console/incidents/:incidentId" element={<IncidentsPage />} />
+          <Route path="/console/incidents/:incidentId" element={<IncidentDetailPage />} />
         </Route>
         <Route path="/console/approvals" element={<ConsoleSlot />} />
         <Route path="/console/map" element={<ConsoleSlot />} />

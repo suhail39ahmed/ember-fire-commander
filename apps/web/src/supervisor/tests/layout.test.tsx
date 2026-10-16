@@ -85,7 +85,7 @@ describe('console chrome', () => {
     expect(html).toContain('Bu Maya · BPBD Kepulauan Meranti')
     expect(html).toContain('Approvals · 3')
     expect(html).toContain(formatTime(chrome.serverTime))
-    expect(html).toContain('datetime="2026-10-16T07:46:00Z"')
+    expect(html).toMatch(/date[tT]ime="2026-10-16T07:46:00Z"/)
     expect(html).toContain('On duty')
     expect(html).toContain('aria-label="Account"')
     expect(html).toContain('Sign out')

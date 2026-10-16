@@ -1,6 +1,9 @@
 import { useState } from 'react'
 
+import { t as tr, type Lang } from '../pwa/i18n'
 import { incidentLabel } from '../pwa/incidentName'
+import { taskCopy, taskStatusName } from './detail/copy'
+import { volunteerLabel } from './detail/model'
 import type { IncidentDetail, Observation, Task } from './contracts'
 import {
   canVerify, conflictPair, SEVERITY_LABEL, STATUS_LABEL, TASK_LABEL, taskControls, timeOf, volunteerName, withdrawBanner,
@@ -33,7 +36,7 @@ function ObservationCard({ obs }: { obs: Observation }) {
   )
 }
 
-function OutcomeLine({ outcome }: { outcome?: Outcome }) {
+export function OutcomeLine({ outcome }: { outcome?: Outcome }) {
   if (!outcome) return null
   return (
     <p className={outcome.kind === 'ok' ? 'sup-ok' : 'sup-error'} role={outcome.kind === 'ok' ? 'status' : 'alert'}>
@@ -42,17 +45,18 @@ function OutcomeLine({ outcome }: { outcome?: Outcome }) {
   )
 }
 
-function TaskRow({ task, detail, actions }: { task: Task; detail: IncidentDetail; actions: IncidentActions }) {
+/** `offline` blocks every write button: nothing typed while ember-api is unreachable is queued. */
+export function TaskRow({ task, detail, actions, offline = false, lang }: { task: Task; detail: IncidentDetail; actions: IncidentActions; offline?: boolean; lang?: Lang }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(task.instruction ?? '')
   const { canDecide, approveBlocked } = taskControls(task, detail)
-  const busy = actions.busyId === task.id
+  const busy = actions.busyId === task.id || offline
   return (
     <li className={`sup-task type-${task.type}`}>
       <div className="sup-task-head">
-        <span className="sup-chip">{TASK_LABEL[task.type]}</span>
-        <strong>{volunteerName(task.volunteerId)}</strong>
-        <span className={`sup-status status-${task.status}`}>{task.status}</span>
+        <span className="sup-chip">{lang ? tr(lang, taskCopy.type[task.type]) : TASK_LABEL[task.type]}</span>
+        <strong>{lang ? volunteerLabel(task.volunteerId, lang) : volunteerName(task.volunteerId)}</strong>
+        <span className={`sup-status status-${task.status}`}>{lang ? tr(lang, taskStatusName[task.status]) : task.status}</span>
       </div>
       {editing ? (
         <form
@@ -64,12 +68,12 @@ function TaskRow({ task, detail, actions }: { task: Task; detail: IncidentDetail
           }}
         >
           <label>
-            Instruction
+            {lang ? tr(lang, taskCopy.instruction) : 'Instruction'}
             <textarea value={draft} maxLength={500} onChange={(e) => setDraft(e.target.value)} />
           </label>
           <div className="sup-buttons">
-            <button type="submit" className="btn-ink" disabled={busy || !draft.trim()}>Save</button>
-            <button type="button" className="btn-secondary" onClick={() => setEditing(false)}>Cancel</button>
+            <button type="submit" className="btn-ink" disabled={busy || !draft.trim()}>{lang ? tr(lang, taskCopy.save) : 'Save'}</button>
+            <button type="button" className="btn-secondary" onClick={() => setEditing(false)}>{lang ? tr(lang, taskCopy.cancel) : 'Cancel'}</button>
           </div>
         </form>
       ) : (
@@ -78,17 +82,17 @@ function TaskRow({ task, detail, actions }: { task: Task; detail: IncidentDetail
       {canDecide && !editing && (
         <div className="sup-buttons">
           <button type="button" className="btn-safe" disabled={busy || approveBlocked !== null} onClick={() => actions.onApprove(task.id)}>
-            Approve
+            {lang ? tr(lang, taskCopy.approve) : 'Approve'}
           </button>
           <button type="button" className="btn-secondary" disabled={busy} onClick={() => { setDraft(task.instruction ?? ''); setEditing(true) }}>
-            Edit
+            {lang ? tr(lang, taskCopy.edit) : 'Edit'}
           </button>
           <button type="button" className="btn-secondary" disabled={busy} onClick={() => actions.onReject(task.id)}>
-            Reject
+            {lang ? tr(lang, taskCopy.reject) : 'Reject'}
           </button>
         </div>
       )}
-      {approveBlocked && <p className="sup-hold">{approveBlocked}</p>}
+      {approveBlocked && <p className="sup-hold">{lang ? tr(lang, taskCopy.held) : approveBlocked}</p>}
       <OutcomeLine outcome={actions.outcomes[task.id]} />
     </li>
   )
