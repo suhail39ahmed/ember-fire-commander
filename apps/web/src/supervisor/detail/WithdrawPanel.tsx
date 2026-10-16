@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { t, type Lang } from '../../pwa/i18n'
 import type { IncidentDecision } from '../contracts'
 import { submitSafe } from './markSafe'
+import { cardCopy } from './cardCopy'
+import { deliveryFacts, placeLine } from './cardModel'
 import { elapsedSince, telHref, unconfirmed, type WithdrawState } from './withdrawState'
 import { countText, stateCopy } from './withdrawStateCopy'
 import './withdrawPanel.css'
@@ -21,7 +23,7 @@ export interface WithdrawPanelProps {
 
 function Header({ lang, state }: { lang: Lang; state: WithdrawState }) {
   const by = state.source === 'code' ? t(lang, stateCopy.sentByCode) : state.source === 'supervisor' ? t(lang, stateCopy.sentBySupervisor) : null
-  const at = state.sentAt ? formatTime(state.sentAt) : null
+  const at = state.sentAt ? formatTimeZone(state.sentAt) : null
   return (
     <div className="wd-head">
       <p className="wd-eyebrow">
@@ -92,11 +94,19 @@ export function WithdrawPanel({ lang, state, now, offline, markSafe, nameOf }: W
             const name = nameOf(person.id)
             const href = person.phone ? telHref(person.phone) : null
             const asked = asking === person.id
+            const heard = deliveryFacts(lang, person.card)
+            const place = placeLine(person.card)
+            const lastAt = person.card?.lastReportAt
             return (
               <li key={person.id} className="wd-person">
                 <p className="wd-who">
                   {name} · {t(lang, stateCopy.notConfirmed)}{elapsed && ` · ${elapsed}`}
                 </p>
+                {(lastAt || place || heard.length > 0) && (
+                  <p className="wd-facts">
+                    {[lastAt ? `${t(lang, cardCopy.lastReport)} ${formatTimeZone(lastAt)}` : null, place, ...heard].filter(Boolean).join(' · ')}
+                  </p>
+                )}
                 <div className="wd-actions">
                   {href ? (
                     <a className="wd-btn wd-call" href={href}>{t(lang, stateCopy.call)} {name}</a>

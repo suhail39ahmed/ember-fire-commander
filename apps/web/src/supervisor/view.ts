@@ -23,6 +23,7 @@ export const TASK_LABEL: Record<Task['type'], string> = {
   verify: 'Verify',
   investigate: 'Dispatch',
   withdraw: 'Withdraw',
+  instruct: 'Instruction',
 }
 
 /** "uid_dedi" -> "Dedi". Ids are all the contract gives the console. */
@@ -44,10 +45,12 @@ export interface TaskControls {
   approveBlocked: string | null
 }
 
-export function taskControls(task: Task, detail: IncidentDetail): TaskControls {
+export const HELD_NOTE = 'Dispatch is held until the conflict is resolved.'
+
+export function taskControls(task: Task, detail: Pick<IncidentDetail, 'conflict'>): TaskControls {
   const canDecide = task.status === 'proposed' && task.type !== 'withdraw'
   const held = task.type === 'investigate' && detail.conflict?.status === 'open'
-  return { canDecide, approveBlocked: canDecide && held ? 'Dispatch is held until the conflict is resolved.' : null }
+  return { canDecide, approveBlocked: canDecide && held ? HELD_NOTE : null }
 }
 
 /** The two conflicting observations in the order the conflict lists them. */
@@ -75,7 +78,3 @@ export function canVerify(incident: Incident): boolean {
   return incident.status === 'open' || incident.status === 'held'
 }
 
-export function timeOf(iso: string): string {
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? iso : d.toISOString().slice(11, 16) + ' UTC'
-}

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { chipText } from '../../pwa/report/chips'
 import { t, type Lang } from '../../pwa/i18n'
 import { ApiError } from '../../pwa/api/types'
@@ -10,11 +10,15 @@ import { stateCopy } from './withdrawStateCopy'
 import { popupCopy } from './popupCopy'
 import { liveCopy } from './liveCopy'
 import { DeliveryLine } from './DeliveryLine'
+import { deliveryFacts, distanceLine, placeLine, safeStamp } from './cardModel'
+import { helpCopy } from './helpCopy'
+import { HELP_CHIP } from './helpModel'
 import { initialsOf, volunteerLabel, type VolunteerRow } from './model'
 
 function reportLine(lang: Lang, row: VolunteerRow): string {
   const n = row.reportCount
-  const time = row.latest ? formatTime(row.latest.capturedAt) : '--:--'
+  const at = row.card?.lastReportAt ?? row.latest?.capturedAt
+  const time = at ? formatTimeZone(at) : '--:--'
   const word = lang === 'id' ? 'laporan' : n === 1 ? 'report' : 'reports'
   return `${n} ${word} · ${time}`
 }
@@ -52,7 +56,12 @@ export function VolunteerCard({
   onMakeLive?: (volunteerId: string) => Promise<void>
 }) {
   const name = row.name ?? volunteerLabel(row.id, lang)
-  const { latest, task } = row
+  const { latest, task, card } = row
+  const away = distanceLine(lang, card)
+  const place = placeLine(card)
+  const needsHelp = latest?.chip === HELP_CHIP
+  const stamp = safeStamp(lang, card)
+  const facts = deliveryFacts(lang, card)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -70,7 +79,7 @@ export function VolunteerCard({
   }
 
   return (
-    <article className={`${row.withdrawn ? 'inc-vol withdrawn' : 'inc-vol'}${row.withdrawn && safe === false ? ' wd-unconfirmed' : ''}`} aria-label={name}>
+    <article className={`${row.withdrawn ? 'inc-vol withdrawn' : 'inc-vol'}${row.withdrawn && safe === false ? ' wd-unconfirmed' : ''}${needsHelp ? ' help' : ''}`} aria-label={name}>
       <header className="inc-vol-head">
         <span className="inc-avatar" aria-hidden="true">{initialsOf(name)}</span>
         <div className="inc-vol-id">
@@ -84,6 +93,7 @@ export function VolunteerCard({
             </p>
           )}
         </div>
+        {needsHelp && <span className="inc-pill inc-pill-red">{t(lang, helpCopy.badge)}</span>}
         {row.withdrawn && <span className="inc-pill inc-pill-red">{t(lang, detailCopy.withdrawSent)}</span>}
         {live?.media === 'live' && <span className="inc-pill inc-pill-live">{t(lang, liveCopy.liveBadge)}</span>}
         {onOpen && (
@@ -135,9 +145,16 @@ export function VolunteerCard({
               {t(lang, detailCopy.source[latest.source])} · ±{latest.accuracyM ?? '?'} m
             </p>
           </>
+        ) : card?.lastReportAt ? (
+          // A conflict lists only its two sides, so this volunteer's report is known from the card alone.
+          <p className="inc-vol-sev">
+            <span className={`inc-dot sev-${card.lastSeverity ?? 'unknown'}`} aria-hidden="true" />
+            {t(lang, severityName[card.lastSeverity ?? 'unknown'])}
+          </p>
         ) : (
           <p className="inc-muted">{t(lang, detailCopy.noReport)}</p>
         )}
+        {(away || place) && <p className="inc-muted inc-vol-where">{[away, place].filter(Boolean).join(' · ')}</p>}
       </section>
 
       <section className="inc-vol-task" aria-label={t(lang, detailCopy.lastInstruction)}>
@@ -154,6 +171,8 @@ export function VolunteerCard({
       {row.withdrawn && safe !== null && (
         <p className={safe ? 'inc-vol-wd safe' : 'inc-vol-wd'}>
           {t(lang, stateCopy.withdrawLabel)} · {safe ? t(lang, stateCopy.safeLine) : `${t(lang, stateCopy.notConfirmed)}${waiting ? ` · ${waiting}` : ''}`}
+          {safe && stamp && <span className="inc-vol-wd-facts">{stamp}</span>}
+          {!safe && facts.length > 0 && <span className="inc-vol-wd-facts">{facts.join(' · ')}</span>}
         </p>
       )}
     </article>

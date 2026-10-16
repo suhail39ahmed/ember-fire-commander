@@ -47,6 +47,27 @@ def reporter_name(data):
     return name.strip() if isinstance(name, str) and name.strip() else None
 
 
+def coordinate_label(lat, lng):
+    """"13.05°N 77.63°E", or None when either coordinate is missing or not a number."""
+    for value in (lat, lng):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None
+    return f"{abs(lat):.2f}\u00b0{'N' if lat >= 0 else 'S'} {abs(lng):.2f}\u00b0{'E' if lng >= 0 else 'W'}"
+
+
+def incident_label(data):
+    """The one readable name for an incident, so no screen shows a raw id.
+
+    The stored `name`, else "Incident · <area>", else "Incident · <coordinates>", else "Incident".
+    """
+    name = data.get("name")
+    if isinstance(name, str) and name.strip():
+        return name.strip()
+    area = data.get("area")
+    place = area.strip() if isinstance(area, str) and area.strip() else coordinate_label(data.get("lat"), data.get("lng"))
+    return f"Incident \u00b7 {place}" if place else "Incident"
+
+
 def phone_of(data):
     """A volunteer's stored phone number, or None when there is none."""
     phone = data.get("phone")
@@ -95,5 +116,14 @@ def to_record(snapshot, fields):
     return pick(data, fields)
 
 
-def audit_record(audit_id, actor_id, action, target_id):
-    return {"id": audit_id, "actorId": actor_id, "action": action, "targetId": target_id, "at": now_iso()}
+def audit_record(audit_id, actor_id, action, target_id, subject_id=None, actor_name=None):
+    """`subjectId` is the volunteer an action is about, written only when there is one (found safe).
+
+    `actorName` is the display name from the actor's token at the time, written only when the token has one.
+    """
+    record = {"id": audit_id, "actorId": actor_id, "action": action, "targetId": target_id, "at": now_iso()}
+    if subject_id:
+        record["subjectId"] = subject_id
+    if isinstance(actor_name, str) and actor_name.strip():
+        record["actorName"] = actor_name.strip()[:80]
+    return record

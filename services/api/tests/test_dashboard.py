@@ -88,8 +88,11 @@ def test_dashboard_returns_agency_clock_and_proposed_count(client, monkeypatch):
             "airTempC": None,
             "humidity": None,
             "wind": None,
+            "windKmh": None,
+            "windDirDeg": None,
             "rain": None,
         },
+        "reignitionAlert": None,
     }
 
 
@@ -189,7 +192,7 @@ SEASON_KEYS = (
 CHART_KEYS = (
     "satelliteNote", "realFires", "dismissed", "medianNote", "medianToday", "medianTarget",
     "crewNote", "onSite", "enRoute", "ready", "offline", "weatherNote", "airTempC", "humidity",
-    "wind", "rain",
+    "wind", "windKmh", "windDirDeg", "rain",
 )
 
 
@@ -392,6 +395,7 @@ def test_weather_card_from_the_latest_stored_read(client, fake, caplog):
     assert charts["airTempC"] == 31.2
     assert charts["humidity"] == "62%"
     assert charts["wind"] == "12 km/h SW"
+    assert (charts["windKmh"], charts["windDirDeg"]) == (12.4, 225)
     assert charts["rain"] == "0.0 mm"
     assert charts["weatherNote"] == "Open-Meteo, fixed monitoring point, read 07:00 UTC"
 
@@ -403,12 +407,13 @@ def test_weather_card_keeps_missing_values_null(client, fake, caplog):
     assert charts["humidity"] is None
     assert charts["rain"] is None
     assert charts["wind"] == "5 km/h"
+    assert (charts["windKmh"], charts["windDirDeg"]) == (5, None)
     assert charts["weatherNote"] == "Open-Meteo, fixed monitoring point"
 
 
 def test_weather_is_null_when_nothing_was_ingested(client, fake, caplog):
     charts = _read(client, caplog)["charts"]
-    assert all(charts[k] is None for k in ("weatherNote", "airTempC", "humidity", "wind", "rain"))
+    assert all(charts[k] is None for k in ("weatherNote", "airTempC", "humidity", "wind", "windKmh", "windDirDeg", "rain"))
 
 
 def test_an_unreadable_source_leaves_only_its_cards_null(client, fake, monkeypatch, caplog):

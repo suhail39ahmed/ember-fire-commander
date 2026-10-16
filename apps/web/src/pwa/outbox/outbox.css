@@ -10,4 +10,4 @@
 .outbox-sent .outbox-state { color: var(--safe); }
 .outbox-actions { display: flex; gap: 8px; }
 .sent.queued { background: #fdf3e2; }
-.sent.queued strong { color: var(--haze); }
+.sent.queued strong { color: var(--haze-strong); }

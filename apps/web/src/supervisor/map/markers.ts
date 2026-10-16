@@ -2,7 +2,7 @@
  * How each incident is drawn. Only fields from ember-api decide this:
  * severity, status, conflictId and withdraw. Nothing here estimates spread.
  */
-import type { Incident } from '../contracts'
+import type { Incident, VolunteerCardData } from '../contracts'
 import { incidentLabel } from '../../pwa/incidentName'
 import { SEVERITY_LABEL, STATUS_LABEL } from '../view'
 
@@ -72,4 +72,37 @@ export function project(incidents: Incident[], width: number, height: number, pa
     x: list.length === 1 ? width / 2 : pad + ((i.lng - minLng) / spanLng) * (width - 2 * pad),
     y: list.length === 1 ? height / 2 : pad + ((maxLat - i.lat) / spanLat) * (height - 2 * pad),
   }))
+}
+
+/** One crew member's last reported position, from their card on the open incident. */
+export interface CrewDot {
+  id: string
+  name: string | null
+  lat: number
+  lng: number
+}
+
+/** Cards with a usable last position. A card without one is left out, not placed. */
+export function crewDots(cards: VolunteerCardData[] | null | undefined): CrewDot[] {
+  return (cards ?? [])
+    .filter((c) => c.lastLat !== null && c.lastLng !== null && Number.isFinite(c.lastLat) && Number.isFinite(c.lastLng) && Math.abs(c.lastLat) <= 90 && Math.abs(c.lastLng) <= 180)
+    .map((c) => ({ id: c.volunteerId, name: c.name?.trim() || null, lat: c.lastLat as number, lng: c.lastLng as number }))
+}
+
+/** Like `project`, with crew dots placed in the same box so incidents and crews stay in true relation. */
+export function projectWithCrews(incidents: Incident[], crews: CrewDot[], width: number, height: number, pad = 48): { incidents: Point[]; crews: Point[] } {
+  const list = placeable(incidents)
+  const all = [...list.map((i) => ({ lat: i.lat, lng: i.lng })), ...crews.map((c) => ({ lat: c.lat, lng: c.lng }))]
+  if (all.length === 0) return { incidents: [], crews: [] }
+  const lats = all.map((p) => p.lat)
+  const lngs = all.map((p) => p.lng)
+  const [minLat, maxLat] = [Math.min(...lats), Math.max(...lats)]
+  const [minLng, maxLng] = [Math.min(...lngs), Math.max(...lngs)]
+  const spanLat = maxLat - minLat || 1
+  const spanLng = maxLng - minLng || 1
+  const at = (p: { lat: number; lng: number }) => ({
+    x: all.length === 1 ? width / 2 : pad + ((p.lng - minLng) / spanLng) * (width - 2 * pad),
+    y: all.length === 1 ? height / 2 : pad + ((maxLat - p.lat) / spanLat) * (height - 2 * pad),
+  })
+  return { incidents: list.map((i) => ({ id: i.id, ...at(i) })), crews: crews.map((c) => ({ id: c.id, ...at(c) })) }
 }

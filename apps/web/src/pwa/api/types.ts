@@ -20,4 +20,6 @@ export interface EmberApi {
   createObservation(body: ObservationRequest): Promise<Observation>
   /** POST /photos/upload-url: a signed PUT URL for one photo in the private bucket. */
   createUploadUrl(contentType: PhotoContentType): Promise<UploadUrl>
+  /** POST /tasks/{id}/heard: this phone showed the task. Sets `heardAt` once; a repeat changes nothing. */
+  markTaskHeard(taskId: string): Promise<void>
 }

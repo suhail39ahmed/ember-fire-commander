@@ -50,3 +50,16 @@ def test_name_shape():
     assert incident_name(1.482, 102.115, "Pak Dedi", 3) == "Bengkalis, Riau · Pak Dedi · #3"
     assert incident_name(1.482, 102.115, None, 12) == "Bengkalis, Riau · #12"
     assert incident_name(10.0, 102.115, " ", 4) == "10.00°N 102.11°E · #4"
+
+
+def test_added_towns_name_a_report_inside_the_radius_and_every_entry_is_well_formed():
+    from fusion.places import PLACES
+
+    assert place_label(0.36, 101.04) == "Bangkinang, Riau"
+    assert place_label(-1.48, 102.12) == "Muara Bungo, Jambi"
+    assert place_label(13.05, 77.63) == "Bengaluru, Karnataka"
+    assert place_label(18.53, 73.88) == "Pune, Maharashtra"
+    names = [(name, province) for name, province, _, _ in PLACES]
+    assert len(names) == len(set(names))
+    for name, province, lat, lng in PLACES:
+        assert name and province and -90 <= lat <= 90 and -180 <= lng <= 180

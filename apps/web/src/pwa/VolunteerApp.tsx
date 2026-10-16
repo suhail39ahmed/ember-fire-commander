@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth/AuthProvider'
-import type { ChipValue, Digest } from './contracts/types'
+import type { ChipValue } from './contracts/types'
 import { authHeadersFor } from './api/authHeaders'
 import { createHttpApi } from './api/client'
 import { GATEWAY_WSS_URL, USE_MOCK_API } from './api/config'
-import { ApiError, type EmberApi } from './api/types'
+import type { EmberApi } from './api/types'
 import { createMockApi, type MockControls } from './api/mock'
 import { activeWithdraw, currentTask } from './digest'
+import { recordDigestClock } from './clock'
+import { DigestNotice } from './DigestNotice'
+import { useDigest } from './useDigest'
+import { useWakeLock } from './useWakeLock'
 import { incidentLabelById } from './incidentName'
 import { browserSocketFactory, PttSession, type SessionState } from './gateway/pttSession'
 import { TalkCard } from './gateway/TalkCard'
@@ -17,6 +21,7 @@ import { usePushRegistration } from './push/usePushRegistration'
 import { strings, t } from './i18n'
 import { useLanguage } from './language'
 import { usePermissions } from './permissions/usePermissions'
+import { useMarkHeard } from './useMarkHeard'
 import { PermissionsPanel } from './install/PermissionsPanel'
 import { InstallBanner } from './install/InstallBanner'
 import { ReportPanel } from './report/ReportPanel'
@@ -29,14 +34,10 @@ import { VolunteerHeader } from './VolunteerHeader'
 import { WithdrawScreen } from './WithdrawScreen'
 import './volunteer.css'
 
-const POLL_MS = 5000
-
 /** Volunteer screen at /pwa. Rendered inside RequireRole role="volunteer", so `me` is set. */
 export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
   const { user, me } = useAuth()
   const { lang } = useLanguage()
-  const [digest, setDigest] = useState<Digest | null>(null)
-  const [loadError, setLoadError] = useState(false)
   const [session, setSession] = useState<SessionState>('idle')
   const [pttBlocked, setPttBlocked] = useState<'auth' | 'unavailable' | null>(null)
   const { perms, asking, request } = usePermissions()
@@ -52,20 +53,7 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
 
   useEffect(() => registerServiceWorker(), [])
 
-  const load = useCallback(async () => {
-    try {
-      setDigest(await api.getDigest())
-      setLoadError(false)
-    } catch (e) {
-      if (!(e instanceof ApiError) || e.retryable) setLoadError(true)
-    }
-  }, [api])
-
-  useEffect(() => {
-    void load()
-    const id = setInterval(() => void load(), POLL_MS)
-    return () => clearInterval(id)
-  }, [load])
+  const { digest, status: digestStatus, refresh: load } = useDigest(api, recordDigestClock)
 
   usePushRegistration(user, perms.notifications, load)
 
@@ -102,13 +90,17 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
   /** Volunteers report what they see; only the supervisor verifies an incident. */
   const focusReport = (chip: ChipValue | null) => {
     setPreset((p) => ({ chip, n: p.n + 1 }))
-    document.getElementById('quick-report-label')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+    document.getElementById('quick-report-label')?.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' })
   }
 
   const task = currentTask(digest)
   const withdrawOrder = activeWithdraw(digest, volunteerId)
   const withdraw = withdrawOrder !== null || task?.type === 'withdraw'
   const withdrawText = withdrawOrder?.instruction ?? (task?.type === 'withdraw' ? task.instruction : null)
+  useMarkHeard(api, digest, task?.id ?? null, withdraw)
+  // A locked screen would hide the one instruction that matters, so it stays on while WITHDRAW is showing.
+  useWakeLock(withdraw)
 
   return (
     <div className="vol">
@@ -118,19 +110,7 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
         <p className="badge-simulated vol-simulated">{t(lang, strings.simulated)}</p>
         <InstallBanner lang={lang} />
 
-        {!digest && !loadError && (
-          <p className="card muted" role="status">
-            {t(lang, strings.loading)}
-          </p>
-        )}
-        {loadError && (
-          <div className="card error-card" role="alert">
-            <p>{t(lang, strings.loadError)}</p>
-            <button type="button" className="btn secondary" onClick={() => void load()}>
-              {t(lang, strings.retry)}
-            </button>
-          </div>
-        )}
+        <DigestNotice status={digestStatus} hasDigest={digest !== null} lang={lang} onRetry={load} />
 
         {digest && !task && (
           <section className="card">
@@ -175,6 +155,7 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
           onLocationGranted={watchLocationGranted}
           preset={preset}
           submit={outbox.submit}
+          volunteerId={volunteerId}
         />
 
         <PhotoPanel
@@ -200,7 +181,7 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
         {USE_MOCK_API && mock && (
           <section className="card dev" aria-label="Mock controls">
             <p className="section-label">MOCK API · DEV ONLY</p>
-            <button type="button" className="btn small" onClick={() => { mock.triggerWithdraw(); void load() }}>
+            <button type="button" className="btn small" onClick={() => { mock.triggerWithdraw(); load() }}>
               Simulate backend WITHDRAW rule
             </button>
             <button type="button" className="btn small" onClick={() => mock.failNext('network')}>
@@ -209,7 +190,7 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
             <button type="button" className="btn small" onClick={() => mock.failNext('validation')}>
               Fail next send (400)
             </button>
-            <button type="button" className="btn small" onClick={() => { mock.reset(); void load() }}>
+            <button type="button" className="btn small" onClick={() => { mock.reset(); load() }}>
               Reset
             </button>
           </section>

@@ -3,7 +3,7 @@ import { StaticRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
 import { ApiError } from '../../pwa/api/types'
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { createMockSupervisorApi } from '../api/mock'
 import { createHttpSupervisorApi, SUPERVISOR_ENDPOINTS } from '../api/client'
 import type { IncidentDetail } from '../contracts'
@@ -35,7 +35,9 @@ function view(detail: IncidentDetail | null, lang: 'id' | 'en' = 'en', over: Par
     lang, incidentId: 'inc_demo_01', detail, queue: detail ? [detail.incident] : null, failure: null, link: 'online',
     lastOkAt: NOW, now: NOW, actions: noop, onRetry: () => undefined, onSelect: () => undefined,
     markSafe: async () => decision, resendTask: async () => ({ auditId: 'aud_3' }), sendWithdraw: async () => decision, actorName: 'Bu Maya',
-    lowerSeverity: async () => decision, serverNow: () => NOW, extinguish: async () => decision, ...over,
+    lowerSeverity: async () => decision, serverNow: () => NOW, extinguish: async () => decision,
+    sendInstruction: async () => ({ task: fixture('normal').tasks[0], auditId: 'aud_i' }),
+    photoUrl: async () => ({ url: 'https://photo.example/x.jpg', expiresAt: '2026-10-17T03:15:00Z' }), ...over,
   }
   return renderToStaticMarkup(<StaticRouter location="/console/incidents/inc_demo_01"><IncidentDetailView {...props} /></StaticRouter>)
 }
@@ -86,7 +88,7 @@ describe('withdraw state', () => {
 describe('withdraw not confirmed: the banner', () => {
   it('shows who sent it and when, the reason, the count and the unconfirmed volunteer', () => {
     const html = view(withdrawn({ safe: ['uid_sari'] }))
-    expect(html).toContain(`WITHDRAW IN FORCE · SENT BY CODE ${formatTime('2026-10-17T03:08:00Z')}`)
+    expect(html).toContain(`WITHDRAW IN FORCE · SENT BY CODE ${formatTimeZone('2026-10-17T03:08:00Z')}`)
     expect(html).toContain('NO APPROVAL NEEDED · CANNOT BE CANCELLED HERE')
     expect(html).toContain('<b>Reason:</b> large flame reported')
     expect(html).toContain('1 of 2 confirmed safe upwind')

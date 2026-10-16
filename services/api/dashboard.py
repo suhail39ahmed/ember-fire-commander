@@ -18,6 +18,7 @@ from flask import Blueprint, g, jsonify
 
 from identity import AuthError
 from incidents import rules, store
+from sites_routes import reignition_alert
 
 logger = logging.getLogger(__name__)
 
@@ -396,6 +397,9 @@ def _weather_chart():
     if humidity is not None:
         out["humidity"] = f"{round(humidity)}%"
     if wind is not None:
+        out["windKmh"] = round(wind, 1)
+        if direction is not None:
+            out["windDirDeg"] = round(direction % 360, 1)
         text = f"{round(wind)} km/h"
         if direction is not None:
             text += f" {COMPASS[int(((direction % 360) + 22.5) // 45) % 8]}"
@@ -424,7 +428,7 @@ _SEASON_KEYS = (
 )
 _CHART_KEYS = (
     "satelliteNote", "realFires", "dismissed", "medianNote", "medianToday", "medianTarget",
-    "crewNote", "onSite", "enRoute", "ready", "offline", "weatherNote", "airTempC", "humidity", "wind", "rain",
+    "crewNote", "onSite", "enRoute", "ready", "offline", "weatherNote", "airTempC", "humidity", "wind", "windKmh", "windDirDeg", "rain",
 )
 
 
@@ -437,7 +441,7 @@ def _fill(keys, *parts):
 
 @dashboard_bp.route("/dashboard", methods=["GET"])
 def dashboard():
-    """Chrome, the live banner, season impact, and the chart cards."""
+    """Chrome, live banner, season impact, charts, and a re-ignition alert when one is open."""
     _require_supervisor()
     now = rules.now_iso()
     moment = _parse_time(now) or datetime.now(timezone.utc)
@@ -464,4 +468,5 @@ def dashboard():
         "liveFires": fires,
         "seasonImpact": season,
         "charts": charts,
+        "reignitionAlert": reignition_alert(),
     }), 200

@@ -1,3 +1,4 @@
+import { clockMessage } from '../clock'
 import { formatTime } from '../formatTime'
 import { t, type Lang } from '../i18n'
 import { describeItem } from './describeItem'
@@ -41,7 +42,7 @@ export function OutboxPanel({ items, online, lang, onRetry, onDiscard, onSendNow
               </div>
               <span className="muted small">
                 {formatTime(capturedAtOf(item))}
-                {item.state === 'failed' && item.lastError ? ` · ${item.lastError}` : ''}
+                {item.state === 'failed' && item.lastError ? ` · ${/^capturedAt\b/.test(item.lastError) ? clockMessage(lang) : item.lastError}` : ''}
               </span>
               {item.state === 'failed' && (
                 <div className="outbox-actions">

@@ -23,6 +23,17 @@ export interface Incident {
   withdraw: Withdraw | null
   lat: number
   lng: number
+  /**
+   * Supervisor list only (section 6.3): what the list card shows. Absent on a volunteer's list and
+   * on older servers, so a card with no value shows a dash rather than a made-up number.
+   */
+  reportCount?: number
+  volunteerCount?: number
+  /** True when any report on the incident used the "Need help" chip. */
+  needsHelp?: boolean
+  /** True when a verify action is on record, even if the verifier's name was not stored. */
+  verified?: boolean
+  verifiedBy?: string | null
 }
 
 /** One factor behind `evidenceScore`, written by agents fusion (section 5.2). */
@@ -86,6 +97,75 @@ export interface LiveSeat {
   volunteers: Record<string, LiveSeatVolunteer>
 }
 
+/** What a supervisor's read says about one volunteer's withdraw (section 6.3). Every field is null until stored. */
+export interface VolunteerWithdraw {
+  sentAt: string | null
+  /** When the volunteer's app said it showed the instruction. No app calls the route yet. */
+  heardAt: string | null
+  sendCount: number | null
+  /** The last push result for the withdraw task. */
+  delivery: 'sent' | 'failed' | 'skipped' | null
+  safe: boolean
+  /** From the audit row written when a supervisor marked them safe. Null for an older mark. */
+  safeAt: string | null
+  safeBy: { id: string; name: string | null } | null
+}
+
+/** One volunteer on the incident, counting every report (section 6.3). */
+export interface VolunteerCardData {
+  volunteerId: string
+  name: string | null
+  reportCount: number
+  firstReportAt: string | null
+  lastReportAt: string | null
+  lastSeverity: Severity | null
+  lastLat: number | null
+  lastLng: number | null
+  lastAccuracyM: number | null
+  /** Metres from the incident's centre to their newest report. Not the distance to the flame edge. */
+  distanceM: number | null
+  /** The latest of their newest report arriving and their app showing a task. Null when neither exists. */
+  lastHeardAt: string | null
+  /** A device token is stored for them. Only this yes or no is sent, never the token. */
+  pushReady: boolean
+  withdraw: VolunteerWithdraw | null
+}
+
+/** One line of the incident's history, oldest first (section 6.3). */
+export interface TimelineEntry {
+  kind: 'report' | 'audit'
+  id: string
+  at: string
+  action: AuditAction | null
+  actorId: string | null
+  actorName: string | null
+  volunteerId: string | null
+  taskId: string | null
+  severity: Severity | null
+  source: Observation['source'] | null
+  chip: Observation['chip'] | null
+  text: string | null
+}
+
+/** The stored advisory summary of the incident (section 6.3). It states no severity. */
+export interface DetailSummary {
+  english: string | null
+  bahasa: string | null
+  source: 'model' | 'template' | null
+  at: string | null
+}
+
+/**
+ * What a supervisor's read adds for an incident with a conflict (section 6.3). Both lists are `[]` when nothing is stored.
+ * No wind or satellite factor, no "conflict opened" audit row and no `investigate` proposal exists to return.
+ */
+export interface ConflictContext {
+  /** Reports on neither side of the disagreement (smoke or unknown), oldest first. `observations` lists only the two sides. */
+  otherObservations: Observation[]
+  /** Recorded decisions on the conflict's verify and investigate tasks and on the incident, oldest first. */
+  audit: TimelineEntry[]
+}
+
 /** GET /incidents/{id} (section 6.3). */
 export interface IncidentDetail {
   incident: Incident
@@ -96,6 +176,16 @@ export interface IncidentDetail {
   evidenceFactors?: EvidenceFactor[]
   /** Supervisor read only: phone numbers stored for the volunteers on an active withdraw. */
   volunteerPhones?: Record<string, string>
+  /** Supervisor read only. One card per volunteer, covering every report. Absent from an older API. */
+  volunteers?: VolunteerCardData[]
+  /** Supervisor read only. Reports and audit rows, oldest first. Absent from an older API. */
+  timeline?: TimelineEntry[]
+  /** Supervisor read only. Null until a summary is stored. */
+  summary?: DetailSummary | null
+  /** Supervisor read only. Null when the incident has no conflict. Absent from an older API. */
+  conflictContext?: ConflictContext | null
+  /** Supervisor read only. The agency stored on the incident. Null until one is stored, which nothing does yet. Absent from an older API. */
+  agencyInCharge?: string | null
   /** Supervisor read only: live camera seat, drop event, and per-volunteer media (#102). */
   liveSeat?: LiveSeat
 }
@@ -112,6 +202,12 @@ export interface TaskDecision {
 export interface IncidentDecision {
   incident: Incident
   auditId: string
+}
+
+/** What a short-lived signed read of one photo report returns (section 6.7). */
+export interface PhotoUrl {
+  url: string
+  expiresAt: string
 }
 
 /** Body of POST /incidents/{id}/withdraw/safe (section 6.5). */
@@ -135,6 +231,7 @@ export type AuditAction =
   | 'task.reject'
   | 'task.edit'
   | 'task.heard'
+  | 'task.instruct'
   | 'task.resend'
   | 'task.withdraw'
   | 'withdraw.safe'
@@ -143,6 +240,8 @@ export type AuditAction =
   | 'incident.severity.lower'
   | 'incident.severity.raise'
   | 'site.reinspect'
+  | 'site.dismiss'
+  | 'site.recheck'
   | 'live.make'
   | 'live.retry'
   | 'live.drop'
@@ -227,4 +326,24 @@ export interface Site {
   /** Newest alerts only. */
   alerts: SiteAlert[]
   lastAlertAt?: string
+}
+
+/**
+ * One row of GET /tasks?status=proposed (section 6.5): a task waiting for a decision, with the incident
+ * it belongs to and the volunteer's name. `incident` is null when the incident record is gone, and
+ * `volunteerName` is null when no name is stored.
+ */
+export interface ProposedTask {
+  task: Task
+  incident: {
+    id: string
+    name: string | null
+    area: string | null
+    /** The label ember-api built with the one naming rule. Never an id. */
+    label: string
+    status: IncidentStatus
+    severity: Severity
+    conflictId: string | null
+  } | null
+  volunteerName: string | null
 }

@@ -10,7 +10,7 @@ export type ObservationSource = 'live' | 'chip' | 'text' | 'photo'
 export type ChipValue = 'asap' | 'api' | 'aman' | 'butuh_bantuan'
 export type Severity = 'none' | 'smoke' | 'small_flame' | 'large_flame' | 'unknown'
 export type IncidentStatus = 'open' | 'held' | 'verified' | 'extinguished'
-export type TaskType = 'verify' | 'withdraw' | 'investigate'
+export type TaskType = 'verify' | 'withdraw' | 'investigate' | 'instruct'
 export type TaskStatus = 'proposed' | 'approved' | 'rejected'
 
 export const CHIP_VALUES: readonly ChipValue[] = ['asap', 'api', 'aman', 'butuh_bantuan']

@@ -4,7 +4,8 @@
  * is exercised against the real outcomes, including 409 while dispatch is held.
  */
 import { ApiError } from '../../pwa/api/types'
-import type { IncidentDetail, LiveSeat, LiveSeatVolunteer, Task } from '../contracts'
+import type { IncidentDetail, LiveSeat, LiveSeatVolunteer, ProposedTask, Task } from '../contracts'
+import { incidentLabel } from '../../pwa/incidentName'
 import { lowerChoices } from '../detail/severityModel'
 import { fixture, type FixtureName } from '../fixtures'
 import { regionFixtures } from '../map/fixtures'
@@ -220,7 +221,29 @@ export function createMockSupervisorApi(
     async listIncidents() {
       await wait()
       // Like GET /incidents for a supervisor: an extinguished incident leaves the live list.
-      return details.filter((d) => d.incident.status !== 'extinguished').map((d) => structuredClone(d.incident))
+      return details
+        .filter((d) => d.incident.status !== 'extinguished')
+        .map((d) => ({
+          ...structuredClone(d.incident),
+          reportCount: d.observations.length,
+          volunteerCount: new Set(d.observations.map((o) => o.volunteerId)).size,
+          needsHelp: d.observations.some((o) => o.chip === 'butuh_bantuan'),
+        }))
+    },
+    async listProposedTasks() {
+      await wait()
+      const items: ProposedTask[] = []
+      for (const d of details) {
+        for (const task of d.tasks.filter((x) => x.status === 'proposed')) {
+          const i = d.incident
+          items.push({
+            task: structuredClone(task),
+            incident: { id: i.id, name: i.name ?? null, area: i.area ?? null, label: incidentLabel(i), status: i.status, severity: i.severity, conflictId: i.conflictId },
+            volunteerName: d.observations.find((o) => o.volunteerId === task.volunteerId && o.volunteerName)?.volunteerName ?? null,
+          })
+        }
+      }
+      return items
     },
     async getIncident(id) {
       await wait()
@@ -325,6 +348,35 @@ export function createMockSupervisorApi(
       // The withdraw itself stays active: there is no call that clears it.
       w.safeVolunteerIds = [...safe, volunteerId]
       return { incident: structuredClone(d.incident), auditId: append('withdraw.safe', id) }
+    },
+    async sendInstruction(id, volunteerId, instruction) {
+      await wait()
+      const d = details.find((x) => x.incident.id === id)
+      if (!d) throw notFound()
+      const text = instruction.trim()
+      if (!text || text.length > 500) {
+        throw new ApiError('validation_error', 'instruction is not valid', 400, false, { instruction: 'required, not blank, at most 500 characters' })
+      }
+      const known = new Set([...d.observations.map((o) => o.volunteerId), ...d.tasks.map((t) => t.volunteerId), ...(d.incident.withdraw?.volunteerIds ?? [])])
+      if (!known.has(volunteerId)) {
+        throw new ApiError('validation_error', 'volunteerId is not valid', 400, false, { volunteerId: 'needs a report, a task or a withdraw entry on this incident' })
+      }
+      if (d.incident.status === 'extinguished') throw conflictError('An extinguished incident takes no new instruction')
+      const w = d.incident.withdraw
+      if (w?.active && w.volunteerIds.includes(volunteerId) && !(w.safeVolunteerIds ?? []).includes(volunteerId)) {
+        throw conflictError('This volunteer is on an active withdraw and is not marked safe')
+      }
+      const task: Task = { id: `task_mock_instruct_${d.tasks.length + 1}`, incidentId: id, volunteerId, type: 'instruct', status: 'approved', instruction: text }
+      stamp(task, 1)
+      d.tasks.push(task)
+      return { task: structuredClone(task), auditId: append('task.instruct', task.id) }
+    },
+    async getPhotoUrl(id, observationId) {
+      await wait()
+      const d = details.find((x) => x.incident.id === id)
+      const obs = d?.observations.find((o) => o.id === observationId)
+      if (!obs?.photoPath) throw notFound()
+      return { url: `mock-photo://${obs.photoPath}`, expiresAt: new Date(Date.now() + 300_000).toISOString() }
     },
     async lowerSeverity(id, severity) {
       await wait()

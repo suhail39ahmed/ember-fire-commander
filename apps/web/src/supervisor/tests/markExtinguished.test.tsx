@@ -3,7 +3,7 @@ import { StaticRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '../../pwa/api/types'
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { createHttpSupervisorApi } from '../api/client'
 import { createMockSupervisorApi } from '../api/mock'
 import type { Incident } from '../contracts'
@@ -57,7 +57,7 @@ describe('mark extinguished: dialog', () => {
 
   it('names the readable incident, never a raw id', () => {
     const html = dialog({ incident: { ...incident, id: '4kQ9xZ7hLm', name: null } })
-    expect(html).toContain('Mark INC-7HLM extinguished?')
+    expect(html).toContain('Mark Incident · Ketapang, Kalimantan Barat extinguished?')
     expect(html).not.toContain('4kQ9xZ7hLm')
   })
 
@@ -81,9 +81,9 @@ describe('mark extinguished: confirm and refusals', () => {
 
   it('shows who did it and when, with the audit id', () => {
     const at = Date.parse('2026-10-17T03:12:00Z')
-    expect(doneText('en', 'Bu Maya', at, 'aud_7')).toBe(`Marked extinguished by Bu Maya at ${formatTime(at)} · audit aud_7.`)
-    expect(doneText('id', 'Bu Maya', at, 'aud_7')).toBe(`Ditandai padam oleh Bu Maya pukul ${formatTime(at)} · audit aud_7.`)
-    expect(doneText('en', '', at, 'aud_7')).toBe(`Marked extinguished at ${formatTime(at)} · audit aud_7.`)
+    expect(doneText('en', 'Bu Maya', at, 'aud_7')).toBe(`Marked extinguished by Bu Maya at ${formatTimeZone(at)} · audit aud_7.`)
+    expect(doneText('id', 'Bu Maya', at, 'aud_7')).toBe(`Ditandai padam oleh Bu Maya pukul ${formatTimeZone(at)} · audit aud_7.`)
+    expect(doneText('en', '', at, 'aud_7')).toBe(`Marked extinguished at ${formatTimeZone(at)} · audit aud_7.`)
   })
 
   it('explains a second confirm: it is already out, nothing changed', async () => {

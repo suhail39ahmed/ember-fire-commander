@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { StaticRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import type { IncidentDetail, Observation } from '../contracts'
 import { fixture } from '../fixtures'
 import type { IncidentActions } from '../IncidentView'
@@ -23,8 +23,15 @@ function withPhoto(detail: IncidentDetail): IncidentDetail {
   return { ...detail, observations: [...detail.observations, photo] }
 }
 
+const wiring = {
+  offline: false,
+  now: Date.parse('2026-10-17T03:10:00Z'),
+  sendInstruction: async () => { throw new Error('not used in a static render') },
+  photoUrl: async () => { throw new Error('not used in a static render') },
+}
+
 function popup(detail: IncidentDetail, id: string, lang: 'id' | 'en' = 'en') {
-  return renderToStaticMarkup(<VolunteerPopup lang={lang} detail={detail} volunteerId={id} onClose={() => undefined} />)
+  return renderToStaticMarkup(<VolunteerPopup lang={lang} detail={detail} volunteerId={id} onClose={() => undefined} {...wiring} />)
 }
 
 describe('volunteer pop-up: the data', () => {
@@ -73,43 +80,47 @@ describe('volunteer pop-up: every region of the frame is there', () => {
   it('shows the profile values the API has and a dash for the rest', () => {
     const html = popup(fixture('conflict'), 'uid_sari')
     expect(html).toContain('<dt>Position</dt><dd>-1.849, 110.051 · ±22 m</dd>')
-    expect(html).toContain(`<dt>First report</dt><dd>${formatTime('2026-10-17T03:05:00Z')}</dd>`)
-    expect(html).toContain('<dt>Incident</dt><dd>Ketapang, Kalimantan Barat · Pak Dedi · #1 · inc_demo_01</dd>')
+    expect(html).toContain(`<dt>First report</dt><dd>${formatTimeZone('2026-10-17T03:05:00Z')}</dd>`)
+    expect(html).toContain('<dt>Incident</dt><dd>Ketapang, Kalimantan Barat · Pak Dedi · #1</dd>')
     for (const label of ['Role', 'Network', 'Battery', 'Language', 'Last heard']) expect(html).toContain(`<dt>${label}</dt><dd>—</dd>`)
+    expect(html).toContain('Crew role, network, battery and spoken language are not stored by any service.')
   })
 
   it('lists the volunteer’s reports in their own words and their instructions with their status', () => {
     const html = popup(fixture('conflict'), 'uid_sari')
     expect(html).toContain('“Saya lihat asap saja, tidak ada api.”')
-    expect(html).toContain('Verify · waiting for approval')
+    expect(html).toContain('>Verify</p>')
+    expect(html).toContain('waiting for approval')
     expect(html).not.toContain('Api kecil di parit belakang kebun')
   })
 
-  it('lists photo reports by time and volunteer, without an image', () => {
+  it('lists photo reports by time and volunteer, asking for the signed link and never printing the storage path', () => {
     const html = popup(withPhoto(fixture('conflict')), 'uid_sari')
-    expect(html).toContain(`${formatTime('2026-10-17T03:07:00Z')} · Sari`)
-    expect(html).not.toContain('<img')
+    expect(html).toContain(`${formatTimeZone('2026-10-17T03:07:00Z')} · Sari`)
+    expect(html).toContain('Loading photo…')
     expect(html).not.toContain('photos/uid_sari')
   })
 
-  it('says plainly what no route returns yet, region by region', () => {
+  it('says plainly what no service stores or does yet, region by region', () => {
     const html = popup(fixture('conflict'), 'uid_sari')
     expect(html).toContain('ember-api does not store an English translation yet')
     expect(html).toContain('Not available yet</b> · Needs live media from voice-gateway')
-    expect(html).toContain('Needs suggestions with a rationale from agents')
-    expect(html).toContain('Needs an Ask EMBER thread, drafts, and a confirmed send')
-    expect(html).toContain('Needs a route that sends an instruction to one volunteer, with an audit entry')
-    expect(html).toContain('Send time and heard status are not stored yet')
-    expect(html).toContain('Role, network, battery, language and last heard are not sent by ember-api yet')
+    expect(html).toContain('Needs an endpoint in agents that answers questions, plus a thread and instruction drafts')
+    expect(html).toContain('The agents service has no endpoint that answers questions')
+    expect(html).toContain('No service writes free-form advice with a rationale.')
+    expect(html).not.toContain('Needs a route that sends an instruction')
+    expect(html).not.toContain('Send time and heard status are not stored yet')
   })
 
-  it('sends nothing: every control that would write is off', () => {
+  it('offers a send form for this one volunteer, while the chat and the send-to-all box stay off', () => {
     const html = popup(fixture('conflict'), 'uid_sari')
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Send<\/button>/)
+    expect(html).toMatch(/<textarea[^>]*aria-label="Instruction"/)
+    expect(html).not.toMatch(/<textarea[^>]*disabled/)
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Send<\/button>/) // empty text: nothing to send
+    expect(html).toContain('One volunteer per send.')
     expect(html).toMatch(/<input[^>]*disabled=""[^>]*placeholder="Ask EMBER, or tell it what to send…"/)
     expect(html).toMatch(/<input[^>]*type="checkbox"[^>]*disabled=""/)
     for (const label of ['Mic', 'Video', 'Snapshot', 'Flip camera', 'End live']) expect(html).toMatch(new RegExp(`<button[^>]*disabled=""[^>]*>${label}</button>`))
-    expect(html).not.toContain('<form')
   })
 
   it('says WITHDRAW is never held up by it, and marks a withdrawn volunteer', () => {
@@ -150,6 +161,7 @@ describe('volunteer pop-up: where it opens', () => {
           lang="en" incidentId="inc_demo_01" detail={d} queue={[d.incident]} failure={null} link="online" lastOkAt={NOW} now={NOW} actions={noop}
           onRetry={() => undefined} onSelect={() => undefined} sendWithdraw={async () => ({ incident: d.incident, auditId: 'a' })} actorName="Bu Maya"
           serverNow={() => NOW} lowerSeverity={async () => ({ incident: d.incident, auditId: 'a' })} extinguish={async () => ({ incident: d.incident, auditId: 'a' })} markSafe={async () => ({ incident: d.incident, auditId: 'a' })} resendTask={async () => ({ auditId: 'a' })}
+          sendInstruction={async () => ({ task: d.tasks[0], auditId: 'a' })} photoUrl={async () => ({ url: 'https://photo.example/x.jpg', expiresAt: '2026-10-17T03:15:00Z' })}
         />
       </StaticRouter>,
     )

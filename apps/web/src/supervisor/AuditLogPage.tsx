@@ -5,13 +5,14 @@ import { useAuth } from '../auth/AuthProvider'
 import { authHeadersFor } from '../pwa/api/authHeaders'
 import { USE_MOCK_API } from '../pwa/api/config'
 import { ApiError } from '../pwa/api/types'
-import { formatTime } from '../pwa/formatTime'
+import { formatDateTime } from '../pwa/formatTime'
 import { t } from '../pwa/i18n'
 import { useLanguage } from '../pwa/language'
 import { createHttpSupervisorApi } from './api/client'
 import { createMockSupervisorApi } from './api/mock'
 import type { AuditEntry, SupervisorApi } from './api/types'
 import { auditCopy } from './auditCopy'
+import { groupByDay } from './auditModel'
 import { consoleIncidentPath } from './paths'
 import './auditLog.css'
 
@@ -25,7 +26,7 @@ function actionLabel(action: string): string {
   return action.toUpperCase()
 }
 
-function AuditTable({
+export function AuditTable({
   items,
   onOpen,
 }: {
@@ -44,35 +45,40 @@ function AuditTable({
           <th scope="col">{t(lang, auditCopy.detail)}</th>
         </tr>
       </thead>
-      <tbody>
-        {items.map((entry) => {
-          const openable = Boolean(entry.incidentId)
-          const withdraw = entry.action === 'task.withdraw'
-          return (
-            <tr
-              key={entry.id}
-              className={[withdraw ? 'audit-row-withdraw' : '', openable ? 'audit-row-open' : ''].filter(Boolean).join(' ')}
-              onClick={openable ? () => onOpen(entry) : undefined}
-              onKeyDown={openable ? (event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  onOpen(entry)
-                }
-              } : undefined}
-              tabIndex={openable ? 0 : undefined}
-              role={openable ? 'link' : undefined}
-            >
-              <td className="audit-time">{formatTime(entry.at)}</td>
-              <td>{entry.actorName}</td>
-              <td className={withdraw ? 'audit-action-withdraw' : 'audit-action'}>
-                <code>{actionLabel(entry.action)}</code>
-              </td>
-              <td>{entry.target}</td>
-              <td className="audit-detail">{entry.detail}</td>
-            </tr>
-          )
-        })}
-      </tbody>
+      {groupByDay(items).map((group) => (
+        <tbody key={group.day}>
+          <tr className="audit-day">
+            <th scope="rowgroup" colSpan={5}>{group.day || '—'}</th>
+          </tr>
+          {group.items.map((entry) => {
+            const openable = Boolean(entry.incidentId)
+            const withdraw = entry.action === 'task.withdraw'
+            return (
+              <tr
+                key={entry.id}
+                className={[withdraw ? 'audit-row-withdraw' : '', openable ? 'audit-row-open' : ''].filter(Boolean).join(' ')}
+                onClick={openable ? () => onOpen(entry) : undefined}
+                onKeyDown={openable ? (event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    onOpen(entry)
+                  }
+                } : undefined}
+                tabIndex={openable ? 0 : undefined}
+                role={openable ? 'link' : undefined}
+              >
+                <td className="audit-time"><time dateTime={entry.at}>{formatDateTime(entry.at)}</time></td>
+                <td>{entry.actorName}</td>
+                <td className={withdraw ? 'audit-action-withdraw' : 'audit-action'}>
+                  <code>{actionLabel(entry.action)}</code>
+                </td>
+                <td>{entry.target}</td>
+                <td className="audit-detail">{entry.detail}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      ))}
     </table>
   )
 }

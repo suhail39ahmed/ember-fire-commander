@@ -6,6 +6,10 @@ import type { Incident } from './contracts'
 
 const EMPTY = '—'
 
+function countOf(value: number | undefined): string {
+  return typeof value === 'number' ? String(value) : EMPTY
+}
+
 function incidentCounts(incidents: Incident[]) {
   return {
     open: incidents.filter((incident) => incident.status === 'open').length,
@@ -71,15 +75,15 @@ export function IncidentQueue({
                     >
                       <span className="incident-row-status">
                         {incident.withdraw?.active ? 'WITHDRAW · ' : ''}{STATUS_LABEL[incident.status]} · {SEVERITY_LABEL[incident.severity]}
+                        {incident.needsHelp && <span className="incident-need-help">{t(lang, listCopy.needHelp)}</span>}
                       </span>
-                      <span className="incident-row-empty">{EMPTY} · {EMPTY}</span>
-                      <span>{labelInArea(incident, group.area)}</span>
+                      <span>{labelInArea(incident, group.area, lang)}</span>
                       <span className="sup-queue-meta">{areaOf(incident)}</span>
                       <span className="sup-queue-meta">
-                        {EMPTY} {t(lang, listCopy.reports)} · {EMPTY} {t(lang, listCopy.volunteers)} · {t(lang, listCopy.evidence)} {incident.evidenceScore}
+                        {countOf(incident.reportCount)} {t(lang, listCopy.reports)} · {countOf(incident.volunteerCount)} {t(lang, listCopy.volunteers)} · {t(lang, listCopy.evidence)} {incident.evidenceScore}
                       </span>
                       {incident.status === 'verified' && (
-                        <span className="sup-queue-meta">{t(lang, listCopy.verifiedBy)} {EMPTY}</span>
+                        <span className="sup-queue-meta">{t(lang, listCopy.verifiedBy)} {incident.verifiedBy?.trim() || EMPTY}</span>
                       )}
                     </button>
                   </li>

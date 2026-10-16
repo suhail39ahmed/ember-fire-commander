@@ -7,7 +7,7 @@ import base64
 from flask import Blueprint, g, jsonify, request
 
 from identity import AuthError
-from incidents import store
+from incidents import rules, store
 
 audit_bp = Blueprint("audit", __name__)
 
@@ -15,6 +15,9 @@ DEFAULT_LIMIT = 50
 MAX_LIMIT = 100
 CODE_ACTOR_NAME = "AI"
 EMPTY_DETAIL = "—"
+# Actions a volunteer's device writes. Every other action is a supervisor's.
+VOLUNTEER_ACTIONS = ("observation.create", "task.heard")
+MAX_NAME_OBSERVATIONS = 300
 
 
 def _require_supervisor():
@@ -61,25 +64,36 @@ def _name_map(uids):
     return names
 
 
-def _actor_name(actor_id, names):
+def _actor_name(row, names):
+    """A readable actor, never a raw id.
+
+    The name stored on the row when it was written, else the volunteer record, else the name on one of
+    their reports, else the role: a volunteer for what only a device does, a supervisor for the rest.
+    """
+    actor_id = row.get("actorId")
     if actor_id == "code":
         return CODE_ACTOR_NAME
-    return names.get(actor_id) or actor_id or EMPTY_DETAIL
+    stored = row.get("actorName")
+    if isinstance(stored, str) and stored.strip():
+        return stored.strip()
+    named = names.get(actor_id)
+    if named:
+        return named
+    if row.get("action") in VOLUNTEER_ACTIONS:
+        return "Volunteer"
+    return "Supervisor"
 
 
 def _volunteer_label(volunteer_id, names):
     if not volunteer_id:
         return EMPTY_DETAIL
-    return names.get(volunteer_id) or volunteer_id
+    return names.get(volunteer_id) or "Volunteer"
 
 
 def _incident_label(incident):
     if not incident:
         return EMPTY_DETAIL
-    name = incident.get("name")
-    if isinstance(name, str) and name.strip():
-        return name.strip()
-    return incident.get("id") or EMPTY_DETAIL
+    return rules.incident_label(incident)
 
 
 def _load_related(rows):
@@ -137,6 +151,18 @@ def _load_related(rows):
             break
 
     names = _name_map(actor_ids)
+    # Volunteer records rarely hold a name. The name on their reports is the one the console already shows.
+    unnamed = {a for a in actor_ids if a not in names}
+    if unnamed:
+        report_ids = set(observations)
+        for incident in incidents.values():
+            report_ids.update(i for i in incident.get("observationIds") or [] if isinstance(i, str))
+        reports = store.get_many(store.OBSERVATIONS, sorted(report_ids)[:MAX_NAME_OBSERVATIONS])
+        for snap in reports.values():
+            data = snap.to_dict() or {}
+            name = rules.reporter_name(data)
+            if name and data.get("volunteerId") in unnamed:
+                names[data["volunteerId"]] = name
     return tasks, incidents, observations, names, obs_to_incident
 
 
@@ -199,6 +225,8 @@ def _detail(action, target_id, tasks, incidents, observations, names):
         return EMPTY_DETAIL
     if action == "withdraw.safe":
         return "Volunteer marked safe"
+    if action == "task.instruct":
+        return "Instruction sent to one volunteer"
     if action == "task.resend":
         return "Instruction sent again"
     if action == "task.heard":
@@ -209,6 +237,16 @@ def _detail(action, target_id, tasks, incidents, observations, names):
         return "Live video retry"
     if action == "live.drop":
         return "Live video dropped"
+    if action == "site.dismiss":
+        site = store.db().collection(store.SITES).document(target_id).get()
+        if site.exists:
+            for alert in (site.to_dict() or {}).get("alerts") or []:
+                reason = alert.get("dismissReason") if isinstance(alert, dict) else None
+                if isinstance(reason, str) and reason.strip():
+                    return reason.strip()
+        return "Alert dismissed"
+    if action == "site.recheck":
+        return "Re-check task proposed"
     return EMPTY_DETAIL
 
 
@@ -271,7 +309,7 @@ def list_audit():
             "id": row.get("id"),
             "at": row.get("at"),
             "actorId": row.get("actorId"),
-            "actorName": _actor_name(row.get("actorId"), names),
+            "actorName": _actor_name(row, names),
             "action": action,
             "targetId": target_id_row,
             "target": target,

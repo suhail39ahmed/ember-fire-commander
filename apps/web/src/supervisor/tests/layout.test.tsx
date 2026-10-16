@@ -4,11 +4,11 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { createLanguageStore } from '../../pwa/language'
 import { LanguageProvider } from '../../pwa/LanguageProvider'
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { ApiError } from '../../pwa/api/types'
 import { ConsoleLayout } from '../ConsoleLayout'
 import { useConsole } from '../ConsoleProvider'
-import { fetchConsoleChrome, type ConsoleChrome } from '../chromeClient'
+import { emptyCharts, fetchConsoleChrome, type ConsoleChrome } from '../chromeClient'
 import { consoleMenu, incidentIdFromPath } from '../paths'
 
 vi.mock('../../auth/AuthProvider', () => ({
@@ -85,7 +85,7 @@ describe('console chrome', () => {
     expect(html).toContain('Supervisor Console')
     expect(html).toContain('Bu Maya · BPBD Kepulauan Meranti')
     expect(html).toContain('Approvals · 3')
-    expect(html).toContain(formatTime(chrome.serverTime))
+    expect(html).toContain(formatTimeZone(chrome.serverTime))
     expect(html).toMatch(/date[tT]ime="2026-10-16T07:46:00Z"/)
     expect(html).toContain('On duty')
     expect(html).toContain('aria-label="Account"')
@@ -109,9 +109,10 @@ describe('console chrome', () => {
     expect(audit).not.toContain('incident detail content')
     expect(audit).not.toMatch(/<form|<input|<select|<textarea/)
 
-    const settings = renderAt('/console/settings')
-    expect(anchor(settings, '/console/settings')).toContain('aria-current="page"')
-    expect(settings).not.toMatch(/<form|<input|<select|<textarea/)
+    // Settings has nothing to change yet, so it is not in the menu.
+    expect(audit).not.toContain('href="/console/settings"')
+    expect(audit).toContain('href="/console/map"')
+    expect(audit).toContain('href="/console/approvals"')
 
     const detail = renderAt('/console/incidents/inc_1')
     expect(detail).toContain('incident detail content')
@@ -148,6 +149,18 @@ describe('dashboard chrome client', () => {
     expect(url).toBe('https://api.example/dashboard')
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer id-token')
     expect((init.headers as Record<string, string>)['X-Firebase-AppCheck']).toBe('app-check')
+  })
+
+  it('accepts the wind numbers in the charts, and rejects one that is not a number', async () => {
+    const withCharts = (over: Record<string, unknown>) => ({ ...chrome, charts: { ...emptyCharts(), ...over } })
+    const read = (body: unknown) => fetchConsoleChrome(headers, 'https://api.example', (async () => new Response(JSON.stringify(body), { status: 200 })) as unknown as typeof fetch)
+    const good = await read(withCharts({ windKmh: 14.2, windDirDeg: 225 }))
+    expect(good.charts).toMatchObject({ windKmh: 14.2, windDirDeg: 225 })
+    const older = { ...emptyCharts() } as Record<string, unknown>
+    delete older.windKmh
+    delete older.windDirDeg
+    await expect(read({ ...chrome, charts: older })).resolves.toBeTruthy()
+    await expect(read(withCharts({ windKmh: 'fast' }))).rejects.toBeInstanceOf(ApiError)
   })
 
   it('rejects a body that is missing the chrome fields', async () => {

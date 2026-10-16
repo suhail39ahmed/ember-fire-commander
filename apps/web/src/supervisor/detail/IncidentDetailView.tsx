@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { chipText } from '../../pwa/report/chips'
 import { t, type Lang } from '../../pwa/i18n'
-import { incidentLabel, shortIncidentId } from '../../pwa/incidentName'
-import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, WithdrawRequest } from '../contracts'
+import { incidentLabel } from '../../pwa/incidentName'
+import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, PhotoUrl, TaskDecision, WithdrawRequest } from '../contracts'
 import { conflictPair, taskControls } from '../view'
 import { IncidentMap } from '../map/IncidentMap'
 import { OutcomeLine, TaskRow, type IncidentActions } from '../IncidentView'
@@ -20,6 +20,10 @@ import { doneText } from './extinguishModel'
 import { extinguishCopy } from './extinguishCopy'
 import { LowerSeverityDialog } from './LowerSeverityDialog'
 import { disagreeCopy, factorName } from './disagreeCopy'
+import { AgencyInCharge } from './AgencyInCharge'
+import { ConflictExtras } from './ConflictExtras'
+import { helpRequests } from './helpModel'
+import { NeedHelpBanner } from './NeedHelpBanner'
 import { ProposalRow } from './ProposalRow'
 import { ReportCard } from './ReportCard'
 import { SendWithdrawDialog } from './SendWithdrawDialog'
@@ -29,6 +33,8 @@ import { WithdrawPanel } from './WithdrawPanel'
 import { elapsedSince, unconfirmed, withdrawState } from './withdrawState'
 import { countText, stateCopy } from './withdrawStateCopy'
 import { VolunteerPopup } from './VolunteerPopup'
+import { actionText, actorOf, subjectOf, summarySourceText, summaryText } from './cardModel'
+import { summaryCopy, timelineCopy } from './cardCopy'
 import { HeardToast } from './HeardToast'
 import { heardEvents, needsClock, type HeardEvent } from './deliveryModel'
 import { sentText } from './withdrawModel'
@@ -64,6 +70,12 @@ export interface IncidentDetailViewProps {
   extinguish(): Promise<IncidentDecision>
   /** POST /incidents/{id}/withdraw/safe, then a fresh read. Resolves with the route's answer. */
   markSafe(volunteerId: string): Promise<IncidentDecision>
+  /** POST /incidents/{id}/volunteers/{volunteerId}/instruct, then a fresh read. Resolves with the route's answer and throws its refusal. */
+  sendInstruction(volunteerId: string, instruction: string): Promise<TaskDecision>
+  /** GET /incidents/{id}/photos/{observationId}: a short-lived signed read link for a photo report. */
+  photoUrl(incidentId: string, observationId: string): Promise<PhotoUrl>
+  /** The signed-in supervisor's own agency from their profile (GET /dashboard). Shown apart from the agency in charge. */
+  yourAgency?: string | null
   /** POST /incidents/{id}/live/make-live, then a fresh read (#102). */
   makeLive?(volunteerId: string): Promise<void>
   /** POST /incidents/{id}/live/retry, then a fresh read (#102). */
@@ -73,7 +85,7 @@ export interface IncidentDetailViewProps {
 
 function ageText(lang: Lang, lastOkAt: number | null, now: number): string {
   if (lastOkAt === null) return ''
-  const time = formatTime(lastOkAt)
+  const time = formatTimeZone(lastOkAt)
   const mins = minutesBetween(lastOkAt, now)
   const ago = mins < 1 ? t(lang, detailCopy.justNow) : `${mins} ${t(lang, detailCopy.minAgo)}`
   return `${time} (${ago})`
@@ -142,9 +154,9 @@ function Stat({ label, value, note, tone }: { label: string; value: string; note
   )
 }
 
-function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask' | 'makeLive' | 'retryLive'> }) {
+function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask' | 'sendInstruction' | 'photoUrl' | 'yourAgency' | 'makeLive' | 'retryLive'> }) {
   const { incident, conflict } = detail
-  const { actorName, sendWithdraw, lowerSeverity, markSafe, resendTask, serverNow, makeLive, retryLive } = view
+  const { actorName, sendWithdraw, lowerSeverity, markSafe, resendTask, serverNow, sendInstruction, photoUrl, makeLive, retryLive } = view
   const [dialog, setDialog] = useState<'withdraw' | 'severity' | 'extinguish' | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [popupId, setPopupId] = useState<string | null>(null)
@@ -175,7 +187,13 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
   const gap = pair.length === 2 ? distanceM(pair[0], pair[1]) : null
   const proposals = detail.tasks.filter((task) => taskControls(task, detail).canDecide)
   const others = detail.tasks.filter((task) => !taskControls(task, detail).canDecide)
-  const reporters = new Set(detail.observations.map((o) => o.volunteerId)).size
+  // While reports disagree, say so plainly when no agent has recorded a dispatch proposal. No service writes one today.
+  const noInvestigate = Boolean(conflict) && !detail.tasks.some((task) => task.type === 'investigate')
+  // The cards count every report; `observations` lists only the two sides when a conflict exists.
+  const reportTotal = detail.volunteers ? detail.volunteers.reduce((sum, c) => sum + c.reportCount, 0) : detail.observations.length
+  const reporters = detail.volunteers ? detail.volunteers.filter((c) => c.reportCount > 0).length : new Set(detail.observations.map((o) => o.volunteerId)).size
+  const summary = summaryText(lang, detail.summary)
+  const help = helpRequests(detail, lang)
   return (
     <>
       <header className="inc-head">
@@ -191,9 +209,8 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           <span className={offline ? 'inc-pill inc-pill-red' : 'inc-pill inc-pill-quiet'}>
             {offline ? t(lang, detailCopy.lastKnown) : `${volunteers.length} ${t(lang, detailCopy.onSite)}`}
           </span>
-          <span className="inc-pill inc-pill-quiet">{t(lang, detailCopy.idLabel)} {incident.id}</span>
         </div>
-        <h1 className="inc-title">{incidentLabel(incident)}</h1>
+        <h1 className="inc-title">{incidentLabel(incident, lang)}</h1>
         <ActionBar
           lang={lang}
           incident={incident}
@@ -207,6 +224,8 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         {notice && <p className="sup-ok" role="status">{notice}</p>}
         <OutcomeLine outcome={actions.outcomes[incident.id]} lang={lang} />
       </header>
+
+      <NeedHelpBanner lang={lang} requests={help} offline={offline} onReply={(id) => setPopupId(id)} />
 
       {wd && <WithdrawPanel lang={lang} state={wd} now={serverNow} offline={offline} markSafe={markSafe} nameOf={(id) => nameOf(detail, id, lang)} />}
 
@@ -233,13 +252,17 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           <p className="inc-muted">{t(lang, detailCopy.conflictBody)} {t(lang, detailCopy.conflictHigher)}: {t(lang, severityName[conflict.higherSeverity])}.</p>
         </section>
       )}
+      {conflict && <ConflictExtras lang={lang} detail={detail} context={detail.conflictContext} />}
 
-      {proposals.length > 0 && (
+      {(proposals.length > 0 || noInvestigate) && (
         <section aria-labelledby="inc-prop-title">
           <h2 className="inc-h2" id="inc-prop-title">{t(lang, disagreeCopy.proposals)}</h2>
-          <ul className="prop-list">
-            {proposals.map((task) => <ProposalRow key={task.id} lang={lang} task={task} detail={detail} actions={actions} offline={offline || paused} editor={actorName} />)}
-          </ul>
+          {proposals.length > 0 && (
+            <ul className="prop-list">
+              {proposals.map((task) => <ProposalRow key={task.id} lang={lang} task={task} detail={detail} actions={actions} offline={offline || paused} editor={actorName} />)}
+            </ul>
+          )}
+          {noInvestigate && <p className="inc-muted">{t(lang, disagreeCopy.noInvestigate)}</p>}
         </section>
       )}
 
@@ -248,16 +271,28 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           label={t(lang, detailCopy.statSeverity)}
           value={t(lang, severityName[incident.severity])}
           tone={`sev-${incident.severity}`}
-          note={top ? `${t(lang, detailCopy.statSeverityRule)} · ${nameOf(detail, top.volunteerId, lang)} · ${formatTime(top.capturedAt)}` : t(lang, detailCopy.statSeverityRule)}
+          note={top ? `${t(lang, detailCopy.statSeverityRule)} · ${nameOf(detail, top.volunteerId, lang)} · ${formatTimeZone(top.capturedAt)}` : t(lang, detailCopy.statSeverityRule)}
         />
         <Stat label={t(lang, detailCopy.statEvidence)} value={String(incident.evidenceScore)} note={t(lang, detailCopy.statEvidenceNote)} />
         <Stat
           label={t(lang, detailCopy.statReports)}
-          value={String(detail.observations.length)}
+          value={String(reportTotal)}
           note={`${reporters} ${lang === 'id' ? 'relawan' : reporters === 1 ? 'volunteer' : 'volunteers'}`}
         />
         <Stat label={t(lang, detailCopy.statPosition)} value={formatPosition(incident)} note={incident.area ?? t(lang, detailCopy.statPositionNote)} />
       </div>
+
+      <AgencyInCharge lang={lang} agency={detail.agencyInCharge} yours={view.yourAgency} />
+
+      {summary && detail.summary && (
+        <section className="inc-card" aria-labelledby="inc-summary-title">
+          <h2 className="inc-h2" id="inc-summary-title">
+            {t(lang, summaryCopy.title)}
+            <span className="inc-h2-note">{t(lang, summaryCopy.note)}{summarySourceText(lang, detail.summary) && ` · ${summarySourceText(lang, detail.summary)}`}</span>
+          </h2>
+          <p>{summary}</p>
+        </section>
+      )}
 
       <section aria-labelledby="inc-field-title">
         <h2 className="inc-h2" id="inc-field-title">
@@ -303,7 +338,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         {paused && <p className="wd-paused">{t(lang, stateCopy.paused)}</p>}
         <p className="inc-callout">{t(lang, detailCopy.withdrawRule)}</p>
       </section>
-      {popupId !== null && <VolunteerPopup lang={lang} detail={detail} volunteerId={popupId} onClose={() => setPopupId(null)} />}
+      {popupId !== null && <VolunteerPopup lang={lang} detail={detail} volunteerId={popupId} onClose={() => setPopupId(null)} offline={offline} now={clock} onResend={resendTask} sendInstruction={sendInstruction} photoUrl={photoUrl} />}
       {toasts[0] && <HeardToast lang={lang} event={toasts[0]} name={nameOf(detail, toasts[0].volunteerId, lang)} onClose={dismiss} />}
       {dialog === 'withdraw' && (
         <SendWithdrawDialog
@@ -350,6 +385,8 @@ function Rail({ lang, detail, queue, onSelect, mapsKey }: Pick<IncidentDetailVie
   const open = detail?.incident
   const incidents = queue && queue.length > 0 ? (open && !queue.some((i) => i.id === open.id) ? [...queue, open] : queue) : open ? [open] : []
   const events = detail ? timelineOf(detail) : []
+  // The stored timeline (reports and actions, every report the incident knows) when the API sends it.
+  const history = detail?.timeline
   return (
     <aside className="inc-rail">
       <IncidentMap incidents={incidents} selectedId={detail?.incident.id ?? null} onSelect={onSelect} mapsKey={mapsKey} />
@@ -373,14 +410,37 @@ function Rail({ lang, detail, queue, onSelect, mapsKey }: Pick<IncidentDetailVie
       )}
       <section className="inc-card" aria-labelledby="inc-timeline-title">
         <h2 className="inc-h2" id="inc-timeline-title">{t(lang, detailCopy.timeline)}</h2>
-        <p className="inc-muted">{t(lang, detailCopy.timelineNote)}</p>
-        {events.length === 0 ? (
+        <p className="inc-muted">{history ? t(lang, timelineCopy.note) : t(lang, detailCopy.timelineNote)}</p>
+        {detail && history ? (
+          history.length === 0 ? (
+            <p className="inc-muted">{t(lang, detailCopy.timelineEmpty)}</p>
+          ) : (
+            <ol className="inc-timeline">
+              {history.map((e) => (
+                <li key={`${e.kind}-${e.id}`}>
+                  <time dateTime={e.at}>{formatTimeZone(e.at)}</time>
+                  {e.kind === 'report' ? (
+                    <span>
+                      {e.volunteerId ? nameOf(detail, e.volunteerId, lang) : '—'} · {e.chip ? chipText(e.chip, lang) : t(lang, severityName[e.severity ?? 'unknown'])}
+                      {e.text ? ` · “${e.text}”` : ''}
+                    </span>
+                  ) : (
+                    <span>
+                      {actorOf(detail, e, lang)} · {actionText(lang, e)}
+                      {subjectOf(detail, e, lang) && ` · ${subjectOf(detail, e, lang)}`}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )
+        ) : events.length === 0 ? (
           <p className="inc-muted">{t(lang, detailCopy.timelineEmpty)}</p>
         ) : (
           <ol className="inc-timeline">
             {events.map((o) => (
               <li key={o.id}>
-                <time dateTime={o.capturedAt}>{formatTime(o.capturedAt)}</time>
+                <time dateTime={o.capturedAt}>{formatTimeZone(o.capturedAt)}</time>
                 <span>
                   {detail ? nameOf(detail, o.volunteerId, lang) : o.volunteerId} · {o.chip ? chipText(o.chip, lang) : t(lang, severityName[o.severity])}
                   {o.text ? ` · “${o.text}”` : ''}
@@ -397,9 +457,9 @@ function Rail({ lang, detail, queue, onSelect, mapsKey }: Pick<IncidentDetailVie
 /** The incident detail screen for `/console/incidents/:incidentId`: every state in one component, props only. */
 export function IncidentDetailView(props: IncidentDetailViewProps) {
   const { lang, incidentId, detail, failure, link, lastOkAt, now, actions, onRetry } = props
-  const label = detail ? incidentLabel(detail.incident) : props.queue?.find((i) => i.id === incidentId)
-    ? incidentLabel(props.queue.find((i) => i.id === incidentId)!)
-    : shortIncidentId(incidentId)
+  const label = detail ? incidentLabel(detail.incident, lang) : props.queue?.find((i) => i.id === incidentId)
+    ? incidentLabel(props.queue.find((i) => i.id === incidentId)!, lang)
+    : incidentLabel({ id: incidentId }, lang)
   let body
   if (detail) {
     body = <Body lang={lang} detail={detail} link={link} actions={actions} view={props} />

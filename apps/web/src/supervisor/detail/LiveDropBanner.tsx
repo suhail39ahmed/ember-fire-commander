@@ -1,4 +1,4 @@
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { t, type Lang } from '../../pwa/i18n'
 import type { LiveSeat } from '../contracts'
 import { liveCopy } from './liveCopy'
@@ -11,7 +11,7 @@ export function LiveDropBanner({ lang, seat }: { lang: Lang; seat: LiveSeat | nu
   const drop = seat?.lastDrop
   if (!drop || !drop.at) return null
   const who = drop.volunteerName?.trim() || drop.volunteerId.slice(-4).toUpperCase()
-  const when = formatTime(drop.at)
+  const when = formatTimeZone(drop.at)
   const signal = drop.signal.toUpperCase()
   return (
     <div className="live-drop" role="status">

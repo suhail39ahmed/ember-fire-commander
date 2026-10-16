@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import type { LiveSeat } from '../contracts'
 import { LiveDropBanner } from '../detail/LiveDropBanner'
 import { VolunteerCard } from '../detail/VolunteerCard'
@@ -62,6 +62,7 @@ function row(over: Partial<VolunteerRow> = {}): VolunteerRow {
     latest: null,
     task: null,
     withdrawn: false,
+    card: null,
     ...over,
   }
 }
@@ -70,7 +71,7 @@ describe('live video dropped', () => {
   it('shows who dropped, when, signal, and that the seat is free', () => {
     const markup = renderToStaticMarkup(<LiveDropBanner lang="en" seat={seat()} />)
     expect(markup).toContain('Sari')
-    expect(markup).toContain(formatTime(dropAt))
+    expect(markup).toContain(formatTimeZone(dropAt))
     expect(markup).toContain('2G')
     expect(markup).toContain('Live seat is free')
     expect(markup).toContain('photo every 60 s')

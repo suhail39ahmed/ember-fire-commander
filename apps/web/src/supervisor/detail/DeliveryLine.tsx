@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { t, type Lang } from '../../pwa/i18n'
 import type { Task } from '../contracts'
 import { taskStatusName } from './copy'
@@ -31,12 +31,12 @@ export function DeliveryLine({ lang, task, now, onResend }: { lang: Lang; task: 
       {receipt.state === 'heard' ? (
         <p className="inc-delivery heard">
           <span className="inc-delivery-dot" aria-hidden="true" />
-          {t(lang, deliveryCopy.heard)} ✓ {formatTime(receipt.heardAt)}
+          {t(lang, deliveryCopy.heard)} ✓ {formatTimeZone(receipt.heardAt)}
         </p>
       ) : (
         <p className="inc-delivery unheard">
           <span className="inc-delivery-dot" aria-hidden="true" />
-          {receipt.state === 'waiting' ? t(lang, deliveryCopy.notHeard) : t(lang, deliveryCopy.notHeardAfter)} · {t(lang, deliveryCopy.sent)} {formatTime(receipt.sentAt)}
+          {receipt.state === 'waiting' ? t(lang, deliveryCopy.notHeard) : t(lang, deliveryCopy.notHeardAfter)} · {t(lang, deliveryCopy.sent)} {formatTimeZone(receipt.sentAt)}
           {receipt.state === 'waiting' && receipt.resendIn !== null && ` · ${t(lang, deliveryCopy.resendIn)} ${countdownText(receipt.resendIn)}`}
         </p>
       )}

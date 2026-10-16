@@ -80,4 +80,18 @@ describe('sendReport', () => {
     const { d } = deps({ create: async () => Promise.reject(new Error('boom')) })
     expect(await sendReport(draft, d)).toMatchObject({ kind: 'failed', retryable: true })
   })
+
+  it('flags a report the server refused for its time, so the screen can talk about the phone clock', async () => {
+    const refusal = new ApiError('validation_error', 'Invalid request', 400, false, {
+      capturedAt: 'capturedAt must not be more than 5 minutes in the future',
+    })
+    const { d } = deps({ create: vi.fn(async () => { throw refusal }) })
+    expect(await sendReport(draft, d)).toEqual(expect.objectContaining({ kind: 'failed', retryable: false, clock: true }))
+  })
+
+  it('does not flag other refusals as a clock problem', async () => {
+    const refusal = new ApiError('validation_error', 'Invalid request', 400, false, { lat: 'lat must be a number' })
+    const { d } = deps({ create: vi.fn(async () => { throw refusal }) })
+    expect(await sendReport(draft, d)).not.toHaveProperty('clock')
+  })
 })

@@ -12,7 +12,7 @@ const RESTORED_MS = 3000
 
 /** Route element for `/console/incidents/:incidentId`. Reads the shared incident state, draws the detail. */
 export function IncidentDetailPage() {
-  const { language, supervisor, clockSkewMs } = useConsole()
+  const { language, supervisor, clockSkewMs, agency } = useConsole()
   const { pathname } = useLocation()
   const { queue, detail, detailFailure, activeId, select, api, refresh, connection, actions } = useIncidents()
   const incidentId = incidentIdFromPath(pathname) ?? activeId ?? ''
@@ -57,6 +57,7 @@ export function IncidentDetailPage() {
         return result
       }}
       actorName={supervisor.displayName}
+      yourAgency={agency}
       serverNow={() => Date.now() + (clockSkewMs ?? 0)}
       lowerSeverity={async (severity) => {
         try {
@@ -91,6 +92,18 @@ export function IncidentDetailPage() {
           throw error
         }
       }}
+      sendInstruction={async (volunteerId, instruction) => {
+        try {
+          const result = await api.sendInstruction(incidentId, volunteerId, instruction)
+          await refresh()
+          return result
+        } catch (error) {
+          // 409: a withdraw or an extinguish landed in the meantime. Show what is stored now.
+          if (error instanceof ApiError && error.status === 409) await refresh()
+          throw error
+        }
+      }}
+      photoUrl={(id, observationId) => api.getPhotoUrl(id, observationId)}
       extinguish={async () => {
         try {
           const result = await api.extinguishIncident(incidentId)

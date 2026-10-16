@@ -96,6 +96,13 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
       observations.push(stored)
       return stored
     },
+    async markTaskHeard(taskId) {
+      await wait()
+      const task = digest.myTasks.find((t) => t.id === taskId)
+      if (!task) throw new ApiError('not_found', 'task id is unknown', 404, false)
+      if (task.status !== 'approved') throw new ApiError('conflict', 'Only a sent instruction can be heard', 409, false)
+      task.heardAt ??= new Date().toISOString()
+    },
     async createUploadUrl(contentType) {
       await wait()
       const id = Math.random().toString(16).slice(2).padEnd(12, '0')

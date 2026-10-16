@@ -6,16 +6,19 @@ import type { ErrorBody } from '../../pwa/contracts/types'
 import type { AuthHeadersProvider } from '../../pwa/api/authHeaders'
 import { API_BASE_URL } from '../../pwa/api/config'
 import { ApiError } from '../../pwa/api/types'
-import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, TaskDecision, WithdrawRequest } from '../contracts'
+import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, PhotoUrl, ProposedTask, TaskDecision, WithdrawRequest } from '../contracts'
 import type { AuditPage, AuditQuery, LiveSeatDecision, SupervisorApi } from './types'
 
 export const SUPERVISOR_ENDPOINTS = {
   incidents: '/incidents',
+  proposedTasks: '/tasks?status=proposed',
   incident: (id: string) => `/incidents/${encodeURIComponent(id)}`,
   audit: '/audit',
   verify: (id: string) => `/incidents/${encodeURIComponent(id)}/verify`,
   withdraw: (id: string) => `/incidents/${encodeURIComponent(id)}/withdraw`,
   withdrawSafe: (id: string) => `/incidents/${encodeURIComponent(id)}/withdraw/safe`,
+  instruct: (id: string, volunteerId: string) => `/incidents/${encodeURIComponent(id)}/volunteers/${encodeURIComponent(volunteerId)}/instruct`,
+  photo: (id: string, observationId: string) => `/incidents/${encodeURIComponent(id)}/photos/${encodeURIComponent(observationId)}`,
   severity: (id: string) => `/incidents/${encodeURIComponent(id)}/severity`,
   extinguish: (id: string) => `/incidents/${encodeURIComponent(id)}/extinguish`,
   makeLive: (id: string) => `/incidents/${encodeURIComponent(id)}/live/make-live`,
@@ -73,6 +76,7 @@ export function createHttpSupervisorApi(
   return {
     listIncidents: () => request<Incident[]>(SUPERVISOR_ENDPOINTS.incidents),
     getIncident: (id) => request<IncidentDetail>(SUPERVISOR_ENDPOINTS.incident(id)),
+    listProposedTasks: () => request<ProposedTask[]>(SUPERVISOR_ENDPOINTS.proposedTasks),
     listAudit: (query) => request<AuditPage>(auditQuery(query)),
     approveTask: (id) => post<TaskDecision>(SUPERVISOR_ENDPOINTS.approve(id)),
     rejectTask: (id) => post<TaskDecision>(SUPERVISOR_ENDPOINTS.reject(id)),
@@ -81,6 +85,8 @@ export function createHttpSupervisorApi(
     verifyIncident: (id) => post<IncidentDecision>(SUPERVISOR_ENDPOINTS.verify(id)),
     withdrawIncident: (id, request: WithdrawRequest) => post<IncidentDecision>(SUPERVISOR_ENDPOINTS.withdraw(id), request),
     markWithdrawSafe: (id, volunteerId) => post<IncidentDecision>(SUPERVISOR_ENDPOINTS.withdrawSafe(id), { volunteerId }),
+    sendInstruction: (id, volunteerId, instruction) => post<TaskDecision>(SUPERVISOR_ENDPOINTS.instruct(id, volunteerId), { instruction }),
+    getPhotoUrl: (id, observationId) => request<PhotoUrl>(SUPERVISOR_ENDPOINTS.photo(id, observationId)),
     lowerSeverity: (id, severity: LowerableSeverity) => post<IncidentDecision>(SUPERVISOR_ENDPOINTS.severity(id), { severity }),
     extinguishIncident: (id) => post<IncidentDecision>(SUPERVISOR_ENDPOINTS.extinguish(id)),
     makeLive: (id, volunteerId) => post<LiveSeatDecision>(SUPERVISOR_ENDPOINTS.makeLive(id), { volunteerId }),

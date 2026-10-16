@@ -142,9 +142,10 @@
   border: 1px solid var(--line);
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
 }
 .incident-row-status { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
-.incident-row-empty { color: var(--ink-muted); }
+.incident-need-help { margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: #fde2e2; border: 1px solid var(--danger); color: var(--danger); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap; }
 .sup-work { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start; }
 .sup-work-detail { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .sup-main { padding: 24px 28px; display: flex; flex-direction: column; gap: 16px; min-height: 100%; }
@@ -185,7 +186,7 @@
   border-radius: 14px;
 }
 .live-fire-title { margin: 0; font-weight: 700; }
-.live-fire-id, .live-fire-meta { margin: 4px 0 0; color: var(--ink-muted); font-size: 13px; }
+.live-fire-meta { margin: 4px 0 0; color: var(--ink-muted); font-size: 13px; }
 .live-flag {
   display: inline-block;
   margin: 8px 0 0;
@@ -210,6 +211,78 @@
   text-decoration: none;
 }
 .live-retry { margin: 0; color: var(--haze); font-size: 13px; }
+.reignition {
+  border: 1px solid #e8a060;
+  background: #fff4e8;
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.reignition-kicker {
+  margin: 0;
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.reignition-lead { margin: 0; font-weight: 700; font-size: 15px; line-height: 1.35; }
+.reignition-note { margin: 0; color: var(--ink-muted); font-size: 13px; line-height: 1.45; }
+.reignition-progress { margin: 0; color: #b45309; font-size: 13px; font-weight: 600; }
+.reignition-error {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fdecec;
+  color: var(--danger);
+  font-size: 13px;
+}
+.reignition-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.reignition-send {
+  min-height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.reignition-send:disabled { opacity: 0.5; cursor: not-allowed; }
+.reignition-dismiss {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 600;
+  cursor: pointer;
+}
+.reignition-dismiss:disabled { opacity: 0.5; cursor: not-allowed; }
+.reignition-reason {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.reignition-reason textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  font-weight: 400;
+}
+.reignition-hint { color: var(--ink-muted); font-weight: 400; font-size: 12px; }
 .season { display: flex; flex-direction: column; gap: 12px; }
 .season-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; }
 .season-title { margin: 0; font-size: 18px; font-weight: 700; }
@@ -260,7 +333,10 @@
 .sup-obs { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
 .sup-obs p { margin: 2px 0; }
 .sup-obs-who { font-weight: 600; }
-.sup-obs-text { font-style: italic; }
+.sup-obs-text { font-style: italic; overflow-wrap: anywhere; white-space: pre-wrap; }
+.sup-obs, .sup-obs-who { min-width: 0; overflow-wrap: anywhere; }
+.sup-obs.help { border-color: var(--danger); box-shadow: 0 0 0 2px #fde2e2; }
+.sup-obs-help { margin: 2px 0; color: var(--danger); font-weight: 700; font-size: 12px; letter-spacing: 0.06em; }
 .sup-sev { font-weight: 700; }
 .sev-large_flame, .sev-small_flame { color: var(--danger); }
 .sev-smoke { color: var(--haze); }
@@ -292,3 +368,9 @@
   .console-top { flex-wrap: wrap; }
   .sup-work, .sup-grid { grid-template-columns: 1fr; }
 }
+.approvals-title { margin: 0; font-size: 22px; font-weight: 700; }
+.approvals-count { color: var(--ink-muted); font-size: 15px; font-weight: 600; }
+.approvals-group { display: flex; flex-direction: column; gap: 8px; }
+.approvals-incident { margin: 0; font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.approvals-incident a { color: inherit; }
+.dash-updated { margin: 0; font-size: 13px; color: var(--ink-muted); }

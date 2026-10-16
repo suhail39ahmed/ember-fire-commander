@@ -8,6 +8,7 @@ export const chromeCopy = {
   map: { id: 'Peta', en: 'Map' },
   audit: { id: 'Log audit', en: 'Audit log' },
   settings: { id: 'Pengaturan', en: 'Settings' },
+  notAvailable: { id: 'Belum tersedia', en: 'Not available yet' },
   title: { id: 'Konsol Supervisor', en: 'Supervisor Console' },
   onDuty: { id: 'Sedang bertugas', en: 'On duty' },
   account: { id: 'Akun', en: 'Account' },
