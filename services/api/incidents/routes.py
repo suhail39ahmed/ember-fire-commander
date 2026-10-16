@@ -204,7 +204,10 @@ def _commit_with_audit(transaction, target_ref, changes, action, target_id, subj
     audit_ref = store.db().collection(store.AUDIT).document()
     if changes:
         transaction.update(target_ref, changes)
-    transaction.set(audit_ref, rules.audit_record(audit_ref.id, g.user["id"], action, target_id, subject_id))
+    transaction.set(
+        audit_ref,
+        rules.audit_record(audit_ref.id, g.user["id"], action, target_id, subject_id, g.user.get("displayName")),
+    )
     return audit_ref.id
 
 

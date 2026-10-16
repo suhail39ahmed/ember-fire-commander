@@ -155,7 +155,7 @@ def dismiss_alert(incident_id, alert_id):
         audit_ref = store.db().collection(store.AUDIT).document()
         transaction.set(
             audit_ref,
-            rules.audit_record(audit_ref.id, g.user["id"], "site.dismiss", incident_id),
+            rules.audit_record(audit_ref.id, g.user["id"], "site.dismiss", incident_id, actor_name=g.user.get("displayName")),
         )
         return audit_ref.id
 
@@ -222,7 +222,7 @@ def send_recheck(incident_id, alert_id):
         audit_ref = store.db().collection(store.AUDIT).document()
         transaction.set(
             audit_ref,
-            rules.audit_record(audit_ref.id, g.user["id"], "site.recheck", incident_id),
+            rules.audit_record(audit_ref.id, g.user["id"], "site.recheck", incident_id, actor_name=g.user.get("displayName")),
         )
         task["id"] = task_ref.id
         return task, audit_ref.id, updated

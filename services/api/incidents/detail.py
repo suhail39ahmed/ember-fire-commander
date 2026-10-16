@@ -128,7 +128,7 @@ def _card(uid, observations, tasks, withdraw, names, push, centre, delivery, saf
             "safe": safe,
             # Who and when come from the audit row written at the time. A mark made before that row carried the volunteer has neither.
             "safeAt": mark.get("at") if safe and mark else None,
-            "safeBy": {"id": mark.get("actorId"), "name": names.get(mark.get("actorId"))} if safe and mark else None,
+            "safeBy": {"id": mark.get("actorId"), "name": _text(mark.get("actorName")) or names.get(mark.get("actorId"))} if safe and mark else None,
         }
     return card
 
@@ -139,7 +139,7 @@ def _audit_entry(row, task_by_id, names):
     return {
         "kind": "audit", "id": row["id"], "at": row.get("at"), "action": row.get("action"),
         "actorId": row.get("actorId"),
-        "actorName": None if row.get("actorId") == "code" else names.get(row.get("actorId")),
+        "actorName": None if row.get("actorId") == "code" else _text(row.get("actorName")) or names.get(row.get("actorId")),
         "volunteerId": row.get("subjectId") or task.get("volunteerId"),
         "taskId": row.get("targetId") if task else None,
         "severity": None, "source": None, "chip": None, "text": None,

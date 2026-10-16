@@ -1011,7 +1011,7 @@ def test_instruct_is_allowed_while_a_conflict_is_open_and_shows_in_the_timeline(
     assert db.data["conflicts"]["con_01"]["status"] == "open"
     assert _instruct(client).status_code == 201
     row = next(e for e in client.get("/incidents/inc_01", headers=AUTH).get_json()["timeline"] if e["action"] == "task.instruct")
-    assert (row["volunteerId"], row["actorName"] or "", row["kind"]) == ("uid_sari", "", "audit")
+    assert (row["volunteerId"], row["actorName"] or "", row["kind"]) == ("uid_sari", "Bu Maya", "audit")
     assert "Instruction sent to one volunteer" in str(client.get("/audit", headers=AUTH).get_json())
 
 
@@ -1230,3 +1230,29 @@ def test_agency_is_not_added_to_the_incident_record_or_the_list(client, monkeypa
     listed = client.get("/incidents", headers=AUTH).get_json()
     assert "agency" not in listed[0]
     assert "agency" not in client.get("/incidents/inc_01", headers=AUTH).get_json()["incident"]
+
+
+# Incident label ---------------------------------------------------------------
+
+def test_incident_label_is_the_name_else_area_else_position_else_plain():
+    from incidents import rules
+
+    assert rules.incident_label({"name": " Bengkalis, Riau · Pak Dedi · #3 ", "area": "x"}) == "Bengkalis, Riau · Pak Dedi · #3"
+    assert rules.incident_label({"area": "Bengkalis, Riau"}) == "Incident · Bengkalis, Riau"
+    assert rules.incident_label({"lat": 13.05, "lng": 77.63}) == "Incident · 13.05°N 77.63°E"
+    assert rules.incident_label({"lat": -1.5, "lng": -2.25}) == "Incident · 1.50°S 2.25°W"
+    assert rules.incident_label({"name": "  ", "lat": "x", "lng": None}) == "Incident"
+
+
+def test_a_supervisor_decision_stores_the_actor_name_on_the_audit_row(client, monkeypatch, db):
+    _as(monkeypatch)
+    assert client.post("/incidents/inc_01/verify", headers=AUTH).status_code == 200
+    row = next(r for r in _audit(db) if r["action"] == "incident.verify")
+    assert row["actorName"] == "Bu Maya"
+
+
+def test_a_token_without_a_name_stores_no_actor_name(client, monkeypatch, db):
+    _as(monkeypatch, name="")
+    assert client.post("/incidents/inc_01/verify", headers=AUTH).status_code == 200
+    row = next(r for r in _audit(db) if r["action"] == "incident.verify")
+    assert "actorName" not in row
