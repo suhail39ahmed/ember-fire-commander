@@ -9,6 +9,7 @@ import logging
 from flask import Blueprint, g, jsonify, request
 
 from identity import AuthError
+from photos.paths import owner_of
 from incidents import rules, store
 from incidents.errors import ApiError, conflict, error_response, not_found, validation
 
@@ -21,6 +22,9 @@ DECLINE_REASONS = ("unsafe", "too_far", "no_equipment", "other")
 NOTE_MAX = 300
 WITHDRAW_ANSWERS = "withdraw_answers"
 ANSWER_STATES = ("safe", "stuck")
+# Why a volunteer says a report from someone else is wrong. The phone shows a label for each key (§6.11).
+FLAG_REASONS = ("no_fire", "duplicate", "old_photo", "wrong_place", "fake")
+OBSERVATION_FLAGS = "observation_flags"
 
 
 @volunteer_bp.errorhandler(ApiError)
@@ -181,3 +185,56 @@ def answer_withdraw(incident_id):
 
     answer, audit_id = store.run_transaction(run)
     return jsonify({"answer": answer, "auditId": audit_id}), 200
+
+
+def _on_incident(uid, incident_id, incident):
+    """True when the caller has a task, a withdraw entry or a report on this incident, like GET /incidents/{id}."""
+    if uid in ((incident.get("withdraw") or {}).get("volunteerIds") or []):
+        return True
+    if any((snap.to_dict() or {}).get("volunteerId") == uid for snap in store.where(store.TASKS, "incidentId", "==", incident_id)):
+        return True
+    mine = store.get_many(store.OBSERVATIONS, incident.get("observationIds") or [])
+    return any((snap.to_dict() or {}).get("volunteerId") == uid for snap in mine.values())
+
+
+@volunteer_bp.route("/observations/<observation_id>/flag", methods=["POST"])
+def flag_observation(observation_id):
+    """A volunteer on the incident says someone else's report looks wrong. The report itself is never changed.
+
+    One flag per volunteer and report; a new flag from the same volunteer replaces the earlier one.
+    """
+    _require_volunteer()
+    body = _body()
+    reason = body.get("reason")
+    if reason not in FLAG_REASONS:
+        raise validation("reason", "use " + ", ".join(FLAG_REASONS))
+    uid = g.user["id"]
+    photo_path = body.get("photoPath")
+    if photo_path is not None:
+        if not isinstance(photo_path, str) or owner_of(photo_path) != uid:
+            raise validation("photoPath", "use a path issued to you by /photos/upload-url, or null")
+
+    observation = store.get_many(store.OBSERVATIONS, [observation_id]).get(observation_id)
+    holders = store.where(store.INCIDENTS, "observationIds", "array_contains", observation_id) if observation else []
+    incident = holders[0] if holders else None
+    if incident is None or not _on_incident(uid, incident.id, incident.to_dict() or {}):
+        # A report on an incident the caller is not part of gets the same answer as an unknown one.
+        raise not_found("observation")
+    if (observation.to_dict() or {}).get("volunteerId") == uid:
+        raise conflict("You cannot flag your own report")
+
+    def run(transaction):
+        flag = {
+            "observationId": observation_id,
+            "incidentId": incident.id,
+            "volunteerId": uid,
+            "reason": reason,
+            "photoPath": photo_path,
+            "at": rules.now_iso(),
+        }
+        transaction.set(_ref(OBSERVATION_FLAGS, f"{observation_id}__{uid}"), flag)
+        audit_id = _audit(transaction, "observation.flag", observation_id)
+        return flag, audit_id
+
+    flag, audit_id = store.run_transaction(run)
+    return jsonify({"flag": flag, "auditId": audit_id}), 200

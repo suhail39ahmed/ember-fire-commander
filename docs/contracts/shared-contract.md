@@ -291,6 +291,10 @@ The display fields never carry a raw id. `actorName` is the stored `actorName`, 
 | `task.resend` | A supervisor sent a sent, unheard task again. `targetId` is the task id |
 | `task.instruct` | A supervisor sent a free-text instruction to one volunteer. `targetId` is the new `instruct` task id |
 | `task.heard` | A volunteer's app confirmed it showed or spoke a task. `actorId` is the volunteer, `targetId` the task id |
+| `task.accept` | A volunteer said Doing it (§6.11). `actorId` is the volunteer, `targetId` the task id |
+| `task.decline` | A volunteer said Can't do it (§6.11). `targetId` is the task id |
+| `withdraw.answer` | A volunteer answered an active withdraw (§6.11). `targetId` is the incident id, `subjectId` the volunteer |
+| `observation.flag` | A volunteer flagged someone else's report as wrong (§6.11). `targetId` is the observation id |
 | `task.withdraw` | Code or a supervisor issued a withdraw instruction. `targetId` is the incident id. Code writes one per intake that adds a volunteer or a reason |
 | `incident.verify` | A supervisor verified the incident |
 | `incident.extinguish` | A supervisor extinguished the incident |
@@ -355,6 +359,17 @@ Written by `ember-api` (`POST /incidents/{id}/withdraw/answer`, §6.11). One doc
 | `incidentId`, `volunteerId` | string | |
 | `state` | string | `safe` or `stuck` |
 | `lat`, `lng`, `accuracyM` | number or null | The phone's position when it answered, `null` when it had none |
+| `at` | string | |
+
+#### `observation_flags`
+
+Written by `ember-api` (`POST /observations/{id}/flag`, §6.11). One document per volunteer and report, with `{observationId}__{volunteerId}` as the document id. A later flag from the same volunteer replaces the earlier one. The observation is not changed (observations are immutable, §5.1). No route returns these yet and the console does not show them.
+
+| Field | Type | Notes |
+|---|---|---|
+| `observationId`, `incidentId`, `volunteerId` | string | `incidentId` is the incident whose `observationIds` holds the report |
+| `reason` | string | `no_fire`, `duplicate`, `old_photo`, `wrong_place` or `fake` |
+| `photoPath` | string or null | A path issued to the flagging volunteer by `/photos/upload-url`, or `null` |
 | `at` | string | |
 
 #### `incident_summaries`
@@ -966,8 +981,9 @@ Volunteer-only. A supervisor is `403`. A volunteer only ever acts for themselves
 | `POST /tasks/{id}/accept` | none | Doing it. Sets `acceptedAt` once and appends `task.accept`. A repeat returns the task with `auditId: null` and writes nothing. Another volunteer's task or an unknown id is `404`. `409` unless the task is `approved` and not a `withdraw`, or when it was already declined |
 | `POST /tasks/{id}/decline` | `{ "reason": "too_far", "note": "Road is flooded" }` | Can't do it. `reason` is required, one of `unsafe`, `too_far`, `no_equipment`, `other` (`400` on `fields.reason`). `note` is optional, at most 300 characters. Sets `declinedAt`, `declineReason` and `declineNote` and appends `task.decline`. The instruction is not changed. A repeat returns the first decline with `auditId: null`. Same `404` and `409` rules as accept, except a task that was accepted first can still be declined |
 | `POST /incidents/{id}/withdraw/answer` | `{ "state": "safe", "lat": 1.49, "lng": 102.12, "accuracyM": 14 }` | The volunteer's answer to an active withdraw. `state` is `safe` (I'm safe upwind) or `stuck` (I can't get out). `lat` and `lng` are optional but go together; `accuracyM` is optional. Written to `withdraw_answers/{incidentId}__{volunteerId}` (the latest answer replaces the earlier one) and appended as `withdraw.answer` with `subjectId` the volunteer. It never changes `incident.withdraw`: `active` and `safeVolunteerIds` stay as they were, and only a supervisor marks a volunteer found safe (§6.5). `404` when the incident is unknown or does not name the caller in `withdraw.volunteerIds`, `409` when no withdraw is active |
+| `POST /observations/{id}/flag` | `{ "reason": "no_fire", "photoPath": "photos/uid/20261016/ab12.jpg" }` | A volunteer says someone else's report looks wrong. `reason` is required, one of `no_fire` (I'm here, no fire), `duplicate` (same fire as another incident), `old_photo`, `wrong_place`, `fake` (`400` on `fields.reason`). `photoPath` is optional and must be a path issued to the caller (`400` on `fields.photoPath`). Written to `observation_flags/{observationId}__{volunteerId}` and appended as `observation.flag`. The observation is never changed and the response does not name its reporter. `404` when the report is unknown or not on an incident the caller is part of (a task, a withdraw entry or a report of their own), `409` for the caller's own report |
 
-Success returns `{ "task": {}, "auditId": "aud_01" }` for the two task routes and `{ "answer": {}, "auditId": "aud_01" }` for the withdraw answer.
+Success returns `{ "task": {}, "auditId": "aud_01" }` for the two task routes and `{ "answer": {}, "auditId": "aud_01" }` for the withdraw answer. The flag returns `{ "flag": {}, "auditId": "aud_01" }`.
 
 ## 7. WebSocket
 
@@ -1339,5 +1355,6 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · console gaps, names: `PLACES` gains seven checked towns and the two test cities Bengaluru and Pune (§5.2 naming rules), and `scripts/backfill-incident-names.py` names older incidents with the same code (dry run unless `--apply`). Existing names and areas are never changed.
 - 2026-10-16 · #152: `GET /me` adds `crewName` for a volunteer (`null` when none is stored). The volunteer header and Profile show it instead of a fixed crew line (§6.1).
 - 2026-10-16 · #136, #137, #146 to #148: new volunteer routes `POST /tasks/{id}/accept`, `POST /tasks/{id}/decline` and `POST /incidents/{id}/withdraw/answer` (§6.11), audits `task.accept`, `task.decline` and `withdraw.answer`. Tasks gain optional `acceptedAt`, `declinedAt`, `declineReason` and `declineNote` (§5.3). The withdraw answer is stored in the new `withdraw_answers` collection and never changes `incident.withdraw`.
+- 2026-10-16 · #141: new volunteer route `POST /observations/{id}/flag` (§6.11), audit `observation.flag`, stored in the new `observation_flags` collection. Observations stay immutable. The audit table (§5.5) also lists `task.accept`, `task.decline` and `withdraw.answer`, which #136, #137 and #146 to #148 already wrote.
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).

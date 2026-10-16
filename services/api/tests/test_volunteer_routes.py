@@ -204,3 +204,80 @@ def test_only_a_volunteer_named_on_an_active_withdraw_can_answer(client, db, mon
     assert client.post("/incidents/inc_01/withdraw/answer", headers=AUTH, json={"state": "safe"}).status_code == 409
     _as(monkeypatch, role="supervisor", uid="uid_maya", name="Bu Maya")
     assert client.post("/incidents/inc_01/withdraw/answer", headers=AUTH, json={"state": "safe"}).status_code == 403
+
+
+# Flag a wrong report ---------------------------------------------------------
+
+SARI_PHOTO = "photos/uid_sari/20261016/" + "a" * 32 + ".jpg"
+
+
+@pytest.fixture
+def flaggable(db):
+    db.add("observations", "obs_rizal", {"volunteerId": "uid_rizal", "chip": "api", "text": "Fire at the canal", "immutable": True})
+    db.add("observations", "obs_sari", {"volunteerId": "uid_sari", "chip": "asap", "text": "Thin smoke", "immutable": True})
+    db.add("observations", "obs_far", {"volunteerId": "uid_far", "chip": "api", "text": "Elsewhere", "immutable": True})
+    db.add("incidents", "inc_flag", {"status": "open", "severity": "smoke", "lat": 1.5, "lng": 102.1, "withdraw": None, "observationIds": ["obs_rizal", "obs_sari"]})
+    db.add("incidents", "inc_far", {"status": "open", "severity": "smoke", "lat": 9.0, "lng": 99.0, "withdraw": None, "observationIds": ["obs_far"]})
+    return db
+
+
+def test_a_volunteer_on_the_incident_can_flag_someone_elses_report(client, flaggable, monkeypatch):
+    _as(monkeypatch)
+    response = client.post("/observations/obs_rizal/flag", headers=AUTH, json={"reason": "no_fire", "photoPath": SARI_PHOTO})
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["flag"] == {
+        "observationId": "obs_rizal", "incidentId": "inc_flag", "volunteerId": "uid_sari",
+        "reason": "no_fire", "photoPath": SARI_PHOTO, "at": body["flag"]["at"],
+    }
+    assert body["auditId"]
+    assert flaggable.data["observation_flags"]["obs_rizal__uid_sari"]["reason"] == "no_fire"
+    assert [row["action"] for row in _audit(flaggable)] == ["observation.flag"]
+    assert _audit(flaggable)[0]["targetId"] == "obs_rizal"
+
+
+def test_flagging_never_changes_the_report(client, flaggable, monkeypatch):
+    _as(monkeypatch)
+    before = dict(flaggable.data["observations"]["obs_rizal"])
+    client.post("/observations/obs_rizal/flag", headers=AUTH, json={"reason": "fake"})
+    assert flaggable.data["observations"]["obs_rizal"] == before
+
+
+def test_a_second_flag_from_the_same_volunteer_replaces_the_first(client, flaggable, monkeypatch):
+    _as(monkeypatch)
+    client.post("/observations/obs_rizal/flag", headers=AUTH, json={"reason": "no_fire"})
+    client.post("/observations/obs_rizal/flag", headers=AUTH, json={"reason": "old_photo"})
+    flags = flaggable.data["observation_flags"]
+    assert list(flags) == ["obs_rizal__uid_sari"]
+    assert flags["obs_rizal__uid_sari"]["reason"] == "old_photo"
+    assert flags["obs_rizal__uid_sari"]["photoPath"] is None
+
+
+def test_a_volunteer_cannot_flag_their_own_report(client, flaggable, monkeypatch):
+    _as(monkeypatch)
+    assert client.post("/observations/obs_sari/flag", headers=AUTH, json={"reason": "fake"}).status_code == 409
+    assert "observation_flags" not in flaggable.data or not flaggable.data["observation_flags"]
+
+
+def test_a_report_on_another_incident_or_an_unknown_report_is_not_found(client, flaggable, monkeypatch):
+    _as(monkeypatch)
+    assert client.post("/observations/obs_far/flag", headers=AUTH, json={"reason": "fake"}).status_code == 404
+    assert client.post("/observations/missing/flag", headers=AUTH, json={"reason": "fake"}).status_code == 404
+    assert _audit(flaggable) == []
+
+
+def test_flag_validation(client, flaggable, monkeypatch):
+    _as(monkeypatch)
+    bad = client.post("/observations/obs_rizal/flag", headers=AUTH, json={"reason": "lazy"})
+    assert bad.status_code == 400
+    assert "reason" in bad.get_json()["error"]["fields"]
+    assert client.post("/observations/obs_rizal/flag", headers=AUTH, json={}).status_code == 400
+    someone_elses = "photos/uid_rizal/20261016/" + "b" * 32 + ".jpg"
+    assert client.post("/observations/obs_rizal/flag", headers=AUTH, json={"reason": "fake", "photoPath": someone_elses}).status_code == 400
+    assert client.post("/observations/obs_rizal/flag", headers=AUTH, json={"reason": "fake", "photoPath": "https://x.test/a.jpg"}).status_code == 400
+    assert client.post("/observations/obs_rizal/flag", headers=AUTH, data="nope", content_type="application/json").status_code == 400
+
+
+def test_a_supervisor_cannot_flag(client, flaggable, monkeypatch):
+    _as(monkeypatch, role="supervisor", uid="uid_maya", name="Bu Maya")
+    assert client.post("/observations/obs_rizal/flag", headers=AUTH, json={"reason": "fake"}).status_code == 403
