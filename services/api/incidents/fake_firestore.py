@@ -65,6 +65,8 @@ def _matches(data, field_filter):
     op = field_filter.op_string
     if op == "==":
         return value == field_filter.value
+    if op == ">=":
+        return value is not None and value >= field_filter.value
     if op == "array_contains":
         return field_filter.value in (value or [])
     if op in ("in", "array_contains_any"):
