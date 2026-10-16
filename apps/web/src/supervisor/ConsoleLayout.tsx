@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { USE_MOCK_API } from '../pwa/api/config'
 import { formatTime } from '../pwa/formatTime'
 import { strings, t } from '../pwa/i18n'
-import { LanguageToggle } from '../pwa/LanguageProvider'
+import { DisplayControls } from '../pwa/DisplayControls'
 import { copy } from '../routes/copy'
 import { chromeCopy } from './chromeCopy'
 import { ConsoleProvider, useConsole, type ChromeFailure } from './ConsoleProvider'
@@ -13,6 +13,7 @@ import type { ConsoleChrome } from './chromeClient'
 import type { ConsoleMenu } from './paths'
 import { CONSOLE_PATHS } from './paths'
 import './supervisor.css'
+import './themeDark.css'
 
 function EmberMark() {
   return (
@@ -81,7 +82,7 @@ function ConsoleFrame({ fallback }: { fallback: ReactNode }) {
         <span className="console-spacer" />
         {chromeError && <p className="console-alert" role="alert">{chromeError}</p>}
         <ServerClock serverTime={serverTime} skewMs={clockSkewMs} label={t(language, chromeCopy.serverTime)} />
-        <LanguageToggle />
+        <DisplayControls />
         <div className="console-session">
           <p className="console-duty" role="status">{t(language, chromeCopy.onDuty)}</p>
           <details className="console-account">

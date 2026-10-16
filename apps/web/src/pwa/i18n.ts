@@ -3,14 +3,20 @@
  * Bahasa copy is DRAFT and needs native-speaker review before the demo.
  * Chip labels live in report/chips.ts. Only the labels change with the language; the values sent to the API do not.
  */
-export type Lang = 'id' | 'en'
+/** Every language the UI can show. A new language is one more entry here and one more string per copy bundle. */
+export const LANGUAGES = [
+  { code: 'id', short: 'ID', name: 'Bahasa Indonesia' },
+  { code: 'en', short: 'EN', name: 'English' },
+] as const
+
+export type Lang = (typeof LANGUAGES)[number]['code']
 
 export const LANG_KEY = 'ember.lang'
 export const DEFAULT_LANG: Lang = 'id'
 
 /** Reads a stored language code; anything unknown falls back to the default. */
 export function parseLang(value: string | null | undefined): Lang {
-  return value === 'en' || value === 'id' ? value : DEFAULT_LANG
+  return LANGUAGES.find((language) => language.code === value)?.code ?? DEFAULT_LANG
 }
 
 const strings = {

@@ -1,0 +1,76 @@
+.display-controls { display: inline-flex; align-items: center; gap: 10px; flex: none; }
+
+.lang-menu { position: relative; }
+.lang-menu-button,
+.theme-switch {
+  border: 1px solid var(--line, #e7e1d8);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--ink-muted, #6b645c);
+}
+.lang-menu-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ink, #1c1917);
+  cursor: pointer;
+}
+.lang-menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 5;
+  list-style: none;
+  min-width: 200px;
+  padding: 6px;
+  border: 1px solid var(--line, #e7e1d8);
+  border-radius: 14px;
+  background: var(--surface, #fff);
+  box-shadow: 0 8px 24px rgba(28, 25, 23, 0.14);
+}
+.lang-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink, #1c1917);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.lang-menu-item[aria-checked='true'] { background: var(--ink, #1c1917); color: var(--paper, #faf7f2); }
+.lang-menu-short { min-width: 22px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; }
+
+.theme-switch { display: inline-flex; gap: 2px; padding: 3px; }
+.theme-switch-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-muted, #6b645c);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.theme-switch-option[aria-pressed='true'] { background: var(--ink, #1c1917); color: var(--paper, #faf7f2); cursor: default; }
+
+.lang-menu-button:focus-visible,
+.lang-menu-item:focus-visible,
+.theme-switch-option:focus-visible { outline: 2px solid var(--ember, #e2531b); outline-offset: 2px; }

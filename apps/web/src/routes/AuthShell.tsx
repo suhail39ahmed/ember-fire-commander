@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
 
 import { t } from '../pwa/i18n'
-import { LanguageToggle } from '../pwa/LanguageProvider'
+import { DisplayControls } from '../pwa/DisplayControls'
 import { useLanguage } from '../pwa/language'
 import { copy } from './copy'
 import './login.css'
+import './loginDark.css'
 
 function Shield() {
   return (
@@ -29,7 +30,7 @@ export function AuthShell({ audience, children }: { audience: 'volunteer' | 'sup
         <p className="footnote">{t(lang, copy.footnote)}</p>
       </section>
       <section className="login-panel">
-        <div className="login-lang"><LanguageToggle /></div>
+        <div className="login-lang"><DisplayControls /></div>
         {children}
       </section>
     </main>
