@@ -49,6 +49,7 @@ app.register_blueprint(dashboard_bp)
 app.register_blueprint(config_bp)
 app.register_blueprint(audit_bp)
 app.register_blueprint(sites_bp)
+app.register_blueprint(volunteer_routes.volunteer_bp)
 
 
 def error_body(code, message):

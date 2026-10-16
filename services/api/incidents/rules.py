@@ -18,6 +18,7 @@ INCIDENT_FIELDS = (
 SUMMARY_FIELDS = ("id", "name", "area", "status", "severity", "withdraw", "lat", "lng")
 TASK_FIELDS = (
     "id", "incidentId", "volunteerId", "type", "status", "instruction", "sentAt", "heardAt", "sendCount", "resendAt",
+    "acceptedAt", "declinedAt", "declineReason", "declineNote",
 )
 # A task that was sent and not heard can be sent again after this long.
 RESEND_AFTER_SECONDS = 60
