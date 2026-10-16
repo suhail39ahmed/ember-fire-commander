@@ -69,3 +69,27 @@
 [data-theme='dark'] .console { background: var(--paper); }
 [data-theme='dark'] .inc-input,
 [data-theme='dark'] .sup-edit textarea { background: var(--surface); color: var(--ink); }
+
+/* The withdraw panel, the pop-up, the edit dialog and the delivery line, added after the first dark pass. */
+[data-theme='dark'] .wd,
+[data-theme='dark'] .wd-person,
+[data-theme='dark'] .wd-btn,
+[data-theme='dark'] .pop-region,
+[data-theme='dark'] .pop-btn,
+[data-theme='dark'] .inc-vol-open,
+[data-theme='dark'] .inc-edit-field { background: var(--surface); color: var(--ink); }
+[data-theme='dark'] .wd-open,
+[data-theme='dark'] .inc-vol-wd { background: var(--tint-red); }
+[data-theme='dark'] .inc-vol-wd.safe,
+[data-theme='dark'] .inc-toast { background: var(--safe-tint); }
+[data-theme='dark'] .wd-call { background: var(--danger); color: #fff; }
+[data-theme='dark'] .wd-yes,
+[data-theme='dark'] .pop-send { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+[data-theme='dark'] .wd-result,
+[data-theme='dark'] .inc-vol-wd.safe,
+[data-theme='dark'] .inc-delivery.heard { color: var(--safe); }
+[data-theme='dark'] .wd-result.wd-error { color: var(--danger); }
+[data-theme='dark'] .pop-input { background: var(--paper); color: var(--ink); }
+[data-theme='dark'] .pop-snap-img { background: repeating-linear-gradient(45deg, #2a2622, #2a2622 6px, #34302b 6px, #34302b 12px); }
+[data-theme='dark'] .inc-edit-field { border-color: var(--data); }
+[data-theme='dark'] .inc-toast { border-color: var(--safe); }
