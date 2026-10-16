@@ -104,7 +104,7 @@ describe('volunteer pop-up: every region of the frame is there', () => {
   it('says plainly what no service stores or does yet, region by region', () => {
     const html = popup(fixture('conflict'), 'uid_sari')
     expect(html).toContain('ember-api does not store an English translation yet')
-    expect(html).toContain('Not available yet</b> · Needs live media from voice-gateway')
+    expect(html).toContain('Not available yet</b> · Needs streaming video pixels from voice-gateway to the console')
     expect(html).toContain('Needs an endpoint in agents that answers questions, plus a thread and instruction drafts')
     expect(html).toContain('The agents service has no endpoint that answers questions')
     expect(html).toContain('No service writes free-form advice with a rationale.')
