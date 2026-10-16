@@ -41,7 +41,7 @@ def app_check_enforced():
 
 def protect_request():
     """Verify identity. Return None so the view can run."""
-    if request.path == "/healthz" or request.method == "OPTIONS":
+    if request.path in ("/healthz", "/config") or request.method == "OPTIONS":
         return None
     # Agents calls this with its own Cloud Run ID token. The route checks that
     # token. A Firebase user token is the wrong credential here.

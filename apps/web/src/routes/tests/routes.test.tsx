@@ -10,14 +10,18 @@ type Auth = {
   status: 'loading' | 'signed-out' | 'ready' | 'no-access' | 'error'
   me: { id: string; displayName: string; role: 'volunteer' | 'supervisor' } | null
   message: string | null
-  user: null
+  user: { email: string | null } | null
   signIn: () => Promise<void>
   signOut: () => Promise<void>
+  refreshMe: () => Promise<void>
 }
 
 const state = vi.hoisted(() => ({ auth: null as unknown as Auth }))
 
 vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => state.auth }))
+vi.mock('../../auth/config', () => ({
+  fetchConfig: async () => ({ demoMode: false }),
+}))
 vi.mock('../../pwa/VolunteerApp', () => ({ VolunteerApp: () => <p>volunteer app screen</p> }))
 vi.mock('../../supervisor/ConsoleLayout', () => ({ ConsoleLayout: () => <p>console screen</p> }))
 vi.mock('../../supervisor/SupervisorConsole', () => ({
@@ -28,7 +32,16 @@ vi.mock('../../supervisor/SupervisorConsole', () => ({
 import { AppRoutes } from '../AppRoutes'
 
 function signedOut(over: Partial<Auth> = {}): Auth {
-  return { status: 'signed-out', me: null, message: null, user: null, signIn: async () => undefined, signOut: async () => undefined, ...over }
+  return {
+    status: 'signed-out',
+    me: null,
+    message: null,
+    user: null,
+    signIn: async () => undefined,
+    signOut: async () => undefined,
+    refreshMe: async () => undefined,
+    ...over,
+  }
 }
 const volunteer = { id: 'vol_1', displayName: 'Pak Dedi', role: 'volunteer' as const }
 const supervisor = { id: 'sup_1', displayName: 'Bu Maya', role: 'supervisor' as const }
@@ -155,10 +168,16 @@ describe('signed-in pages', () => {
   })
 
   it('tells a volunteer on /console the page is for supervisors, with a way to their own page', () => {
-    state.auth = signedOut({ status: 'ready', me: volunteer })
+    state.auth = signedOut({
+      status: 'ready',
+      me: volunteer,
+      user: { email: 'volunteer@example.com' },
+    })
     const html = render('/console')
     expect(html).toContain('This page is for supervisors')
-    expect(html).toContain('403 · FORBIDDEN · /CONSOLE')
+    expect(html).toContain('Account volunteer@example.com is registered as a volunteer')
+    expect(html).toContain('403 · FORBIDDEN')
+    expect(html).not.toContain('403 · FORBIDDEN · /CONSOLE')
     expect(html).toContain('href="/pwa"')
     expect(html).toContain('Sign out')
     expect(html).not.toContain('console screen')
@@ -185,11 +204,18 @@ describe('signed-in pages', () => {
     expect(render('/console', 'id')).toContain('Halaman ini untuk supervisor')
   })
 
-  it('shows the server message when the account has no role', () => {
-    state.auth = signedOut({ status: 'no-access', message: 'No role assigned' })
-    const html = render('/pwa')
-    expect(html).toContain('No access')
-    expect(html).toContain('No role assigned')
+  it('shows the no-access screen with Check again when the account has no role', () => {
+    state.auth = signedOut({
+      status: 'no-access',
+      message: 'No role assigned',
+      user: { email: 'new@example.com' },
+    })
+    const html = render('/console')
+    expect(html).toContain('You&#x27;re signed in, but not added yet')
+    expect(html).toContain('Ask a BPBD admin to give new@example.com the supervisor role')
+    expect(html).toContain('403 · ROLE_MISSING')
+    expect(html).toContain('Check again')
+    expect(html).toContain('Sign out')
   })
 
   it('shows a checking state instead of the sign-in while loading', () => {
@@ -205,14 +231,16 @@ describe('unknown paths', () => {
     state.auth = signedOut({ status: 'ready', me: supervisor })
     const html = render('/console/nope')
     expect(html).toContain('Page not found')
-    expect(html).toContain('404 · /console/nope')
+    expect(html).toContain("/console/nope doesn&#x27;t exist.")
+    expect(html).toContain('404 · NOT FOUND')
     expect(html).not.toContain('console screen')
   })
 
   it('show a not-found page with the path and a way back', () => {
     const html = render('/nonexistent')
     expect(html).toContain('Page not found')
-    expect(html).toContain('404 · /nonexistent')
+    expect(html).toContain("/nonexistent doesn&#x27;t exist.")
+    expect(html).toContain('404 · NOT FOUND')
     expect(html).toContain('href="/pwa"')
     expect(html).toContain('Go to the volunteer app')
     expect(html).not.toContain('Sign in with Google')

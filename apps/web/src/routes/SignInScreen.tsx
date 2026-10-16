@@ -30,13 +30,20 @@ export function SignInScreen({ audience }: { audience: Audience }) {
     <AuthShell audience={audience}>
       <div className="login-card">
         <h1>{t(lang, copy.signIn[audience].title)}</h1>
-        <p className="sub">{t(lang, copy.signIn[audience].sub)}</p>
+        <p className="sub">{t(lang, busy ? copy.signIn.opening : copy.signIn[audience].sub)}</p>
         <button className="google-button" type="button" onClick={onGoogle} disabled={busy} aria-busy={busy}>
           {busy ? <span className="spinner" aria-hidden="true" /> : null}
           {t(lang, busy ? copy.signIn.busy : copy.signIn.button)}
         </button>
         {message ? <p className="error" role="alert">{signInErrorText(message, lang)}</p> : null}
-        <p className="note">{t(lang, copy.signIn.note)}</p>
+        {busy ? (
+          <p className="note waiting" role="status">
+            <span className="spinner" aria-hidden="true" />
+            {t(lang, copy.signIn.waiting)}
+          </p>
+        ) : (
+          <p className="note">{t(lang, copy.signIn.note)}</p>
+        )}
       </div>
     </AuthShell>
   )

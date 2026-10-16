@@ -60,13 +60,14 @@ Defined in `services/api/incidents/rules.py` and `services/api/observations/vali
 
 ## ember-api
 
-Handlers: `services/api/app.py`, `observations/routes.py`, `photos/routes.py`, `incidents/routes.py`, `notifications/routes.py`, `dashboard.py`.
+Handlers: `services/api/app.py`, `config_route.py`, `observations/routes.py`, `photos/routes.py`, `incidents/routes.py`, `notifications/routes.py`, `dashboard.py`.
 
 Incident list and detail responses use `INCIDENT_FIELDS`: `id`, `name`, `area`, `status`, `severity`, `evidenceScore`, `conflictId`, `withdraw`, `lat`, `lng`. Digest summaries drop `evidenceScore` and `conflictId`. `observationIds` and `evidenceFactors` stay in Firestore and are not returned. A task is `id`, `incidentId`, `volunteerId`, `type`, `status`, `instruction`. A conflict is `id`, `incidentId`, `observationIds`, `higherSeverity`, `status`, `dispatchHeld`.
 
 | Method | Path | Who may call | Called by | Body | Success |
 |---|---|---|---|---|---|
 | GET | `/healthz` | public | probes | — | `200` `{ status, service, firestore_database }` |
+| GET | `/config` | public | sign-in / console chrome | — | `200` `{ demoMode }`. `demoMode` comes from `ops/config` in ember-db, else `DEMO_MODE` env (default false) |
 | GET | `/me` | any role | both apps, after sign-in | — | `200` `{ id, displayName, role }` |
 | GET | `/dashboard` | supervisor | console chrome, every 15 s | — | `200` `{ agency, serverTime, approvalsCount }`. `agency` is a string or `null` (`volunteers/{uid}.agency`). `serverTime` is ISO-8601 UTC. `approvalsCount` is how many tasks are `proposed`. A volunteer is `403` |
 | POST | `/observations` | any role | PWA | chip, text, or photo observation. Optional `clientId` (1–128 of `[A-Za-z0-9._-]`) | `201` stored observation, or `200` the first observation when `clientId` repeats |

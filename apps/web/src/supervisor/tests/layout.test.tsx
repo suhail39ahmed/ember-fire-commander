@@ -19,6 +19,7 @@ vi.mock('../../auth/AuthProvider', () => ({
     message: null,
     signIn: async () => undefined,
     signOut: async () => undefined,
+    refreshMe: async () => undefined,
   }),
 }))
 

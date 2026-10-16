@@ -14,9 +14,36 @@ interface AuthState {
   message: string | null
   signIn: () => Promise<void>
   signOut: () => Promise<void>
+  /** Re-run GET /me for the signed-in Firebase user (no-access "Check again"). */
+  refreshMe: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthState | null>(null)
+
+async function loadMe(
+  next: User,
+  setMe: (me: Me | null) => void,
+  setMessage: (message: string | null) => void,
+  setStatus: (status: Status) => void,
+) {
+  setStatus('loading')
+  try {
+    const result = await fetchMe(next)
+    if ('error' in result) {
+      setMe(null)
+      setStatus(result.error.code === 'role_missing' ? 'no-access' : 'error')
+      setMessage(result.error.message)
+      return
+    }
+    setMe(result.me)
+    setMessage(null)
+    setStatus('ready')
+  } catch (err) {
+    setMe(null)
+    setStatus('error')
+    setMessage(err instanceof Error ? err.message : 'Could not reach ember-api')
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>('loading')
@@ -33,21 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setMessage(null)
         return
       }
-      setStatus('loading')
-      try {
-        const result = await fetchMe(next)
-        if ('error' in result) {
-          setStatus(result.error.code === 'role_missing' ? 'no-access' : 'error')
-          setMessage(result.error.message)
-          return
-        }
-        setMe(result.me)
-        setMessage(null)
-        setStatus('ready')
-      } catch (err) {
-        setStatus('error')
-        setMessage(err instanceof Error ? err.message : 'Could not reach ember-api')
-      }
+      await loadMe(next, setMe, setMessage, setStatus)
     })
   }, [])
 
@@ -67,6 +80,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut: async () => {
       await unregisterPushFor(user)
       await signOut(auth)
+    },
+    refreshMe: async () => {
+      if (!user) return
+      await loadMe(user, setMe, setMessage, setStatus)
     },
   }), [status, user, me, message])
 

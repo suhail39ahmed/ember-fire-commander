@@ -1,6 +1,7 @@
 """ember-api: REST API for EMBER fire commander.
 
 GET /me verifies a Firebase ID token and returns the signed-in user.
+GET /config returns public runtime flags such as demoMode.
 POST /observations stores one immutable chip or text observation.
 POST /photos/upload-url issues a short-lived signed PUT URL for one photo.
 GET /incidents, GET /digest and the supervisor decision routes live in incidents/.
@@ -20,6 +21,7 @@ from photos import photos_bp
 from incidents import incidents_bp
 from notifications import notifications_bp
 from dashboard import dashboard_bp
+from config_route import config_bp
 
 app = Flask(__name__)
 
@@ -39,6 +41,7 @@ app.register_blueprint(photos_bp)
 app.register_blueprint(incidents_bp)
 app.register_blueprint(notifications_bp)
 app.register_blueprint(dashboard_bp)
+app.register_blueprint(config_bp)
 
 
 def error_body(code, message):

@@ -9,7 +9,19 @@ import { signInErrorText } from '../copy'
 const state = vi.hoisted(() => ({ status: 'signed-out' as string, message: null as string | null }))
 
 vi.mock('../../auth/AuthProvider', () => ({
-  useAuth: () => ({ status: state.status, me: null, user: null, message: state.message, signIn: async () => undefined, signOut: async () => undefined }),
+  useAuth: () => ({
+    status: state.status,
+    me: null,
+    user: null,
+    message: state.message,
+    signIn: async () => undefined,
+    signOut: async () => undefined,
+    refreshMe: async () => undefined,
+  }),
+}))
+
+vi.mock('../../auth/config', () => ({
+  fetchConfig: async () => ({ demoMode: false }),
 }))
 
 import { SignInScreen } from '../SignInScreen'
@@ -41,13 +53,18 @@ describe('sign-in button', () => {
     const html = render()
     expect(html).toContain('class="spinner"')
     expect(html).toContain('Signing in…')
+    expect(html).toContain('Opening Google…')
+    expect(html).toContain('Waiting for the Google window…')
     expect(html).toContain('aria-busy="true"')
     expect(html).toMatch(/<button[^>]*disabled/)
   })
 
   it('follows the stored language while loading', () => {
     state.status = 'loading'
-    expect(render('id')).toContain('Sedang masuk…')
+    const html = render('id')
+    expect(html).toContain('Sedang masuk…')
+    expect(html).toContain('Membuka Google…')
+    expect(html).toContain('Menunggu jendela Google…')
   })
 })
 

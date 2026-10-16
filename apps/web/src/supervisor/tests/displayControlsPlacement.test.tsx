@@ -16,7 +16,12 @@ vi.mock('../../auth/AuthProvider', () => ({
     message: null,
     signIn: async () => undefined,
     signOut: async () => undefined,
+    refreshMe: async () => undefined,
   }),
+}))
+
+vi.mock('../../auth/config', () => ({
+  fetchConfig: async () => ({ demoMode: false }),
 }))
 
 const chrome: ConsoleChrome = { agency: 'BPBD Kepulauan Meranti', serverTime: '2026-10-16T07:46:00Z', approvalsCount: 3 }
@@ -57,10 +62,10 @@ describe('language dropdown and theme switch placement', () => {
     expect(at('theme-switch')).toBeLessThan(at('console-duty'))
   })
 
-  it('is the same control on the sign-in screen', () => {
+  it('uses the ID/EN pill toggle on the sign-in screen (Figma WA1)', () => {
     const html = render(<AuthShell audience="supervisor"><p>card</p></AuthShell>)
-    expect(html.match(/class="lang-menu"/g)).toHaveLength(1)
-    expect(html.match(/class="theme-switch"/g)).toHaveLength(1)
-    expect(html).not.toContain('lang-toggle')
+    expect(html.match(/class="lang-toggle"/g)).toHaveLength(1)
+    expect(html).not.toContain('lang-menu')
+    expect(html).not.toContain('theme-switch')
   })
 })
