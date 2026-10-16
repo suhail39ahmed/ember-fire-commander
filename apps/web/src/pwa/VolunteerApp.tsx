@@ -9,6 +9,7 @@ import { createMockApi, type MockControls } from './api/mock'
 import { activeWithdraw, currentTask } from './digest'
 import { recordDigestClock } from './clock'
 import { useDigest } from './useDigest'
+import { useWakeLock } from './useWakeLock'
 import { incidentLabelById } from './incidentName'
 import { browserSocketFactory, PttSession, type SessionState } from './gateway/pttSession'
 import { TalkCard } from './gateway/TalkCard'
@@ -96,6 +97,8 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
   const withdraw = withdrawOrder !== null || task?.type === 'withdraw'
   const withdrawText = withdrawOrder?.instruction ?? (task?.type === 'withdraw' ? task.instruction : null)
   useMarkHeard(api, digest, task?.id ?? null, withdraw)
+  // A locked screen would hide the one instruction that matters, so it stays on while WITHDRAW is showing.
+  useWakeLock(withdraw)
 
   return (
     <div className="vol">
