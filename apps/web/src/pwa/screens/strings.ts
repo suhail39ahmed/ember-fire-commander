@@ -363,5 +363,65 @@ export const screenStrings = {
   },
   guide: {
     title: { id: 'Panduan', en: 'Guide' },
+    subtitle: {
+      id: 'Belajar apa yang dilakukan di kebakaran. EMBER melatih Anda dalam Bahasa atau English.',
+      en: 'Learn what to do at a fire. EMBER coaches you, in Bahasa or English.',
+    },
+    startHere: { id: 'MULAI DI SINI · 3 MENIT', en: 'START HERE · 3 MIN' },
+    resumeVideo: { id: 'Lanjut video', en: 'Resume video' },
+    aiTraining: { id: 'PELATIHAN AI', en: 'AI TRAINING' },
+    of: { id: 'DARI', en: 'OF' },
+    done: { id: 'SELESAI', en: 'DONE' },
+    min: { id: 'menit', en: 'min' },
+    start: { id: 'Mulai', en: 'Start' },
+    askTitle: { id: 'TANYA EMBER TENTANG SITUASI', en: 'ASK EMBER ABOUT A SITUATION' },
+    askBody: {
+      id: 'Jelaskan apa yang mungkin Anda hadapi. EMBER menjelaskan apa yang dilakukan dan mengapa.',
+      en: 'Describe what you might face. EMBER explains what to do and why.',
+    },
+    askPlaceholder: { id: 'Apa yang harus saya lakukan jika…', en: 'What should I do if…' },
+    ask: { id: 'Tanya', en: 'Ask' },
+    practiceOnly: {
+      id: 'LATIHAN SAJA. DI KEBAKARAN NYATA, KETUK LAPOR.',
+      en: 'PRACTICE ONLY. AT A REAL FIRE, TAP REPORT.',
+    },
+    loadFailed: {
+      id: 'Tidak bisa memuat panduan. Periksa sinyal lalu coba lagi.',
+      en: 'Could not load the guide. Check signal and try again.',
+    },
+  },
+  practice: {
+    badge: { id: 'LATIHAN · BUKAN KEBAKARAN NYATA', en: 'PRACTICE · NOT A REAL FIRE' },
+    title: { id: 'Latihan dengan EMBER', en: 'Practice with EMBER' },
+    subtitle: {
+      id: 'Jawaban dan pertanyaan cek dari agen latihan. Aturan keselamatan di bawah tetap.',
+      en: 'Answers and check questions come from the practice agent. Safety rules below stay fixed.',
+    },
+    startLessonPrompt: { id: 'Mulai pelajaran ini', en: 'Start this lesson' },
+    check: { id: 'CEK CEPAT', en: 'QUICK CHECK' },
+    right: { id: 'Benar.', en: 'Right.' },
+    wrong: { id: 'Belum tepat.', en: 'Not yet.' },
+    placeholder: { id: 'Jelaskan situasinya…', en: 'Describe the situation…' },
+    ask: { id: 'Kirim', en: 'Send' },
+    sending: { id: 'Mengirim…', en: 'Sending…' },
+    back: { id: 'Kembali ke Panduan', en: 'Back to Guide' },
+    failed: {
+      id: 'Latihan gagal. Periksa sinyal lalu coba lagi.',
+      en: 'Practice failed. Check signal and try again.',
+    },
+  },
+  leadClosed: {
+    closedTheLead: { id: 'MENUTUP CEK', en: 'CLOSED THE LEAD' },
+    defaultTitle: {
+      id: 'Alarm palsu dibersihkan. Tidak ada yang perlu keluar ke sana lagi.',
+      en: 'False alarm cleared. Nobody else has to walk out there.',
+    },
+    body: {
+      id: 'Foto dan catatan Anda tersimpan dengan cek ini.',
+      en: 'Your photo and note are saved with this check.',
+    },
+    checks: { id: 'cek musim ini', en: 'checks this season' },
+    falseAlarms: { id: 'alarm palsu yang Anda bersihkan', en: 'false alarms you cleared' },
+    back: { id: 'Kembali ke tugas', en: 'Back to tasks' },
   },
 } as const

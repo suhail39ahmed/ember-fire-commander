@@ -5,7 +5,17 @@
  * Task and WITHDRAW state is produced here, standing in for backend code.
  * The UI only displays what the API returns.
  */
-import { CHIP_VALUES, type Digest, type IncidentDetail, type IncidentMembership, type NearbyIncident, type Observation, type ObservationRequest } from '../contracts/types'
+import {
+  CHIP_VALUES,
+  type Digest,
+  type IncidentDetail,
+  type IncidentMembership,
+  type NearbyIncident,
+  type Observation,
+  type ObservationRequest,
+  type PracticeResponse,
+  type TrainingPayload,
+} from '../contracts/types'
 import { ApiError, type EmberApi } from './types'
 import { bearingDeg, distanceM } from '../screens/geo'
 
@@ -14,6 +24,8 @@ export interface MockControls {
   triggerWithdraw(): void
   /** Simulate the withdraw leaving the digest (nothing in the real API does this yet). */
   clearWithdraw(): void
+  /** Simulate supervisor verify closing open verify tasks (#140). */
+  closeLead(): void
   /** Make the next createObservation call fail. */
   failNext(kind: 'network' | 'validation'): void
   reset(): void
@@ -45,6 +57,61 @@ function validationError(field: string, hint: string): ApiError {
 }
 
 const MOCK_PHOTO_PREFIX = 'photos/'
+
+const mockTraining: TrainingPayload = {
+  video: {
+    id: 'how_ember_works',
+    title: { id: 'Cara EMBER bekerja', en: 'How EMBER works: report, stay upwind, withdraw' },
+    durationSec: 180,
+    url: null,
+    progressSec: 80,
+  },
+  lessons: [
+    {
+      id: 'report_30s',
+      title: { id: 'Lapor dalam 30 detik', en: 'Report a fire in 30 seconds' },
+      minutes: 4,
+      summary: { id: 'Chip atau mic', en: 'Chip or mic' },
+      body: { id: 'Latihan lapor.', en: 'Practice reporting.' },
+      status: 'done',
+      score: 3,
+    },
+    {
+      id: 'wind_upwind',
+      title: { id: 'Baca angin', en: 'Read the wind, stay upwind' },
+      minutes: 4,
+      summary: { id: 'Dari sisi angin', en: 'From upwind' },
+      body: { id: 'Latihan angin.', en: 'Practice wind.' },
+      status: 'done',
+      score: 3,
+    },
+    {
+      id: 'withdraw',
+      title: { id: 'Kapan WITHDRAW', en: 'When to WITHDRAW' },
+      minutes: 4,
+      summary: { id: 'Mundur jika tidak aman', en: 'Leave when unsafe' },
+      body: { id: 'Latihan mundur.', en: 'Practice withdraw.' },
+      status: 'not_started',
+      score: null,
+    },
+    {
+      id: 'peat_return',
+      title: { id: 'Api gambut kembali', en: 'Peat fires come back' },
+      minutes: 4,
+      summary: { id: 'Situs lama', en: 'Old site' },
+      body: { id: 'Latihan gambut.', en: 'Practice peat.' },
+      status: 'not_started',
+      score: null,
+    },
+  ],
+  doneCount: 2,
+  lessonCount: 4,
+  askChips: [
+    { id: 'thick_smoke', label: { id: 'Asap semakin tebal', en: 'Smoke is getting thick' } },
+    { id: 'wind_changed', label: { id: 'Angin berubah', en: 'The wind changed' } },
+  ],
+  safetyLines: [{ id: 'Jaga jarak aman.', en: 'Keep a safe distance.' }],
+}
 
 function validate(body: ObservationRequest, volunteerId: string): void {
   if (body.source !== 'chip' && body.source !== 'text' && body.source !== 'photo') throw validationError('source', 'use chip, text or photo')
@@ -84,11 +151,18 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
         },
       ],
       nearby: [],
+      seasonStats: { checksDone: 1, falseAlarmsCleared: 0 },
     }
     failure = null
     observations.length = 0
     memberships.clear()
     nearbyAvailable = true
+    mockTraining.video.progressSec = 80
+    mockTraining.lessons.forEach((lesson, i) => {
+      lesson.status = i < 2 ? 'done' : 'not_started'
+      lesson.score = i < 2 ? 3 : null
+    })
+    mockTraining.doneCount = 2
   }
   reset()
 
@@ -254,6 +328,49 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
         expiresAt: new Date(Date.now() + 300_000).toISOString(),
       }
     },
+    async getTraining() {
+      await wait()
+      return structuredClone(mockTraining)
+    },
+    async saveTrainingProgress(body) {
+      await wait()
+      if (typeof body.videoProgressSec === 'number') mockTraining.video.progressSec = body.videoProgressSec
+      if (body.lessonId) {
+        const lesson = mockTraining.lessons.find((row) => row.id === body.lessonId)
+        if (lesson && body.status) {
+          lesson.status = body.status as typeof lesson.status
+          if (body.score != null) lesson.score = body.score
+        }
+      }
+      mockTraining.doneCount = mockTraining.lessons.filter((row) => row.status === 'done').length
+    },
+    async practiceTurn(body) {
+      await wait()
+      const reply = {
+        id: 'Laporkan dari jarak aman dan tunggu instruksi.',
+        en: 'Report from a safe distance and wait for an instruction.',
+      }
+      const response: PracticeResponse = {
+        practice: true,
+        reply,
+        correct: body.optionId ? body.optionId === 'report' || body.optionId === 'upwind' || body.optionId === 'withdraw' : null,
+        check: body.optionId
+          ? null
+          : {
+              question: { id: 'Apa yang Anda lakukan dulu?', en: 'What do you do first?' },
+              options: [
+                { id: 'report', label: { id: 'Laporkan dari jarak aman', en: 'Report from a safe distance' } },
+                { id: 'run_in', label: { id: 'Masuk ke api', en: 'Run into the fire' } },
+              ],
+              lessonId: body.lessonId || 'report_30s',
+            },
+        safetyLines: [
+          { id: 'Jangan masuk ke api besar sendirian.', en: 'Do not walk into a large fire alone.' },
+          { id: 'Datang dari sisi datang angin.', en: 'Approach from upwind.' },
+        ],
+      }
+      return response
+    },
     mock: {
       triggerWithdraw() {
         digest = {
@@ -267,6 +384,7 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
             { id: 'task_demo_withdraw', incidentId: INCIDENT_ID, volunteerId, type: 'withdraw', status: 'approved', instruction: WITHDRAW_TEXT },
           ],
           nearby: digest.nearby ?? [],
+          seasonStats: digest.seasonStats,
         }
       },
       clearWithdraw() {
@@ -275,6 +393,31 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
           incidents: digest.incidents.map((i) => ({ ...i, withdraw: null })),
           myTasks: digest.myTasks.filter((x) => x.type !== 'withdraw'),
           nearby: digest.nearby ?? [],
+          seasonStats: digest.seasonStats,
+        }
+      },
+      /** Close open verify tasks so Home shows the thank-you (#140). */
+      closeLead() {
+        const closedAt = new Date().toISOString()
+        digest = {
+          updatedAt: closedAt,
+          incidents: digest.incidents.map((i) => (i.id === INCIDENT_ID ? { ...i, status: 'verified' } : i)),
+          myTasks: digest.myTasks.map((row) =>
+            row.type === 'verify' && !row.closedAt
+              ? {
+                  ...row,
+                  closedAt,
+                  closedBy: 'uid_supervisor',
+                  closedByName: 'Bu Maya',
+                  closeMessage: 'False alarm cleared. Nobody else has to walk out there.',
+                }
+              : row,
+          ),
+          nearby: digest.nearby ?? [],
+          seasonStats: {
+            checksDone: digest.myTasks.filter((row) => row.type === 'verify').length,
+            falseAlarmsCleared: digest.myTasks.filter((row) => row.type === 'verify').length,
+          },
         }
       },
       failNext(kind) {

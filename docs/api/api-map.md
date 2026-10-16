@@ -80,9 +80,12 @@ Incident list and detail responses use `INCIDENT_FIELDS`: `id`, `name`, `area`, 
 | GET | `/incidents/{id}` | any role, scoped | console | — | `200` `{ incident, observations, conflict, tasks }`. A supervisor's body also has `evidenceFactors`, `volunteers`, `timeline`, `summary`, `conflictContext`, `agencyInCharge`, and `liveSeat` (§6.3). A volunteer not on the incident gets `404`, and only their own tasks |
 | POST | `/incidents/{id}/live/make-live` | supervisor | console live seat | `{ volunteerId }` | `200` `{ liveSeat, auditId }`. Holds the seat when signal is 3G+. `409` when held or signal too weak |
 | POST | `/incidents/{id}/live/retry` | supervisor | console live seat | `{ volunteerId }` | `200` `{ liveSeat, auditId }`. Retry after a drop when signal is 3G+. `409` when signal too weak (seat stays free) |
-| GET | `/digest` | any role, scoped | PWA (polls every 5 s; sends `lat`/`lng` when known) | — | `200` `{ updatedAt, incidents, myTasks, nearby? }`. `nearby` is volunteer-only (empty without position). `myTasks` is empty for a supervisor |
+| GET | `/digest` | any role, scoped | PWA (polls every 5 s; sends `lat`/`lng` when known) | — | `200` `{ updatedAt, incidents, myTasks, nearby? }` plus optional volunteer `seasonStats` (§5.6). Tasks may carry optional lead-closed fields (§5.3). `nearby` is volunteer-only (empty without position). `myTasks` is empty for a supervisor |
 | POST | `/incidents/{id}/join` | volunteer | PWA Join now | none | `200` `{ membership, auditId }`. Immediate join; no approval |
 | POST | `/incidents/{id}/en-route` | volunteer | PWA I'm on my way | none | `200` `{ membership, auditId }`. Sets `enRouteAt` once |
+| GET | `/training` | volunteer | PWA Guide | — | `200` training video, lessons, ask chips, safety lines, and progress (§6.12) |
+| POST | `/training/progress` | volunteer | PWA Guide | `{ videoProgressSec?, lessonId?, status?, score? }` | `200` `{ ok: true }` |
+| POST | `/training/practice` | volunteer | PWA Practice | `{ message, lessonId?, optionId? }` | `200` practice reply. Never creates an observation or opens live voice |
 | POST | `/tasks/{id}/approve` | supervisor | console | none | `200` `{ task, auditId }`. `proposed` → `approved`. `investigate` is `409` while a conflict is open. `withdraw` is `409` |
 | POST | `/tasks/{id}/reject` | supervisor | console | none | `200` `{ task, auditId }`. `proposed` → `rejected`. `withdraw` is `409` |
 | POST | `/tasks/{id}/edit` | supervisor | console | `{ "instruction": string }` max 500 characters | `200` `{ task, auditId }`. Replaces `instruction` only. A withdraw instruction is `409` |

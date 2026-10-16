@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import type { EmberApi } from '../api/types'
-import { currentTask } from '../digest'
+import { closedThankYouTask, currentTask } from '../digest'
 import { formatTime } from '../formatTime'
 import { strings, t, type Lang } from '../i18n'
 import { incidentLabelById } from '../incidentName'
@@ -12,6 +12,8 @@ import { assignedTasks, liveIncidents } from './incidentsView'
 import { IncidentRow } from './IncidentRow'
 import { NearbyPrompt } from './NearbyPrompt'
 import { isNearbyDismissed } from './nearbyDismiss'
+import { LeadClosedScreen } from './LeadClosedScreen'
+import { loadSeenClosed, markSeenClosed } from './seenClosed'
 import { screenStrings } from './strings'
 import { NoSignalCard } from './NoSignalCard'
 import { useDevicePosition } from './useDevicePosition'
@@ -70,6 +72,7 @@ export function HomeScreen({
   const nowMs = useNow()
   const devicePosition = useDevicePosition(Boolean(online && digest))
   const [dismissTick, setDismissTick] = useState(0)
+  const [seenClosed, setSeenClosed] = useState(() => loadSeenClosed())
   const nearby = useMemo(() => {
     void dismissTick
     const list = digest?.nearby ?? []
@@ -87,6 +90,21 @@ export function HomeScreen({
         <HomeSkeleton lang={lang} />
         {reportButton}
       </>
+    )
+  }
+
+  const thankYou = closedThankYouTask(digest, seenClosed)
+  if (thankYou) {
+    return (
+      <LeadClosedScreen
+        lang={lang}
+        task={thankYou}
+        seasonStats={digest?.seasonStats}
+        onDismiss={() => {
+          markSeenClosed(thankYou.id)
+          setSeenClosed(loadSeenClosed())
+        }}
+      />
     )
   }
 

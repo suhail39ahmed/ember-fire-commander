@@ -1,4 +1,18 @@
-import type { DeclineReason, Digest, DigestPosition, FlagRequest, IncidentDetail, IncidentMembership, Observation, ObservationRequest, PhotoContentType, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
+import type {
+  DeclineReason,
+  Digest,
+  DigestPosition,
+  FlagRequest,
+  IncidentDetail,
+  IncidentMembership,
+  Observation,
+  ObservationRequest,
+  PhotoContentType,
+  PracticeResponse,
+  TrainingPayload,
+  UploadUrl,
+  WithdrawAnswerRequest,
+} from '../contracts/types'
 
 /** Error surfaced to the UI. `retryable` is true for network failures, 429 and 5xx. */
 export class ApiError extends Error {
@@ -37,4 +51,10 @@ export interface EmberApi {
   joinIncident(incidentId: string): Promise<IncidentMembership>
   /** POST /incidents/{id}/en-route: I'm on my way (#135). Persists across reload. */
   markEnRoute(incidentId: string): Promise<IncidentMembership>
+  /** GET /training: Guide lessons and progress (#153). */
+  getTraining(): Promise<TrainingPayload>
+  /** POST /training/progress: save video/lesson progress (#153). */
+  saveTrainingProgress(body: { videoProgressSec?: number; lessonId?: string; status?: string; score?: number }): Promise<void>
+  /** POST /training/practice: practice chat that cannot create observations (#154). */
+  practiceTurn(body: { message: string; lessonId?: string; optionId?: string }): Promise<PracticeResponse>
 }

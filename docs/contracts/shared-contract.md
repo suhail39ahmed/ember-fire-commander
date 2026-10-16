@@ -241,6 +241,7 @@ How `withdraw` is written. Code sets `instruction` to `Withdraw upwind. Do not e
 | `declinedAt`, `declineReason`, `declineNote` | string, string, string, each or null | When the volunteer said they cannot do it (`POST /tasks/{id}/decline`), the reason key (§6.11) and the optional note. The instruction and `status` stay as they were. Absent until then |
 | `sendCount` | number or null | 1 at the first send, plus one for each resend |
 | `resendAt` | string or null | Computed on read, not stored: `sentAt` plus 60 seconds while the task is `approved`, not heard, and has a `sentAt`. `null` otherwise |
+| `closedAt`, `closedBy`, `closedByName`, `closeMessage` | string each, optional | Set on open `verify` tasks when a supervisor verifies the incident (§6.5). Omitted (not `null`) until then. The PWA shows a thank-you when these are present |
 
 An `instruct` task is one free-text instruction a supervisor sent to one volunteer (§6.5). It is never proposed: the supervisor's send is the decision, so it is stored `approved` with `sentAt` and `sendCount` 1, and it is not held by an open conflict. It is not a WITHDRAW and cannot hold one. A proposed `investigate` task is a dispatch waiting for a supervisor. A `verify` task may be approved while a conflict is open. A `withdraw` task is never proposed and never waits.
 
@@ -319,6 +320,7 @@ One current picture for Live context, REST polling, and the `digest` WebSocket m
 | `incidents` | incident summary[] | `id`, `name`, `area`, `status`, `severity`, `withdraw`, `lat`, `lng`. No `evidenceScore` and no `conflictId` |
 | `myTasks` | task[] | Every task whose `volunteerId` is the caller, in any status (`proposed`, `approved`, `rejected`). Empty for a supervisor |
 | `nearby` | nearby incident[] | Volunteer only. Live incidents (`open`, `held`, `verified`) within `EMBER_NEARBY_RADIUS_M` (default 5000 m) that the caller is not already on. Empty when the request has no usable `lat`/`lng` query pair, and omitted on a supervisor digest. Sorted by `distanceM`, then `id` |
+| `seasonStats` | object, optional | Volunteer only. `{ checksDone, falseAlarmsCleared }` counts of this volunteer's `verify` tasks and those with `closedAt`. Omitted when the volunteer has no `verify` task |
 
 Each nearby row is an incident summary plus:
 
@@ -801,7 +803,7 @@ Incident actions return `incident` instead of `task`.
 | `POST /tasks/{id}/resend` | none | Supervisor. Sends a sent, unheard task again: `sentAt` becomes now, `sendCount` goes up by one, a `task.resend` audit is appended, and the task is pushed again (§6.6). `409` unless the task is `approved` and not heard. Allowed for `withdraw` tasks. The answer is the task and the `auditId` |
 | `POST /tasks/{id}/heard` | none | **Volunteer, and only for their own task** (a supervisor is `403`, another volunteer's task is `404`). Sets `heardAt` once and appends a `task.heard` audit with the volunteer as `actorId`. A repeat returns the task with `auditId: null` and writes nothing. `409` unless the task is `approved`. The volunteer app calls it once when a sent task or WITHDRAW is on screen |
 | `POST /tasks/{id}/edit` | `{ "instruction": "Check the east bank again" }` | Replaces `instruction` only. Type, status, volunteer, and incident stay the same. `instruction` is required, not blank, at most 500 characters. A `withdraw` task is `409`. The route does not check the task's status, so a task that is already `approved` or `rejected` can be edited |
-| `POST /incidents/{id}/verify` | none | `status` becomes `verified`. `409` unless the status is `open` or `held` |
+| `POST /incidents/{id}/verify` | none | `status` becomes `verified`. Also stamps open `verify` tasks on the incident with `closedAt`, `closedBy`, `closedByName`, and `closeMessage` so the volunteer digest can show the thank-you (§5.3). `409` unless the status is `open` or `held` |
 | `POST /incidents/{id}/extinguish` | none | `status` becomes `extinguished`. `409` when it already is |
 | `POST /incidents/{id}/severity` | `{ "severity": "smoke" }` | Stores the new severity only when it is strictly lower on the scale in §1, otherwise `409`. `severity` must be `none`, `smoke`, `small_flame`, or `large_flame`; `unknown` and anything else is `400`. A stored `unknown` severity is never lowered (`409`) |
 | `POST /incidents/{id}/volunteers/{volunteerId}/instruct` | `{ "instruction": "Move to the east road and report" }` | Sends one free-text instruction to one volunteer. Creates an `instruct` task with `status: approved`, `sentAt` now and `sendCount` 1, pushes it (§6.6) and appends a `task.instruct` audit row. `201` with the task and `auditId`. `instruction` is required, not blank, at most 500 characters (`400`). The volunteer needs a report, a task or a withdraw entry on the incident (`400` on `fields.volunteerId`). `409` when the incident is `extinguished`, or when the volunteer is on an active withdraw and not in `safeVolunteerIds`: an instruction can never hold or replace a WITHDRAW. An open conflict does not block it. It changes nothing on the incident |
@@ -1034,6 +1036,18 @@ Volunteer-only. A supervisor is `403`. A volunteer only ever acts for themselves
 `GET /digest` for a volunteer may take optional `lat` and `lng` query numbers. When both are valid, the response includes `nearby` (§5.6). A volunteer's `GET /incidents/{id}` includes `membership` when an `incident_members` row exists for them.
 
 Success returns `{ "task": {}, "auditId": "aud_01" }` for the two task routes and `{ "answer": {}, "auditId": "aud_01" }` for the withdraw answer. The flag returns `{ "flag": {}, "auditId": "aud_01" }`. Join and en-route return `{ "membership": {}, "auditId": "aud_01" }`.
+
+### 6.12 Training and practice
+
+Volunteer-only. A supervisor is `403`. Practice never creates an observation, task, or incident, and never opens the live voice socket.
+
+| Route | Body | Result |
+|---|---|---|
+| `GET /training` | — | Guide payload: `video` (id, localized title, `durationSec`, `url` or null, `progressSec`), `lessons` (id, localized title/summary/body, `minutes`, `status` `not_started` \| `in_progress` \| `done`, optional `score`), `doneCount`, `lessonCount`, `askChips`, `safetyLines` |
+| `POST /training/progress` | `{ "videoProgressSec"?: number, "lessonId"?: string, "status"?: string, "score"?: number }` | `200` `{ ok: true }`. Persists video position and/or one lesson row under `volunteer_training/{uid}` |
+| `POST /training/practice` | `{ "message": string, "lessonId"?: string, "optionId"?: string }` | `200` `{ practice: true, reply, correct, check, safetyLines }`. Fixture answers only. With `optionId` + `lessonId`, `correct` is boolean and `check` is null; otherwise `correct` is null and `check` may offer a quick question |
+
+Lesson and reply copy is served as API fixtures until content is authored elsewhere. `message` is required, at most 500 characters.
 
 ## 7. WebSocket
 
@@ -1285,7 +1299,8 @@ Everything here is taken from the code and tests on `main`. Where the code leave
 | `POST /incidents/{id}/extinguish`, `/severity`, `/withdraw`, `/withdraw/safe` | supervisor | Yes |
 | `POST /incidents/{id}/volunteers/{volunteerId}/instruct` | supervisor | Yes (volunteer pop-up) |
 | `GET /incidents/{id}/photos/{observationId}` | supervisor | Yes (volunteer pop-up) |
-| WebSocket at the gateway (§7) | any | No. Voice is unavailable in the browser (§7) |
+| `GET /training`, `POST /training/progress`, `POST /training/practice` | volunteer | Yes (Guide and Practice, §6.12) |
+| WebSocket at the gateway (§7) | any | No. Voice is unavailable in the browser (§7). Hold-to-talk UI shows unavailable and never invents a transcript |
 
 Every route except `/healthz` needs the two headers in §2.
 
@@ -1408,5 +1423,6 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · #136, #137, #146 to #148: new volunteer routes `POST /tasks/{id}/accept`, `POST /tasks/{id}/decline` and `POST /incidents/{id}/withdraw/answer` (§6.11), audits `task.accept`, `task.decline` and `withdraw.answer`. Tasks gain optional `acceptedAt`, `declinedAt`, `declineReason` and `declineNote` (§5.3). The withdraw answer is stored in the new `withdraw_answers` collection and never changes `incident.withdraw`.
 - 2026-10-16 · #141: new volunteer route `POST /observations/{id}/flag` (§6.11), audit `observation.flag`, stored in the new `observation_flags` collection. Observations stay immutable. The audit table (§5.5) also lists `task.accept`, `task.decline` and `withdraw.answer`, which #136, #137 and #146 to #148 already wrote.
 - 2026-10-16 · #134, #135: `GET /digest` gains volunteer-only `nearby` (optional `lat`/`lng` query), new `incident_members` collection, `POST /incidents/{id}/join` and `POST /incidents/{id}/en-route`, audits `incident.join` and `incident.en_route`. A volunteer's `GET /incidents/{id}` may include `membership`. Wind/ask stay null until stored (§5.5, §5.6, §5.7, §6.11).
+- 2026-10-16 · #129, #130, #140, #153, #154: hold-to-talk and coach reply stay UI-only until a browser WebSocket handshake exists (§7); spoken reports POST `/observations` only with a real gateway transcript. Tasks gain optional lead-closed fields and digest may include `seasonStats` (§5.3, §5.6); `POST /incidents/{id}/verify` closes open verify tasks. New volunteer routes `GET /training`, `POST /training/progress`, `POST /training/practice` (§6.12) for Guide and practice (never live voice or observations).
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).

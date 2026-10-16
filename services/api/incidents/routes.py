@@ -47,6 +47,18 @@ def _body():
     return body
 
 
+_CLOSED_FIELDS = ("closedAt", "closedBy", "closedByName", "closeMessage")
+
+
+def _task_for_client(snapshot):
+    """Task record for clients: omit null lead-closed fields (#140)."""
+    record = rules.with_receipt(rules.to_record(snapshot, rules.TASK_FIELDS))
+    for key in _CLOSED_FIELDS:
+        if record.get(key) is None:
+            record.pop(key, None)
+    return record
+
+
 # Reads ---------------------------------------------------------------------
 
 def _my_observation_ids(uid):
@@ -108,7 +120,7 @@ def _volunteer_on_incident(uid, data, observations, tasks, incident_id=None):
 
 
 def _tasks_for(incident_id):
-    tasks = [rules.with_receipt(rules.to_record(s, rules.TASK_FIELDS)) for s in store.where(store.TASKS, "incidentId", "==", incident_id)]
+    tasks = [_task_for_client(s) for s in store.where(store.TASKS, "incidentId", "==", incident_id)]
     return sorted(tasks, key=lambda t: t["id"])
 
 
@@ -240,18 +252,25 @@ def digest():
     incidents = [rules.to_record(s, rules.SUMMARY_FIELDS) for s in scoped]
     my_tasks = []
     nearby = []
+    season_stats = None
     if user["role"] == "volunteer":
         my_tasks = sorted(
-            (rules.with_receipt(rules.to_record(s, rules.TASK_FIELDS)) for s in store.where(store.TASKS, "volunteerId", "==", user["id"])),
+            (_task_for_client(s) for s in store.where(store.TASKS, "volunteerId", "==", user["id"])),
             key=lambda t: t["id"],
         )
         # Nearby fires the volunteer has not joined (#134). Needs the phone's lat/lng; otherwise [].
         position = members.parse_position(request.args)
         if position is not None:
             nearby = members.nearby_for(user["id"], position[0], position[1], {s.id for s in scoped})
+        # Season counts for the lead-closed thank-you (#140). Omitted until there is a verify task.
+        checks = [t for t in my_tasks if t.get("type") == "verify"]
+        cleared = [t for t in checks if t.get("closedAt")]
+        season_stats = {"checksDone": len(checks), "falseAlarmsCleared": len(cleared)} if checks else None
     body = {"updatedAt": rules.now_iso(), "incidents": incidents, "myTasks": my_tasks}
     if user["role"] == "volunteer":
         body["nearby"] = nearby
+    if season_stats is not None:
+        body["seasonStats"] = season_stats
     return jsonify(body), 200
 
 
@@ -562,12 +581,40 @@ def retry_live(incident_id):
 
 @incidents_bp.route("/incidents/<incident_id>/verify", methods=["POST"])
 def verify_incident(incident_id):
-    def apply(incident):
+    """Mark the incident verified and close open verify tasks so volunteers see the thank-you (#140)."""
+    _require_supervisor()
+    if _get(store.INCIDENTS, incident_id) is None:
+        raise not_found("incident")
+    actor = g.user
+
+    def run(transaction):
+        ref = _ref(store.INCIDENTS, incident_id)
+        snapshot = ref.get(transaction=transaction)
+        if not snapshot.exists:
+            raise not_found("incident")
+        incident = snapshot.to_dict() or {}
         if incident.get("status") not in ("open", "held"):
             raise conflict(f"An incident that is {incident.get('status')} cannot be verified")
-        return {"status": "verified"}
+        changes = {"status": "verified"}
+        audit_id = _commit_with_audit(transaction, ref, changes, "incident.verify", incident_id)
+        closed_at = rules.now_iso()
+        close_fields = {
+            "closedAt": closed_at,
+            "closedBy": actor["id"],
+            "closedByName": (actor.get("displayName") or "").strip() or None,
+            "closeMessage": "False alarm cleared. Nobody else has to walk out there.",
+        }
+        for snap in store.where(store.TASKS, "incidentId", "==", incident_id):
+            task = snap.to_dict() or {}
+            if task.get("type") != "verify" or task.get("closedAt"):
+                continue
+            transaction.update(_ref(store.TASKS, snap.id), close_fields)
+        incident.update(changes)
+        incident["id"] = incident_id
+        return rules.pick(incident, rules.INCIDENT_FIELDS), audit_id
 
-    return _decide_incident(incident_id, "incident.verify", apply)
+    incident, audit_id = store.run_transaction(run)
+    return jsonify({"incident": incident, "auditId": audit_id}), 200
 
 
 @incidents_bp.route("/incidents/<incident_id>/extinguish", methods=["POST"])

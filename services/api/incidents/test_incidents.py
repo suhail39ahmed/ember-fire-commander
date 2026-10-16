@@ -195,8 +195,9 @@ def test_volunteer_not_on_incident_gets_404(client, monkeypatch, db):
 def test_digest_matches_pwa_shape(client, monkeypatch, db):
     _as(monkeypatch, role="volunteer", uid="uid_sari")
     body = client.get("/digest", headers=AUTH).get_json()
-    assert set(body) == {"updatedAt", "incidents", "myTasks", "nearby"}
+    assert set(body) == {"updatedAt", "incidents", "myTasks", "nearby", "seasonStats"}
     assert body["nearby"] == []
+    assert body["seasonStats"] == {"checksDone": 1, "falseAlarmsCleared": 0}
     assert body["updatedAt"].endswith("Z")
     assert set(body["incidents"][0]) == {"id", "name", "area", "status", "severity", "withdraw", "lat", "lng"}
     assert [t["id"] for t in body["myTasks"]] == ["task_investigate", "task_verify_sari"]
@@ -207,6 +208,7 @@ def test_supervisor_digest_has_no_tasks(client, monkeypatch, db):
     body = client.get("/digest", headers=AUTH).get_json()
     assert body["myTasks"] == []
     assert "nearby" not in body
+    assert "seasonStats" not in body
     assert [i["id"] for i in body["incidents"]] == ["inc_01"]
 
 
@@ -326,6 +328,29 @@ def test_verify_and_extinguish_are_audited(client, monkeypatch, db):
     assert body["incident"]["status"] == "extinguished"
     assert db.data["audit"][body["auditId"]]["action"] == "incident.extinguish"
     assert client.post("/incidents/inc_01/verify", headers=AUTH).status_code == 409
+
+
+def test_verify_closes_open_verify_tasks_for_thank_you(client, monkeypatch, db):
+    """#140: verifying stamps closed* on open verify tasks; digest omits nulls and adds seasonStats."""
+    _as(monkeypatch)
+    body = client.post("/incidents/inc_01/verify", headers=AUTH).get_json()
+    assert body["incident"]["status"] == "verified"
+    closed = db.data["tasks"]["task_verify_sari"]
+    assert closed["closedAt"]
+    assert closed["closedBy"] == "uid_maya"
+    assert closed["closedByName"] == "Bu Maya"
+    assert closed["closeMessage"]
+    assert "closedAt" not in db.data["tasks"]["task_investigate"]
+
+    _as(monkeypatch, role="volunteer", uid="uid_sari", name="Sari")
+    digest = client.get("/digest", headers=AUTH).get_json()
+    assert digest["seasonStats"] == {"checksDone": 1, "falseAlarmsCleared": 1}
+    verify = next(t for t in digest["myTasks"] if t["id"] == "task_verify_sari")
+    assert verify["closedAt"]
+    assert verify["closedByName"] == "Bu Maya"
+    open_task = next(t for t in digest["myTasks"] if t["id"] == "task_investigate")
+    assert "closedAt" not in open_task
+    assert "closedBy" not in open_task
 
 
 @pytest.mark.parametrize("severity,status", [

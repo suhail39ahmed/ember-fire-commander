@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py identity.py dashboard.py config_route.py audit_routes.py sites_routes.py volunteer_routes.py ./
+COPY app.py identity.py dashboard.py config_route.py audit_routes.py sites_routes.py volunteer_routes.py training_routes.py ./
 COPY auth ./auth
 
 COPY observations ./observations

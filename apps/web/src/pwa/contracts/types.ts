@@ -170,6 +170,50 @@ export interface Task {
   declinedAt?: string | null
   declineReason?: DeclineReason | null
   declineNote?: string | null
+  /** Lead closed thank-you (#140). Set when a supervisor verifies the incident. */
+  closedAt?: string | null
+  closedBy?: string | null
+  closedByName?: string | null
+  closeMessage?: string | null
+}
+
+/** Season counts on a volunteer's digest for the lead-closed screen (#140). */
+export interface SeasonStats {
+  checksDone: number | null
+  falseAlarmsCleared: number | null
+}
+
+export type Localized = { id: string; en: string }
+
+export interface TrainingLesson {
+  id: string
+  title: Localized
+  minutes: number
+  summary: Localized
+  body: Localized
+  status: 'not_started' | 'in_progress' | 'done'
+  score?: number | null
+}
+
+export interface TrainingPayload {
+  video: { id: string; title: Localized; durationSec: number; url: string | null; progressSec: number }
+  lessons: TrainingLesson[]
+  doneCount: number
+  lessonCount: number
+  askChips: { id: string; label: Localized }[]
+  safetyLines: Localized[]
+}
+
+export interface PracticeResponse {
+  practice: true
+  reply: Localized
+  correct: boolean | null
+  check: {
+    question: Localized
+    options: { id: string; label: Localized }[]
+    lessonId: string
+  } | null
+  safetyLines: Localized[]
 }
 
 /** Why a volunteer cannot follow an instruction (contract section 6.11). Labels come from the copy bundle. */
@@ -216,6 +260,8 @@ export interface Digest {
   myTasks: Task[]
   /** Volunteer only. Empty without a usable position. Omitted for a supervisor. */
   nearby?: NearbyIncident[]
+  /** Volunteer season counts for #140. Omitted when nothing is stored. */
+  seasonStats?: SeasonStats | null
 }
 
 /** Error body (section 3). `fields` is present on validation_error only. */

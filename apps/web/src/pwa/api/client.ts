@@ -4,7 +4,21 @@
  * see ../gateway/). No Firestore or Cloud Storage SDK is used in the browser.
  * The one exception is the photo PUT to a signed URL that ember-api issued (see ../photo/).
  */
-import type { DeclineReason, Digest, DigestPosition, ErrorBody, FlagRequest, IncidentDetail, IncidentMembership, Observation, ObservationRequest, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
+import type {
+  DeclineReason,
+  Digest,
+  DigestPosition,
+  ErrorBody,
+  FlagRequest,
+  IncidentDetail,
+  IncidentMembership,
+  Observation,
+  ObservationRequest,
+  PracticeResponse,
+  TrainingPayload,
+  UploadUrl,
+  WithdrawAnswerRequest,
+} from '../contracts/types'
 import type { AuthHeadersProvider } from './authHeaders'
 import { API_BASE_URL } from './config'
 import { ApiError, type EmberApi } from './types'
@@ -21,6 +35,9 @@ export const ENDPOINTS = {
   withdrawAnswer: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}/withdraw/answer`,
   flag: (observationId: string) => `/observations/${encodeURIComponent(observationId)}/flag`,
   heard: (taskId: string) => `/tasks/${encodeURIComponent(taskId)}/heard`,
+  training: '/training',
+  trainingProgress: '/training/progress',
+  practice: '/training/practice',
 } as const
 
 function digestPath(position?: DigestPosition | null): string {
@@ -91,5 +108,10 @@ export function createHttpApi(
       const body = await request<{ membership: IncidentMembership }>(ENDPOINTS.enRoute(incidentId), { method: 'POST' })
       return body.membership
     },
+    getTraining: () => request<TrainingPayload>(ENDPOINTS.training),
+    saveTrainingProgress: async (body) => {
+      await request<unknown>(ENDPOINTS.trainingProgress, { method: 'POST', body: JSON.stringify(body) })
+    },
+    practiceTurn: (body) => request<PracticeResponse>(ENDPOINTS.practice, { method: 'POST', body: JSON.stringify(body) }),
   }
 }
