@@ -3,7 +3,7 @@
   min-height: 100vh;
   text-align: left;
   color: #1c1917;
-  background: #faf7f2;
+  background: #f5f2ec;
 }
 
 .login-screen {
@@ -12,42 +12,54 @@
 }
 
 .login-brand {
-  background: #141210;
-  color: #faf7f2;
+  background: #ebe6dc;
+  color: #1c1917;
   padding: 48px 56px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-end;
+  gap: 28px;
   min-height: 100vh;
+}
+
+.login-brand-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .lockup {
   display: flex;
   align-items: center;
   gap: 14px;
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #141210;
 }
 
 .eyebrow {
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   font-size: 13px;
-  font-weight: 600;
-  color: #a79f94;
+  font-weight: 700;
+  color: #c23b1a;
 }
 
 .tagline {
-  font-size: 22px;
-  line-height: 1.35;
-  font-weight: 600;
-  max-width: 30ch;
-  margin-top: 16px;
+  font-size: 18px;
+  line-height: 1.45;
+  font-weight: 500;
+  max-width: 34ch;
+  color: #4a4540;
+  margin: 0;
 }
 
 .footnote {
-  color: #a79f94;
-  font-size: 14px;
+  color: #9a9388;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .login-panel {
@@ -57,6 +69,7 @@
   align-items: center;
   justify-content: center;
   padding: 48px 24px;
+  background: #faf8f4;
 }
 
 .login-lang {
@@ -68,20 +81,22 @@
 .login-card {
   width: min(420px, 100%);
   background: #fff;
-  border-radius: 16px;
-  padding: 32px;
-  box-shadow: 0 12px 40px rgba(20, 18, 16, 0.08);
+  border-radius: 20px;
+  padding: 36px 32px;
+  box-shadow: 0 16px 48px rgba(20, 18, 16, 0.08);
 }
 
 .login-card h1 {
   font-size: 28px;
   line-height: 1.2;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  font-weight: 750;
 }
 
 .login-card .sub {
   color: #6b645c;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
+  line-height: 1.45;
 }
 
 .google-button,
@@ -89,23 +104,23 @@
 .text-button,
 .sign-out {
   width: 100%;
-  border-radius: 12px;
+  border-radius: 999px;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 650;
   cursor: pointer;
 }
 
 .google-button {
-  border: 1px solid #e7e1d8;
-  background: #fff;
-  color: #1c1917;
-  padding: 14px 16px;
+  border: 0;
+  background: #141210;
+  color: #faf7f2;
+  padding: 14px 20px;
 }
 
 .google-button,
 .action-button,
 .text-button {
-  min-height: 44px;
+  min-height: 48px;
 }
 
 .google-button:disabled,
@@ -114,7 +129,7 @@
 }
 
 .google-button:disabled {
-  color: #6b645c;
+  opacity: 0.92;
 }
 
 .spinner {
@@ -143,12 +158,22 @@
 
 .note,
 .error {
-  margin-top: 16px;
+  margin-top: 18px;
   font-size: 14px;
 }
 
 .note {
   color: #6b645c;
+}
+
+.note.waiting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.note.waiting .spinner {
+  margin-right: 8px;
 }
 
 .error {
@@ -171,7 +196,7 @@
 .action-button {
   display: block;
   border: 0;
-  background: #1c1917;
+  background: #141210;
   color: #faf7f2;
   padding: 14px 16px;
   text-align: center;
@@ -187,11 +212,12 @@
 }
 
 .status-code {
-  margin: -8px 0 20px;
+  margin: -12px 0 22px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
   letter-spacing: 0.08em;
-  color: #6b645c;
+  color: #c23b1a;
+  font-weight: 600;
 }
 
 .role-choices {
@@ -274,17 +300,18 @@
   /* Compact brand strip so the sign-in button sits above the fold on short phones. */
   .login-brand {
     min-height: auto;
-    gap: 10px;
-    padding: 20px 24px;
+    gap: 12px;
+    padding: 24px;
+    justify-content: flex-start;
   }
 
   .lockup {
     gap: 10px;
-    font-size: 24px;
+    font-size: 28px;
   }
 
   .lockup-mark {
-    width: 30px;
+    width: 34px;
     height: 34px;
   }
 
@@ -293,14 +320,13 @@
   }
 
   .tagline {
-    margin-top: 6px;
     max-width: none;
-    font-size: 16px;
-    line-height: 1.3;
+    font-size: 15px;
+    line-height: 1.35;
   }
 
   .footnote {
-    font-size: 12px;
+    font-size: 10px;
   }
 
   .login-panel {

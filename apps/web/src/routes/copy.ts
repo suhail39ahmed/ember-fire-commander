@@ -16,8 +16,8 @@ export const copy = {
       en: 'Report fires by voice, camera or one tap. Your supervisor sees it and sends help.',
     },
     supervisor: {
-      id: 'Banyak mata, satu api. Relawan melapor; supervisor memverifikasi, menyetujui, dan mengirim bantuan. Aturan mundur ditulis dalam kode.',
-      en: 'Many eyes, one fire. Volunteers report; a supervisor verifies, approves and sends help. The withdraw rule is fixed in code.',
+      id: 'Banyak mata, satu api. Relawan melapor; supervisor memverifikasi, menyetujui, dan mengirim bantuan. Aturan mundur ditulis dalam kode, bukan AI.',
+      en: 'Many eyes, one fire. Volunteers report; a supervisor verifies, approves and sends help. The withdraw rule is code, not AI.',
     },
     general: {
       id: 'Satu agen keselamatan untuk komunitas di kedua ujung asap.',
@@ -42,6 +42,8 @@ export const copy = {
     },
     button: { id: 'Masuk dengan Google', en: 'Sign in with Google' },
     busy: { id: 'Sedang masuk…', en: 'Signing in…' },
+    opening: { id: 'Membuka Google…', en: 'Opening Google…' },
+    waiting: { id: 'Menunggu jendela Google…', en: 'Waiting for the Google window…' },
     cancelled: { id: 'Masuk dibatalkan. Coba lagi.', en: 'Sign-in was cancelled. Try again.' },
     blocked: {
       id: 'Browser memblokir jendela masuk. Izinkan pop-up untuk situs ini lalu coba lagi.',
@@ -65,28 +67,42 @@ export const copy = {
     volunteerOnSupervisorPage: {
       title: { id: 'Halaman ini untuk supervisor', en: 'This page is for supervisors' },
       body: {
-        id: 'Akun Anda terdaftar sebagai relawan. Buka aplikasi relawan untuk melapor.',
-        en: 'Your account is registered as a volunteer. Open the volunteer app to report.',
+        id: 'Akun {email} terdaftar sebagai relawan. Buka aplikasi relawan untuk melapor.',
+        en: 'Account {email} is registered as a volunteer. Open the volunteer app to report.',
       },
       action: { id: 'Buka aplikasi relawan', en: 'Open the volunteer app' },
     },
     supervisorOnVolunteerPage: {
       title: { id: 'Halaman ini untuk relawan', en: 'This page is for volunteers' },
       body: {
-        id: 'Akun Anda terdaftar sebagai supervisor. Buka konsol untuk meninjau insiden.',
-        en: 'Your account is registered as a supervisor. Open the console to review incidents.',
+        id: 'Akun {email} terdaftar sebagai supervisor. Buka konsol untuk meninjau insiden.',
+        en: 'Account {email} is registered as a supervisor. Open the console to review incidents.',
       },
       action: { id: 'Buka konsol', en: 'Open the console' },
     },
     code: { id: '403 · DILARANG', en: '403 · FORBIDDEN' },
+    langNote: {
+      id: 'Bahasa dipilih sebelumnya · tersimpan di perangkat ini',
+      en: 'Language chosen earlier · saved on this device',
+    },
   },
   noAccess: {
-    title: { id: 'Tidak ada akses', en: 'No access' },
-    fallback: { id: 'Akun ini tidak memiliki peran EMBER.', en: 'This account has no EMBER role.' },
+    title: { id: 'Anda sudah masuk, tetapi belum ditambahkan', en: "You're signed in, but not added yet" },
+    supervisor: {
+      id: 'Minta admin BPBD memberi peran supervisor pada {email}, lalu periksa lagi.',
+      en: 'Ask a BPBD admin to give {email} the supervisor role, then check again.',
+    },
+    volunteer: {
+      id: 'Minta admin BPBD memberi peran relawan pada {email}, lalu periksa lagi.',
+      en: 'Ask a BPBD admin to give {email} the volunteer role, then check again.',
+    },
+    code: { id: '403 · ROLE_MISSING', en: '403 · ROLE_MISSING' },
+    checkAgain: { id: 'Periksa lagi', en: 'Check again' },
   },
   notFound: {
     title: { id: 'Halaman tidak ditemukan', en: 'Page not found' },
-    body: { id: 'Tautan ini tidak mengarah ke mana pun di EMBER.', en: "This link doesn't go anywhere in EMBER." },
+    body: { id: '{path} tidak ada.', en: "{path} doesn't exist." },
+    code: { id: '404 · TIDAK DITEMUKAN', en: '404 · NOT FOUND' },
     toVolunteer: { id: 'Buka aplikasi relawan', en: 'Go to the volunteer app' },
     toConsole: { id: 'Buka konsol', en: 'Go to the console' },
   },
@@ -101,6 +117,14 @@ export const copy = {
   checking: { id: 'Memeriksa akun…', en: 'Checking sign-in…' },
   signOut: { id: 'Keluar', en: 'Sign out' },
 } as const
+
+/** Fills `{email}` / `{path}` placeholders in static copy. */
+export function fill(template: string, values: Record<string, string>): string {
+  return Object.entries(values).reduce(
+    (text, [key, value]) => text.split(`{${key}}`).join(value),
+    template,
+  )
+}
 
 /** Turns the raw Firebase pop-up errors into plain wording; other messages pass through. */
 export function signInErrorText(message: string, lang: Lang): string {

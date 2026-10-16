@@ -6,7 +6,7 @@ import type { Me } from '../auth/api'
 import { t } from '../pwa/i18n'
 import { useLanguage } from '../pwa/language'
 import { AuthShell } from './AuthShell'
-import { copy } from './copy'
+import { copy, fill } from './copy'
 import { homeFor } from './paths'
 import { SignInScreen } from './SignInScreen'
 import './login.css'
@@ -24,7 +24,9 @@ export function CheckingScreen() {
  */
 export function RequireRole({ role, children }: { role: Me['role']; children: ReactNode }) {
   const { lang } = useLanguage()
-  const { status, me, message, signOut } = useAuth()
+  const { status, me, user, signOut, refreshMe } = useAuth()
+  const email = user?.email || '—'
+
   if (status === 'loading') {
     return <CheckingScreen />
   }
@@ -36,8 +38,13 @@ export function RequireRole({ role, children }: { role: Me['role']; children: Re
       <AuthShell audience={role}>
         <div className="login-card">
           <h1>{t(lang, copy.noAccess.title)}</h1>
-          <p className="error" role="alert">{message || t(lang, copy.noAccess.fallback)}</p>
-          <button className="action-button" type="button" onClick={() => { void signOut() }}>{t(lang, copy.signOut)}</button>
+          <p className="sub">{fill(t(lang, copy.noAccess[role]), { email })}</p>
+          <p className="status-code">{t(lang, copy.noAccess.code)}</p>
+          <button className="action-button" type="button" onClick={() => { void refreshMe() }}>
+            {t(lang, copy.noAccess.checkAgain)}
+          </button>
+          <button className="text-button" type="button" onClick={() => { void signOut() }}>{t(lang, copy.signOut)}</button>
+          <p className="note">{t(lang, copy.signIn.note)}</p>
         </div>
       </AuthShell>
     )
@@ -48,10 +55,11 @@ export function RequireRole({ role, children }: { role: Me['role']; children: Re
       <AuthShell audience={role}>
         <div className="login-card">
           <h1>{t(lang, text.title)}</h1>
-          <p className="sub">{t(lang, text.body)}</p>
-          <p className="status-code">{t(lang, copy.wrongRole.code)} · {homeFor(role).toUpperCase()}</p>
+          <p className="sub">{fill(t(lang, text.body), { email })}</p>
+          <p className="status-code">{t(lang, copy.wrongRole.code)}</p>
           <Link className="action-button" to={homeFor(me.role)}>{t(lang, text.action)}</Link>
           <button className="text-button" type="button" onClick={() => { void signOut() }}>{t(lang, copy.signOut)}</button>
+          <p className="note">{t(lang, copy.wrongRole.langNote)}</p>
         </div>
       </AuthShell>
     )
