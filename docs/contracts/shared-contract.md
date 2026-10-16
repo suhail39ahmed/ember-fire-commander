@@ -164,7 +164,7 @@ Which fields a response carries:
 | `lat` | number | Agents. The centroid of every clustered observation, recomputed at each intake, so it can move after the incident is created. `name` and `area` do not follow it |
 | `lng` | number | Agents. As `lat` |
 | `observationIds` | string[] | Agents (fusion). Every observation clustered into the incident, oldest first. Stored only: no REST response returns it. Services use it to find an incident's observations and to link a volunteer to it |
-| `evidenceFactors` | evidence factor[] | Agents (fusion). The factors that add up to `evidenceScore`. Stored only: no REST response returns it |
+| `evidenceFactors` | evidence factor[] | Agents (fusion). The factors that add up to `evidenceScore`. Only a supervisor's `GET /incidents/{id}` returns them (§6.3) |
 
 **Naming rules** (`services/agents/fusion/places.py`). Fusion sets `area` and `name` once, from the first observation's position, when it creates the incident.
 
@@ -582,7 +582,9 @@ The hand-off to agents happens after the write. If it fails, the response is sti
 }
 ```
 
-`observations` are the full immutable records for `conflict.observationIds` when a conflict exists, otherwise the observations clustered into this incident. Because a conflict lists only the two sides of the disagreement (§5.4), an incident with a conflict does not list its other observations here. Records that cannot be found are left out. Each record has the fields listed under §5.1 (no `volunteerName`, no `clientId`).
+`observations` are the full immutable records for `conflict.observationIds` when a conflict exists, otherwise the observations clustered into this incident. Because a conflict lists only the two sides of the disagreement (§5.4), an incident with a conflict does not list its other observations here. Records that cannot be found are left out. Each record has the fields listed under §5.1 (no `clientId`). For a supervisor each record also has `volunteerName` when one was stored with the observation (the key is absent otherwise). A volunteer's read never has it.
+
+For a supervisor the body has one more key, `evidenceFactors`: the stored factors of §5.2 as `[{ "factor", "points", "detail" }]`, or `[]` when none are stored. A volunteer's read does not have the key. `detail` is an English sentence, as in §12.3.
 
 `conflict` is `null` when the incident has no `conflictId`. `tasks` are all the incident's tasks for a supervisor, and only the caller's own for a volunteer.
 
@@ -956,7 +958,7 @@ Every route except `/healthz` needs the two headers in §2.
 |---|---|---|
 | `incident.name` | `GET /incidents`, `GET /incidents/{id}`, digest | The key is always there. The value is `null` for incidents created before names existed, or when naming failed. The web app then shows `INC-` and the last 4 characters of `id`, in capitals |
 | `incident.area` | Same | The key is always there. The value is `null` for incidents created before areas existed. The console then uses the part of `name` before the first ` · `, then `Unnamed area` |
-| `volunteerName`, `clientId` | Observation in the `POST /observations` response | The key is absent, not `null`, when the token has no display name or the client sent no `clientId`. Neither key is in an observation from `GET /incidents/{id}` |
+| `volunteerName`, `clientId` | Observation in the `POST /observations` response | The key is absent, not `null`, when the token has no display name or the client sent no `clientId`. `clientId` is never in an observation from `GET /incidents/{id}`. A supervisor's `GET /incidents/{id}` carries `volunteerName` under the same rule (§6.3) |
 | `accuracyM`, `chip`, `text`, `photoPath` | Observation | `null` when not applicable (§5.1) |
 | `incident.withdraw` | Incident, digest | `null` until a WITHDRAW is issued. When set, `active` is `true` |
 | `incident.conflictId`, `conflict` | Incident, `GET /incidents/{id}` | `null` when there is no conflict |
@@ -987,7 +989,7 @@ Every route except `/healthz` needs the two headers in §2.
 
 The browser cannot read these. A screen that needs one needs a new REST route first. Do not design on the assumption that it exists.
 
-- `incident.observationIds` and `incident.evidenceFactors` (§5.2).
+- `incident.observationIds` (§5.2). `incident.evidenceFactors` is returned only on a supervisor's `GET /incidents/{id}` (§6.3).
 - `photo_triage`, `incident_summaries`, `sites` and their alerts, `leads`, `weather`, `psi`, `ingestRuns`, `audit`, and `notificationAttempts` (§5.7). The audit trail has no read route.
 - Observations that are not on the two sides of a conflict, when the incident has a conflict (§6.3).
 - A task or incident created or updated time.
@@ -1030,5 +1032,6 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-15 · #86 (`Naushad/N06`): `.env.example` moved from `apps/web/` to the repository root, with more variables, and `.gitignore` now ignores `/.env.local` and `/.local` (§11.5).
 - 2026-10-15 · #87: `voice-gateway` relays Gemini Live and writes `live` observations (§7), adds the Live-minute caps, and sets `EMBER_AGENTS_URL` for the gateway in Terraform.
 - 2026-10-16 · #108: `GET /dashboard` returns `agency`, `serverTime`, and `approvalsCount` for the supervisor console chrome (§5.7, §6.9).
+- 2026-10-16 · #95: a supervisor's `GET /incidents/{id}` adds `volunteerName` on each observation that has one and an `evidenceFactors` list (§5.2, §6.3). Both are optional additions; a volunteer's read is unchanged.
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).

@@ -66,7 +66,7 @@ export function recipientDetail(row: VolunteerRow, lang: Lang): string {
 }
 
 export function recipientName(row: VolunteerRow, lang: Lang): string {
-  return volunteerLabel(row.id, lang)
+  return row.name ?? volunteerLabel(row.id, lang)
 }
 
 /** A refusal in the supervisor's language. Never a status code, exception name, or server text. */

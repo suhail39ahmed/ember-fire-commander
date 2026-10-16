@@ -158,7 +158,7 @@ describe('IncidentView', () => {
   it('shows the evidence score and both reports side by side in a conflict', () => {
     const html = render('conflict')
     expect(html).toContain('EVIDENCE SCORE')
-    expect(html).toContain('>64<')
+    expect(html).toContain('>40<')
     expect(html).toContain('EMBER IS NOT SURE')
     expect(html).toContain('Report from Dedi')
     expect(html).toContain('Report from Sari')

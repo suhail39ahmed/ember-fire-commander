@@ -9,6 +9,7 @@ import { createHttpSupervisorApi } from './api/client'
 import { createMockSupervisorApi } from './api/mock'
 import type { SupervisorApi } from './api/types'
 import type { Incident, IncidentDetail } from './contracts'
+import { reasonOf } from './detail/outcomeCopy'
 import { IncidentQueue } from './IncidentQueue'
 import { IncidentView, type Outcome } from './IncidentView'
 import { IncidentsContext, POLL_MS, useIncidents, type DetailFailure, type IncidentsState } from './incidentsContext'
@@ -119,13 +120,13 @@ export function IncidentsShell({ api: apiOverride, children }: { api?: Superviso
   }, [load])
 
   const run = useCallback(
-    async (targetId: string, call: () => Promise<string>) => {
+    async (targetId: string, call: () => Promise<Outcome>) => {
       setBusyId(targetId)
       try {
-        const text = await call()
-        setOutcomes((o) => ({ ...o, [targetId]: { kind: 'ok', text } }))
+        const outcome = await call()
+        setOutcomes((o) => ({ ...o, [targetId]: outcome }))
       } catch (e) {
-        setOutcomes((o) => ({ ...o, [targetId]: { kind: 'error', text: errorText(e) } }))
+        setOutcomes((o) => ({ ...o, [targetId]: { kind: 'error', text: errorText(e), reason: reasonOf(e) } }))
       } finally {
         setBusyId(null)
         await load()
@@ -153,19 +154,19 @@ export function IncidentsShell({ api: apiOverride, children }: { api?: Superviso
       outcomes,
       onApprove: (id: string) => void run(id, async () => {
         const r = await api.approveTask(id)
-        return `Confirmed by ember-api: ${r.task.status} · audit ${r.auditId}`
+        return { kind: 'ok', text: `Confirmed by ember-api: ${r.task.status} · audit ${r.auditId}`, action: 'approve', auditId: r.auditId }
       }),
       onReject: (id: string) => void run(id, async () => {
         const r = await api.rejectTask(id)
-        return `Confirmed by ember-api: ${r.task.status} · audit ${r.auditId}`
+        return { kind: 'ok', text: `Confirmed by ember-api: ${r.task.status} · audit ${r.auditId}`, action: 'reject', auditId: r.auditId }
       }),
       onEdit: (id: string, instruction: string) => void run(id, async () => {
         const r = await api.editTask(id, instruction)
-        return `Instruction saved · audit ${r.auditId}`
+        return { kind: 'ok', text: `Instruction saved · audit ${r.auditId}`, action: 'edit', auditId: r.auditId }
       }),
       onVerify: (id: string) => void run(id, async () => {
         const r = await api.verifyIncident(id)
-        return `Confirmed by ember-api: ${r.incident.status} · audit ${r.auditId}`
+        return { kind: 'ok', text: `Confirmed by ember-api: ${r.incident.status} · audit ${r.auditId}`, action: 'verify', auditId: r.auditId }
       }),
     },
   }), [queue, detail, loadError, detailFailure, activeId, select, busyId, outcomes, run, api, load, lost, lastOkAt])

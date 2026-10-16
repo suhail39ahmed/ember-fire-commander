@@ -3,16 +3,25 @@ import { useState } from 'react'
 import { t as tr, type Lang } from '../pwa/i18n'
 import { incidentLabel } from '../pwa/incidentName'
 import { taskCopy, taskStatusName } from './detail/copy'
-import { volunteerLabel } from './detail/model'
+import { nameOf } from './detail/model'
+import { outcomeText } from './detail/outcomeCopy'
 import type { IncidentDetail, Observation, Task } from './contracts'
 import {
   canVerify, conflictPair, SEVERITY_LABEL, STATUS_LABEL, TASK_LABEL, taskControls, timeOf, volunteerName, withdrawBanner,
 } from './view'
 
 /** Last backend answer for one task or incident, shown next to its controls. */
+export type OutcomeAction = 'approve' | 'reject' | 'edit' | 'verify'
+export type OutcomeReason = 'network' | 'held' | 'not_proposed' | 'withdraw_task' | 'forbidden' | 'not_found' | 'invalid' | 'server'
+
 export interface Outcome {
   kind: 'ok' | 'error'
   text: string
+  /** What was done and the audit record, so the detail screen can say it in the supervisor's language. */
+  action?: OutcomeAction
+  auditId?: string
+  /** Why it failed, so the detail screen can say it in the supervisor's language. */
+  reason?: OutcomeReason
 }
 
 export interface IncidentActions {
@@ -36,11 +45,11 @@ function ObservationCard({ obs }: { obs: Observation }) {
   )
 }
 
-export function OutcomeLine({ outcome }: { outcome?: Outcome }) {
+export function OutcomeLine({ outcome, lang }: { outcome?: Outcome; lang?: Lang }) {
   if (!outcome) return null
   return (
     <p className={outcome.kind === 'ok' ? 'sup-ok' : 'sup-error'} role={outcome.kind === 'ok' ? 'status' : 'alert'}>
-      {outcome.text}
+      {lang ? outcomeText(outcome, lang) : outcome.text}
     </p>
   )
 }
@@ -55,7 +64,7 @@ export function TaskRow({ task, detail, actions, offline = false, lang }: { task
     <li className={`sup-task type-${task.type}`}>
       <div className="sup-task-head">
         <span className="sup-chip">{lang ? tr(lang, taskCopy.type[task.type]) : TASK_LABEL[task.type]}</span>
-        <strong>{lang ? volunteerLabel(task.volunteerId, lang) : volunteerName(task.volunteerId)}</strong>
+        <strong>{lang ? nameOf(detail, task.volunteerId, lang) : volunteerName(task.volunteerId)}</strong>
         <span className={`sup-status status-${task.status}`}>{lang ? tr(lang, taskStatusName[task.status]) : task.status}</span>
       </div>
       {editing ? (
@@ -93,7 +102,7 @@ export function TaskRow({ task, detail, actions, offline = false, lang }: { task
         </div>
       )}
       {approveBlocked && <p className="sup-hold">{lang ? tr(lang, taskCopy.held) : approveBlocked}</p>}
-      <OutcomeLine outcome={actions.outcomes[task.id]} />
+      <OutcomeLine outcome={actions.outcomes[task.id]} lang={lang} />
     </li>
   )
 }

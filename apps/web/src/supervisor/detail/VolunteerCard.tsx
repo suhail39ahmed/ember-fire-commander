@@ -13,7 +13,7 @@ function reportLine(lang: Lang, row: VolunteerRow): string {
 
 /** One bulletin per volunteer, from their latest report and their last task. */
 export function VolunteerCard({ lang, row }: { lang: Lang; row: VolunteerRow }) {
-  const name = volunteerLabel(row.id, lang)
+  const name = row.name ?? volunteerLabel(row.id, lang)
   const { latest, task } = row
   return (
     <article className={row.withdrawn ? 'inc-vol withdrawn' : 'inc-vol'} aria-label={name}>

@@ -24,6 +24,23 @@ OBSERVATION_FIELDS = (
 )
 
 
+EVIDENCE_FACTOR_FIELDS = ("factor", "points", "detail")
+
+
+def evidence_factors(data):
+    """The stored evidence factors, as the supervisor read returns them. Anything malformed is left out."""
+    factors = data.get("evidenceFactors")
+    if not isinstance(factors, list):
+        return []
+    return [pick(f, EVIDENCE_FACTOR_FIELDS) for f in factors if isinstance(f, dict) and isinstance(f.get("factor"), str)]
+
+
+def reporter_name(data):
+    """The reporter's display name stored on the observation, or None when there is none."""
+    name = data.get("volunteerName")
+    return name.strip() if isinstance(name, str) and name.strip() else None
+
+
 def now_iso():
     """Same server timestamp format as stored observations."""
     return utc_now_iso()

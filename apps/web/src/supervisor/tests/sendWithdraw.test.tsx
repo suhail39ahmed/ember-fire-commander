@@ -88,7 +88,7 @@ describe('send withdraw: dialog', () => {
     expect(html).toContain('role="dialog"')
     expect(html).toContain('Send WITHDRAW at Ketapang, Kalimantan Barat · Pak Dedi · #1')
     expect(html).toContain('Volunteers on this incident')
-    for (const name of ['Sari', 'Dedi', 'Rizal']) expect(html).toContain(`>${name}</span>`)
+    for (const name of ['Sari', 'Dedi', 'Volunteer IZAL']) expect(html).toContain(`>${name}</span>`)
     expect(html).toContain('Dispatch task · waiting for approval')
     expect(html.match(/type="checkbox"[^>]*checked=""/g)).toHaveLength(2)
     expect(html).toContain('Withdraw upwind. Do not engage.')

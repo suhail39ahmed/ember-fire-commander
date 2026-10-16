@@ -151,13 +151,20 @@ def get_incident(incident_id):
         tasks = [t for t in tasks if t["volunteerId"] == user["id"]]
 
     observations = [rules.to_record(found[obs_id], rules.OBSERVATION_FIELDS) for obs_id in shown_ids if obs_id in found]
-
-    return jsonify({
+    body = {
         "incident": rules.to_record(snapshot, rules.INCIDENT_FIELDS),
         "observations": observations,
         "conflict": conflict_body,
         "tasks": tasks,
-    }), 200
+    }
+    if user["role"] == "supervisor":
+        # Supervisor only: the reporter's name, when one was stored, and the factors behind evidenceScore.
+        for record in observations:
+            name = rules.reporter_name(found[record["id"]].to_dict() or {})
+            if name:
+                record["volunteerName"] = name
+        body["evidenceFactors"] = rules.evidence_factors(data)
+    return jsonify(body), 200
 
 
 @incidents_bp.route("/digest", methods=["GET"])

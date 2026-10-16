@@ -2,9 +2,12 @@
  * Supervisor shapes from docs/contracts/shared-contract.md (sections 5.2, 5.4, 5.5, 5.7, 6.3 and 6.5).
  * Shared enums and records come from the PWA contract file so there is one source.
  */
-import type { IncidentStatus, Observation, Severity, Task, Withdraw } from '../pwa/contracts/types'
+import type { IncidentStatus, Observation as StoredObservation, Severity, Task, Withdraw } from '../pwa/contracts/types'
 
-export type { IncidentStatus, Observation, Severity, Task, Withdraw }
+export type { IncidentStatus, Severity, Task, Withdraw }
+
+/** An observation as a supervisor reads it. `volunteerName` is on it when one was stored (section 6.3). */
+export type Observation = StoredObservation & { volunteerName?: string }
 
 /** Full incident record (section 5.2). */
 export interface Incident {
@@ -31,7 +34,8 @@ export interface EvidenceFactor {
 
 /**
  * Incident as stored by the agents (section 5.2). The REST routes return only
- * `Incident`: `observationIds` and `evidenceFactors` are never in a response.
+ * `Incident`. `observationIds` is never in a response; `evidenceFactors` is returned
+ * only on a supervisor's `GET /incidents/{id}`, beside the incident (section 6.3).
  */
 export interface StoredIncident extends Incident {
   observationIds: string[]
@@ -54,6 +58,8 @@ export interface IncidentDetail {
   observations: Observation[]
   conflict: Conflict | null
   tasks: Task[]
+  /** Supervisor read only. `[]` when none are stored. Absent from an older API. */
+  evidenceFactors?: EvidenceFactor[]
 }
 
 /** Task decisions (section 6.5). */

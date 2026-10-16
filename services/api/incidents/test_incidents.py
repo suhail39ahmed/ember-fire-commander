@@ -128,6 +128,41 @@ def test_incident_detail_has_both_conflicting_observations(client, monkeypatch, 
     assert len(body["tasks"]) == 3
 
 
+def test_supervisor_detail_has_reporter_names_and_evidence_factors(client, monkeypatch, db):
+    db.data["observations"]["obs_01"]["volunteerName"] = "Sari"
+    db.data["observations"]["obs_02"]["volunteerName"] = "   "
+    db.data["incidents"]["inc_01"]["evidenceFactors"] = [
+        {"factor": "severity", "points": 35, "detail": "highest reported severity is small_flame", "extra": "x"},
+        {"factor": "conflict", "points": -20, "detail": "reports disagree"},
+        "not a factor",
+    ]
+    _as(monkeypatch)
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    names = {o["id"]: o.get("volunteerName") for o in body["observations"]}
+    assert names == {"obs_01": "Sari", "obs_02": None}
+    assert "volunteerName" not in body["observations"][1]
+    assert body["evidenceFactors"] == [
+        {"factor": "severity", "points": 35, "detail": "highest reported severity is small_flame"},
+        {"factor": "conflict", "points": -20, "detail": "reports disagree"},
+    ]
+
+
+def test_detail_without_stored_factors_has_an_empty_list(client, monkeypatch, db):
+    _as(monkeypatch)
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    assert body["evidenceFactors"] == []
+    assert all("volunteerName" not in o for o in body["observations"])
+
+
+def test_volunteer_detail_has_no_names_or_factors(client, monkeypatch, db):
+    db.data["observations"]["obs_02"]["volunteerName"] = "Rizal"
+    db.data["incidents"]["inc_01"]["evidenceFactors"] = [{"factor": "photo", "points": 10, "detail": "a photo"}]
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    assert "evidenceFactors" not in body
+    assert all("volunteerName" not in o for o in body["observations"])
+
+
 def test_unknown_incident_is_404(client, monkeypatch, db):
     _as(monkeypatch)
     response = client.get("/incidents/inc_nope", headers=AUTH)

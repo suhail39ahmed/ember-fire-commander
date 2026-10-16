@@ -1,0 +1,32 @@
+/* Reports disagree: the conflict banner, the two original reports, the proposals and the evidence factors. */
+.rep { background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.rep-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.rep-name { margin: 0; font-size: 18px; }
+.rep-meta { margin: 0; font-size: 12px; color: var(--ink-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rep-pills { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.rep-chip { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.1; padding: 4px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface, #fff); }
+.rep-chip small { font-size: 11px; color: var(--ink-muted); }
+.rep-quote { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.rep-original { margin: 0; font-size: 11px; letter-spacing: 0.08em; color: var(--ink-muted); }
+
+.dis-banner { border: 1px solid var(--haze); background: var(--haze-tint); border-radius: 14px; padding: 14px 18px; }
+.dis-banner h2 { margin: 0 0 4px; font-size: 16px; }
+.dis-banner p { margin: 0; font-size: 13px; color: var(--ink-muted); }
+.dis-banner.resolved { border-color: var(--line); background: var(--surface, #fff); }
+
+.prop-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.prop { background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px; }
+.prop-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.prop-main { flex: 1; min-width: 220px; }
+.prop-eyebrow { margin: 0 0 2px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--haze); }
+.prop.investigate .prop-eyebrow { color: var(--danger); }
+.prop-text { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.prop-actions { display: flex; align-items: center; gap: 10px; }
+.prop-link { border: 0; background: transparent; padding: 8px 6px; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer; }
+.prop-held { margin: 8px 0 0; color: var(--danger); font-size: 13px; }
+
+.why { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.why li { display: flex; gap: 10px; align-items: baseline; font-size: 13px; }
+.why-points { min-width: 34px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.why-points.neg { color: var(--danger); }
+.why-name { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-muted); }
