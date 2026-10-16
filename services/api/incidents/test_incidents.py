@@ -1143,3 +1143,90 @@ def test_photo_read_says_unavailable_when_signing_fails(client, monkeypatch, db)
     response = client.get("/incidents/inc_01/photos/obs_01", headers=AUTH)
     assert response.status_code == 503 and response.get_json()["error"]["code"] == "unavailable"
     assert "signBlob" not in response.get_data(as_text=True)
+
+
+# Reports disagree (#95) and agency in charge (#105): supervisor-only context --------------------------------
+
+def _conflict_audit(db):
+    rows = {
+        "aud_ok1": ("uid_maya", "task.approve", "task_verify_sari", "2026-10-13T08:20:00.000Z"),
+        "aud_ok2": ("uid_maya", "task.reject", "task_investigate", "2026-10-13T08:21:00.000Z"),
+        "aud_ok3": ("uid_maya", "incident.verify", "inc_01", "2026-10-13T08:30:00.000Z"),
+        "aud_heard": ("uid_sari", "task.heard", "task_verify_sari", "2026-10-13T08:22:00.000Z"),
+        # Not about the disagreement: a withdraw, a re-ignition row, another incident, and a report received.
+        "aud_wd": ("code", "task.withdraw", "inc_01", "2026-10-13T08:19:00.000Z"),
+        "aud_safe": ("uid_maya", "withdraw.safe", "inc_01", "2026-10-13T08:23:00.000Z"),
+        "aud_other": ("uid_maya", "incident.verify", "inc_old", "2026-10-13T08:24:00.000Z"),
+        "aud_obs": ("uid_sari", "observation.create", "obs_01", "2026-10-13T08:12:04.000Z"),
+    }
+    for audit_id, (actor, action, target, at) in rows.items():
+        db.add("audit", audit_id, {"id": audit_id, "actorId": actor, "action": action, "targetId": target, "at": at})
+    db.add("volunteers", "uid_maya", {"displayName": "Bu Maya"})
+
+
+def test_supervisor_conflict_context_lists_reports_on_neither_side_and_the_conflict_audit_rows(client, monkeypatch, db):
+    _third_reporter(db)
+    _conflict_audit(db)
+    _as(monkeypatch)
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    assert [o["id"] for o in body["observations"]] == ["obs_01", "obs_02"]  # still only the two sides
+    context = body["conflictContext"]
+    assert [o["id"] for o in context["otherObservations"]] == ["obs_03"]
+    other = context["otherObservations"][0]
+    assert (other["volunteerName"], other["severity"], other["lat"], other["accuracyM"], other["text"]) == ("Ayu", "unknown", 1.483, 30, "Smoke near the canal")
+    assert set(other) == {"id", "volunteerId", "capturedAt", "receivedAt", "source", "lat", "lng", "accuracyM", "chip", "text", "severity", "photoPath", "immutable", "volunteerName"}
+    assert [e["id"] for e in context["audit"]] == ["aud_ok1", "aud_ok2", "aud_heard", "aud_ok3"]
+    approve, reject, heard, verify = context["audit"]
+    assert (approve["kind"], approve["actorName"], approve["taskId"], approve["volunteerId"]) == ("audit", "Bu Maya", "task_verify_sari", "uid_sari")
+    assert (reject["action"], reject["taskId"]) == ("task.reject", "task_investigate")
+    assert (heard["actorId"], heard["action"]) == ("uid_sari", "task.heard")
+    assert (verify["action"], verify["taskId"], verify["volunteerId"]) == ("incident.verify", None, None)
+    # The timeline is unchanged by the new key.
+    assert "aud_wd" in [e["id"] for e in body["timeline"]]
+
+
+def test_conflict_context_is_empty_lists_when_a_disagreement_has_nothing_else_stored(client, monkeypatch, db):
+    _as(monkeypatch)
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    assert body["conflictContext"] == {"otherObservations": [], "audit": []}
+    assert body["evidenceFactors"] == []  # no wind or satellite factor is stored or invented
+
+
+def test_conflict_context_is_null_without_a_conflict(client, monkeypatch, db):
+    _as(monkeypatch)
+    assert client.get("/incidents/inc_old", headers=AUTH).get_json()["conflictContext"] is None
+
+
+def test_conflict_context_is_never_on_a_volunteer_read(client, monkeypatch, db):
+    _third_reporter(db)
+    _conflict_audit(db)
+    db.data["incidents"]["inc_01"]["agency"] = "BPBD Meranti"
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    response = client.get("/incidents/inc_01", headers=AUTH)
+    assert response.status_code == 200
+    body = response.get_json()
+    assert "conflictContext" not in body and "agencyInCharge" not in body
+    assert "BPBD" not in response.get_data(as_text=True)
+
+
+def test_conflict_context_is_forbidden_to_a_volunteer_with_no_link_to_the_incident(client, monkeypatch, db):
+    _as(monkeypatch, role="volunteer", uid="uid_stranger")
+    assert client.get("/incidents/inc_01", headers=AUTH).status_code == 404
+
+
+def test_agency_in_charge_is_the_trimmed_stored_value_and_null_otherwise(client, monkeypatch, db):
+    _as(monkeypatch)
+    assert client.get("/incidents/inc_01", headers=AUTH).get_json()["agencyInCharge"] is None
+    db.data["incidents"]["inc_01"]["agency"] = "  BPBD Kepulauan Meranti "
+    assert client.get("/incidents/inc_01", headers=AUTH).get_json()["agencyInCharge"] == "BPBD Kepulauan Meranti"
+    for blank in ("   ", "", 7, None, {"name": "x"}):
+        db.data["incidents"]["inc_01"]["agency"] = blank
+        assert client.get("/incidents/inc_01", headers=AUTH).get_json()["agencyInCharge"] is None
+
+
+def test_agency_is_not_added_to_the_incident_record_or_the_list(client, monkeypatch, db):
+    db.data["incidents"]["inc_01"]["agency"] = "BPBD Meranti"
+    _as(monkeypatch)
+    listed = client.get("/incidents", headers=AUTH).get_json()
+    assert "agency" not in listed[0]
+    assert "agency" not in client.get("/incidents/inc_01", headers=AUTH).get_json()["incident"]
