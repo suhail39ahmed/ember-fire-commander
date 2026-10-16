@@ -113,6 +113,7 @@ export function ConsoleProvider({
   return <ConsoleContext.Provider value={value}>{children}</ConsoleContext.Provider>
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useConsole(): ConsoleContextValue {
   const value = useContext(ConsoleContext)
   if (!value) throw new Error('useConsole must be used within ConsoleProvider')
