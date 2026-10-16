@@ -140,6 +140,11 @@ export function IncidentDetailView({
                     {t(lang, screenStrings.detail.source[o.source])}
                     {typeof o.accuracyM === 'number' ? ` · ±${o.accuracyM} m` : ''}
                   </span>
+                  {o.volunteerId !== volunteerId && (
+                    <Link className="flag-link small" to={`/pwa/incidents/${encodeURIComponent(incidentId)}/flag/${encodeURIComponent(o.id)}`} data-testid={`flag-${o.id}`}>
+                      {t(lang, screenStrings.flag.action)}
+                    </Link>
+                  )}
                 </span>
               </li>
             ))}

@@ -158,6 +158,16 @@ export interface Task {
 export const DECLINE_REASONS = ['unsafe', 'too_far', 'no_equipment', 'other'] as const
 export type DeclineReason = (typeof DECLINE_REASONS)[number]
 
+/** Why a volunteer says someone else's report is wrong (contract section 6.11). Labels come from the copy bundle. */
+export const FLAG_REASONS = ['no_fire', 'duplicate', 'old_photo', 'wrong_place', 'fake'] as const
+export type FlagReason = (typeof FLAG_REASONS)[number]
+
+/** Body of POST /observations/{id}/flag (section 6.11). `photoPath` comes from POST /photos/upload-url. */
+export interface FlagRequest {
+  reason: FlagReason
+  photoPath?: string | null
+}
+
 /** Body of POST /incidents/{id}/withdraw/answer (section 6.11). */
 export interface WithdrawAnswerRequest {
   state: 'safe' | 'stuck'

@@ -5,6 +5,7 @@ import { DigestNotice } from '../DigestNotice'
 import { currentTask } from '../digest'
 import { strings, t } from '../i18n'
 import { useLanguage } from '../language'
+import { FlagReportScreen } from '../screens/FlagReportScreen'
 import { GuideScreen } from '../screens/GuideScreen'
 import { HomeScreen } from '../screens/HomeScreen'
 import { IncidentDetailScreen } from '../screens/IncidentDetailScreen'
@@ -73,6 +74,7 @@ export function PhoneLayout() {
           <Route path="report" element={<ReportScreen />} />
           <Route path="incidents" element={<IncidentsScreen />} />
           <Route path="incidents/:id" element={<IncidentDetailScreen />} />
+          <Route path="incidents/:id/flag/:obsId" element={<FlagReportScreen />} />
           <Route path="task/:id" element={<TaskScreen />} />
           <Route path="task/:id/decline" element={<DeclineScreen />} />
           <Route path="task/:id/not-a-fire" element={<NotAFireScreen />} />

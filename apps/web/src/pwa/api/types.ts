@@ -1,4 +1,4 @@
-import type { DeclineReason, Digest, IncidentDetail, Observation, ObservationRequest, PhotoContentType, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
+import type { DeclineReason, Digest, FlagRequest, IncidentDetail, Observation, ObservationRequest, PhotoContentType, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
 
 /** Error surfaced to the UI. `retryable` is true for network failures, 429 and 5xx. */
 export class ApiError extends Error {
@@ -30,4 +30,6 @@ export interface EmberApi {
   declineTask(taskId: string, reason: DeclineReason, note?: string): Promise<void>
   /** POST /incidents/{id}/withdraw/answer: safe upwind, or can't get out. The latest answer replaces the earlier one. */
   answerWithdraw(incidentId: string, answer: WithdrawAnswerRequest): Promise<void>
+  /** POST /observations/{id}/flag: someone else's report looks wrong. The report is not changed. */
+  flagObservation(observationId: string, flag: FlagRequest): Promise<void>
 }

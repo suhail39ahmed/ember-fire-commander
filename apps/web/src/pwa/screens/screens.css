@@ -133,3 +133,7 @@
 .warn { color: #9a5b00; margin: 0; }
 .link-card { text-decoration: none; color: inherit; gap: 2px; }
 .sms-body { font-size: 13px; line-height: 1.5; background: var(--surface-2); overflow-wrap: anywhere; }
+
+/* Flag a wrong report (#141) */
+.flag-title { font-size: 22px; line-height: 1.2; margin: 0; }
+.flag-link { color: var(--ember); font-weight: 600; text-decoration: none; margin-top: 2px; }

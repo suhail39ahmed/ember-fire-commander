@@ -133,6 +133,12 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
       await wait()
       if (!digest.incidents.some((i) => i.id === incidentId && i.withdraw?.active)) throw new ApiError('conflict', 'There is no active withdraw on this incident', 409, false)
     },
+    async flagObservation(observationId) {
+      await wait()
+      const mine = observations.find((o) => o.id === observationId)
+      if (!mine) throw new ApiError('not_found', 'observation id is unknown', 404, false)
+      if (mine.volunteerId === volunteerId) throw new ApiError('conflict', 'You cannot flag your own report', 409, false)
+    },
     async createUploadUrl(contentType) {
       await wait()
       const id = Math.random().toString(16).slice(2).padEnd(12, '0')
