@@ -13,6 +13,7 @@ import { ProfileScreen } from '../screens/ProfileScreen'
 import { ReportScreen } from '../screens/ReportScreen'
 import { DeclineScreen } from '../screens/DeclineScreen'
 import { NotAFireScreen } from '../screens/NotAFireScreen'
+import { SmsScreen } from '../screens/SmsScreen'
 import { TaskScreen } from '../screens/TaskScreen'
 import { usePushNavigation } from '../push/usePushNavigation'
 import { useMarkHeard } from '../useMarkHeard'
@@ -65,6 +66,7 @@ export function PhoneLayout() {
                 lastSyncAt={lastSyncAt}
                 online={outbox.online}
                 queuedCount={outbox.items.length}
+                queued={outbox.items}
               />
             }
           />
@@ -74,6 +76,7 @@ export function PhoneLayout() {
           <Route path="task/:id" element={<TaskScreen />} />
           <Route path="task/:id/decline" element={<DeclineScreen />} />
           <Route path="task/:id/not-a-fire" element={<NotAFireScreen />} />
+          <Route path="sms" element={<SmsScreen />} />
           <Route path="guide" element={<GuideScreen />} />
           <Route path="profile" element={<ProfileScreen />} />
           <Route path="*" element={<Navigate to="/pwa" replace />} />

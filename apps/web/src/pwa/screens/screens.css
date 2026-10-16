@@ -125,3 +125,11 @@
 .sent-today li strong { overflow-wrap: anywhere; }
 .sent-today-when { text-align: right; align-items: flex-end; }
 .sent-today .ok { color: var(--safe-text); }
+
+/* No signal (#150) and SMS fallback (#151) */
+.safety-rule { background: #fde8e6; border: 1.5px solid var(--danger); }
+.safety-rule .section-label { color: var(--danger); }
+.rule-text { font-size: 17px; font-weight: 600; line-height: 1.35; margin: 0; }
+.warn { color: #9a5b00; margin: 0; }
+.link-card { text-decoration: none; color: inherit; gap: 2px; }
+.sms-body { font-size: 13px; line-height: 1.5; background: var(--surface-2); overflow-wrap: anywhere; }

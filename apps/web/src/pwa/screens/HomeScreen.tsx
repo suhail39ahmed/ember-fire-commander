@@ -9,6 +9,9 @@ import type { DigestStatus } from '../useDigest'
 import { assignedTasks, liveIncidents } from './incidentsView'
 import { IncidentRow } from './IncidentRow'
 import { screenStrings } from './strings'
+import { NoSignalCard } from './NoSignalCard'
+import { useBattery, useNow, useOfflineSince } from '../useDeviceStatus'
+import type { OutboxItem } from '../outbox/types'
 
 const MAX_HOME_INCIDENTS = 3
 
@@ -19,6 +22,8 @@ export interface HomeProps {
   lastSyncAt: string | null
   online: boolean
   queuedCount: number
+  /** What is waiting in the outbox, for the no-signal card. Without it the card says no report is saved. */
+  queued?: OutboxItem[]
 }
 
 /** Placeholder card shapes while `/digest` has not returned. Same heights as the real cards, so nothing jumps. */
@@ -38,7 +43,10 @@ function HomeSkeleton({ lang }: { lang: Lang }) {
  * Home (#127). Who has a task waiting, a few counts from the digest, the volunteer's incidents and one Report
  * button. Wind is not shown: no client payload carries an observed wind.
  */
-export function HomeScreen({ lang, digest, status, lastSyncAt, online, queuedCount }: HomeProps) {
+export function HomeScreen({ lang, digest, status, lastSyncAt, online, queuedCount, queued = [] }: HomeProps) {
+  const offlineSince = useOfflineSince(online)
+  const battery = useBattery()
+  const nowMs = useNow()
   const reportButton = (
     <Link className="btn primary report-cta" to="/pwa/report">
       {t(lang, screenStrings.common.reportFire)}
@@ -60,19 +68,17 @@ export function HomeScreen({ lang, digest, status, lastSyncAt, online, queuedCou
   const offline = !online
   return (
     <>
-      {offline && (
-        <section className="card offline-card" role="status" data-testid="home-offline">
-          <h2>{t(lang, screenStrings.home.offlineTitle)}</h2>
-          <p>{t(lang, screenStrings.home.offlineBody)}</p>
-          <p className="muted small">
-            {lastSyncAt ? `${t(lang, screenStrings.home.lastSync)} ${formatTime(lastSyncAt)}` : t(lang, screenStrings.common.notAvailable)}
-          </p>
-        </section>
+      {offline && <NoSignalCard lang={lang} sinceMs={offlineSince} batteryPct={battery} task={task && task.type !== 'withdraw' ? task : null} queued={queued} nowMs={nowMs} />}
+      {offline && lastSyncAt && (
+        <p className="muted small" data-testid="home-last-sync">
+          {t(lang, screenStrings.home.lastSync)} {formatTime(lastSyncAt)}
+        </p>
       )}
+      {offline && !lastSyncAt && <p className="muted small">{t(lang, screenStrings.common.notAvailable)}</p>}
 
       {digest && (
         <>
-          {task && task.type !== 'withdraw' ? (
+          {offline ? null : task && task.type !== 'withdraw' ? (
             <section className="card task" aria-labelledby="home-task-title">
               <p className="section-label">{t(lang, screenStrings.home.taskWaiting)}</p>
               <h2 id="home-task-title">
