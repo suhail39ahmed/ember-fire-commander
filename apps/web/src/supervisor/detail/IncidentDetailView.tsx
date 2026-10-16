@@ -20,6 +20,8 @@ import { doneText } from './extinguishModel'
 import { extinguishCopy } from './extinguishCopy'
 import { LowerSeverityDialog } from './LowerSeverityDialog'
 import { disagreeCopy, factorName } from './disagreeCopy'
+import { AgencyInCharge } from './AgencyInCharge'
+import { ConflictExtras } from './ConflictExtras'
 import { ProposalRow } from './ProposalRow'
 import { ReportCard } from './ReportCard'
 import { SendWithdrawDialog } from './SendWithdrawDialog'
@@ -69,6 +71,8 @@ export interface IncidentDetailViewProps {
   sendInstruction(volunteerId: string, instruction: string): Promise<TaskDecision>
   /** GET /incidents/{id}/photos/{observationId}: a short-lived signed read link for a photo report. */
   photoUrl(incidentId: string, observationId: string): Promise<PhotoUrl>
+  /** The signed-in supervisor's own agency from their profile (GET /dashboard). Shown apart from the agency in charge. */
+  yourAgency?: string | null
   mapsKey?: string
 }
 
@@ -143,7 +147,7 @@ function Stat({ label, value, note, tone }: { label: string; value: string; note
   )
 }
 
-function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask' | 'sendInstruction' | 'photoUrl'> }) {
+function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask' | 'sendInstruction' | 'photoUrl' | 'yourAgency'> }) {
   const { incident, conflict } = detail
   const { actorName, sendWithdraw, lowerSeverity, markSafe, resendTask, serverNow, sendInstruction, photoUrl } = view
   const [dialog, setDialog] = useState<'withdraw' | 'severity' | 'extinguish' | null>(null)
@@ -176,6 +180,8 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
   const gap = pair.length === 2 ? distanceM(pair[0], pair[1]) : null
   const proposals = detail.tasks.filter((task) => taskControls(task, detail).canDecide)
   const others = detail.tasks.filter((task) => !taskControls(task, detail).canDecide)
+  // While reports disagree, say so plainly when no agent has recorded a dispatch proposal. No service writes one today.
+  const noInvestigate = Boolean(conflict) && !detail.tasks.some((task) => task.type === 'investigate')
   // The cards count every report; `observations` lists only the two sides when a conflict exists.
   const reportTotal = detail.volunteers ? detail.volunteers.reduce((sum, c) => sum + c.reportCount, 0) : detail.observations.length
   const reporters = detail.volunteers ? detail.volunteers.filter((c) => c.reportCount > 0).length : new Set(detail.observations.map((o) => o.volunteerId)).size
@@ -235,13 +241,17 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           <p className="inc-muted">{t(lang, detailCopy.conflictBody)} {t(lang, detailCopy.conflictHigher)}: {t(lang, severityName[conflict.higherSeverity])}.</p>
         </section>
       )}
+      {conflict && <ConflictExtras lang={lang} detail={detail} context={detail.conflictContext} />}
 
-      {proposals.length > 0 && (
+      {(proposals.length > 0 || noInvestigate) && (
         <section aria-labelledby="inc-prop-title">
           <h2 className="inc-h2" id="inc-prop-title">{t(lang, disagreeCopy.proposals)}</h2>
-          <ul className="prop-list">
-            {proposals.map((task) => <ProposalRow key={task.id} lang={lang} task={task} detail={detail} actions={actions} offline={offline || paused} editor={actorName} />)}
-          </ul>
+          {proposals.length > 0 && (
+            <ul className="prop-list">
+              {proposals.map((task) => <ProposalRow key={task.id} lang={lang} task={task} detail={detail} actions={actions} offline={offline || paused} editor={actorName} />)}
+            </ul>
+          )}
+          {noInvestigate && <p className="inc-muted">{t(lang, disagreeCopy.noInvestigate)}</p>}
         </section>
       )}
 
@@ -260,6 +270,8 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         />
         <Stat label={t(lang, detailCopy.statPosition)} value={formatPosition(incident)} note={incident.area ?? t(lang, detailCopy.statPositionNote)} />
       </div>
+
+      <AgencyInCharge lang={lang} agency={detail.agencyInCharge} yours={view.yourAgency} />
 
       {summary && detail.summary && (
         <section className="inc-card" aria-labelledby="inc-summary-title">

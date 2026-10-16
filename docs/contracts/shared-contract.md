@@ -165,6 +165,7 @@ Which fields a response carries:
 | `lng` | number | Agents. As `lat` |
 | `observationIds` | string[] | Agents (fusion). Every observation clustered into the incident, oldest first. Stored only: no REST response returns it. Services use it to find an incident's observations and to link a volunteer to it |
 | `evidenceFactors` | evidence factor[] | Agents (fusion). The factors that add up to `evidenceScore`. Only a supervisor's `GET /incidents/{id}` returns them (§6.3) |
+| `agency` | string, optional | Nobody in this repository writes it. The name of the agency recorded as in charge of the incident. Only a supervisor's `GET /incidents/{id}` returns it, as `agencyInCharge` (§6.3). No route sets it, and handing an incident to an agency is outside this contract (§10) |
 
 **Naming rules** (`services/agents/fusion/places.py`). Fusion sets `area` and `name` once, from the first observation's position, when it creates the incident.
 
@@ -662,6 +663,19 @@ Who can read what:
 | `GET /incidents/{id}` | Any incident, including `extinguished` | `404` unless the caller has a task, a withdraw entry, or an observation on it. The caller then sees every observation listed, including other volunteers' `volunteerId` |
 
 A supervisor's `GET /incidents/{id}` also carries `volunteerPhones`, an object of `volunteerId` to phone number, while a withdraw is active. It has an entry only for a volunteer on that withdraw whose `volunteers/{uid}.phone` is a non-blank string, and is `{}` when there is none. No service writes `phone` yet. A volunteer's read never has it.
+
+**Supervisor extras (#95, #105).** For a supervisor the body has two more keys, both read from stored records. A volunteer's read has neither.
+
+`conflictContext` is `null` when the incident has no conflict. Otherwise it is an object with two lists, `[]` when nothing is stored:
+
+| Field | Type | Source |
+|---|---|---|
+| `otherObservations` | observation[] | The reports in `incident.observationIds` that are not in `conflict.observationIds` (a `smoke` or `unknown` report is on neither side, §5.4), oldest first. Each is the §5.1 record that `observations` carries, with `volunteerName` when one was stored. `observations` itself is unchanged and still lists only the two sides |
+| `audit` | timeline entry[] | The audit rows that decide the disagreement, oldest first, the newest 100, in the shape of a `timeline` audit entry: `task.approve`, `task.reject`, `task.edit`, `task.resend` and `task.heard` rows whose `targetId` is a `verify` or `investigate` task of the incident, and `incident.verify`, `incident.extinguish` and `incident.severity.lower` or `.raise` rows whose `targetId` is the incident. Withdraw, instruct, re-ignition and `observation.create` rows are left out |
+
+The same data supports what the screen shows. The reasons behind `evidenceScore` are `evidenceFactors`. **No wind or satellite factor is stored:** fusion writes only `severity`, `corroboration`, `photo`, `gps` and `conflict` (§5.2), and wind enters only the withdraw reasons (§5.2). **No audit row records the moment a conflict opened**, and **no service creates an `investigate` task** (§5.3), so a proposed dispatch appears in `tasks` only if one is written some other way. None of the three is invented here.
+
+`agencyInCharge` is the trimmed `incidents/{id}.agency` (§5.2), or `null` when the field is missing, not a string or blank. Nothing writes it today, so it is `null` until a later change records an agency. It is never taken from the signed-in supervisor's profile: `GET /dashboard` returns that agency as `agency` (§6.9), and it names the supervisor's own agency, not the one in charge of an incident.
 
 `GET /incidents` returns the full incident record of §5.2 without `observationIds` and `evidenceFactors`, sorted by `id`.
 
@@ -1166,6 +1180,8 @@ Every route except `/healthz` needs the two headers in §2.
 | `withdraw.source`, `withdraw.sentAt`, `withdraw.safeVolunteerIds` | Incident, digest | Absent on a withdraw written before #101. Treat absent `safeVolunteerIds` as empty |
 | `volunteerPhones` | `GET /incidents/{id}`, supervisor only | Absent unless a withdraw is active. May be `{}` |
 | `volunteers`, `timeline`, `summary` | `GET /incidents/{id}`, supervisor only | Always present for a supervisor: `[]`, `[]` and `null` when nothing is stored. Absent from a volunteer's read and from an older API (§6.3) |
+| `conflictContext` | `GET /incidents/{id}`, supervisor only | The key is present for a supervisor. `null` when the incident has no conflict, else `{ otherObservations, audit }` with `[]` for each list that has nothing stored (§6.3). Absent from a volunteer's read and from an older API |
+| `agencyInCharge` | Same | The key is present for a supervisor. `null` until an agency is stored on the incident, which nothing does yet (§5.2). Absent from a volunteer's read and from an older API |
 | `volunteers[].name`, `lastReportAt`, `lastSeverity`, `lastLat`, `lastLng`, `lastAccuracyM`, `distanceM` | Same | `null` when the volunteer has no report on the incident, or no name was stored |
 | `volunteers[].lastHeardAt` | Same | `null` when they have no report and no heard task on the incident |
 | `volunteers[].pushReady` | Same | Always a boolean. `false` when no device token is stored |
@@ -1208,7 +1224,8 @@ The browser cannot read these. A screen that needs one needs a new REST route fi
 - `incident.observationIds` (§5.2). `incident.evidenceFactors` is returned only on a supervisor's `GET /incidents/{id}` (§6.3).
 - Photo bytes. `GET /incidents/{id}/photos/{observationId}` returns only a short-lived signed URL (§6.7).
 - `photo_triage`, `sites` and their alerts, the `facts` of `incident_summaries` (its text is `summary` in §6.3), `leads`, `weather`, `psi`, `ingestRuns`, and `notificationAttempts` (§5.7). `GET /audit` reads the `audit` collection for supervisors (§5.5).
-- Observations that are not on the two sides of a conflict, when the incident has a conflict. `observations` in §6.3 lists only the two sides. A supervisor's `volunteers` and `timeline` count every report, but the other reports' own records are not returned.
+- Observations that are not on the two sides of a conflict, when the incident has a conflict, are not in `observations` (§6.3). A volunteer's read never has them. A supervisor's read returns them in `conflictContext.otherObservations`.
+- A wind or satellite evidence factor, an audit row for the moment a conflict opened, an `investigate` proposal, and any agency assignment or hand-off (§5.2, §6.3, §10).
 - A task or incident created or updated time.
 
 ### 12.5 Undecided
@@ -1260,5 +1277,6 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · `GET /dashboard` fills `liveFires[].code`, `placeName`, and `since`, `seasonImpact`, and `charts` from stored incidents, observations, tasks, audit rows, leads, device records, and `weather/current`. Same keys and null rules. Counts over no records are `0`. Cameras, photo cadence, distance to risk, the next satellite pass, injuries, and the median target stay `null` (§6.9).
 - 2026-10-16 · #92, #101: a supervisor's `GET /incidents/{id}` adds `volunteers` (one card per volunteer, covering every report and the withdraw state of each), `timeline` (reports and audit rows, oldest first, newest 100) and `summary` (the stored incident summary). A `withdraw.safe` audit row now also carries `subjectId`, so a card shows who marked a volunteer safe and when. A volunteer's read is unchanged. Still not stored, so not returned: conditions at the site, volunteer role, crew, battery, network and place, the crew lead, and suggested instructions (§5.5, §5.7, §6.3, §12.2, §12.4).
 - 2026-10-16 · #93, #94: new supervisor route `POST /incidents/{id}/volunteers/{volunteerId}/instruct` sends one free-text instruction to one volunteer as a new task type `instruct` (stored `approved`, pushed, audit `task.instruct`). It is refused for an extinguished incident and for a volunteer under an active withdraw who is not marked safe, so it never holds or replaces a WITHDRAW. New supervisor route `GET /incidents/{id}/photos/{observationId}` returns a short-lived signed read URL for a photo report. A volunteer card adds `lastHeardAt` and `pushReady`. The volunteer app now calls `POST /tasks/{id}/heard` when a sent task is on screen (§5.3, §5.5, §6.3, §6.5, §6.6, §6.7, §12.1).
+- 2026-10-16 · #95, #105: a supervisor's `GET /incidents/{id}` adds `conflictContext` (the reports on neither side of a disagreement, and the audit rows that decide it) and `agencyInCharge` (the agency stored on the incident, `null` today). Both are optional additions; a volunteer's read and `GET /incidents` are unchanged. Not stored, so not returned: wind or satellite evidence factors, a "conflict opened" audit row, `investigate` proposals, and who is in charge (§5.2, §6.3, §12.2, §12.4). Handing an incident to an agency stays outside the contract (§10).
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).

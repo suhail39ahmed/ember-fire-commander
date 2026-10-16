@@ -16,6 +16,27 @@ export const disagreeCopy = {
   factorsEmpty: { id: 'Belum ada rincian bukti dari ember-api.', en: 'ember-api has not sent the evidence factors.' },
   notProbability: { id: 'Skor ini bukan probabilitas.', en: 'This score is not a probability.' },
   auditNote: { id: 'Entri audit terbaru ada di Log audit.', en: 'The latest audit entries are in the Audit log.' },
+  otherTitle: { id: 'Laporan lain di insiden ini', en: 'Other reports at this incident' },
+  otherNote: { id: 'tidak di pihak mana pun dalam perbedaan', en: 'on neither side of the disagreement' },
+  decisionsTitle: { id: 'Keputusan atas perbedaan ini', en: 'Decisions on this disagreement' },
+  decisionsNote: { id: 'dari catatan audit', en: 'from the audit records' },
+  decisionsEmpty: { id: 'Belum ada keputusan yang tercatat.', en: 'No decision has been recorded yet.' },
+  openedGap: { id: 'Tidak ada catatan kapan perbedaan ini muncul.', en: 'No record shows when the disagreement opened.' },
+  noInvestigate: {
+    id: 'Agen belum mencatat usulan dispatch (investigasi) untuk insiden ini.',
+    en: 'The agents have not recorded a dispatch (investigate) proposal for this incident.',
+  },
+} as const
+
+/** Copy for "Agency in charge" on the incident detail. Bahasa is a draft that needs native-speaker review. */
+export const agencyCopy = {
+  title: { id: 'Instansi penanggung jawab', en: 'Agency in charge' },
+  notRecorded: { id: 'Belum tercatat', en: 'Not recorded' },
+  emptyBody: {
+    id: 'Belum ada instansi yang tercatat sebagai penanggung jawab insiden ini.',
+    en: 'No agency has been recorded as in charge of this incident.',
+  },
+  yours: { id: 'Instansi Anda (dari profil)', en: 'Your agency (from your profile)' },
 } as const
 
 export const factorName = {

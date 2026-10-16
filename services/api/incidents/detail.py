@@ -19,6 +19,10 @@ TIMELINE_ACTIONS = (
     "incident.severity.raise", "site.reinspect",
 )
 SUMMARY_FIELDS = ("english", "bahasa", "source", "at")
+# Audit rows that belong to a disagreement: decisions on its verify and investigate tasks, and on the incident itself.
+CONFLICT_TASK_TYPES = ("verify", "investigate")
+CONFLICT_TASK_ACTIONS = ("task.approve", "task.reject", "task.edit", "task.resend", "task.heard")
+CONFLICT_INCIDENT_ACTIONS = ("incident.verify", "incident.extinguish", "incident.severity.lower", "incident.severity.raise")
 
 
 def distance_m(lat1, lng1, lat2, lng2):
@@ -129,6 +133,53 @@ def _card(uid, observations, tasks, withdraw, names, push, centre, delivery, saf
     return card
 
 
+def _audit_entry(row, task_by_id, names):
+    """One audit row in the shape the timeline and the conflict context share."""
+    task = task_by_id.get(row.get("targetId")) or {}
+    return {
+        "kind": "audit", "id": row["id"], "at": row.get("at"), "action": row.get("action"),
+        "actorId": row.get("actorId"),
+        "actorName": None if row.get("actorId") == "code" else names.get(row.get("actorId")),
+        "volunteerId": row.get("subjectId") or task.get("volunteerId"),
+        "taskId": row.get("targetId") if task else None,
+        "severity": None, "source": None, "chip": None, "text": None,
+    }
+
+
+def _conflict_context(incident_id, data, observations, conflict_body, tasks, audit, names, task_by_id):
+    """What a supervisor needs beside the two sides of a disagreement. None when the incident has no conflict.
+
+    `otherObservations` are the reports the incident holds that are on neither side (smoke or unknown),
+    which `observations` leaves out while a conflict exists. `audit` is the recorded decisions on the
+    conflict's verify and investigate tasks and on the incident. No audit row records the moment a conflict
+    opened, and no wind or satellite factor is stored, so neither is returned.
+    """
+    if not conflict_body:
+        return None
+    sides = set(conflict_body.get("observationIds") or [])
+    mine = set(data.get("observationIds") or [])
+    others = sorted(
+        (o for o in observations if o.get("id") in mine and o.get("id") not in sides),
+        key=lambda o: (_when(o.get("capturedAt")), o.get("id") or ""),
+    )
+    records = []
+    for o in others:
+        record = rules.pick(o, rules.OBSERVATION_FIELDS)
+        name = rules.reporter_name(o)
+        if name:
+            record["volunteerName"] = name
+        records.append(record)
+    task_ids = {t["id"] for t in tasks if t.get("type") in CONFLICT_TASK_TYPES}
+    rows = [
+        r for r in audit
+        if (r.get("action") in CONFLICT_INCIDENT_ACTIONS and r.get("targetId") == incident_id)
+        or (r.get("action") in CONFLICT_TASK_ACTIONS and r.get("targetId") in task_ids)
+    ]
+    entries = [_audit_entry(r, task_by_id, names) for r in rows]
+    entries.sort(key=lambda e: (_when(e["at"]), e["id"]))
+    return {"otherObservations": records, "audit": entries[-TIMELINE_LIMIT:]}
+
+
 def build(incident_id, data, observations, conflict_body, tasks):
     """The supervisor-only extras for one incident.
 
@@ -170,16 +221,7 @@ def build(incident_id, data, observations, conflict_body, tasks):
             "volunteerId": o.get("volunteerId"), "taskId": None,
             "severity": o.get("severity"), "source": o.get("source"), "chip": o.get("chip"), "text": o.get("text"),
         })
-    for row in audit:
-        task = task_by_id.get(row.get("targetId")) or {}
-        entries.append({
-            "kind": "audit", "id": row["id"], "at": row.get("at"), "action": row.get("action"),
-            "actorId": row.get("actorId"),
-            "actorName": None if row.get("actorId") == "code" else names.get(row.get("actorId")),
-            "volunteerId": row.get("subjectId") or task.get("volunteerId"),
-            "taskId": row.get("targetId") if task else None,
-            "severity": None, "source": None, "chip": None, "text": None,
-        })
+    entries += [_audit_entry(row, task_by_id, names) for row in audit]
     entries.sort(key=lambda e: (_when(e["at"]), e["id"]))
     timeline = entries[-TIMELINE_LIMIT:]
 
@@ -189,4 +231,9 @@ def build(incident_id, data, observations, conflict_body, tasks):
         raw = snap.to_dict() or {}
         if _text(raw.get("english")) or _text(raw.get("bahasa")):
             summary = rules.pick(raw, SUMMARY_FIELDS)
-    return {"volunteers": cards, "timeline": timeline, "summary": summary}
+    return {
+        "volunteers": cards, "timeline": timeline, "summary": summary,
+        "conflictContext": _conflict_context(incident_id, data, observations, conflict_body, tasks, audit, names, task_by_id),
+        # Only a value stored on the incident itself. Nothing writes it yet, so it is None today.
+        "agencyInCharge": _text(data.get("agency")),
+    }

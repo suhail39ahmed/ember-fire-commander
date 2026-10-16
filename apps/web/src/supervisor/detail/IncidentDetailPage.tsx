@@ -12,7 +12,7 @@ const RESTORED_MS = 3000
 
 /** Route element for `/console/incidents/:incidentId`. Reads the shared incident state, draws the detail. */
 export function IncidentDetailPage() {
-  const { language, supervisor, clockSkewMs } = useConsole()
+  const { language, supervisor, clockSkewMs, agency } = useConsole()
   const { pathname } = useLocation()
   const { queue, detail, detailFailure, activeId, select, api, refresh, connection, actions } = useIncidents()
   const incidentId = incidentIdFromPath(pathname) ?? activeId ?? ''
@@ -57,6 +57,7 @@ export function IncidentDetailPage() {
         return result
       }}
       actorName={supervisor.displayName}
+      yourAgency={agency}
       serverNow={() => Date.now() + (clockSkewMs ?? 0)}
       lowerSeverity={async (severity) => {
         try {

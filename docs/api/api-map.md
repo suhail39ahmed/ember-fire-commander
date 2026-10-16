@@ -77,7 +77,7 @@ Incident list and detail responses use `INCIDENT_FIELDS`: `id`, `name`, `area`, 
 | PUT, PATCH, DELETE | `/observations` and `/observations/{id}` | any role | nobody | — | `409` `conflict`, observations are immutable |
 | POST | `/photos/upload-url` | volunteer | PWA | `{ "contentType": "image/jpeg" \| "image/webp" }` | `201` `{ uploadUrl, method: "PUT", headers, photoPath, expiresAt }` |
 | GET | `/incidents` | any role, scoped | console | — | `200` incident array. Supervisor: status `open`, `held`, or `verified`. Volunteer: incidents linked to their observations, tasks, or withdraw |
-| GET | `/incidents/{id}` | any role, scoped | console | — | `200` `{ incident, observations, conflict, tasks }`. A volunteer not on the incident gets `404`, and only their own tasks |
+| GET | `/incidents/{id}` | any role, scoped | console | — | `200` `{ incident, observations, conflict, tasks }`. A supervisor's body also has `evidenceFactors`, `volunteers`, `timeline`, `summary`, `conflictContext` and `agencyInCharge` (§6.3). A volunteer not on the incident gets `404`, and only their own tasks |
 | GET | `/digest` | any role, scoped | PWA (polls every 5 s) | — | `200` `{ updatedAt, incidents, myTasks }`. `myTasks` is empty for a supervisor |
 | POST | `/tasks/{id}/approve` | supervisor | console | none | `200` `{ task, auditId }`. `proposed` → `approved`. `investigate` is `409` while a conflict is open. `withdraw` is `409` |
 | POST | `/tasks/{id}/reject` | supervisor | console | none | `200` `{ task, auditId }`. `proposed` → `rejected`. `withdraw` is `409` |
