@@ -1,0 +1,82 @@
+import type { ComponentProps } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { StaticRouter } from 'react-router-dom'
+import { describe, expect, it } from 'vitest'
+
+import { formatTime } from '../../pwa/formatTime'
+import { LiveBanner } from '../LiveBanner'
+import type { LiveFire } from '../chromeClient'
+
+const updatedAt = '2026-10-16T07:46:00Z'
+
+function fire(over: Partial<LiveFire> = {}): LiveFire {
+  return {
+    id: 'inc_a',
+    peopleOnSite: 2,
+    withdrawActive: false,
+    code: null,
+    placeName: null,
+    liveCameras: null,
+    photoCadence: null,
+    distanceToRisk: null,
+    since: null,
+    ...over,
+  }
+}
+
+function html(props: Partial<ComponentProps<typeof LiveBanner>> = {}) {
+  return renderToStaticMarkup(
+    <StaticRouter location="/console">
+      <LiveBanner
+        fires={[fire(), fire({ id: 'inc_b', peopleOnSite: 1, withdrawActive: true })]}
+        updatedAt={updatedAt}
+        nextSatellitePass={null}
+        loading={false}
+        retrying={false}
+        lang="en"
+        {...props}
+      />
+    </StaticRouter>,
+  )
+}
+
+describe('live banner', () => {
+  it('shows the count, the clock, people on site, and an active withdraw', () => {
+    const markup = html()
+    expect(markup).toContain('LIVE · 2 FIRES NEED YOU')
+    expect(markup).toContain(`Updated ${formatTime(updatedAt)} · next satellite pass —`)
+    expect(markup).toContain('2 on site · — · —')
+    expect(markup).toContain('1 on site · — · —')
+    expect(markup).toContain('Withdraw')
+    expect(markup).toContain('href="/console/incidents/inc_a"')
+    expect(markup).toContain('href="/console/incidents/inc_b"')
+    expect(markup).not.toContain('TOHOR')
+    expect(markup).not.toContain('180')
+  })
+
+  it('uses the singular heading for one fire', () => {
+    expect(html({ fires: [fire()] })).toContain('1 FIRE NEEDS YOU')
+  })
+
+  it('hides the banner when no fire is live', () => {
+    expect(html({ fires: [] })).toBe('')
+  })
+
+  it('shows a loading line without a count before the first read', () => {
+    const markup = html({ fires: null, loading: true })
+    expect(markup).toContain('Loading live fires…')
+    expect(markup).not.toContain('FIRES NEED YOU')
+  })
+
+  it('keeps the last fires and says it is retrying', () => {
+    const markup = html({ retrying: true })
+    expect(markup).toContain('2 FIRES NEED YOU')
+    expect(markup).toContain('Showing the last live fires. Retrying.')
+  })
+
+  it('does not invent fires when the first read fails', () => {
+    const markup = html({ fires: null, loading: false, retrying: true })
+    expect(markup).toContain('Could not load live fires. Retrying.')
+    expect(markup).not.toContain('FIRES NEED YOU')
+  })
+})

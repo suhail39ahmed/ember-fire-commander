@@ -33,3 +33,17 @@
 .dot.ring-conflict { border: 2px solid #b7791f; background: #fff; }
 .dot.zone-withdraw { background: rgba(200, 30, 30, 0.2); border: 1px solid #c81e1e; }
 .map-caveat { margin: 0; font-size: 12px; color: var(--ink-muted, #6b645c); }
+.map-layers { display: flex; flex-wrap: wrap; gap: 8px; }
+.map-layer {
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line, #e7e1d8);
+  background: #fff;
+  color: var(--ink, #1c1917);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.map-layer.on { background: var(--ink, #1c1917); color: #fff; border-color: var(--ink, #1c1917); }
+.map-layer.static { cursor: default; color: var(--ink-muted, #6b645c); }
+.map-empty-layer { margin: 0; font-size: 13px; color: var(--ink-muted, #6b645c); }

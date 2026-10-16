@@ -5,7 +5,7 @@ GET /config returns public runtime flags such as demoMode.
 POST /observations stores one immutable chip or text observation.
 POST /photos/upload-url issues a short-lived signed PUT URL for one photo.
 GET /incidents, GET /digest and the supervisor decision routes live in incidents/.
-GET /dashboard returns the supervisor chrome: agency, server time, approvals count.
+GET /dashboard returns the supervisor chrome, the live-fire banner, season impact, and the chart cards.
 GET /audit returns the append-only supervisor action log.
 POST /internal/notifications/withdraw sends a code WITHDRAW push.
 GET /healthz stays public.

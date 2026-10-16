@@ -10,11 +10,15 @@ import { createMockSupervisorApi } from './api/mock'
 import type { SupervisorApi } from './api/types'
 import type { Incident, IncidentDetail } from './contracts'
 import { reasonOf } from './detail/outcomeCopy'
+import { LiveBanner } from './LiveBanner'
+import { SeasonImpact } from './SeasonImpact'
+import { Charts } from './Charts'
 import { IncidentQueue } from './IncidentQueue'
 import { IncidentView, type Outcome } from './IncidentView'
 import { IncidentsContext, POLL_MS, useIncidents, type DetailFailure, type IncidentsState } from './incidentsContext'
 import { IncidentMap } from './map/IncidentMap'
 import { incidentIdFromPath, consoleIncidentPath } from './paths'
+import { useConsole } from './ConsoleProvider'
 import { flattenGroups, groupByArea } from './queueGroups'
 import { sortQueue } from './view'
 import './supervisor.css'
@@ -182,13 +186,61 @@ export function IncidentsShell({ api: apiOverride, children }: { api?: Superviso
   )
 }
 
+function DashboardLiveBanner() {
+  const { pathname } = useLocation()
+  const { liveFires, updatedAt, nextSatellitePass, bannerRetrying, chromeError, language } = useConsole()
+  if (incidentIdFromPath(pathname) !== null) return null
+  return (
+    <LiveBanner
+      fires={liveFires}
+      updatedAt={updatedAt}
+      nextSatellitePass={nextSatellitePass}
+      loading={liveFires === null && chromeError === null}
+      retrying={bannerRetrying}
+      lang={language}
+    />
+  )
+}
+
+function DashboardSeasonImpact() {
+  const { pathname } = useLocation()
+  const { seasonImpact, bannerRetrying, chromeError, language } = useConsole()
+  if (incidentIdFromPath(pathname) !== null) return null
+  return (
+    <SeasonImpact
+      impact={seasonImpact}
+      loading={seasonImpact === null && chromeError === null}
+      retrying={bannerRetrying}
+      lang={language}
+    />
+  )
+}
+
+function DashboardCharts() {
+  const { pathname } = useLocation()
+  const { charts, bannerRetrying, chromeError, language } = useConsole()
+  if (incidentIdFromPath(pathname) !== null) return null
+  return (
+    <Charts
+      charts={charts}
+      loading={charts === null && chromeError === null}
+      retrying={bannerRetrying}
+      lang={language}
+    />
+  )
+}
+
 /** Temporary incidents content: the current queue, map, and incident, inside the console chrome. */
 export function IncidentsPage() {
   const { queue, detail, loadError, activeId, select, actions } = useIncidents()
+  const { language } = useConsole()
   const groups = useMemo(() => groupByArea(queue ?? []), [queue])
   return (
     <div className="sup">
       <div className="sup-main">
+        <DashboardLiveBanner />
+        <DashboardSeasonImpact />
+        <DashboardCharts />
         {loadError && <p className="sup-error" role="alert">{loadError}</p>}
         {queue === null ? (
           <div className="sup-state" role="status">
@@ -196,16 +248,19 @@ export function IncidentsPage() {
             <p className="sup-muted">Reports, conflicts and tasks</p>
           </div>
         ) : queue.length === 0 ? (
-          <div className="sup-state">
-            <p className="sup-label">Live incident</p>
-            <p className="sup-state-title">No live incidents</p>
-            <p className="sup-muted">When a volunteer reports a fire, the incident opens here with the reports and EMBER’s suggested tasks.</p>
-          </div>
+          <>
+            <IncidentQueue groups={[]} activeId={null} onSelect={select} lang={language} />
+            <div className="sup-state">
+              <p className="sup-label">Live incident</p>
+              <p className="sup-state-title">No live incidents</p>
+              <p className="sup-muted">When a volunteer reports a fire, the incident opens here with the reports and EMBER’s suggested tasks.</p>
+            </div>
+          </>
         ) : (
           <div className="sup-work">
-            <IncidentQueue groups={groups} activeId={activeId} onSelect={select} />
+            <IncidentQueue groups={groups} activeId={activeId} onSelect={select} lang={language} />
             <div className="sup-work-detail">
-              <IncidentMap incidents={queue} selectedId={activeId} onSelect={select} />
+              <IncidentMap incidents={queue} selectedId={activeId} onSelect={select} showLayers lang={language} />
               {detail && detail.incident.id === activeId ? (
                 <IncidentView key={detail.incident.id} detail={detail} actions={actions} />
               ) : !loadError ? (
