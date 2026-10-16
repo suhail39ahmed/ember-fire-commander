@@ -22,3 +22,21 @@
 @media (prefers-reduced-motion: reduce) {
   .talk .ptt-spinner, .talk .ptt-wave i { animation: none; }
 }
+
+/* Hold to talk frame (#129) and coach reply (#130) */
+.hold-panel { display: flex; flex-direction: column; gap: 10px; }
+.hold-live .hold-camera {
+  position: relative; min-height: 160px; border-radius: 18px; background: #1a1a1a; color: #fff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+}
+.hold-camera-ring {
+  width: 72px; height: 72px; border-radius: 50%; border: 3px solid var(--ember);
+  box-shadow: 0 0 0 10px rgba(226, 83, 27, 0.2);
+}
+.hold-camera-label { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; }
+.hold-transcript {
+  margin: 0; padding: 12px 14px; border-radius: 14px; background: var(--surface-2);
+  font-size: 16px; line-height: 1.4; min-height: 3.2em;
+}
+.hold-hint { text-align: center; margin: 0; }
+.coach-reply .coach-text { margin: 0; font-size: 16px; line-height: 1.45; }

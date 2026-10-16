@@ -9,6 +9,7 @@ import { FlagReportScreen } from '../screens/FlagReportScreen'
 import { GuideScreen } from '../screens/GuideScreen'
 import { HomeScreen } from '../screens/HomeScreen'
 import { JoinedScreen } from '../screens/JoinedScreen'
+import { PracticeScreen } from '../screens/PracticeScreen'
 import { IncidentDetailScreen } from '../screens/IncidentDetailScreen'
 import { IncidentsScreen } from '../screens/IncidentsScreen'
 import { ProfileScreen } from '../screens/ProfileScreen'
@@ -85,6 +86,7 @@ export function PhoneLayout() {
           <Route path="task/:id/not-a-fire" element={<NotAFireScreen />} />
           <Route path="sms" element={<SmsScreen />} />
           <Route path="guide" element={<GuideScreen />} />
+          <Route path="guide/practice" element={<PracticeScreen />} />
           <Route path="profile" element={<ProfileScreen />} />
           <Route path="*" element={<Navigate to="/pwa" replace />} />
         </Routes>
@@ -98,6 +100,9 @@ export function PhoneLayout() {
             </button>
             <button type="button" className="btn small" onClick={() => { mock.clearWithdraw(); refresh() }}>
               Simulate WITHDRAW lifted
+            </button>
+            <button type="button" className="btn small" onClick={() => { mock.closeLead(); refresh() }}>
+              Simulate lead closed
             </button>
             <button type="button" className="btn small" onClick={() => mock.failNext('network')}>
               Fail next send (network)

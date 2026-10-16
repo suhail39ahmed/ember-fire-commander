@@ -7,9 +7,17 @@ import type { Digest, Task, Withdraw } from './contracts/types'
  */
 export function currentTask(digest: Digest | null): Task | null {
   if (!digest) return null
-  const approved = digest.myTasks.filter((t) => t.status === 'approved')
+  // A closed verify check is thank-you only (#140), not an open instruction.
+  const approved = digest.myTasks.filter((t) => t.status === 'approved' && !t.closedAt)
   const withdraw = approved.filter((t) => t.type === 'withdraw')
   return withdraw[withdraw.length - 1] ?? approved[approved.length - 1] ?? null
+}
+
+/** Newest closed verify task the volunteer has not dismissed yet (#140). */
+export function closedThankYouTask(digest: Digest | null, seenIds: ReadonlySet<string>): Task | null {
+  if (!digest) return null
+  const closed = digest.myTasks.filter((t) => t.type === 'verify' && t.closedAt && !seenIds.has(t.id))
+  return closed[closed.length - 1] ?? null
 }
 
 /** An active withdraw instruction that names this volunteer, if any. */

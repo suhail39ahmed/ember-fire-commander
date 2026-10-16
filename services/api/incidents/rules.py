@@ -19,6 +19,8 @@ SUMMARY_FIELDS = ("id", "name", "area", "status", "severity", "withdraw", "lat",
 TASK_FIELDS = (
     "id", "incidentId", "volunteerId", "type", "status", "instruction", "sentAt", "heardAt", "sendCount", "resendAt",
     "acceptedAt", "declinedAt", "declineReason", "declineNote",
+    # Lead closed thank-you (#140). Absent until a supervisor closes the check.
+    "closedAt", "closedBy", "closedByName", "closeMessage",
 )
 # A task that was sent and not heard can be sent again after this long.
 RESEND_AFTER_SECONDS = 60

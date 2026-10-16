@@ -27,6 +27,7 @@ from config_route import config_bp
 from audit_routes import audit_bp
 from sites_routes import sites_bp
 import volunteer_routes
+from training_routes import training_bp
 
 app = Flask(__name__)
 
@@ -50,6 +51,7 @@ app.register_blueprint(config_bp)
 app.register_blueprint(audit_bp)
 app.register_blueprint(sites_bp)
 app.register_blueprint(volunteer_routes.volunteer_bp)
+app.register_blueprint(training_bp)
 
 
 def error_body(code, message):

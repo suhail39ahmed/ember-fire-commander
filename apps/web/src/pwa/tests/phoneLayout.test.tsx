@@ -34,6 +34,7 @@ describe('phone layout (#121)', () => {
     expect(active('/pwa/incidents')).toEqual(['incidents'])
     expect(active('/pwa/report')).toEqual(['report'])
     expect(active('/pwa/guide')).toEqual(['guide'])
+    expect(active('/pwa/guide/practice')).toEqual(['guide'])
     expect(active('/pwa/profile')).toEqual(['profile'])
   })
 
