@@ -6,6 +6,7 @@ POST /observations stores one immutable chip or text observation.
 POST /photos/upload-url issues a short-lived signed PUT URL for one photo.
 GET /incidents, GET /digest and the supervisor decision routes live in incidents/.
 GET /dashboard returns the supervisor chrome: agency, server time, approvals count.
+GET /audit returns the append-only supervisor action log.
 POST /internal/notifications/withdraw sends a code WITHDRAW push.
 GET /healthz stays public.
 """
@@ -22,6 +23,7 @@ from incidents import incidents_bp
 from notifications import notifications_bp
 from dashboard import dashboard_bp
 from config_route import config_bp
+from audit_routes import audit_bp
 
 app = Flask(__name__)
 
@@ -42,6 +44,7 @@ app.register_blueprint(incidents_bp)
 app.register_blueprint(notifications_bp)
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(config_bp)
+app.register_blueprint(audit_bp)
 
 
 def error_body(code, message):

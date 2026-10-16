@@ -13,6 +13,7 @@ const ConsoleLayout = lazyPage(() => import('../supervisor/ConsoleLayout').then(
 const IncidentsShell = lazyPage(() => import('../supervisor/SupervisorConsole').then((m) => m.IncidentsShell))
 const IncidentsPage = lazyPage(() => import('../supervisor/SupervisorConsole').then((m) => m.IncidentsPage))
 const IncidentDetailPage = lazyPage(() => import('../supervisor/detail/IncidentDetailPage').then((m) => m.IncidentDetailPage))
+const AuditLogPage = lazyPage(() => import('../supervisor/AuditLogPage').then((m) => m.AuditLogPage))
 
 /** Empty content slot. Later issues fill these routes; this one does not invent the page. */
 function ConsoleSlot() {
@@ -48,7 +49,7 @@ export function AppRoutes() {
         </Route>
         <Route path="/console/approvals" element={<ConsoleSlot />} />
         <Route path="/console/map" element={<ConsoleSlot />} />
-        <Route path="/console/audit" element={<ConsoleSlot />} />
+        <Route path="/console/audit" element={<AuditLogPage />} />
         <Route path="/console/settings" element={<ConsoleSlot />} />
       </Route>
       <Route path="*" element={<NotFound />} />

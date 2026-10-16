@@ -271,6 +271,8 @@ Append-only. Clients do not write audit records. Every supervisor action and eve
 | `targetId` | string | The task or incident id |
 | `at` | string | Server time |
 
+`GET /audit` (supervisor) returns these rows newest first, with `actorName`, display `target`, server-built `detail`, and `incidentId` for navigation. Optional `targetId` and `cursor` page the list. Clients do not write audit records.
+
 | `action` | When |
 |---|---|
 | `observation.create` | An observation was stored |
@@ -1013,7 +1015,7 @@ Every route except `/healthz` needs the two headers in §2.
 The browser cannot read these. A screen that needs one needs a new REST route first. Do not design on the assumption that it exists.
 
 - `incident.observationIds` (§5.2). `incident.evidenceFactors` is returned only on a supervisor's `GET /incidents/{id}` (§6.3).
-- `photo_triage`, `incident_summaries`, `sites` and their alerts, `leads`, `weather`, `psi`, `ingestRuns`, `audit`, and `notificationAttempts` (§5.7). The audit trail has no read route.
+- `photo_triage`, `incident_summaries`, `sites` and their alerts, `leads`, `weather`, `psi`, `ingestRuns`, and `notificationAttempts` (§5.7). `GET /audit` reads the `audit` collection for supervisors (§5.5).
 - Observations that are not on the two sides of a conflict, when the incident has a conflict (§6.3).
 - A task or incident created or updated time.
 
@@ -1056,6 +1058,7 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-15 · #87: `voice-gateway` relays Gemini Live and writes `live` observations (§7), adds the Live-minute caps, and sets `EMBER_AGENTS_URL` for the gateway in Terraform.
 - 2026-10-16 · #108: `GET /dashboard` returns `agency`, `serverTime`, and `approvalsCount` for the supervisor console chrome (§5.7, §6.9).
 - 2026-10-16 · #95: a supervisor's `GET /incidents/{id}` adds `volunteerName` on each observation that has one and an `evidenceFactors` list (§5.2, §6.3). Both are optional additions; a volunteer's read is unchanged.
+- 2026-10-16 · #99: `GET /audit` returns append-only rows for supervisors with `actorName`, `target`, `detail`, `incidentId`, and cursor paging (§5.5, §6).
 - 2026-10-16 · #101: `incident.withdraw` gains optional `source`, `sentAt` and `safeVolunteerIds`, written by code and by the withdraw route. New `POST /incidents/{id}/withdraw/safe` (audit `withdraw.safe`) marks a volunteer found safe and never clears the withdraw. A supervisor's `GET /incidents/{id}` adds `volunteerPhones` (§5.2, §5.5, §6.3, §6.5). Open decision: whether all-safe ends a withdraw.
 - 2026-10-16 · #96: `POST /tasks/{id}/edit` also returns `editedBy`, the editor's display name, when the token has one (§6.5, §12.2). The audit row is unchanged.
 - 2026-10-16 · #94: tasks gain optional `sentAt`, `heardAt`, `sendCount` and a computed `resendAt` (§5.3). New `POST /tasks/{id}/resend` (supervisor) and `POST /tasks/{id}/heard` (volunteer), audits `task.resend` and `task.heard` (§5.5, §6.5). Approve, the withdraw route and code stamp `sentAt`. The volunteer app does not call `heard` yet.

@@ -8,18 +8,100 @@ import type { IncidentDetail, Task } from '../contracts'
 import { lowerChoices } from '../detail/severityModel'
 import { fixture, type FixtureName } from '../fixtures'
 import { regionFixtures } from '../map/fixtures'
-import type { SupervisorApi } from './types'
+import { volunteerName } from '../view'
+import type { AuditEntry, AuditPage, SupervisorApi } from './types'
 
 /** `region` loads three incidents at distinct positions for the map. */
 export type MockScenario = FixtureName | 'region' | 'empty'
 
+type AuditRow = { id: string; actorId: string; action: string; targetId: string; at: string }
+
 export interface SupervisorMockControls {
   load(name: MockScenario): void
-  readonly audit: readonly { id: string; action: string; targetId: string }[]
+  readonly audit: readonly AuditRow[]
 }
 
 const conflictError = (message: string) => new ApiError('conflict', message, 409, false)
 const notFound = () => new ApiError('not_found', 'id is unknown', 404, false)
+
+function seedAudit(details: IncidentDetail[], actorId: string): AuditRow[] {
+  if (details.length === 0) return []
+  const d = details[0]
+  const rows: AuditRow[] = []
+  const push = (action: string, targetId: string, at: string, who = actorId) => {
+    rows.push({ id: `aud_seed_${rows.length + 1}`, actorId: who, action, targetId, at })
+  }
+  for (const obs of d.observations) {
+    push('observation.create', obs.id, obs.receivedAt || obs.capturedAt, obs.volunteerId)
+  }
+  for (const task of d.tasks.filter((t) => t.status === 'approved' && t.type !== 'withdraw')) {
+    push('task.approve', task.id, '2026-10-17T03:10:00Z')
+  }
+  if (d.incident.status === 'verified' || d.incident.status === 'extinguished') {
+    push('incident.verify', d.incident.id, '2026-10-17T03:12:00Z')
+  }
+  if (d.incident.withdraw?.active) {
+    push('task.withdraw', d.incident.id, d.incident.withdraw.sentAt || '2026-10-17T03:15:00Z', 'code')
+  }
+  return rows.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
+}
+
+function presentAudit(row: AuditRow, details: IncidentDetail[]): AuditEntry {
+  const actorName = row.actorId === 'code' ? 'AI' : volunteerName(row.actorId)
+  let target = row.targetId
+  let detail = '—'
+  let incidentId: string | null = null
+
+  if (row.action === 'observation.create') {
+    for (const d of details) {
+      const obs = d.observations.find((o) => o.id === row.targetId)
+      if (obs) {
+        target = `obs · ${obs.volunteerName || volunteerName(obs.volunteerId)}`
+        detail = obs.chip ? `chip ${obs.chip} · ${obs.severity}` : `text · ${obs.severity}`
+        incidentId = d.incident.id
+        break
+      }
+    }
+  } else if (row.action.startsWith('task.') && row.action !== 'task.withdraw') {
+    for (const d of details) {
+      const task = d.tasks.find((t) => t.id === row.targetId)
+      if (task) {
+        target = `${task.type} · ${volunteerName(task.volunteerId)}`
+        incidentId = task.incidentId
+        if (row.action === 'task.edit') detail = 'Instruction replaced'
+        else if (row.action === 'task.approve' && d.conflict?.status === 'open') {
+          detail = 'Approved while conflict open (allowed)'
+        }
+        break
+      }
+    }
+  } else {
+    const d = details.find((x) => x.incident.id === row.targetId)
+    if (d) {
+      target = d.incident.name || d.incident.id
+      incidentId = d.incident.id
+      if (row.action === 'task.withdraw' && d.incident.withdraw) {
+        const people = d.incident.withdraw.volunteerIds.map((id) => volunteerName(id)).join(', ')
+        const severity = (d.incident.severity || '').replace(/_/g, ' ')
+        detail = people && severity
+          ? `${severity[0].toUpperCase()}${severity.slice(1)} · ${people}`
+          : people || '—'
+      }
+    }
+  }
+
+  return {
+    id: row.id,
+    at: row.at,
+    actorId: row.actorId,
+    actorName,
+    action: row.action,
+    targetId: row.targetId,
+    target,
+    detail,
+    incidentId,
+  }
+}
 
 export function createMockSupervisorApi(
   actorId: string,
@@ -27,11 +109,15 @@ export function createMockSupervisorApi(
   latencyMs = 300,
 ): SupervisorApi & { mock: SupervisorMockControls } {
   let details: IncidentDetail[] = []
-  const audit: { id: string; actorId: string; action: string; targetId: string; at: string }[] = []
+  /** Rows from the loaded fixture for GET /audit. Separate from decision writes below. */
+  let seed: AuditRow[] = []
+  /** Append-only writes from approve/reject/… — what existing tests assert on. */
+  const audit: AuditRow[] = []
 
   const load = (name: MockScenario) => {
     details = name === 'empty' ? [] : name === 'region' ? regionFixtures() : [fixture(name)]
     audit.length = 0
+    seed = seedAudit(details, actorId)
   }
   load(initial)
 
@@ -79,6 +165,23 @@ export function createMockSupervisorApi(
       const d = details.find((x) => x.incident.id === id)
       if (!d) throw notFound()
       return structuredClone(d)
+    },
+    async listAudit(query = {}) {
+      await wait()
+      let rows = [...seed, ...audit].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : a.id < b.id ? 1 : -1))
+      if (query.targetId) rows = rows.filter((row) => row.targetId === query.targetId)
+      if (query.cursor) {
+        const index = rows.findIndex((row) => row.id === query.cursor)
+        rows = index >= 0 ? rows.slice(index + 1) : rows
+      }
+      const limit = query.limit ?? 50
+      const page = rows.slice(0, limit)
+      const next = rows.length > limit ? page[page.length - 1]?.id ?? null : null
+      const result: AuditPage = {
+        items: page.map((row) => presentAudit(row, details)),
+        nextCursor: next,
+      }
+      return result
     },
     async approveTask(id) {
       await wait()

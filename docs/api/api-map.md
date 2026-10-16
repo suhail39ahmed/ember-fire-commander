@@ -60,7 +60,7 @@ Defined in `services/api/incidents/rules.py` and `services/api/observations/vali
 
 ## ember-api
 
-Handlers: `services/api/app.py`, `config_route.py`, `observations/routes.py`, `photos/routes.py`, `incidents/routes.py`, `notifications/routes.py`, `dashboard.py`.
+Handlers: `services/api/app.py`, `config_route.py`, `audit_routes.py`, `observations/routes.py`, `photos/routes.py`, `incidents/routes.py`, `notifications/routes.py`, `dashboard.py`.
 
 Incident list and detail responses use `INCIDENT_FIELDS`: `id`, `name`, `area`, `status`, `severity`, `evidenceScore`, `conflictId`, `withdraw`, `lat`, `lng`. Digest summaries drop `evidenceScore` and `conflictId`. `observationIds` and `evidenceFactors` stay in Firestore and are not returned. A task is `id`, `incidentId`, `volunteerId`, `type`, `status`, `instruction`. A conflict is `id`, `incidentId`, `observationIds`, `higherSeverity`, `status`, `dispatchHeld`.
 
@@ -70,6 +70,7 @@ Incident list and detail responses use `INCIDENT_FIELDS`: `id`, `name`, `area`, 
 | GET | `/config` | public | sign-in / console chrome | — | `200` `{ demoMode }`. `demoMode` comes from `ops/config` in ember-db, else `DEMO_MODE` env (default false) |
 | GET | `/me` | any role | both apps, after sign-in | — | `200` `{ id, displayName, role }` |
 | GET | `/dashboard` | supervisor | console chrome, every 15 s | — | `200` `{ agency, serverTime, approvalsCount }`. `agency` is a string or `null` (`volunteers/{uid}.agency`). `serverTime` is ISO-8601 UTC. `approvalsCount` is how many tasks are `proposed`. A volunteer is `403` |
+| GET | `/audit` | supervisor | console audit log | optional `targetId`, `cursor`, `limit` | `200` `{ items, nextCursor }`. Each item is `id`, `at`, `actorId`, `actorName`, `action`, `targetId`, `target`, `detail`, `incidentId`. Newest first. `actorId` `code` is shown as `AI`. A volunteer is `403`. Clients never write |
 | POST | `/observations` | any role | PWA | chip, text, or photo observation. Optional `clientId` (1–128 of `[A-Za-z0-9._-]`) | `201` stored observation, or `200` the first observation when `clientId` repeats |
 | PUT, PATCH, DELETE | `/observations` and `/observations/{id}` | any role | nobody | — | `409` `conflict`, observations are immutable |
 | POST | `/photos/upload-url` | volunteer | PWA | `{ "contentType": "image/jpeg" \| "image/webp" }` | `201` `{ uploadUrl, method: "PUT", headers, photoPath, expiresAt }` |
@@ -89,7 +90,7 @@ Incident list and detail responses use `INCIDENT_FIELDS`: `id`, `name`, `area`, 
 
 `POST /observations` rejects `source: "live"`. The gateway writes live observations. `source: "photo"` is accepted here after `POST /photos/upload-url` and a successful `PUT` of the bytes. The contract text in §6.2 still says photo is rejected on this route; the code accepts it. See the differences section.
 
-There is no route that reads `audit`, clears `withdraw`, raises severity, sets incident status to `open` or `held`, or sets a conflict to `resolved`.
+There is no route that clears `withdraw`, raises severity, sets incident status to `open` or `held`, or sets a conflict to `resolved`.
 
 ### Photo bytes
 
