@@ -4,13 +4,15 @@
  * Everything here is read from `incident.withdraw`. Nothing is guessed: a field the API does not
  * send is left out, never filled in.
  */
-import type { IncidentDetail } from '../contracts'
+import type { IncidentDetail, VolunteerCardData } from '../contracts'
 
 export interface WithdrawPerson {
   id: string
   safe: boolean
   /** From the API only, `volunteers/{uid}.phone`. Null when none is stored. */
   phone: string | null
+  /** The supervisor read's card for them: last report, last position, heard, push result, who marked them safe. Null from an older API. */
+  card: VolunteerCardData | null
 }
 
 export interface WithdrawState {
@@ -30,7 +32,8 @@ export function withdrawState(detail: IncidentDetail): WithdrawState | null {
   if (!w?.active) return null
   const safe = new Set(w.safeVolunteerIds ?? [])
   const phones = detail.volunteerPhones ?? {}
-  const people = w.volunteerIds.map<WithdrawPerson>((id) => ({ id, safe: safe.has(id), phone: phones[id]?.trim() || null }))
+  const cards = new Map((detail.volunteers ?? []).map((c) => [c.volunteerId, c] as const))
+  const people = w.volunteerIds.map<WithdrawPerson>((id) => ({ id, safe: safe.has(id), phone: phones[id]?.trim() || null, card: cards.get(id) ?? null }))
   const confirmed = people.filter((p) => p.safe).length
   return {
     source: w.source === 'code' || w.source === 'supervisor' ? w.source : null,

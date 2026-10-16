@@ -118,6 +118,7 @@ function Profile({ lang, popup }: { lang: Lang; popup: Popup }) {
     [t(lang, popupCopy.role), none],
     [t(lang, popupCopy.incident), `${p.incidentName ?? `${t(lang, detailCopy.idLabel)} ${shortIncidentId(p.incidentId)}`} · ${p.incidentId}`],
     [t(lang, popupCopy.position), p.position ? `${p.position}${p.accuracyM !== null ? ` · ±${p.accuracyM} m` : ''}` : none],
+    [t(lang, popupCopy.distance), p.distance ?? none],
     [t(lang, popupCopy.firstReport), p.firstReportAt ? formatTime(p.firstReportAt) : none],
     [t(lang, popupCopy.lastReport), p.lastReportAt ? formatTime(p.lastReportAt) : none],
     [t(lang, popupCopy.reports), String(p.reportCount)],

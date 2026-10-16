@@ -4,6 +4,7 @@
  */
 import type { Lang } from '../../pwa/i18n'
 import type { IncidentDetail, Observation, Task } from '../contracts'
+import { cardOf, distanceLine, placeLine } from './cardModel'
 import { formatPosition, initialsOf, nameOf } from './model'
 
 export interface PopupProfile {
@@ -19,6 +20,8 @@ export interface PopupProfile {
   firstReportAt: string | null
   lastReportAt: string | null
   reportCount: number
+  /** "120 m from the incident centre" from the supervisor read's card, or null. */
+  distance: string | null
 }
 
 export interface Popup {
@@ -42,7 +45,8 @@ export function popupFor(detail: IncidentDetail, volunteerId: string, lang: Lang
   const reports = detail.observations.filter((o) => o.volunteerId === volunteerId).sort(byTimeDesc)
   const tasks = detail.tasks.filter((t) => t.volunteerId === volunteerId)
   const onWithdraw = Boolean(detail.incident.withdraw?.active && detail.incident.withdraw.volunteerIds.includes(volunteerId))
-  if (reports.length === 0 && tasks.length === 0 && !onWithdraw) return null
+  const card = cardOf(detail, volunteerId)
+  if (reports.length === 0 && tasks.length === 0 && !onWithdraw && !card) return null
   const newest = reports[0] ?? null
   const oldest = reports[reports.length - 1] ?? null
   const name = nameOf(detail, volunteerId, lang)
@@ -53,11 +57,13 @@ export function popupFor(detail: IncidentDetail, volunteerId: string, lang: Lang
       initials: initialsOf(name),
       incidentName: detail.incident.name ?? null,
       incidentId: detail.incident.id,
-      position: newest ? formatPosition(newest) : null,
-      accuracyM: newest?.accuracyM ?? null,
-      firstReportAt: oldest?.capturedAt ?? null,
-      lastReportAt: newest?.capturedAt ?? null,
-      reportCount: reports.length,
+      // The card covers reports a conflict leaves out of `observations`.
+      position: newest ? formatPosition(newest) : placeLine(card)?.split(' · ')[0] ?? null,
+      accuracyM: newest ? newest.accuracyM ?? null : card?.lastAccuracyM ?? null,
+      firstReportAt: oldest?.capturedAt ?? card?.firstReportAt ?? null,
+      lastReportAt: newest?.capturedAt ?? card?.lastReportAt ?? null,
+      reportCount: Math.max(reports.length, card?.reportCount ?? 0),
+      distance: distanceLine(lang, card),
     },
     reports,
     photos: reports.filter((o) => o.source === 'photo'),

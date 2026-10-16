@@ -29,6 +29,8 @@ import { WithdrawPanel } from './WithdrawPanel'
 import { elapsedSince, unconfirmed, withdrawState } from './withdrawState'
 import { countText, stateCopy } from './withdrawStateCopy'
 import { VolunteerPopup } from './VolunteerPopup'
+import { actionText, actorOf, subjectOf, summarySourceText, summaryText } from './cardModel'
+import { summaryCopy, timelineCopy } from './cardCopy'
 import { HeardToast } from './HeardToast'
 import { heardEvents, needsClock, type HeardEvent } from './deliveryModel'
 import { sentText } from './withdrawModel'
@@ -170,7 +172,10 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
   const gap = pair.length === 2 ? distanceM(pair[0], pair[1]) : null
   const proposals = detail.tasks.filter((task) => taskControls(task, detail).canDecide)
   const others = detail.tasks.filter((task) => !taskControls(task, detail).canDecide)
-  const reporters = new Set(detail.observations.map((o) => o.volunteerId)).size
+  // The cards count every report; `observations` lists only the two sides when a conflict exists.
+  const reportTotal = detail.volunteers ? detail.volunteers.reduce((sum, c) => sum + c.reportCount, 0) : detail.observations.length
+  const reporters = detail.volunteers ? detail.volunteers.filter((c) => c.reportCount > 0).length : new Set(detail.observations.map((o) => o.volunteerId)).size
+  const summary = summaryText(lang, detail.summary)
   return (
     <>
       <header className="inc-head">
@@ -246,11 +251,21 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         <Stat label={t(lang, detailCopy.statEvidence)} value={String(incident.evidenceScore)} note={t(lang, detailCopy.statEvidenceNote)} />
         <Stat
           label={t(lang, detailCopy.statReports)}
-          value={String(detail.observations.length)}
+          value={String(reportTotal)}
           note={`${reporters} ${lang === 'id' ? 'relawan' : reporters === 1 ? 'volunteer' : 'volunteers'}`}
         />
         <Stat label={t(lang, detailCopy.statPosition)} value={formatPosition(incident)} note={incident.area ?? t(lang, detailCopy.statPositionNote)} />
       </div>
+
+      {summary && detail.summary && (
+        <section className="inc-card" aria-labelledby="inc-summary-title">
+          <h2 className="inc-h2" id="inc-summary-title">
+            {t(lang, summaryCopy.title)}
+            <span className="inc-h2-note">{t(lang, summaryCopy.note)}{summarySourceText(lang, detail.summary) && ` · ${summarySourceText(lang, detail.summary)}`}</span>
+          </h2>
+          <p>{summary}</p>
+        </section>
+      )}
 
       <section aria-labelledby="inc-field-title">
         <h2 className="inc-h2" id="inc-field-title">
@@ -329,6 +344,8 @@ function Rail({ lang, detail, queue, onSelect, mapsKey }: Pick<IncidentDetailVie
   const open = detail?.incident
   const incidents = queue && queue.length > 0 ? (open && !queue.some((i) => i.id === open.id) ? [...queue, open] : queue) : open ? [open] : []
   const events = detail ? timelineOf(detail) : []
+  // The stored timeline (reports and actions, every report the incident knows) when the API sends it.
+  const history = detail?.timeline
   return (
     <aside className="inc-rail">
       <IncidentMap incidents={incidents} selectedId={detail?.incident.id ?? null} onSelect={onSelect} mapsKey={mapsKey} />
@@ -352,8 +369,31 @@ function Rail({ lang, detail, queue, onSelect, mapsKey }: Pick<IncidentDetailVie
       )}
       <section className="inc-card" aria-labelledby="inc-timeline-title">
         <h2 className="inc-h2" id="inc-timeline-title">{t(lang, detailCopy.timeline)}</h2>
-        <p className="inc-muted">{t(lang, detailCopy.timelineNote)}</p>
-        {events.length === 0 ? (
+        <p className="inc-muted">{history ? t(lang, timelineCopy.note) : t(lang, detailCopy.timelineNote)}</p>
+        {detail && history ? (
+          history.length === 0 ? (
+            <p className="inc-muted">{t(lang, detailCopy.timelineEmpty)}</p>
+          ) : (
+            <ol className="inc-timeline">
+              {history.map((e) => (
+                <li key={`${e.kind}-${e.id}`}>
+                  <time dateTime={e.at}>{formatTime(e.at)}</time>
+                  {e.kind === 'report' ? (
+                    <span>
+                      {e.volunteerId ? nameOf(detail, e.volunteerId, lang) : '—'} · {e.chip ? chipText(e.chip, lang) : t(lang, severityName[e.severity ?? 'unknown'])}
+                      {e.text ? ` · “${e.text}”` : ''}
+                    </span>
+                  ) : (
+                    <span>
+                      {actorOf(detail, e, lang)} · {actionText(lang, e)}
+                      {subjectOf(detail, e, lang) && ` · ${subjectOf(detail, e, lang)}`}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )
+        ) : events.length === 0 ? (
           <p className="inc-muted">{t(lang, detailCopy.timelineEmpty)}</p>
         ) : (
           <ol className="inc-timeline">

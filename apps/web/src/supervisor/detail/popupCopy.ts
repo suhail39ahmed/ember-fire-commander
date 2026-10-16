@@ -49,6 +49,7 @@ export const popupCopy = {
   role: { id: 'Peran', en: 'Role' },
   incident: { id: 'Insiden', en: 'Incident' },
   position: { id: 'Posisi', en: 'Position' },
+  distance: { id: 'Jarak', en: 'Distance' },
   firstReport: { id: 'Laporan pertama', en: 'First report' },
   lastReport: { id: 'Laporan terakhir', en: 'Last report' },
   reports: { id: 'Laporan', en: 'Reports' },
