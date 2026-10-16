@@ -5,7 +5,7 @@
  * Task and WITHDRAW state is produced here, standing in for backend code.
  * The UI only displays what the API returns.
  */
-import { CHIP_VALUES, type Digest, type Observation, type ObservationRequest } from '../contracts/types'
+import { CHIP_VALUES, type Digest, type IncidentDetail, type Observation, type ObservationRequest } from '../contracts/types'
 import { ApiError, type EmberApi } from './types'
 
 export interface MockControls {
@@ -74,6 +74,18 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
     async getDigest() {
       await wait()
       return structuredClone(digest)
+    },
+    async getIncident(incidentId) {
+      await wait()
+      const incident = digest.incidents.find((i) => i.id === incidentId)
+      if (!incident) throw new ApiError('not_found', 'incident id is unknown', 404, false)
+      const detail: IncidentDetail = {
+        incident: { ...incident, evidenceScore: null, conflictId: null },
+        observations: structuredClone(observations),
+        conflict: null,
+        tasks: structuredClone(digest.myTasks.filter((t) => t.incidentId === incidentId)),
+      }
+      return detail
     },
     async createObservation(body) {
       await wait()

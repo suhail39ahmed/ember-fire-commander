@@ -4,13 +4,14 @@
  * see ../gateway/). No Firestore or Cloud Storage SDK is used in the browser.
  * The one exception is the photo PUT to a signed URL that ember-api issued (see ../photo/).
  */
-import type { Digest, ErrorBody, Observation, ObservationRequest, UploadUrl } from '../contracts/types'
+import type { Digest, ErrorBody, IncidentDetail, Observation, ObservationRequest, UploadUrl } from '../contracts/types'
 import type { AuthHeadersProvider } from './authHeaders'
 import { API_BASE_URL } from './config'
 import { ApiError, type EmberApi } from './types'
 
 export const ENDPOINTS = {
   digest: '/digest',
+  incident: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}`,
   observations: '/observations',
   photoUploadUrl: '/photos/upload-url',
   heard: (taskId: string) => `/tasks/${encodeURIComponent(taskId)}/heard`,
@@ -50,6 +51,7 @@ export function createHttpApi(
 
   return {
     getDigest: () => request<Digest>(ENDPOINTS.digest),
+    getIncident: (incidentId) => request<IncidentDetail>(ENDPOINTS.incident(incidentId)),
     createObservation: (body: ObservationRequest) =>
       request<Observation>(ENDPOINTS.observations, { method: 'POST', body: JSON.stringify(body) }),
     createUploadUrl: (contentType) =>

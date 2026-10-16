@@ -8,16 +8,24 @@ import { PhotoPanel } from '../photo/PhotoPanel'
 import { ReportPanel } from '../report/ReportPanel'
 import { getPosition, locate, watchLocationGranted } from '../report/location'
 import type { ChipValue } from '../contracts/types'
+import { t } from '../i18n'
+import { incidentLabelById } from '../incidentName'
+import { screenStrings } from './strings'
 
 /** The Report tab (#128): hold to talk, the chip and note form, a photo, and what is waiting to send. */
 export function ReportScreen() {
   const { lang } = useLanguage()
-  const { api, volunteerId, outbox, upload, talk } = useVolunteer()
-  const state = useLocation().state as { chip?: ChipValue | null; n?: number } | null
+  const { api, volunteerId, outbox, upload, talk, digest } = useVolunteer()
+  const state = useLocation().state as { chip?: ChipValue | null; n?: number; incidentId?: string } | null
   const preset = state && state.chip !== undefined ? { chip: state.chip, n: state.n ?? 1 } : undefined
 
   return (
     <>
+      {state?.incidentId && (
+        <p className="muted small" data-testid="report-context">
+          {t(lang, screenStrings.report.forIncident)} {incidentLabelById(state.incidentId, digest?.incidents)}
+        </p>
+      )}
       <TalkCard lang={lang} view={talk.view} onPress={talk.onPress} onRelease={talk.onRelease} />
       <ReportPanel
         api={api}

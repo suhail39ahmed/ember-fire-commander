@@ -41,3 +41,36 @@
 .sk { border-radius: 14px; background: var(--surface-2); animation: sk-pulse 1.4s ease-in-out infinite; }
 .sk-card { height: 150px; } .sk-stats { height: 76px; } .sk-row { height: 64px; }
 @keyframes sk-pulse { 50% { opacity: 0.5; } }
+
+/* Screen heads, segments, chips */
+.screen-title { font-size: 22px; font-weight: 700; }
+.screen-head { display: flex; align-items: center; gap: 8px; min-height: 48px; }
+.screen-head h2 { font-size: 20px; font-weight: 600; }
+.back { display: grid; place-items: center; width: 44px; height: 44px; margin-left: -10px; border: none; background: none; color: var(--ink); cursor: pointer; border-radius: 50%; }
+.segments { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 999px; background: var(--surface-2); }
+.segment { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border: none; border-radius: 999px; background: none; color: var(--ink-muted); font-size: 15px; font-weight: 600; cursor: pointer; }
+.segment[aria-pressed='true'] { background: var(--ink); color: var(--paper); }
+.segment-count { font-size: 12px; opacity: 0.8; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.incident-title { font-size: 26px; line-height: 1.15; font-weight: 700; }
+.mono { font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; letter-spacing: 0.02em; }
+.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.empty { align-items: flex-start; }
+.conflict { background: #fdf0d5; border: 1.5px solid var(--haze); color: #3b2a07; }
+.conflict h3 { color: var(--haze-strong); }
+.reports-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 17px; margin-bottom: 8px; }
+.report-row { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+.report-time { font-size: 18px; flex: none; }
+
+/* Position sketch */
+.minimap { margin: 0; border-radius: 18px; overflow: hidden; background: var(--surface-2); }
+.minimap svg { display: block; width: 100%; height: auto; aspect-ratio: 1 / 0.8; }
+.minimap-ground { fill: var(--surface-2); }
+.minimap-grid line { stroke: var(--line); stroke-width: 0.4; }
+.minimap-dot circle { fill: var(--ember); }
+.minimap-dot text { font-size: 4.6px; fill: var(--ink); font-weight: 600; }
+.minimap-dot .ring { fill: none; stroke: var(--ember); stroke-width: 0.6; stroke-dasharray: 1.6 1.2; }
+.dot-other circle { fill: var(--safe); }
+.dot-target circle { fill: var(--haze); }
+.dot-target .ring { stroke: var(--haze); }
+.dot-you circle { fill: var(--data); }

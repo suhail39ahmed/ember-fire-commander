@@ -26,3 +26,9 @@ export function findIncident(digest: Digest | null, id: string): IncidentSummary
 export function findTask(digest: Digest | null, id: string): Task | null {
   return digest?.myTasks.find((task) => task.id === id) ?? null
 }
+
+export type IncidentsTab = 'live' | 'completed'
+
+export function parseTab(value: string | null): IncidentsTab {
+  return value === 'completed' ? 'completed' : 'live'
+}

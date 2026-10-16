@@ -7,6 +7,7 @@ import { strings, t } from '../i18n'
 import { useLanguage } from '../language'
 import { GuideScreen } from '../screens/GuideScreen'
 import { HomeScreen } from '../screens/HomeScreen'
+import { IncidentDetailScreen } from '../screens/IncidentDetailScreen'
 import { IncidentsScreen } from '../screens/IncidentsScreen'
 import { ProfileScreen } from '../screens/ProfileScreen'
 import { ReportScreen } from '../screens/ReportScreen'
@@ -60,6 +61,7 @@ export function PhoneLayout() {
           />
           <Route path="report" element={<ReportScreen />} />
           <Route path="incidents" element={<IncidentsScreen />} />
+          <Route path="incidents/:id" element={<IncidentDetailScreen />} />
           <Route path="guide" element={<GuideScreen />} />
           <Route path="profile" element={<ProfileScreen />} />
           <Route path="*" element={<Navigate to="/pwa" replace />} />

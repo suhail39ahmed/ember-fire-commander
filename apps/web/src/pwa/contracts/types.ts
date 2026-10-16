@@ -94,6 +94,29 @@ export interface Withdraw {
   safeVolunteerIds?: string[]
 }
 
+/** Incident as `GET /incidents/{id}` returns it (section 5.2). The digest summary plus the evidence score. */
+export interface IncidentRecord extends IncidentSummary {
+  evidenceScore?: number | null
+  conflictId?: string | null
+}
+
+export interface Conflict {
+  id: string
+  incidentId: string
+  observationIds: string[]
+  higherSeverity: Severity
+  status: 'open' | 'resolved' | string
+  dispatchHeld: boolean
+}
+
+/** `GET /incidents/{id}` for a volunteer who is on the incident (section 6.3). */
+export interface IncidentDetail {
+  incident: IncidentRecord
+  observations: Observation[]
+  conflict: Conflict | null
+  tasks: Task[]
+}
+
 /** Incident summary as carried in the digest (section 5.6). */
 export interface IncidentSummary {
   id: string
