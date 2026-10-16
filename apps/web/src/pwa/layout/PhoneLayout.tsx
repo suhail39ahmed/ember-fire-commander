@@ -8,6 +8,7 @@ import { useLanguage } from '../language'
 import { FlagReportScreen } from '../screens/FlagReportScreen'
 import { GuideScreen } from '../screens/GuideScreen'
 import { HomeScreen } from '../screens/HomeScreen'
+import { JoinedScreen } from '../screens/JoinedScreen'
 import { IncidentDetailScreen } from '../screens/IncidentDetailScreen'
 import { IncidentsScreen } from '../screens/IncidentsScreen'
 import { ProfileScreen } from '../screens/ProfileScreen'
@@ -68,10 +69,14 @@ export function PhoneLayout() {
                 online={outbox.online}
                 queuedCount={outbox.items.length}
                 queued={outbox.items}
+                api={api}
+                volunteerId={volunteerId}
+                onRefresh={refresh}
               />
             }
           />
           <Route path="report" element={<ReportScreen />} />
+          <Route path="joined/:id" element={<JoinedScreen />} />
           <Route path="incidents" element={<IncidentsScreen />} />
           <Route path="incidents/:id" element={<IncidentDetailScreen />} />
           <Route path="incidents/:id/flag/:obsId" element={<FlagReportScreen />} />

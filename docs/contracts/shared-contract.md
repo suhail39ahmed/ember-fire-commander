@@ -306,6 +306,8 @@ The display fields never carry a raw id. `actorName` is the stored `actorName`, 
 | `live.make` | A supervisor assigned the live-camera seat to a volunteer. `targetId` is the incident id |
 | `live.retry` | A supervisor retried live for a volunteer who had dropped to photo cadence. `targetId` is the incident id |
 | `live.drop` | Code freed the live seat after a weak signal or a disconnect. `actorId` is `code`. `targetId` is the incident id |
+| `incident.join` | A volunteer joined a live incident with no approval (§6.11). `actorId` and `subjectId` are the volunteer; `targetId` is the incident id |
+| `incident.en_route` | A volunteer on an incident said they are on the way (§6.11). `actorId` and `subjectId` are the volunteer; `targetId` is the incident id |
 
 ### 5.6 Digest
 
@@ -316,8 +318,18 @@ One current picture for Live context, REST polling, and the `digest` WebSocket m
 | `updatedAt` | string | |
 | `incidents` | incident summary[] | `id`, `name`, `area`, `status`, `severity`, `withdraw`, `lat`, `lng`. No `evidenceScore` and no `conflictId` |
 | `myTasks` | task[] | Every task whose `volunteerId` is the caller, in any status (`proposed`, `approved`, `rejected`). Empty for a supervisor |
+| `nearby` | nearby incident[] | Volunteer only. Live incidents (`open`, `held`, `verified`) within `EMBER_NEARBY_RADIUS_M` (default 5000 m) that the caller is not already on. Empty when the request has no usable `lat`/`lng` query pair, and omitted on a supervisor digest. Sorted by `distanceM`, then `id` |
 
-The digest is built on request. A volunteer receives every incident, in any status including `extinguished`, that has one of their tasks, lists them in `withdraw.volunteerIds`, has one of their observations in its `observationIds`, or has one of their observations in one of its conflicts. A supervisor receives incidents whose status is `open`, `held`, or `verified`. Both lists are sorted by `id`, which is not chronological.
+Each nearby row is an incident summary plus:
+
+| Field | Type | Notes |
+|---|---|---|
+| `distanceM` | number | Straight-line metres from the phone's `lat`/`lng` to the incident |
+| `bearingDeg` | number or null | Initial bearing from the phone to the incident, 0 = north |
+| `crewOnSite` | number | Distinct volunteers linked by a join, a task, or a report on that incident |
+| `ask` | string or null | What the supervisor asked for. `null` until a stored field exists; the phone omits the line |
+
+The digest is built on request. A volunteer receives every incident, in any status including `extinguished`, that has one of their tasks, lists them in `withdraw.volunteerIds`, has one of their observations in its `observationIds`, has one of their observations in one of its conflicts, or has an `incident_members` join for them (§5.7). A supervisor receives incidents whose status is `open`, `held`, or `verified`. Both lists are sorted by `id`, which is not chronological.
 
 `ember-api` (`GET /digest`) and `voice-gateway` (the `digest` message and the Live tools) build the digest with separate code (`services/api/incidents/routes.py`, `services/voice-gateway/live/digest.py`) that follows the same rules.
 
@@ -376,6 +388,20 @@ Written by `ember-api` (`POST /incidents/{id}/withdraw/answer`, §6.11). One doc
 | `state` | string | `safe` or `stuck` |
 | `lat`, `lng`, `accuracyM` | number or null | The phone's position when it answered, `null` when it had none |
 | `at` | string | |
+
+#### `incident_members`
+
+Written by `ember-api` (`POST /incidents/{id}/join` and `POST /incidents/{id}/en-route`, §6.11). One document per volunteer and incident, with `{incidentId}__{volunteerId}` as the document id. A join links the volunteer to the incident without a report or task. Optional route and meet fields stay `null` until something stores them; the phone omits those rows.
+
+| Field | Type | Notes |
+|---|---|---|
+| `incidentId`, `volunteerId` | string | |
+| `joinedAt` | string | When they joined |
+| `addedBy` | string | Who added them. On Join now this is the volunteer |
+| `addedByName` | string or null | Display name from the actor's token at join time |
+| `teamRole` | string or null | e.g. pump team. `null` until stored |
+| `enRouteAt` | string or null | Set once by I'm on my way |
+| `destination`, `approach`, `meetPoint`, `meetPerson`, `meetNote` | string or null | Route and meet details. `null` until stored |
 
 #### `observation_flags`
 
@@ -1002,8 +1028,12 @@ Volunteer-only. A supervisor is `403`. A volunteer only ever acts for themselves
 | `POST /tasks/{id}/decline` | `{ "reason": "too_far", "note": "Road is flooded" }` | Can't do it. `reason` is required, one of `unsafe`, `too_far`, `no_equipment`, `other` (`400` on `fields.reason`). `note` is optional, at most 300 characters. Sets `declinedAt`, `declineReason` and `declineNote` and appends `task.decline`. The instruction is not changed. A repeat returns the first decline with `auditId: null`. Same `404` and `409` rules as accept, except a task that was accepted first can still be declined |
 | `POST /incidents/{id}/withdraw/answer` | `{ "state": "safe", "lat": 1.49, "lng": 102.12, "accuracyM": 14 }` | The volunteer's answer to an active withdraw. `state` is `safe` (I'm safe upwind) or `stuck` (I can't get out). `lat` and `lng` are optional but go together; `accuracyM` is optional. Written to `withdraw_answers/{incidentId}__{volunteerId}` (the latest answer replaces the earlier one) and appended as `withdraw.answer` with `subjectId` the volunteer. It never changes `incident.withdraw`: `active` and `safeVolunteerIds` stay as they were, and only a supervisor marks a volunteer found safe (§6.5). `404` when the incident is unknown or does not name the caller in `withdraw.volunteerIds`, `409` when no withdraw is active |
 | `POST /observations/{id}/flag` | `{ "reason": "no_fire", "photoPath": "photos/uid/20261016/ab12.jpg" }` | A volunteer says someone else's report looks wrong. `reason` is required, one of `no_fire` (I'm here, no fire), `duplicate` (same fire as another incident), `old_photo`, `wrong_place`, `fake` (`400` on `fields.reason`). `photoPath` is optional and must be a path issued to the caller (`400` on `fields.photoPath`). Written to `observation_flags/{observationId}__{volunteerId}` and appended as `observation.flag`. The observation is never changed and the response does not name its reporter. `404` when the report is unknown or not on an incident the caller is part of (a task, a withdraw entry or a report of their own), `409` for the caller's own report |
+| `POST /incidents/{id}/join` | none | Join now. Writes `incident_members/{incidentId}__{volunteerId}` and appends `incident.join`. Immediate; no supervisor approval. `409` when the incident is not live (`open`, `held`, `verified`). `404` when unknown. A repeat returns the membership with `auditId: null` |
+| `POST /incidents/{id}/en-route` | none | I'm on my way. Sets `enRouteAt` on the membership once and appends `incident.en_route`. Creates the membership if the volunteer is already on the incident by a task, report or withdraw but has no join row. `404` when the incident is unknown or the caller is not on it. A repeat returns the same `enRouteAt` with `auditId: null` |
 
-Success returns `{ "task": {}, "auditId": "aud_01" }` for the two task routes and `{ "answer": {}, "auditId": "aud_01" }` for the withdraw answer. The flag returns `{ "flag": {}, "auditId": "aud_01" }`.
+`GET /digest` for a volunteer may take optional `lat` and `lng` query numbers. When both are valid, the response includes `nearby` (§5.6). A volunteer's `GET /incidents/{id}` includes `membership` when an `incident_members` row exists for them.
+
+Success returns `{ "task": {}, "auditId": "aud_01" }` for the two task routes and `{ "answer": {}, "auditId": "aud_01" }` for the withdraw answer. The flag returns `{ "flag": {}, "auditId": "aud_01" }`. Join and en-route return `{ "membership": {}, "auditId": "aud_01" }`.
 
 ## 7. WebSocket
 
@@ -1377,5 +1407,6 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · #152: `GET /me` adds `crewName` for a volunteer (`null` when none is stored). The volunteer header and Profile show it instead of a fixed crew line (§6.1).
 - 2026-10-16 · #136, #137, #146 to #148: new volunteer routes `POST /tasks/{id}/accept`, `POST /tasks/{id}/decline` and `POST /incidents/{id}/withdraw/answer` (§6.11), audits `task.accept`, `task.decline` and `withdraw.answer`. Tasks gain optional `acceptedAt`, `declinedAt`, `declineReason` and `declineNote` (§5.3). The withdraw answer is stored in the new `withdraw_answers` collection and never changes `incident.withdraw`.
 - 2026-10-16 · #141: new volunteer route `POST /observations/{id}/flag` (§6.11), audit `observation.flag`, stored in the new `observation_flags` collection. Observations stay immutable. The audit table (§5.5) also lists `task.accept`, `task.decline` and `withdraw.answer`, which #136, #137 and #146 to #148 already wrote.
+- 2026-10-16 · #134, #135: `GET /digest` gains volunteer-only `nearby` (optional `lat`/`lng` query), new `incident_members` collection, `POST /incidents/{id}/join` and `POST /incidents/{id}/en-route`, audits `incident.join` and `incident.en_route`. A volunteer's `GET /incidents/{id}` may include `membership`. Wind/ask stay null until stored (§5.5, §5.6, §5.7, §6.11).
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).

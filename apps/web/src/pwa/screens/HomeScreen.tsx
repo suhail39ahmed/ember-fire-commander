@@ -1,5 +1,7 @@
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import type { EmberApi } from '../api/types'
 import { currentTask } from '../digest'
 import { formatTime } from '../formatTime'
 import { strings, t, type Lang } from '../i18n'
@@ -8,8 +10,11 @@ import type { Digest } from '../contracts/types'
 import type { DigestStatus } from '../useDigest'
 import { assignedTasks, liveIncidents } from './incidentsView'
 import { IncidentRow } from './IncidentRow'
+import { NearbyPrompt } from './NearbyPrompt'
+import { isNearbyDismissed } from './nearbyDismiss'
 import { screenStrings } from './strings'
 import { NoSignalCard } from './NoSignalCard'
+import { useDevicePosition } from './useDevicePosition'
 import { useBattery, useNow, useOfflineSince } from '../useDeviceStatus'
 import type { OutboxItem } from '../outbox/types'
 
@@ -24,6 +29,11 @@ export interface HomeProps {
   queuedCount: number
   /** What is waiting in the outbox, for the no-signal card. Without it the card says no report is saved. */
   queued?: OutboxItem[]
+  /** ember-api client. Required so Join now on the nearby prompt can call it. */
+  api: EmberApi
+  volunteerId?: string | null
+  /** Re-read the digest after Join now. */
+  onRefresh: () => void
 }
 
 /** Placeholder card shapes while `/digest` has not returned. Same heights as the real cards, so nothing jumps. */
@@ -43,10 +53,28 @@ function HomeSkeleton({ lang }: { lang: Lang }) {
  * Home (#127). Who has a task waiting, a few counts from the digest, the volunteer's incidents and one Report
  * button. Wind is not shown: no client payload carries an observed wind.
  */
-export function HomeScreen({ lang, digest, status, lastSyncAt, online, queuedCount, queued = [] }: HomeProps) {
+export function HomeScreen({
+  lang,
+  digest,
+  status,
+  lastSyncAt,
+  online,
+  queuedCount,
+  queued = [],
+  api,
+  volunteerId = null,
+  onRefresh,
+}: HomeProps) {
   const offlineSince = useOfflineSince(online)
   const battery = useBattery()
   const nowMs = useNow()
+  const devicePosition = useDevicePosition(Boolean(online && digest))
+  const [dismissTick, setDismissTick] = useState(0)
+  const nearby = useMemo(() => {
+    void dismissTick
+    const list = digest?.nearby ?? []
+    return list.find((row) => !isNearbyDismissed(volunteerId, row.id)) ?? null
+  }, [digest?.nearby, volunteerId, dismissTick])
   const reportButton = (
     <Link className="btn primary report-cta" to="/pwa/report">
       {t(lang, screenStrings.common.reportFire)}
@@ -66,6 +94,7 @@ export function HomeScreen({ lang, digest, status, lastSyncAt, online, queuedCou
   const live = liveIncidents(digest)
   const tasks = assignedTasks(digest)
   const offline = !online
+  const you = devicePosition.kind === 'ok' ? { lat: devicePosition.lat, lng: devicePosition.lng } : null
   return (
     <>
       {offline && <NoSignalCard lang={lang} sinceMs={offlineSince} batteryPct={battery} task={task && task.type !== 'withdraw' ? task : null} queued={queued} nowMs={nowMs} />}
@@ -75,6 +104,18 @@ export function HomeScreen({ lang, digest, status, lastSyncAt, online, queuedCou
         </p>
       )}
       {offline && !lastSyncAt && <p className="muted small">{t(lang, screenStrings.common.notAvailable)}</p>}
+
+      {digest && nearby && !offline && (
+        <NearbyPrompt
+          lang={lang}
+          api={api}
+          volunteerId={volunteerId}
+          nearby={nearby}
+          you={you}
+          onDismissed={() => setDismissTick((n) => n + 1)}
+          onJoined={onRefresh}
+        />
+      )}
 
       {digest && (
         <>

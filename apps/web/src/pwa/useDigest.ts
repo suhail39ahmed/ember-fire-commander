@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { EmberApi } from './api/types'
-import type { Digest } from './contracts/types'
+import type { Digest, DigestPosition } from './contracts/types'
 import { DigestPoller, type PollFailure } from './digestPoll'
 
 export type DigestStatus = 'loading' | 'ready' | PollFailure
@@ -22,18 +22,25 @@ const isActive = () =>
 /**
  * The volunteer's digest, kept fresh while the app is visible and online (see DigestPoller).
  * `onSynced` runs after every successful read, with the phone time it arrived.
+ * `getPosition` supplies lat/lng for nearby fires on each poll (#134).
  */
-export function useDigest(api: EmberApi, onSynced?: (digest: Digest, receivedAt: Date) => void): DigestState {
+export function useDigest(
+  api: EmberApi,
+  onSynced?: (digest: Digest, receivedAt: Date) => void,
+  getPosition?: () => DigestPosition | null,
+): DigestState {
   const [digest, setDigest] = useState<Digest | null>(null)
   const [status, setStatus] = useState<DigestStatus>('loading')
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null)
   const poller = useRef<DigestPoller | null>(null)
   const synced = useRef(onSynced)
   synced.current = onSynced
+  const positionOf = useRef(getPosition)
+  positionOf.current = getPosition
 
   useEffect(() => {
     const instance = new DigestPoller({
-      fetchDigest: () => api.getDigest(),
+      fetchDigest: () => api.getDigest(positionOf.current?.() ?? null),
       onDigest: (next, receivedAt) => {
         setDigest(next)
         setStatus('ready')

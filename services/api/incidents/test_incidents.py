@@ -195,7 +195,8 @@ def test_volunteer_not_on_incident_gets_404(client, monkeypatch, db):
 def test_digest_matches_pwa_shape(client, monkeypatch, db):
     _as(monkeypatch, role="volunteer", uid="uid_sari")
     body = client.get("/digest", headers=AUTH).get_json()
-    assert set(body) == {"updatedAt", "incidents", "myTasks"}
+    assert set(body) == {"updatedAt", "incidents", "myTasks", "nearby"}
+    assert body["nearby"] == []
     assert body["updatedAt"].endswith("Z")
     assert set(body["incidents"][0]) == {"id", "name", "area", "status", "severity", "withdraw", "lat", "lng"}
     assert [t["id"] for t in body["myTasks"]] == ["task_investigate", "task_verify_sari"]
@@ -205,6 +206,7 @@ def test_supervisor_digest_has_no_tasks(client, monkeypatch, db):
     _as(monkeypatch)
     body = client.get("/digest", headers=AUTH).get_json()
     assert body["myTasks"] == []
+    assert "nearby" not in body
     assert [i["id"] for i in body["incidents"]] == ["inc_01"]
 
 

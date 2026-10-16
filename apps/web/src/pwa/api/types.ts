@@ -1,4 +1,4 @@
-import type { DeclineReason, Digest, FlagRequest, IncidentDetail, Observation, ObservationRequest, PhotoContentType, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
+import type { DeclineReason, Digest, DigestPosition, FlagRequest, IncidentDetail, IncidentMembership, Observation, ObservationRequest, PhotoContentType, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
 
 /** Error surfaced to the UI. `retryable` is true for network failures, 429 and 5xx. */
 export class ApiError extends Error {
@@ -16,7 +16,8 @@ export class ApiError extends Error {
 
 /** The ember-api operations the volunteer PWA uses. */
 export interface EmberApi {
-  getDigest(): Promise<Digest>
+  /** GET /digest. Pass the phone position when known so `nearby` can be filled (#134). */
+  getDigest(position?: DigestPosition | null): Promise<Digest>
   /** GET /incidents/{id}: one incident this volunteer is on. A volunteer who is not on it gets `not_found` (404). */
   getIncident(incidentId: string): Promise<IncidentDetail>
   createObservation(body: ObservationRequest): Promise<Observation>
@@ -32,4 +33,8 @@ export interface EmberApi {
   answerWithdraw(incidentId: string, answer: WithdrawAnswerRequest): Promise<void>
   /** POST /observations/{id}/flag: someone else's report looks wrong. The report is not changed. */
   flagObservation(observationId: string, flag: FlagRequest): Promise<void>
+  /** POST /incidents/{id}/join: Join now with no approval (#134). */
+  joinIncident(incidentId: string): Promise<IncidentMembership>
+  /** POST /incidents/{id}/en-route: I'm on my way (#135). Persists across reload. */
+  markEnRoute(incidentId: string): Promise<IncidentMembership>
 }

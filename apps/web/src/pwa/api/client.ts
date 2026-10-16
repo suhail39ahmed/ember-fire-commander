@@ -4,7 +4,7 @@
  * see ../gateway/). No Firestore or Cloud Storage SDK is used in the browser.
  * The one exception is the photo PUT to a signed URL that ember-api issued (see ../photo/).
  */
-import type { DeclineReason, Digest, ErrorBody, FlagRequest, IncidentDetail, Observation, ObservationRequest, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
+import type { DeclineReason, Digest, DigestPosition, ErrorBody, FlagRequest, IncidentDetail, IncidentMembership, Observation, ObservationRequest, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
 import type { AuthHeadersProvider } from './authHeaders'
 import { API_BASE_URL } from './config'
 import { ApiError, type EmberApi } from './types'
@@ -12,6 +12,8 @@ import { ApiError, type EmberApi } from './types'
 export const ENDPOINTS = {
   digest: '/digest',
   incident: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}`,
+  join: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}/join`,
+  enRoute: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}/en-route`,
   observations: '/observations',
   photoUploadUrl: '/photos/upload-url',
   accept: (taskId: string) => `/tasks/${encodeURIComponent(taskId)}/accept`,
@@ -20,6 +22,12 @@ export const ENDPOINTS = {
   flag: (observationId: string) => `/observations/${encodeURIComponent(observationId)}/flag`,
   heard: (taskId: string) => `/tasks/${encodeURIComponent(taskId)}/heard`,
 } as const
+
+function digestPath(position?: DigestPosition | null): string {
+  if (!position) return ENDPOINTS.digest
+  const q = new URLSearchParams({ lat: String(position.lat), lng: String(position.lng) })
+  return `${ENDPOINTS.digest}?${q}`
+}
 
 function isErrorBody(body: unknown): body is ErrorBody {
   const error = (body as ErrorBody | null)?.error
@@ -54,7 +62,7 @@ export function createHttpApi(
   }
 
   return {
-    getDigest: () => request<Digest>(ENDPOINTS.digest),
+    getDigest: (position) => request<Digest>(digestPath(position)),
     getIncident: (incidentId) => request<IncidentDetail>(ENDPOINTS.incident(incidentId)),
     createObservation: (body: ObservationRequest) =>
       request<Observation>(ENDPOINTS.observations, { method: 'POST', body: JSON.stringify(body) }),
@@ -74,6 +82,14 @@ export function createHttpApi(
     },
     flagObservation: async (observationId: string, flag: FlagRequest) => {
       await request<unknown>(ENDPOINTS.flag(observationId), { method: 'POST', body: JSON.stringify({ reason: flag.reason, photoPath: flag.photoPath ?? null }) })
+    },
+    joinIncident: async (incidentId) => {
+      const body = await request<{ membership: IncidentMembership }>(ENDPOINTS.join(incidentId), { method: 'POST' })
+      return body.membership
+    },
+    markEnRoute: async (incidentId) => {
+      const body = await request<{ membership: IncidentMembership }>(ENDPOINTS.enRoute(incidentId), { method: 'POST' })
+      return body.membership
     },
   }
 }
