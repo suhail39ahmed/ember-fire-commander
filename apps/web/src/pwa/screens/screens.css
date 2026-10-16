@@ -111,3 +111,17 @@
 .cleared-card .section-label { color: #15803d; }
 .cleared-card h2 { font-size: 26px; }
 .timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-family: ui-monospace, monospace; font-size: 13px; }
+
+/* Report sent (#131, #132) */
+.sent-join { margin: 0; color: var(--ink-muted); font-size: 14px; }
+.sent-actions { display: flex; gap: 8px; margin-top: 4px; } .sent-actions .btn { flex: 1; }
+.sent-today { display: flex; flex-direction: column; gap: 8px; }
+.sent-today-head { display: flex; align-items: baseline; justify-content: space-between; }
+.sent-today-head h3 { font-size: 18px; font-weight: 600; margin: 0; }
+.sent-today ul { list-style: none; margin: 0; gap: 0; padding: 4px 16px; }
+.sent-today li { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.sent-today li:last-child { border-bottom: none; }
+.sent-today li > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sent-today li strong { overflow-wrap: anywhere; }
+.sent-today-when { text-align: right; align-items: flex-end; }
+.sent-today .ok { color: var(--safe-text); }

@@ -1,4 +1,4 @@
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 import { TalkCard } from '../gateway/TalkCard'
 import { useLanguage } from '../language'
@@ -15,7 +15,8 @@ import { screenStrings } from './strings'
 /** The Report tab (#128): hold to talk, the chip and note form, a photo, and what is waiting to send. */
 export function ReportScreen() {
   const { lang } = useLanguage()
-  const { api, volunteerId, outbox, upload, talk, digest } = useVolunteer()
+  const { api, volunteerId, outbox, upload, talk, digest, refresh } = useVolunteer()
+  const navigate = useNavigate()
   const state = useLocation().state as { chip?: ChipValue | null; n?: number; incidentId?: string; taskId?: string } | null
   const preset = state && state.chip !== undefined ? { chip: state.chip, n: state.n ?? 1 } : undefined
 
@@ -40,6 +41,8 @@ export function ReportScreen() {
         preset={preset}
         submit={outbox.submit}
         volunteerId={volunteerId}
+        watch={{ digest, refresh }}
+        onDone={() => navigate('/pwa')}
       />
       <PhotoPanel api={api} upload={upload} lang={lang} getPosition={getPosition} submit={outbox.submit} queuePhoto={outbox.queuePhoto} />
       <OutboxPanel

@@ -6,6 +6,11 @@ import { strings, t, type Lang } from '../i18n'
 import { MAX_NOTE_LENGTH } from './buildObservation'
 import { ChipRow } from './ChipRow'
 import { SentCard } from './SentCard'
+import { SentToday } from './SentToday'
+import { addSent, loadSentToday, updateSent, type SentEntry } from './sentLog'
+import { useJoinWatch } from './useJoinWatch'
+import type { JoinResult } from './joinResult'
+import type { Digest } from '../contracts/types'
 import type { LocationResult } from './location'
 import { clearDraft, loadDraft, saveDraft } from './draft'
 import { sendReport } from './sendReport'
@@ -24,13 +29,17 @@ interface Props {
   submit?: (body: ObservationCreate) => Promise<'sent' | 'queued'>
   /** Whose draft this is. Without it nothing is kept between visits. */
   volunteerId?: string | null
+  /** The digest and a way to re-read it, so a sent report can find the incident it joined (#131). */
+  watch?: { digest: Digest | null; refresh: () => void }
+  /** Done on the success card. Without it there is no Done button. */
+  onDone?: () => void
 }
 
 const signatureOf = (chip: ChipValue | null, text: string) => `${chip ?? ''}|${text}`
 const EMPTY_SIGNATURE = signatureOf(null, '')
 
 /** #17: chip and text report. Works without Live voice. */
-export function ReportPanel({ api, lang, locate, onLocationGranted, preset, submit, volunteerId = null }: Props) {
+export function ReportPanel({ api, lang, locate, onLocationGranted, preset, submit, volunteerId = null, watch, onDone }: Props) {
   // A draft left by this volunteer within the last hour comes back after a reload or a closed app (#160).
   const [restored] = useState(() => (volunteerId ? loadDraft(volunteerId) : null))
   const [chip, setChip] = useState<ChipValue | null>(restored?.chip ?? null)
@@ -41,6 +50,21 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, subm
   const pending = useRef<{ capturedAt: string } | null>(null)
   const statusRef = useRef(status)
   statusRef.current = status
+  const accuracy = useRef<number | null>(null)
+  const [today, setToday] = useState<SentEntry[]>(() => (volunteerId ? loadSentToday(volunteerId) : []))
+  const [join, setJoin] = useState<JoinResult | null>(null)
+
+  const sentNow = status.kind === 'sent' && volunteerId && watch ? { volunteerId, at: status.at, chip: status.chip, text: status.text } : null
+  useJoinWatch({
+    api,
+    digest: watch?.digest ?? null,
+    refresh: watch?.refresh ?? (() => undefined),
+    sent: sentNow,
+    onFound: (found) => {
+      setJoin(found)
+      if (sentNow) setToday(updateSent(sentNow.volunteerId, sentNow.at, { incidentLabel: found.label, startedIncident: found.others === 0, otherReports: found.others }))
+    },
+  })
 
   // Keep the draft as it changes. The restored draft is not saved again, so reopening never makes it look newer.
   useEffect(() => {
@@ -82,6 +106,9 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, subm
       submit,
       create: (body) => api.createObservation(body),
       onPhase: (phase) => setStatus({ kind: phase }),
+      onPosition: (pos) => {
+        accuracy.current = pos.accuracyM
+      },
     })
     switch (outcome.kind) {
       case 'invalid':
@@ -101,7 +128,14 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, subm
       case 'queued':
       case 'sent':
         // The success card takes the form's place and shows what was sent; the form starts empty again.
-        setStatus({ kind: outcome.kind, at: new Date().toISOString(), chip, text })
+        {
+          const at = new Date().toISOString()
+          setStatus({ kind: outcome.kind, at, chip, text })
+          setJoin(null)
+          if (volunteerId) {
+            setToday(addSent(volunteerId, { at, kind: outcome.kind, chip, text, accuracyM: accuracy.current, incidentLabel: null, startedIncident: null, otherReports: null }))
+          }
+        }
         pending.current = null
         clearDraft()
         savedAs.current = EMPTY_SIGNATURE
@@ -133,6 +167,7 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, subm
 
   function reset() {
     pending.current = null
+    setJoin(null)
     clearDraft()
     savedAs.current = EMPTY_SIGNATURE
     setChip(null)
@@ -151,10 +186,22 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, subm
 
   if (status.kind === 'sent' || status.kind === 'queued') {
     return (
-      <section className="card report" aria-labelledby="quick-report-label">
-        {title}
-        <SentCard lang={lang} kind={status.kind} at={status.at} chip={status.chip} text={status.text} onNew={reset} />
-      </section>
+      <>
+        <section className="card report" aria-labelledby="quick-report-label">
+          {title}
+          <SentCard
+            lang={lang}
+            kind={status.kind}
+            at={status.at}
+            chip={status.chip}
+            text={status.text}
+            onNew={reset}
+            onDone={onDone}
+            incident={join ? { label: join.label, others: join.others } : null}
+          />
+        </section>
+        <SentToday lang={lang} entries={today} />
+      </>
     )
   }
 
