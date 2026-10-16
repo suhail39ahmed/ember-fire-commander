@@ -239,6 +239,7 @@ class FirestoreStore:
         return digest_for(user, _unique(incidents), tasks, observations, now, conflicts)
 
     def report_signal(self, user, signal, now):
+        """Update signal on digest incidents in a transaction so concurrent writers do not clobber each other."""
         signal = parse_signal(signal)
         if signal is None:
             return []
@@ -249,8 +250,36 @@ class FirestoreStore:
             incident_id = summary.get("id")
             if not incident_id:
                 continue
-            ref = db.collection("liveSeats").document(incident_id)
-            snap = ref.get()
+            if self._txn_report_signal(db, incident_id, user["id"], signal, now):
+                dropped.append(incident_id)
+        return dropped
+
+    def holder_disconnect(self, user, now, last_signal=None):
+        """Free seats this volunteer holds. Each seat update runs in a transaction."""
+        dropped = []
+        db = self._db()
+        from google.cloud.firestore_v1.base_query import FieldFilter
+        # Find candidates outside the transaction; each write re-reads holderId inside.
+        seat_ids = [
+            snap.id for snap in db.collection("liveSeats").where(
+                filter=FieldFilter("holderId", "==", user["id"])
+            ).stream()
+        ]
+        for incident_id in seat_ids:
+            if self._txn_holder_disconnect(db, incident_id, user["id"], now, last_signal or "unknown"):
+                dropped.append(incident_id)
+        return dropped
+
+    def _txn_report_signal(self, db, incident_id, volunteer_id, signal, now):
+        from google.cloud import firestore
+
+        ref = db.collection("liveSeats").document(incident_id)
+        dropped = False
+
+        @firestore.transactional
+        def run(transaction):
+            nonlocal dropped
+            snap = ref.get(transaction=transaction)
             seat = snap.to_dict() if snap.exists else {
                 "incidentId": incident_id,
                 "status": "free",
@@ -258,50 +287,54 @@ class FirestoreStore:
                 "lastDrop": None,
                 "volunteers": {},
             }
-            updated, action = apply_signal(seat, user["id"], signal, now)
+            updated, action = apply_signal(seat, volunteer_id, signal, now)
             if updated is None:
-                continue
-            batch = db.batch()
-            batch.set(ref, updated)
+                return
+            transaction.set(ref, updated)
             if action:
                 audit_ref = db.collection("audit").document()
-                batch.set(audit_ref, {
+                transaction.set(audit_ref, {
                     "id": audit_ref.id,
                     "actorId": "code",
                     "action": action,
                     "targetId": incident_id,
                     "at": now,
                 })
-                dropped.append(incident_id)
-            batch.commit()
+                dropped = True
+
+        run(db.transaction())
         return dropped
 
-    def holder_disconnect(self, user, now, last_signal=None):
-        dropped = []
-        db = self._db()
-        from google.cloud.firestore_v1.base_query import FieldFilter
-        query = db.collection("liveSeats").where(
-            filter=FieldFilter("holderId", "==", user["id"])
-        ).stream()
-        for snap in query:
+    def _txn_holder_disconnect(self, db, incident_id, volunteer_id, now, last_signal):
+        from google.cloud import firestore
+
+        ref = db.collection("liveSeats").document(incident_id)
+        dropped = False
+
+        @firestore.transactional
+        def run(transaction):
+            nonlocal dropped
+            snap = ref.get(transaction=transaction)
+            if not snap.exists:
+                return
             updated, action = apply_disconnect(
-                snap.to_dict() or {}, user["id"], now, last_signal or "unknown",
+                snap.to_dict() or {}, volunteer_id, now, last_signal,
             )
             if updated is None:
-                continue
-            batch = db.batch()
-            batch.set(snap.reference, updated)
+                return
+            transaction.set(ref, updated)
             if action:
                 audit_ref = db.collection("audit").document()
-                batch.set(audit_ref, {
+                transaction.set(audit_ref, {
                     "id": audit_ref.id,
                     "actorId": "code",
                     "action": action,
-                    "targetId": snap.id,
+                    "targetId": incident_id,
                     "at": now,
                 })
-                dropped.append(snap.id)
-            batch.commit()
+                dropped = True
+
+        run(db.transaction())
         return dropped
 
     def _where(self, collection, field, op, value):

@@ -16,9 +16,9 @@ def parse_signal(value):
 
 
 def apply_signal(seat, volunteer_id, signal, now, drop_if_weak=True):
-    """Return updated seat dict, or None when nothing changes."""
+    """Merge one volunteer's signal into the seat. Returns (seat, action) or (None, None)."""
     if signal not in SIGNALS:
-        return None
+        return None, None
     seat = dict(seat)
     volunteers = dict(seat.get("volunteers") or {})
     entry = dict(volunteers.get(volunteer_id) or {})

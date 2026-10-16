@@ -37,6 +37,20 @@ def test_strong_signal_does_not_drop():
     assert updated["volunteers"]["uid_sari"]["signal"] == "3g"
 
 
+def test_signal_merge_keeps_other_volunteers():
+    """Sequential merges must keep every volunteer's row (what a transaction retries with)."""
+    seat = {
+        "incidentId": "inc_01",
+        "status": "free",
+        "holderId": None,
+        "volunteers": {},
+    }
+    seat, _ = apply_signal(seat, "uid_sari", "2g", "2026-10-16T14:30:00Z")
+    seat, _ = apply_signal(seat, "uid_rizal", "4g", "2026-10-16T14:30:01Z")
+    assert seat["volunteers"]["uid_sari"]["signal"] == "2g"
+    assert seat["volunteers"]["uid_rizal"]["signal"] == "4g"
+
+
 def test_disconnect_frees_holder():
     seat = {
         "incidentId": "inc_01",
