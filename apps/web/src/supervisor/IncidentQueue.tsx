@@ -6,7 +6,7 @@ import type { Incident } from './contracts'
 
 const EMPTY = '—'
 
-export function incidentCounts(incidents: Incident[]) {
+function incidentCounts(incidents: Incident[]) {
   return {
     open: incidents.filter((incident) => incident.status === 'open').length,
     held: incidents.filter((incident) => incident.status === 'held').length,

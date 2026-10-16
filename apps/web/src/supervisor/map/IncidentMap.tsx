@@ -38,7 +38,7 @@ function LayerToggles({
   onEmpty(layer: EmptyLayer): void
   lang: Lang
 }) {
-  const emptyLabels: Record<EmptyLayer, typeof mapCopy.crews> = {
+  const emptyLabels: Record<EmptyLayer, (typeof mapCopy)[EmptyLayer]> = {
     crews: mapCopy.crews,
     wind: mapCopy.wind,
     satellite: mapCopy.satellite,
