@@ -11,6 +11,8 @@ import { ApiError, type EmberApi } from './types'
 export interface MockControls {
   /** Simulate the backend safety rule firing (code WITHDRAW). */
   triggerWithdraw(): void
+  /** Simulate the withdraw leaving the digest (nothing in the real API does this yet). */
+  clearWithdraw(): void
   /** Make the next createObservation call fail. */
   failNext(kind: 'network' | 'validation'): void
   reset(): void
@@ -149,12 +151,19 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
           updatedAt: new Date().toISOString(),
           incidents: digest.incidents.map((i) => ({
             ...i,
-            withdraw: { active: true, instruction: WITHDRAW_TEXT, reasons: ['large flame reported'], volunteerIds: [volunteerId] },
+            withdraw: { active: true, instruction: WITHDRAW_TEXT, reasons: ['large flame reported'], volunteerIds: [volunteerId], source: 'code', sentAt: new Date().toISOString(), safeVolunteerIds: [] },
           })),
           myTasks: [
             ...digest.myTasks,
             { id: 'task_demo_withdraw', incidentId: INCIDENT_ID, volunteerId, type: 'withdraw', status: 'approved', instruction: WITHDRAW_TEXT },
           ],
+        }
+      },
+      clearWithdraw() {
+        digest = {
+          updatedAt: new Date().toISOString(),
+          incidents: digest.incidents.map((i) => ({ ...i, withdraw: null })),
+          myTasks: digest.myTasks.filter((x) => x.type !== 'withdraw'),
         }
       },
       failNext(kind) {

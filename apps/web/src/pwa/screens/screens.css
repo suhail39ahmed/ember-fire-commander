@@ -87,3 +87,27 @@
 .choice { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 10px 14px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface); }
 .choice input { width: 22px; height: 22px; accent-color: var(--ember); flex: none; }
 .field { display: flex; flex-direction: column; gap: 6px; }
+
+/* WITHDRAW flow (#146 to #149) */
+.withdraw { overflow-y: auto; justify-content: flex-start; padding-top: 40px; }
+.withdraw .card.talk { background: transparent; padding: 0; }
+.withdraw-card { background: rgba(0, 0, 0, 0.22); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; }
+.withdraw-card ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.withdraw-note { background: #fff; color: var(--ink); border-radius: 14px; padding: 12px 14px; font-weight: 600; }
+.withdraw-error { background: #fff; color: var(--withdraw); border-radius: 12px; padding: 10px 12px; font-weight: 600; }
+.withdraw.soft { background: #fde8e6; color: var(--ink); }
+.withdraw.soft .withdraw-label { color: var(--withdraw); }
+.withdraw.soft .withdraw-instruction { color: var(--ink); }
+.withdraw.soft h1 { font-size: 30px; }
+.withdraw.soft .withdraw-card { background: #fff; border: 1.5px solid var(--withdraw); }
+.withdraw.soft :focus-visible { outline-color: var(--ink); }
+.withdraw-actions { display: flex; flex-direction: column; gap: 10px; margin-top: auto; }
+.btn.answer { height: auto; min-height: 64px; padding: 10px 20px; display: flex; flex-direction: column; gap: 2px; color: #fff; }
+.btn.answer span { font-size: 13px; font-weight: 400; }
+.btn.answer.safe { background: #15803d; }
+.btn.answer.stuck { background: #dc2626; }
+.cleared { display: flex; flex-direction: column; gap: 12px; }
+.cleared-card { background: #e3f0e6; border: 1.5px solid #15803d; border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+.cleared-card .section-label { color: #15803d; }
+.cleared-card h2 { font-size: 26px; }
+.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-family: ui-monospace, monospace; font-size: 13px; }

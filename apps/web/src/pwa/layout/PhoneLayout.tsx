@@ -2,7 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { InstallBanner } from '../install/InstallBanner'
 import { DigestNotice } from '../DigestNotice'
-import { activeWithdraw, currentTask } from '../digest'
+import { currentTask } from '../digest'
 import { strings, t } from '../i18n'
 import { useLanguage } from '../language'
 import { GuideScreen } from '../screens/GuideScreen'
@@ -18,6 +18,8 @@ import { useMarkHeard } from '../useMarkHeard'
 import { useWakeLock } from '../useWakeLock'
 import { VolunteerHeader } from '../VolunteerHeader'
 import { WithdrawScreen } from '../WithdrawScreen'
+import { WithdrawCleared } from '../screens/WithdrawViews'
+import { useWithdrawFlow } from '../withdraw/useWithdrawFlow'
 import { USE_MOCK_API } from '../api/config'
 import { TabBar } from './TabBar'
 import { useVolunteer } from './volunteerContext'
@@ -32,9 +34,8 @@ export function PhoneLayout() {
   const { api, me, volunteerId, digest, digestStatus, lastSyncAt, refresh, outbox, mock } = v
 
   const task = currentTask(digest)
-  const withdrawOrder = activeWithdraw(digest, volunteerId)
-  const withdraw = withdrawOrder !== null || task?.type === 'withdraw'
-  const withdrawText = withdrawOrder?.instruction ?? (task?.type === 'withdraw' ? task.instruction : null)
+  const flow = useWithdrawFlow({ api, digest, volunteerId, task })
+  const withdraw = flow.active !== null
   useMarkHeard(api, digest, task?.id ?? null, withdraw)
   // A locked screen would hide the one instruction that matters, so it stays on while WITHDRAW is showing.
   useWakeLock(withdraw)
@@ -48,6 +49,9 @@ export function PhoneLayout() {
         <InstallBanner lang={lang} />
         <DigestNotice status={digestStatus} hasDigest={digest !== null} lang={lang} onRetry={refresh} />
 
+        {flow.cleared && !withdraw ? (
+          <WithdrawCleared lang={lang} sentAt={flow.cleared.sentAt} reasons={flow.cleared.reasons} clearedAtMs={flow.cleared.clearedAtMs} onDismiss={flow.dismissCleared} />
+        ) : (
         <Routes>
           <Route
             index
@@ -72,12 +76,16 @@ export function PhoneLayout() {
           <Route path="profile" element={<ProfileScreen />} />
           <Route path="*" element={<Navigate to="/pwa" replace />} />
         </Routes>
+        )}
 
         {USE_MOCK_API && mock && (
           <section className="card dev" aria-label="Mock controls">
             <p className="section-label">MOCK API · DEV ONLY</p>
             <button type="button" className="btn small" onClick={() => { mock.triggerWithdraw(); refresh() }}>
               Simulate backend WITHDRAW rule
+            </button>
+            <button type="button" className="btn small" onClick={() => { mock.clearWithdraw(); refresh() }}>
+              Simulate WITHDRAW lifted
             </button>
             <button type="button" className="btn small" onClick={() => mock.failNext('network')}>
               Fail next send (network)
@@ -93,7 +101,7 @@ export function PhoneLayout() {
       </main>
 
       <TabBar lang={lang} />
-      {withdraw && <WithdrawScreen instruction={withdrawText} lang={lang} />}
+      {withdraw && <WithdrawScreen lang={lang} flow={flow} />}
     </div>
   )
 }

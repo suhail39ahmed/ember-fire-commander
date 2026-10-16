@@ -1,31 +1,43 @@
-import { useEffect, useRef, useState } from 'react'
-import { strings, t, type Lang } from './i18n'
+import { useEffect } from 'react'
+
+import { t, type Lang } from './i18n'
+import { useVolunteer } from './layout/volunteerContext'
+import { ConfirmSafe, HelpSent, WithdrawCover } from './screens/WithdrawViews'
+import { screenStrings } from './screens/strings'
+import { othersCount } from './withdraw/state'
+import type { WithdrawFlow } from './withdraw/useWithdrawFlow'
 
 /**
- * Full-screen WITHDRAW. Shown when the digest has an active incident.withdraw
- * naming this volunteer, or a withdraw task. The text is the backend's
- * instruction, verbatim; nothing here is computed on the phone.
+ * Full-screen WITHDRAW, drawn over the tabs. The text is the backend's instruction, verbatim; the only things the
+ * phone adds are the answers the volunteer gives (#146 to #148).
  */
-export function WithdrawScreen({ instruction, lang }: { instruction: string | null; lang: Lang }) {
-  const btn = useRef<HTMLButtonElement>(null)
-  const [acked, setAcked] = useState(false)
+export function WithdrawScreen({ lang, flow }: { lang: Lang; flow: WithdrawFlow }) {
+  const { volunteerId, talk } = useVolunteer()
+  const { active, step, action, answeredAt, supervisorSafe, position, batteryPct, answer } = flow
 
   useEffect(() => {
-    btn.current?.focus()
-    if ('vibrate' in navigator) navigator.vibrate([400, 200, 400, 200, 400])
-  }, [])
+    if (step === 'cover' && 'vibrate' in navigator) navigator.vibrate([400, 200, 400, 200, 400])
+  }, [step])
 
+  if (!active) return null
+  const w = active.withdraw
+  if (step === 'confirm') {
+    return <ConfirmSafe lang={lang} instruction={active.instruction} sentAt={w?.sentAt ?? null} action={action} onSafe={() => answer('safe')} onStuck={() => answer('stuck')} />
+  }
+  if (step === 'stuck') {
+    return <HelpSent lang={lang} answeredAt={answeredAt} position={position} batteryPct={batteryPct} action={action} talk={talk} onOut={() => answer('safe')} />
+  }
+  const note = step === 'safe' ? t(lang, supervisorSafe && !answeredAt ? screenStrings.withdraw.notedBySupervisor : screenStrings.withdraw.noted) : null
   return (
-    <div className="withdraw" role="alertdialog" aria-modal="true" aria-labelledby="withdraw-title" aria-describedby="withdraw-instruction">
-      <p className="withdraw-label">{t(lang, strings.withdrawLabel)}</p>
-      <h1 id="withdraw-title">{t(lang, strings.withdrawTitle)}</h1>
-      {instruction && <p id="withdraw-instruction" className="withdraw-instruction">{instruction}</p>}
-      <p className="withdraw-why">{t(lang, strings.withdrawWhy)}</p>
-      {/* Acknowledgement is local only; the contract has no acknowledgement route yet. */}
-      <button ref={btn} type="button" className="btn inverse" onClick={() => setAcked(true)} disabled={acked}>
-        {acked ? t(lang, strings.withdrawAcked) : t(lang, strings.withdrawAck)}
-      </button>
-      <p className="badge-simulated on-dark">{t(lang, strings.simulated)}</p>
-    </div>
+    <WithdrawCover
+      lang={lang}
+      instruction={active.instruction}
+      sentAt={w?.sentAt ?? null}
+      source={w?.source ?? null}
+      reasons={w?.reasons ?? []}
+      others={othersCount(w, volunteerId)}
+      note={note}
+      talk={talk}
+    />
   )
 }
