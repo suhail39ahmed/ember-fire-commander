@@ -147,13 +147,55 @@ describe('IncidentQueue', () => {
     expect(html).toContain('Pak Dedi · #2')
   })
 
-  it('counts open, held, and verified, and leaves Closed empty', () => {
+  it('counts open, held, and verified, leaves Closed empty, and shows a dash for numbers the server did not send', () => {
     expect(html).toContain('Open 4')
     expect(html).toContain('Held 0')
     expect(html).toContain('Verified 0')
     expect(html).toContain('Closed —')
     expect(html).toContain('— reports · — volunteers · evidence 45')
-    expect(html).toContain('>— · —<')
+    expect(html).not.toContain('>— · —<')
     expect(html).not.toContain('TOHOR')
+  })
+})
+
+describe('IncidentQueue with the supervisor fields', () => {
+  const render = (items: Incident[]) =>
+    renderToStaticMarkup(<IncidentQueue groups={groupByArea(items)} activeId={null} onSelect={() => undefined} />)
+
+  it('shows the real report and volunteer counts', () => {
+    const html = render([named('a', 'Dumai, Riau', 1, { reportCount: 4, volunteerCount: 2 })])
+    expect(html).toContain('4 reports · 2 volunteers · evidence 45')
+    expect(html).not.toContain('— reports')
+  })
+
+  it('shows zero as zero, not as a dash', () => {
+    const html = render([named('a', 'Dumai, Riau', 1, { reportCount: 0, volunteerCount: 0 })])
+    expect(html).toContain('0 reports · 0 volunteers')
+  })
+
+  it('names who verified a verified incident, and a dash when no name was stored', () => {
+    const withName = render([named('a', 'Dumai, Riau', 1, { status: 'verified', verified: true, verifiedBy: 'Bu Maya' })])
+    expect(withName).toContain('Verified by Bu Maya')
+    const noName = render([named('a', 'Dumai, Riau', 1, { status: 'verified', verified: true, verifiedBy: null })])
+    expect(noName).toContain('Verified by —')
+    const open = render([named('a', 'Dumai, Riau', 1, { verifiedBy: 'Bu Maya' })])
+    expect(open).not.toContain('Verified by')
+  })
+
+  it('flags an incident with a Need help report, and only that one', () => {
+    const html = render([
+      named('a', 'Dumai, Riau', 1, { needsHelp: true }),
+      named('b', 'Dumai, Riau', 2, { needsHelp: false }),
+      named('c', 'Dumai, Riau', 3),
+    ])
+    expect(html.match(/incident-need-help/g)).toHaveLength(1)
+    expect(html).toContain('>NEED HELP<')
+  })
+
+  it('speaks Bahasa on the badge', () => {
+    const html = renderToStaticMarkup(
+      <IncidentQueue groups={groupByArea([named('a', 'Dumai, Riau', 1, { needsHelp: true })])} activeId={null} onSelect={() => undefined} lang="id" />,
+    )
+    expect(html).toContain('>BUTUH BANTUAN<')
   })
 })

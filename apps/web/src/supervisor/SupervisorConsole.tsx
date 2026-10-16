@@ -190,6 +190,7 @@ export function IncidentsShell({ api: apiOverride, children }: { api?: Superviso
 function DashboardLiveBanner() {
   const { pathname } = useLocation()
   const { liveFires, updatedAt, nextSatellitePass, bannerRetrying, chromeError, language } = useConsole()
+  const { queue } = useIncidents()
   if (incidentIdFromPath(pathname) !== null) return null
   return (
     <LiveBanner
@@ -199,6 +200,7 @@ function DashboardLiveBanner() {
       loading={liveFires === null && chromeError === null}
       retrying={bannerRetrying}
       lang={language}
+      queue={queue}
     />
   )
 }

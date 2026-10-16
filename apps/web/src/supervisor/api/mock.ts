@@ -158,7 +158,14 @@ export function createMockSupervisorApi(
     async listIncidents() {
       await wait()
       // Like GET /incidents for a supervisor: an extinguished incident leaves the live list.
-      return details.filter((d) => d.incident.status !== 'extinguished').map((d) => structuredClone(d.incident))
+      return details
+        .filter((d) => d.incident.status !== 'extinguished')
+        .map((d) => ({
+          ...structuredClone(d.incident),
+          reportCount: d.observations.length,
+          volunteerCount: new Set(d.observations.map((o) => o.volunteerId)).size,
+          needsHelp: d.observations.some((o) => o.chip === 'butuh_bantuan'),
+        }))
     },
     async getIncident(id) {
       await wait()

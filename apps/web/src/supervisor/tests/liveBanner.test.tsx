@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { formatTimeZone } from '../../pwa/formatTime'
 import { LiveBanner } from '../LiveBanner'
 import type { LiveFire } from '../chromeClient'
+import { fixture } from '../fixtures'
 
 const updatedAt = '2026-10-16T07:46:00Z'
 
@@ -59,9 +60,22 @@ describe('live banner', () => {
     const markup = html({
       fires: [fire({ code: '#3', placeName: 'Bengkalis, Riau', since })],
     })
-    expect(markup).toContain('#3 · Bengkalis, Riau')
+    expect(markup).toContain('#3 · Incident · Bengkalis, Riau')
     expect(markup).toContain(`2 on site · — · since ${formatTimeZone(since)}`)
     expect(markup).not.toContain(since)
+  })
+
+  it('names a fire like the queue does, and never prints its id', () => {
+    const incident = { ...fixture('normal').incident, id: 'inc_a', name: 'Dumai, Riau · Pak Dedi · #2' }
+    const markup = html({ fires: [fire({ placeName: 'Dumai' })], queue: [incident] })
+    expect(markup).toContain('Dumai, Riau · Pak Dedi · #2')
+    expect(markup).not.toMatch(/>Incident inc_a|inc_a<\/p>/)
+  })
+
+  it('falls back to the place, then to a plain word, for a fire the queue does not have', () => {
+    expect(html({ fires: [fire({ placeName: 'Dumai' })], queue: [] })).toContain('>Incident · Dumai<')
+    const bare = html({ fires: [fire()], queue: null })
+    expect(bare).toContain('>Incident<')
   })
 
   it('prefers the distance to risk over the first-report time when both exist', () => {

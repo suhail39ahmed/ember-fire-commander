@@ -29,8 +29,8 @@ export function incidentNumber(incident: Incident): number {
 }
 
 /** The name without its area prefix, for use under the area heading. */
-export function labelInArea(incident: Incident, area: string): string {
-  const label = incidentLabel(incident)
+export function labelInArea(incident: Incident, area: string, lang: 'id' | 'en' = 'en'): string {
+  const label = incidentLabel(incident, lang)
   const prefix = `${area} · `
   return label.startsWith(prefix) && label.length > prefix.length ? label.slice(prefix.length) : label
 }

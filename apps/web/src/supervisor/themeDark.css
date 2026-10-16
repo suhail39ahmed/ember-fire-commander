@@ -52,6 +52,7 @@
 [data-theme='dark'] .inc-pill.status-extinguished,
 [data-theme='dark'] .inc-skel { background: var(--tint-neutral); }
 [data-theme='dark'] .inc-pill-red,
+[data-theme='dark'] .incident-need-help,
 [data-theme='dark'] .type-withdraw .sup-chip,
 [data-theme='dark'] .inc-callout,
 [data-theme='dark'] .inc-modal-error { background: var(--tint-red); }
