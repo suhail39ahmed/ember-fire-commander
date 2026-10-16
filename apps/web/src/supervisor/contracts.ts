@@ -107,6 +107,8 @@ export type AuditAction =
   | 'incident.severity.lower'
   | 'incident.severity.raise'
   | 'site.reinspect'
+  | 'site.dismiss'
+  | 'site.recheck'
 
 /** Advisory photo triage, collection `photo_triage`, one per observation (section 5.7). */
 export interface PhotoTriage {

@@ -90,6 +90,7 @@ def test_dashboard_returns_agency_clock_and_proposed_count(client, monkeypatch):
             "wind": None,
             "rain": None,
         },
+        "reignitionAlert": None,
     }
 
 

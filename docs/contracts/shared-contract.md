@@ -288,6 +288,8 @@ Append-only. Clients do not write audit records. Every supervisor action and eve
 | `incident.severity.lower` | A supervisor lowered severity |
 | `incident.severity.raise` | Code raised severity on an existing incident. A new incident's first severity writes none |
 | `site.reinspect` | Code found new activity near an extinguished site (§5.7). `actorId` is `code` and `targetId` is the incident id |
+| `site.dismiss` | A supervisor dismissed a re-ignition alert with a reason. `targetId` is the incident id. The reason is stored on the alert |
+| `site.recheck` | A supervisor sent a re-check: a proposed `verify` task on the extinguished incident. The incident status stays `extinguished` |
 
 ### 5.6 Digest
 
@@ -305,7 +307,7 @@ The digest is built on request. A volunteer receives every incident, in any stat
 
 ### 5.7 Service-written collections
 
-These are written and read by the backend services only. No REST route in §6 returns them, and no client reads Firestore. All timestamps are ISO-8601 UTC strings. Advisory records never change an incident, an observation, or a severity.
+These are written and read by the backend services only, except the re-ignition alert fields that `GET /dashboard` returns (§6.9). No client reads Firestore. All timestamps are ISO-8601 UTC strings. Advisory records never change an incident, an observation, or a severity.
 
 #### `photo_triage`
 
@@ -705,7 +707,7 @@ Volunteers only. A supervisor receives `403`. The body is `{ "token": "<FCM devi
 
 ### 6.9 `GET /dashboard`
 
-Supervisor only. A volunteer receives `403 forbidden`. This is the summary the console reads, every 15 seconds. The chrome uses `agency`, `serverTime`, and `approvalsCount`. The live banner uses `updatedAt`, `nextSatellitePass`, and `liveFires`. Season impact uses `seasonImpact`. The chart cards use `charts`. The crews, wind, satellite-lead, and peat map layers are not in this response. The route does not return tasks, volunteer ids, volunteer names, or device tokens: only counts and figures. `ember-api` computes every figure on each read from records the other services already store, and writes nothing.
+Supervisor only. A volunteer receives `403 forbidden`. This is the summary the console reads, every 15 seconds. The chrome uses `agency`, `serverTime`, and `approvalsCount`. The live banner uses `updatedAt`, `nextSatellitePass`, and `liveFires`. Season impact uses `seasonImpact`. The chart cards use `charts`. A re-ignition alert uses `reignitionAlert`. The crews, wind, satellite-lead, and peat map layers are not in this response. The route does not return tasks, volunteer ids, volunteer names, or device tokens: only counts and figures. `ember-api` computes every figure on each read from records the other services already store, and writes nothing.
 
 ```json
 {
@@ -759,7 +761,8 @@ Supervisor only. A volunteer receives `403 forbidden`. This is the summary the c
     "humidity": "62%",
     "wind": "12 km/h SW",
     "rain": "0.0 mm"
-  }
+  },
+  "reignitionAlert": null
 }
 ```
 
@@ -814,6 +817,27 @@ Each `liveFires` item:
 | `airTempC`, `humidity`, `wind`, `rain`, `weatherNote` | number or string, or null | `weather/current` (§5.7), from the hourly ingest at one fixed monitoring point, not at the incident. `airTempC` is `tempC` to one decimal. `humidity` is `62%`. `wind` is `12 km/h SW`, with the compass point the wind blows from when `windDirDeg` is stored. `rain` is `0.0 mm`. A missing value is `null`. All are `null` when no weather document exists. `weatherNote` carries the read time in UTC |
 
 A source that cannot be read (a Firestore error) leaves its own cards `null` and is logged. The rest of the body is still returned with `200`.
+
+`reignitionAlert` is the newest undismissed re-ignition alert from `sites` (§5.7), or `null` when none. It never includes a lead id, lead kind, or coordinates (rule 7). `code` is always `null` until a stored site code exists.
+
+| Field | Type | Source |
+|---|---|---|
+| `id` | string | The alert id on the `sites` document |
+| `incidentId` | string | The extinguished incident id (also the site document id) |
+| `code` | null | No stored site code. The banner shows the empty treatment |
+| `distanceM` | number | `alert.distanceM` |
+| `extinguishedAt` | string | `site.extinguishedAt` |
+| `message` | string | `alert.message` |
+| `taskId` | string or null | Set after Send creates a proposed `verify` task. `null` while Send and Dismiss are still offered |
+
+### 6.10 Re-ignition alert actions
+
+Supervisor only. A volunteer receives `403`. Neither route changes the incident status or severity. The extinguished incident stays extinguished.
+
+| Method | Path | Body | Success |
+|---|---|---|---|
+| `POST` | `/sites/{incidentId}/alerts/{alertId}/dismiss` | `{ "reason": string }` non-blank, at most 500 characters | `200` `{ dismissed: true, auditId }`. Marks the alert dismissed on the site and writes `site.dismiss` |
+| `POST` | `/sites/{incidentId}/alerts/{alertId}/recheck` | none | `200` `{ task, auditId, alert }`. Creates a proposed `verify` task for one volunteer already on the site, sets `alert.taskId`, writes `site.recheck`. `409` when no volunteer is on the site, the alert was dismissed, or a re-check was already sent |
 
 `displayName` and `role` stay on `GET /me` (§6.1). There is no `onDuty` field, because no stored on-duty flag exists. `401` and `403` are as in §3. A profile with no agency is still `200` with `agency: null`. The crews, wind, satellite-lead, and peat map layers are not on this response.
 
@@ -1091,6 +1115,7 @@ Every route except `/healthz` needs the two headers in §2.
 | `updatedAt` | `GET /dashboard` | Always present on `200`. Same instant as `serverTime`. The live banner shows it as local `HH:mm` |
 | `nextSatellitePass` | `GET /dashboard` | The key is always there. `null` until a stored pass time exists. The banner shows the empty treatment |
 | `liveFires` | `GET /dashboard` | `[]` when no incident is `open`, `held`, or `verified`. The banner is hidden. `liveCameras`, `photoCadence`, and `distanceToRisk` are always `null`. `since` is `null` when no observation of the incident can be read. `placeName` is `null` only when the incident has no area, name, or position |
+| `reignitionAlert` | `GET /dashboard` | `null` when no undismissed alert exists. `code` is always `null`. `taskId` is `null` until Send. Lead id and coordinates are never returned |
 | `seasonImpact` | `GET /dashboard` | The key is always there. Counts are `0` when there is nothing to count. `injuries`, `since`, `region`, and `medianTimeToHumanCheck` are `null` without a source. The cards stay visible |
 | `charts` | `GET /dashboard` | The key is always there. Counts are `0` when there is nothing to count. `medianTarget` is always `null`, and the weather fields are `null` until ingest has stored a read. The cards stay visible |
 
@@ -1163,6 +1188,7 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · #94: tasks gain optional `sentAt`, `heardAt`, `sendCount` and a computed `resendAt` (§5.3). New `POST /tasks/{id}/resend` (supervisor) and `POST /tasks/{id}/heard` (volunteer), audits `task.resend` and `task.heard` (§5.5, §6.5). Approve, the withdraw route and code stamp `sentAt`. The volunteer app does not call `heard` yet.
 - 2026-10-16 · #91: the same `GET /dashboard` body adds the live banner: `updatedAt`, `nextSatellitePass` (`null`), and `liveFires` for `open`, `held`, and `verified` incidents (§6.9).
 - 2026-10-16 · #91: `GET /dashboard` adds `seasonImpact` and `charts`. Every field is `null` until a stored source exists (§6.9).
+- 2026-10-16 · #103: `GET /dashboard` adds `reignitionAlert`. `POST /sites/{incidentId}/alerts/{alertId}/dismiss` and `/recheck` dismiss with a reason or create a proposed `verify` without reopening the incident (§6.9, §6.10).
 - 2026-10-16 · `GET /dashboard` fills `liveFires[].code`, `placeName`, and `since`, `seasonImpact`, and `charts` from stored incidents, observations, tasks, audit rows, leads, device records, and `weather/current`. Same keys and null rules. Counts over no records are `0`. Cameras, photo cadence, distance to risk, the next satellite pass, injuries, and the median target stay `null` (§6.9).
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).

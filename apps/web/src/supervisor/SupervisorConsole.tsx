@@ -11,6 +11,7 @@ import type { SupervisorApi } from './api/types'
 import type { Incident, IncidentDetail } from './contracts'
 import { reasonOf } from './detail/outcomeCopy'
 import { LiveBanner } from './LiveBanner'
+import { ReignitionAlertBanner } from './ReignitionAlert'
 import { SeasonImpact } from './SeasonImpact'
 import { Charts } from './Charts'
 import { IncidentQueue } from './IncidentQueue'
@@ -202,6 +203,20 @@ function DashboardLiveBanner() {
   )
 }
 
+function DashboardReignitionAlert() {
+  const { pathname } = useLocation()
+  const { reignitionAlert, language, setReignitionAlert } = useConsole()
+  if (incidentIdFromPath(pathname) !== null) return null
+  return (
+    <ReignitionAlertBanner
+      alert={reignitionAlert}
+      lang={language}
+      onSent={(alert) => setReignitionAlert(alert)}
+      onDismissed={() => setReignitionAlert(null)}
+    />
+  )
+}
+
 function DashboardSeasonImpact() {
   const { pathname } = useLocation()
   const { seasonImpact, bannerRetrying, chromeError, language } = useConsole()
@@ -239,6 +254,7 @@ export function IncidentsPage() {
     <div className="sup">
       <div className="sup-main">
         <DashboardLiveBanner />
+        <DashboardReignitionAlert />
         <DashboardSeasonImpact />
         <DashboardCharts />
         {loadError && <p className="sup-error" role="alert">{loadError}</p>}
