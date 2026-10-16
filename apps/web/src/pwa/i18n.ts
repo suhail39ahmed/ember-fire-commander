@@ -24,6 +24,10 @@ const strings = {
   team: { id: 'Regu A · Desa (fiktif)', en: 'Crew A · Village (fictional)' },
   loading: { id: 'Memuat tugas…', en: 'Loading your tasks…' },
   loadError: { id: 'Tidak bisa terhubung ke EMBER.', en: 'Could not reach EMBER.' },
+  loadRefused: {
+    id: 'EMBER menolak akses ini. Coba lagi; jika tetap gagal, masuk ulang atau hubungi supervisor.',
+    en: 'EMBER refused this request. Try again; if it keeps failing, sign in again or contact your supervisor.',
+  },
   retry: { id: 'Coba lagi', en: 'Try again' },
   noTask: { id: 'Belum ada tugas', en: 'No tasks right now' },
   noTaskHint: {
