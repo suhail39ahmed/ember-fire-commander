@@ -169,10 +169,11 @@ Which fields a response carries:
 
 **Naming rules** (`services/agents/fusion/places.py`). Fusion sets `area` and `name` once, from the first observation's position, when it creates the incident.
 
-- `area` is the nearest entry of a built-in list of 19 towns in Riau, Jambi, Sumatera Selatan, and Kalimantan when that town is within 25 km. Otherwise it is a coordinate label with two decimals, such as `1.48°N 102.12°E`. The town coordinates are approximate and are meant to be extended.
+- `area` is the nearest entry of a built-in list of 28 places (26 towns in Riau, Jambi, Sumatera Selatan, and Kalimantan, plus Bengaluru and Pune where the team tests) when that place is within 25 km. Otherwise it is a coordinate label with two decimals, such as `1.48°N 102.12°E`. The town coordinates are approximate and are meant to be extended.
 - `name` is `area`, then the reporter, then `#<number>`, joined by ` · `. The reporter is the first observation's `volunteerName`, else `volunteers/{uid}.displayName`, cut to 40 characters on one line. The reporter part is left out when there is no name.
 - `<number>` comes from `counters/incidents` (§5.7), so it is the order in which incidents were created. Numbering starts at 1 unless `counters/incidents.value` is set by hand.
 - Naming never fails intake. If the counter or name step fails, `area` is still written and `name` is not.
+- `scripts/backfill-incident-names.py` gives older incidents the same `area` and `name` with the same code. It is a dry run unless `--apply` is passed, never changes a `name` or `area` that exists, and takes numbers from `counters/incidents` in the order of each incident's earliest report.
 
 **Queue grouping** (`apps/web/src/supervisor/queueGroups.ts`). This is a display rule in the console, not stored data. The group key is `area`, else the part of `name` before the first ` · `, else `Unnamed area`. Groups are ordered by: any active `withdraw` first, then the highest severity, then the highest `#<number>`, then the area name. The severity rank used for this ordering puts `unknown` between `none` and `smoke`. Incidents keep the order the API returned them in within a group.
 
@@ -1310,5 +1311,6 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · console gaps, audit: new supervisor audit rows store the optional `actorName` from the token, and `GET /audit` shows names instead of ids for the actor, the volunteer and the incident, with the fallbacks in §5.5. No route and no field is removed.
 - 2026-10-16 · console gaps, lists: a supervisor's `GET /incidents` adds `reportCount`, `volunteerCount`, `needsHelp`, `verified` and `verifiedBy` to each record (§6.3), and the new supervisor route `GET /tasks?status=proposed` lists the tasks waiting for a decision with the incident label and the volunteer's name (§6.5, §12.1). A volunteer's `GET /incidents` and `/digest` are unchanged.
 - 2026-10-16 · console gaps, map: `GET /dashboard` `charts` adds the numbers `windKmh` and `windDirDeg` from `weather/current`, `null` when not stored (§6.9). The console draws a wind arrow from them.
+- 2026-10-16 · console gaps, names: `PLACES` gains seven checked towns and the two test cities Bengaluru and Pune (§5.2 naming rules), and `scripts/backfill-incident-names.py` names older incidents with the same code (dry run unless `--apply`). Existing names and areas are never changed.
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).
