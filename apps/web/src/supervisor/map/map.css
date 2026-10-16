@@ -3,6 +3,7 @@
 .map-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .map-head p { margin: 0; }
 .map-canvas, .map-schematic, .map-empty { height: 300px; border-radius: 12px; border: 1px solid var(--line, #e7e1d8); }
+.map-full .map-canvas, .map-full .map-schematic, .map-full .map-empty { height: max(420px, calc(100vh - 280px)); }
 .map-schematic { position: relative; background: #eef0e6; overflow: hidden; }
 .map-empty { display: flex; align-items: center; justify-content: center; color: var(--ink-muted, #6b645c); background: #faf7f2; }
 .map-note { position: absolute; left: 10px; top: 8px; margin: 0; font-size: 12px; color: var(--ink-muted, #6b645c); background: rgba(255,255,255,0.85); border-radius: 8px; padding: 2px 8px; }

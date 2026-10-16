@@ -109,9 +109,10 @@ describe('console chrome', () => {
     expect(audit).not.toContain('incident detail content')
     expect(audit).not.toMatch(/<form|<input|<select|<textarea/)
 
-    const settings = renderAt('/console/settings')
-    expect(anchor(settings, '/console/settings')).toContain('aria-current="page"')
-    expect(settings).not.toMatch(/<form|<input|<select|<textarea/)
+    // Settings has nothing to change yet, so it is not in the menu.
+    expect(audit).not.toContain('href="/console/settings"')
+    expect(audit).toContain('href="/console/map"')
+    expect(audit).toContain('href="/console/approvals"')
 
     const detail = renderAt('/console/incidents/inc_1')
     expect(detail).toContain('incident detail content')

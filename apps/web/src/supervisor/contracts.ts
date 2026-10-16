@@ -288,3 +288,23 @@ export interface Site {
   alerts: SiteAlert[]
   lastAlertAt?: string
 }
+
+/**
+ * One row of GET /tasks?status=proposed (section 6.5): a task waiting for a decision, with the incident
+ * it belongs to and the volunteer's name. `incident` is null when the incident record is gone, and
+ * `volunteerName` is null when no name is stored.
+ */
+export interface ProposedTask {
+  task: Task
+  incident: {
+    id: string
+    name: string | null
+    area: string | null
+    /** The label ember-api built with the one naming rule. Never an id. */
+    label: string
+    status: IncidentStatus
+    severity: Severity
+    conflictId: string | null
+  } | null
+  volunteerName: string | null
+}

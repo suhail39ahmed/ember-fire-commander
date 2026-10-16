@@ -4,6 +4,7 @@
  */
 export const mapCopy = {
   title: { id: 'Peta siaga', en: 'Live map' },
+  loading: { id: 'Memuat peta…', en: 'Loading the map…' },
   fires: { id: 'Kebakaran', en: 'Fires' },
   crews: { id: 'Kru', en: 'Crews' },
   wind: { id: 'Angin', en: 'Wind' },

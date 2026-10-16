@@ -13,12 +13,10 @@ const ConsoleLayout = lazyPage(() => import('../supervisor/ConsoleLayout').then(
 const IncidentsShell = lazyPage(() => import('../supervisor/SupervisorConsole').then((m) => m.IncidentsShell))
 const IncidentsPage = lazyPage(() => import('../supervisor/SupervisorConsole').then((m) => m.IncidentsPage))
 const IncidentDetailPage = lazyPage(() => import('../supervisor/detail/IncidentDetailPage').then((m) => m.IncidentDetailPage))
+const ApprovalsPage = lazyPage(() => import('../supervisor/ApprovalsPage').then((m) => m.ApprovalsPage))
+const MapPage = lazyPage(() => import('../supervisor/MapPage').then((m) => m.MapPage))
+const SettingsPage = lazyPage(() => import('../supervisor/SettingsPage').then((m) => m.SettingsPage))
 const AuditLogPage = lazyPage(() => import('../supervisor/AuditLogPage').then((m) => m.AuditLogPage))
-
-/** Empty content slot. Later issues fill these routes; this one does not invent the page. */
-function ConsoleSlot() {
-  return null
-}
 
 export function AppRoutes() {
   return (
@@ -46,11 +44,11 @@ export function AppRoutes() {
         <Route element={<IncidentsShell />}>
           <Route path="/console" element={<IncidentsPage />} />
           <Route path="/console/incidents/:incidentId" element={<IncidentDetailPage />} />
+          <Route path="/console/approvals" element={<ApprovalsPage />} />
+          <Route path="/console/map" element={<MapPage />} />
         </Route>
-        <Route path="/console/approvals" element={<ConsoleSlot />} />
-        <Route path="/console/map" element={<ConsoleSlot />} />
         <Route path="/console/audit" element={<AuditLogPage />} />
-        <Route path="/console/settings" element={<ConsoleSlot />} />
+        <Route path="/console/settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

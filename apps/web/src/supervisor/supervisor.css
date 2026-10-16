@@ -365,3 +365,8 @@
   .console-top { flex-wrap: wrap; }
   .sup-work, .sup-grid { grid-template-columns: 1fr; }
 }
+.approvals-title { margin: 0; font-size: 22px; font-weight: 700; }
+.approvals-count { color: var(--ink-muted); font-size: 15px; font-weight: 600; }
+.approvals-group { display: flex; flex-direction: column; gap: 8px; }
+.approvals-incident { margin: 0; font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.approvals-incident a { color: inherit; }

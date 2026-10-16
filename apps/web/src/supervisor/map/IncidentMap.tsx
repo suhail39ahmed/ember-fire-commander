@@ -19,6 +19,8 @@ export interface IncidentMapProps {
   mapsKey?: string
   /** Dashboard layer toggles. Detail leaves this off. */
   showLayers?: boolean
+  /** `full` fills the page, for the Map screen. The default sits inside the dashboard. */
+  size?: 'panel' | 'full'
   lang?: Lang
 }
 
@@ -224,7 +226,7 @@ export function IncidentMap(props: IncidentMapProps) {
   const emptyNote = EMPTY_LAYERS.filter((layer) => emptyOn.has(layer)).map((layer) => t(lang, mapCopy[layer]))
 
   return (
-    <section className="sup-card map-card" aria-label="Incident locations">
+    <section className={props.size === 'full' ? 'sup-card map-card map-full' : 'sup-card map-card'} aria-label="Incident locations">
       <div className="map-head">
         <p className="sup-label">{props.showLayers ? t(lang, mapCopy.title) : 'INCIDENT LOCATIONS'}</p>
         <p className="sup-muted">{count} {count === 1 ? 'incident' : 'incidents'} · positions from ember-api</p>

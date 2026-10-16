@@ -38,7 +38,6 @@ const MENU: { id: ConsoleMenu; to: string }[] = [
   { id: 'approvals', to: CONSOLE_PATHS.approvals },
   { id: 'map', to: CONSOLE_PATHS.map },
   { id: 'audit', to: CONSOLE_PATHS.audit },
-  { id: 'settings', to: CONSOLE_PATHS.settings },
 ]
 
 function menuLabel(id: ConsoleMenu, language: ReturnType<typeof useConsole>['language'], count: number | null): string {

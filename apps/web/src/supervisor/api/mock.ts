@@ -4,7 +4,8 @@
  * is exercised against the real outcomes, including 409 while dispatch is held.
  */
 import { ApiError } from '../../pwa/api/types'
-import type { IncidentDetail, Task } from '../contracts'
+import type { IncidentDetail, ProposedTask, Task } from '../contracts'
+import { incidentLabel } from '../../pwa/incidentName'
 import { lowerChoices } from '../detail/severityModel'
 import { fixture, type FixtureName } from '../fixtures'
 import { regionFixtures } from '../map/fixtures'
@@ -166,6 +167,21 @@ export function createMockSupervisorApi(
           volunteerCount: new Set(d.observations.map((o) => o.volunteerId)).size,
           needsHelp: d.observations.some((o) => o.chip === 'butuh_bantuan'),
         }))
+    },
+    async listProposedTasks() {
+      await wait()
+      const items: ProposedTask[] = []
+      for (const d of details) {
+        for (const task of d.tasks.filter((x) => x.status === 'proposed')) {
+          const i = d.incident
+          items.push({
+            task: structuredClone(task),
+            incident: { id: i.id, name: i.name ?? null, area: i.area ?? null, label: incidentLabel(i), status: i.status, severity: i.severity, conflictId: i.conflictId },
+            volunteerName: d.observations.find((o) => o.volunteerId === task.volunteerId && o.volunteerName)?.volunteerName ?? null,
+          })
+        }
+      }
+      return items
     },
     async getIncident(id) {
       await wait()
