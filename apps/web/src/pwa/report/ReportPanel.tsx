@@ -7,6 +7,7 @@ import { MAX_NOTE_LENGTH } from './buildObservation'
 import { ChipRow } from './ChipRow'
 import { SentCard } from './SentCard'
 import type { LocationResult } from './location'
+import { clearDraft, loadDraft, saveDraft } from './draft'
 import { sendReport } from './sendReport'
 import { statusLine, type ReportStatus } from './status'
 
@@ -21,17 +22,34 @@ interface Props {
   preset?: { chip: ChipValue | null; n: number }
   /** Sends through the offline outbox (#21). Without it the report goes straight to POST /observations. */
   submit?: (body: ObservationCreate) => Promise<'sent' | 'queued'>
+  /** Whose draft this is. Without it nothing is kept between visits. */
+  volunteerId?: string | null
 }
 
+const signatureOf = (chip: ChipValue | null, text: string) => `${chip ?? ''}|${text}`
+const EMPTY_SIGNATURE = signatureOf(null, '')
+
 /** #17: chip and text report. Works without Live voice. */
-export function ReportPanel({ api, lang, locate, onLocationGranted, preset, submit }: Props) {
-  const [chip, setChip] = useState<ChipValue | null>(null)
-  const [text, setText] = useState('')
+export function ReportPanel({ api, lang, locate, onLocationGranted, preset, submit, volunteerId = null }: Props) {
+  // A draft left by this volunteer within the last hour comes back after a reload or a closed app (#160).
+  const [restored] = useState(() => (volunteerId ? loadDraft(volunteerId) : null))
+  const [chip, setChip] = useState<ChipValue | null>(restored?.chip ?? null)
+  const [text, setText] = useState(restored?.text ?? '')
+  const savedAs = useRef(restored ? signatureOf(restored.chip, restored.text) : EMPTY_SIGNATURE)
   const [status, setStatus] = useState<ReportStatus>({ kind: 'idle' })
   // capturedAt is fixed when the report is first sent and reused on retry.
   const pending = useRef<{ capturedAt: string } | null>(null)
   const statusRef = useRef(status)
   statusRef.current = status
+
+  // Keep the draft as it changes. The restored draft is not saved again, so reopening never makes it look newer.
+  useEffect(() => {
+    if (!volunteerId) return
+    const signature = signatureOf(chip, text)
+    if (signature === savedAs.current) return
+    savedAs.current = signature
+    saveDraft(volunteerId, { chip, text })
+  }, [chip, text, volunteerId])
 
   useEffect(() => {
     if (!preset || preset.n === 0) return
@@ -85,6 +103,8 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, subm
         // The success card takes the form's place and shows what was sent; the form starts empty again.
         setStatus({ kind: outcome.kind, at: new Date().toISOString(), chip, text })
         pending.current = null
+        clearDraft()
+        savedAs.current = EMPTY_SIGNATURE
         setChip(null)
         setText('')
         return
@@ -113,6 +133,8 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, subm
 
   function reset() {
     pending.current = null
+    clearDraft()
+    savedAs.current = EMPTY_SIGNATURE
     setChip(null)
     setText('')
     setStatus({ kind: 'idle' })

@@ -162,6 +162,7 @@ export function VolunteerApp({ api: apiOverride }: { api?: EmberApi }) {
           onLocationGranted={watchLocationGranted}
           preset={preset}
           submit={outbox.submit}
+          volunteerId={volunteerId}
         />
 
         <PhotoPanel
