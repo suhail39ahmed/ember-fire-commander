@@ -14,6 +14,7 @@ import { ReportScreen } from '../screens/ReportScreen'
 import { DeclineScreen } from '../screens/DeclineScreen'
 import { NotAFireScreen } from '../screens/NotAFireScreen'
 import { TaskScreen } from '../screens/TaskScreen'
+import { usePushNavigation } from '../push/usePushNavigation'
 import { useMarkHeard } from '../useMarkHeard'
 import { useWakeLock } from '../useWakeLock'
 import { VolunteerHeader } from '../VolunteerHeader'
@@ -34,6 +35,7 @@ export function PhoneLayout() {
   const { api, me, volunteerId, digest, digestStatus, lastSyncAt, refresh, outbox, mock } = v
 
   const task = currentTask(digest)
+  usePushNavigation()
   const flow = useWithdrawFlow({ api, digest, volunteerId, task })
   const withdraw = flow.active !== null
   useMarkHeard(api, digest, task?.id ?? null, withdraw)

@@ -193,12 +193,19 @@ self.addEventListener('push', (event) => {
   )
 })
 
-// A tap opens the volunteer screen. A WITHDRAW task shows the WITHDRAW screen
-// there as soon as the digest loads, so an open page is told to refresh now.
+// A tap opens the screen the push belongs to: WITHDRAW at the app root, where it covers everything as soon as
+// the digest loads, or the task named in the push. This is the same rule as src/pwa/push/target.ts. An open
+// page is told what was tapped, so it refreshes and moves there now.
+function pushTarget(data) {
+  if (data.type === 'withdraw') return '/pwa?push=withdraw'
+  const id = typeof data.taskId === 'string' ? data.taskId.trim() : ''
+  return id ? '/pwa/task/' + encodeURIComponent(id) : '/pwa'
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const data = event.notification.data || {}
-  const target = data.type === 'withdraw' ? '/pwa?push=withdraw' : '/pwa'
+  const target = pushTarget(data)
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (windows) => {
       const open = windows.find((w) => new URL(w.url).origin === self.location.origin)
