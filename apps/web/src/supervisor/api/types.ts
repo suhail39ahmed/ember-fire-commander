@@ -1,5 +1,29 @@
 import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, TaskDecision, WithdrawRequest } from '../contracts'
 
+/** One row from GET /audit (issue #99). Display fields are built by ember-api. */
+export interface AuditEntry {
+  id: string
+  at: string
+  actorId: string
+  actorName: string
+  action: string
+  targetId: string
+  target: string
+  detail: string
+  incidentId: string | null
+}
+
+export interface AuditPage {
+  items: AuditEntry[]
+  nextCursor: string | null
+}
+
+export interface AuditQuery {
+  targetId?: string
+  cursor?: string
+  limit?: number
+}
+
 /**
  * The ember-api operations the supervisor console uses.
  * There is deliberately no call that clears a withdraw: withdraw is issued by code or by
@@ -8,6 +32,8 @@ import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, Tas
 export interface SupervisorApi {
   listIncidents(): Promise<Incident[]>
   getIncident(id: string): Promise<IncidentDetail>
+  /** Append-only log. Newest first. Optional targetId and cursor for paging. */
+  listAudit(query?: AuditQuery): Promise<AuditPage>
   approveTask(id: string): Promise<TaskDecision>
   rejectTask(id: string): Promise<TaskDecision>
   editTask(id: string, instruction: string): Promise<TaskDecision>

@@ -1,0 +1,139 @@
+.audit-page {
+  padding: 28px 32px 48px;
+  min-width: 0;
+}
+
+.audit-header h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.audit-sub {
+  margin: 0 0 28px;
+  max-width: 62ch;
+  color: var(--ink-muted, #6b645c);
+  line-height: 1.45;
+}
+
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid var(--line, #e7e1d8);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.audit-table th,
+.audit-table td {
+  padding: 12px 14px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line, #e7e1d8);
+}
+
+.audit-table th {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted, #6b645c);
+  background: #faf7f2;
+}
+
+.audit-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.audit-time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--ink-muted, #6b645c);
+}
+
+.audit-action code,
+.audit-action-withdraw code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.audit-action-withdraw,
+.audit-action-withdraw code {
+  color: var(--danger, #c81e1e);
+  font-weight: 650;
+}
+
+.audit-row-withdraw {
+  background: #fdecec;
+}
+
+.audit-row-open {
+  cursor: pointer;
+}
+
+.audit-row-open:hover {
+  filter: brightness(0.985);
+}
+
+.audit-row-open:focus-visible {
+  outline: 2px solid var(--ember, #e2531b);
+  outline-offset: -2px;
+}
+
+.audit-detail {
+  color: var(--ink-muted, #6b645c);
+}
+
+.audit-empty,
+.audit-status {
+  margin: 24px 0;
+  color: var(--ink-muted, #6b645c);
+}
+
+.audit-error {
+  margin: 0 0 16px;
+  color: var(--danger, #c81e1e);
+}
+
+.audit-retry,
+.audit-more {
+  margin-top: 16px;
+  border: 1px solid var(--line, #e7e1d8);
+  background: #fff;
+  color: var(--ink, #1c1917);
+  border-radius: 999px;
+  padding: 10px 18px;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.audit-retry {
+  margin-top: 0;
+  margin-left: 8px;
+}
+
+.audit-retry:focus-visible,
+.audit-more:focus-visible {
+  outline: 2px solid var(--ember, #e2531b);
+  outline-offset: 2px;
+}
+
+.audit-more:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+@media (max-width: 900px) {
+  .audit-page {
+    padding: 20px 16px 40px;
+  }
+
+  .audit-table {
+    display: block;
+    overflow-x: auto;
+  }
+}

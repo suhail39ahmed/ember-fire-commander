@@ -7,11 +7,12 @@ import type { AuthHeadersProvider } from '../../pwa/api/authHeaders'
 import { API_BASE_URL } from '../../pwa/api/config'
 import { ApiError } from '../../pwa/api/types'
 import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, TaskDecision, WithdrawRequest } from '../contracts'
-import type { SupervisorApi } from './types'
+import type { AuditPage, AuditQuery, SupervisorApi } from './types'
 
 export const SUPERVISOR_ENDPOINTS = {
   incidents: '/incidents',
   incident: (id: string) => `/incidents/${encodeURIComponent(id)}`,
+  audit: '/audit',
   verify: (id: string) => `/incidents/${encodeURIComponent(id)}/verify`,
   withdraw: (id: string) => `/incidents/${encodeURIComponent(id)}/withdraw`,
   withdrawSafe: (id: string) => `/incidents/${encodeURIComponent(id)}/withdraw/safe`,
@@ -22,6 +23,15 @@ export const SUPERVISOR_ENDPOINTS = {
   resend: (id: string) => `/tasks/${encodeURIComponent(id)}/resend`,
   edit: (id: string) => `/tasks/${encodeURIComponent(id)}/edit`,
 } as const
+
+function auditQuery(query: AuditQuery = {}): string {
+  const params = new URLSearchParams()
+  if (query.targetId) params.set('targetId', query.targetId)
+  if (query.cursor) params.set('cursor', query.cursor)
+  if (query.limit != null) params.set('limit', String(query.limit))
+  const text = params.toString()
+  return text ? `${SUPERVISOR_ENDPOINTS.audit}?${text}` : SUPERVISOR_ENDPOINTS.audit
+}
 
 function isErrorBody(body: unknown): body is ErrorBody {
   const error = (body as ErrorBody | null)?.error
@@ -61,6 +71,7 @@ export function createHttpSupervisorApi(
   return {
     listIncidents: () => request<Incident[]>(SUPERVISOR_ENDPOINTS.incidents),
     getIncident: (id) => request<IncidentDetail>(SUPERVISOR_ENDPOINTS.incident(id)),
+    listAudit: (query) => request<AuditPage>(auditQuery(query)),
     approveTask: (id) => post<TaskDecision>(SUPERVISOR_ENDPOINTS.approve(id)),
     rejectTask: (id) => post<TaskDecision>(SUPERVISOR_ENDPOINTS.reject(id)),
     editTask: (id, instruction) => post<TaskDecision>(SUPERVISOR_ENDPOINTS.edit(id), { instruction }),
