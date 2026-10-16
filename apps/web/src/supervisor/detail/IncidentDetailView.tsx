@@ -22,6 +22,8 @@ import { LowerSeverityDialog } from './LowerSeverityDialog'
 import { disagreeCopy, factorName } from './disagreeCopy'
 import { AgencyInCharge } from './AgencyInCharge'
 import { ConflictExtras } from './ConflictExtras'
+import { helpRequests } from './helpModel'
+import { NeedHelpBanner } from './NeedHelpBanner'
 import { ProposalRow } from './ProposalRow'
 import { ReportCard } from './ReportCard'
 import { SendWithdrawDialog } from './SendWithdrawDialog'
@@ -186,6 +188,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
   const reportTotal = detail.volunteers ? detail.volunteers.reduce((sum, c) => sum + c.reportCount, 0) : detail.observations.length
   const reporters = detail.volunteers ? detail.volunteers.filter((c) => c.reportCount > 0).length : new Set(detail.observations.map((o) => o.volunteerId)).size
   const summary = summaryText(lang, detail.summary)
+  const help = helpRequests(detail, lang)
   return (
     <>
       <header className="inc-head">
@@ -216,6 +219,8 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         {notice && <p className="sup-ok" role="status">{notice}</p>}
         <OutcomeLine outcome={actions.outcomes[incident.id]} lang={lang} />
       </header>
+
+      <NeedHelpBanner lang={lang} requests={help} offline={offline} onReply={(id) => setPopupId(id)} />
 
       {wd && <WithdrawPanel lang={lang} state={wd} now={serverNow} offline={offline} markSafe={markSafe} nameOf={(id) => nameOf(detail, id, lang)} />}
 

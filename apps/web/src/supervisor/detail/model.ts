@@ -11,11 +11,16 @@ export function volunteerLabel(id: string, lang: 'id' | 'en'): string {
   return `${lang === 'id' ? 'Relawan' : 'Volunteer'} ${id.slice(-4).toUpperCase()}`
 }
 
-/** The reporter's name as the API gave it on any of their observations, else on their card, else the short code. */
-export function nameOf(detail: Pick<IncidentDetail, 'observations' | 'volunteers'>, id: string, lang: 'id' | 'en'): string {
+/** The reporter's name as the API stored it, on any of their observations or on their card. Null when none is stored. */
+export function storedName(detail: Pick<IncidentDetail, 'observations' | 'volunteers'>, id: string): string | null {
   const named = detail.observations.find((o) => o.volunteerId === id && o.volunteerName?.trim())
   const card = detail.volunteers?.find((c) => c.volunteerId === id)?.name?.trim()
-  return named?.volunteerName?.trim() || card || volunteerLabel(id, lang)
+  return named?.volunteerName?.trim() || card || null
+}
+
+/** The reporter's name as the API gave it on any of their observations, else on their card, else the short code. */
+export function nameOf(detail: Pick<IncidentDetail, 'observations' | 'volunteers'>, id: string, lang: 'id' | 'en'): string {
+  return storedName(detail, id) ?? volunteerLabel(id, lang)
 }
 
 export function initialsOf(label: string): string {

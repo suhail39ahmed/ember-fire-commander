@@ -280,7 +280,7 @@ export function IncidentsPage() {
             <div className="sup-work-detail">
               <IncidentMap incidents={queue} selectedId={activeId} onSelect={select} showLayers lang={language} />
               {detail && detail.incident.id === activeId ? (
-                <IncidentView key={detail.incident.id} detail={detail} actions={actions} />
+                <IncidentView key={detail.incident.id} detail={detail} actions={actions} lang={language} />
               ) : !loadError ? (
                 <div className="sup-state" role="status"><p className="sup-state-title">Loading live incident…</p></div>
               ) : null}

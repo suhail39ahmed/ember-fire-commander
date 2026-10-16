@@ -333,7 +333,10 @@
 .sup-obs { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
 .sup-obs p { margin: 2px 0; }
 .sup-obs-who { font-weight: 600; }
-.sup-obs-text { font-style: italic; }
+.sup-obs-text { font-style: italic; overflow-wrap: anywhere; white-space: pre-wrap; }
+.sup-obs, .sup-obs-who { min-width: 0; overflow-wrap: anywhere; }
+.sup-obs.help { border-color: var(--danger); box-shadow: 0 0 0 2px #fde2e2; }
+.sup-obs-help { margin: 2px 0; color: var(--danger); font-weight: 700; font-size: 12px; letter-spacing: 0.06em; }
 .sup-sev { font-weight: 700; }
 .sev-large_flame, .sev-small_flame { color: var(--danger); }
 .sev-smoke { color: var(--haze); }

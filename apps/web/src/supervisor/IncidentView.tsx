@@ -5,11 +5,14 @@ import { t as tr, type Lang } from '../pwa/i18n'
 import { incidentLabel } from '../pwa/incidentName'
 import { taskCopy, taskStatusName } from './detail/copy'
 import { EditInstructionDialog } from './detail/EditInstructionDialog'
-import { nameOf } from './detail/model'
+import { helpCopy } from './detail/helpCopy'
+import { helpRequests, HELP_CHIP } from './detail/helpModel'
+import { nameOf, storedName } from './detail/model'
+import { NeedHelpBanner } from './detail/NeedHelpBanner'
 import { outcomeText } from './detail/outcomeCopy'
 import type { IncidentDetail, Observation, Task, TaskDecision } from './contracts'
 import {
-  canVerify, conflictPair, SEVERITY_LABEL, STATUS_LABEL, TASK_LABEL, taskControls, volunteerName, withdrawBanner,
+  canVerify, conflictPair, SEVERITY_LABEL, STATUS_LABEL, TASK_LABEL, taskControls, withdrawBanner,
 } from './view'
 
 /** Last backend answer for one task or incident, shown next to its controls. */
@@ -36,12 +39,15 @@ export interface IncidentActions {
   onVerify(incidentId: string): void
 }
 
-function ObservationCard({ obs }: { obs: Observation }) {
+function ObservationCard({ obs, detail, lang }: { obs: Observation; detail: IncidentDetail; lang: Lang }) {
+  // The Reports panel lists many reporters at once, so a missing name reads as just "Volunteer".
+  const name = storedName(detail, obs.volunteerId) ?? (lang === 'id' ? 'Relawan' : 'Volunteer')
+  const help = obs.chip === HELP_CHIP
   return (
-    <article className="sup-obs" aria-label={`Report from ${volunteerName(obs.volunteerId)}`}>
-      <p className="sup-obs-who">{volunteerName(obs.volunteerId)} · {formatTimeZone(obs.capturedAt)}</p>
+    <article className={help ? 'sup-obs help' : 'sup-obs'} aria-label={`Report from ${name}`}>
+      <p className="sup-obs-who">{name} · {formatTimeZone(obs.capturedAt)}</p>
       <p className={`sup-sev sev-${obs.severity}`}>{SEVERITY_LABEL[obs.severity]}</p>
-      {obs.chip && <p className="sup-muted">Chip: {obs.chip.replace('_', ' ')}</p>}
+      {obs.chip && <p className={help ? 'sup-obs-help' : 'sup-muted'}>{help ? tr(lang, helpCopy.badge).toUpperCase() : `Chip: ${obs.chip.replace('_', ' ')}`}</p>}
       {obs.text && <p className="sup-obs-text">“{obs.text}”</p>}
       <p className="sup-muted">Source: {obs.source} · ±{obs.accuracyM ?? '?'} m</p>
     </article>
@@ -71,7 +77,7 @@ export function TaskRow({ task, detail, actions, offline = false, lang, editor =
     <li className={`sup-task type-${task.type}`}>
       <div className="sup-task-head">
         <span className="sup-chip">{lang ? tr(lang, taskCopy.type[task.type]) : TASK_LABEL[task.type]}</span>
-        <strong>{lang ? nameOf(detail, task.volunteerId, lang) : volunteerName(task.volunteerId)}</strong>
+        <strong>{nameOf(detail, task.volunteerId, language)}</strong>
         <span className={`sup-status status-${task.status}`}>{lang ? tr(lang, taskStatusName[task.status]) : task.status}</span>
       </div>
       <p className="sup-task-text">{task.instruction ?? '—'}</p>
@@ -108,22 +114,24 @@ export function TaskRow({ task, detail, actions, offline = false, lang, editor =
   )
 }
 
-export function IncidentView({ detail, actions }: { detail: IncidentDetail; actions: IncidentActions }) {
+export function IncidentView({ detail, actions, lang = 'en' }: { detail: IncidentDetail; actions: IncidentActions; lang?: Lang }) {
   const { incident, conflict } = detail
   const banner = withdrawBanner(incident)
   const pair = conflictPair(detail)
   const others = conflict ? [] : detail.observations
   return (
-    <section className="sup-incident" aria-label={`Incident ${incidentLabel(incident)}`}>
+    <section className="sup-incident" aria-label={`Incident ${incidentLabel(incident, lang)}`}>
       <header className="sup-head">
         <div>
-          <h1>{incidentLabel(incident)}</h1>
+          <h1>{incidentLabel(incident, lang)}</h1>
           <p className="sup-muted">
             {STATUS_LABEL[incident.status]} · {SEVERITY_LABEL[incident.severity]} · {detail.observations.length} reports
           </p>
         </div>
         <span className="sup-guard">Safety Guard on</span>
       </header>
+
+      <NeedHelpBanner lang={lang} requests={helpRequests(detail, lang)} />
 
       {banner && (
         <div className="sup-withdraw" role="alert" aria-live="assertive">
@@ -132,7 +140,7 @@ export function IncidentView({ detail, actions }: { detail: IncidentDetail; acti
           </p>
           <p className="sup-withdraw-text">{banner.instruction}</p>
           <p className="sup-withdraw-meta">
-            {banner.volunteerIds.map(volunteerName).join(', ')}
+            {banner.volunteerIds.map((id) => nameOf(detail, id, lang)).join(', ')}
             {banner.reasons.length > 0 && ` · ${banner.reasons.join(', ')}`}
           </p>
         </div>
@@ -159,7 +167,7 @@ export function IncidentView({ detail, actions }: { detail: IncidentDetail; acti
               <p className="sup-label">{conflict.status === 'open' ? 'EMBER IS NOT SURE' : 'CONFLICT RESOLVED'}</p>
               <h2>Reports disagree. Both are kept side by side.</h2>
               <div className="sup-pair">
-                {pair.map((o) => <ObservationCard key={o.id} obs={o} />)}
+                {pair.map((o) => <ObservationCard key={o.id} obs={o} detail={detail} lang={lang} />)}
               </div>
               <p className="sup-muted">
                 Incident keeps the higher severity: {SEVERITY_LABEL[conflict.higherSeverity]}.
@@ -172,7 +180,7 @@ export function IncidentView({ detail, actions }: { detail: IncidentDetail; acti
             <section className="sup-card" aria-label="Reports">
               <p className="sup-label">REPORTS</p>
               <div className="sup-pair">
-                {others.map((o) => <ObservationCard key={o.id} obs={o} />)}
+                {others.map((o) => <ObservationCard key={o.id} obs={o} detail={detail} lang={lang} />)}
               </div>
             </section>
           )}
