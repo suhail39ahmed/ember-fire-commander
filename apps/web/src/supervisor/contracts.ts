@@ -110,6 +110,17 @@ export interface DetailSummary {
   at: string | null
 }
 
+/**
+ * What a supervisor's read adds for an incident with a conflict (section 6.3). Both lists are `[]` when nothing is stored.
+ * No wind or satellite factor, no "conflict opened" audit row and no `investigate` proposal exists to return.
+ */
+export interface ConflictContext {
+  /** Reports on neither side of the disagreement (smoke or unknown), oldest first. `observations` lists only the two sides. */
+  otherObservations: Observation[]
+  /** Recorded decisions on the conflict's verify and investigate tasks and on the incident, oldest first. */
+  audit: TimelineEntry[]
+}
+
 /** GET /incidents/{id} (section 6.3). */
 export interface IncidentDetail {
   incident: Incident
@@ -126,6 +137,10 @@ export interface IncidentDetail {
   timeline?: TimelineEntry[]
   /** Supervisor read only. Null until a summary is stored. */
   summary?: DetailSummary | null
+  /** Supervisor read only. Null when the incident has no conflict. Absent from an older API. */
+  conflictContext?: ConflictContext | null
+  /** Supervisor read only. The agency stored on the incident. Null until one is stored, which nothing does yet. Absent from an older API. */
+  agencyInCharge?: string | null
 }
 
 /** Task decisions (section 6.5). */

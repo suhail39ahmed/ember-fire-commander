@@ -1,0 +1,5 @@
+/* Reports disagree extras and agency in charge. */
+.dis-decisions { margin: 0 0 8px; }
+.agency-name { margin: 0 0 4px; font-size: 18px; font-weight: 700; overflow-wrap: anywhere; }
+.agency-empty { color: var(--ink-muted); font-weight: 600; }
+.agency-yours { margin-top: 8px; }
