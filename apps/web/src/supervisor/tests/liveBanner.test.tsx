@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { StaticRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { LiveBanner } from '../LiveBanner'
 import type { LiveFire } from '../chromeClient'
 
@@ -44,7 +44,7 @@ describe('live banner', () => {
   it('shows the count, the clock, people on site, and an active withdraw', () => {
     const markup = html()
     expect(markup).toContain('LIVE · 2 FIRES NEED YOU')
-    expect(markup).toContain(`Updated ${formatTime(updatedAt)} · next satellite pass —`)
+    expect(markup).toContain(`Updated ${formatTimeZone(updatedAt)} · next satellite pass —`)
     expect(markup).toContain('2 on site · — · —')
     expect(markup).toContain('1 on site · — · —')
     expect(markup).toContain('Withdraw')
@@ -60,7 +60,7 @@ describe('live banner', () => {
       fires: [fire({ code: '#3', placeName: 'Bengkalis, Riau', since })],
     })
     expect(markup).toContain('#3 · Bengkalis, Riau')
-    expect(markup).toContain(`2 on site · — · since ${formatTime(since)}`)
+    expect(markup).toContain(`2 on site · — · since ${formatTimeZone(since)}`)
     expect(markup).not.toContain(since)
   })
 

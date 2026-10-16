@@ -1,4 +1,4 @@
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { t, type Lang } from '../../pwa/i18n'
 import type { ConflictContext, IncidentDetail } from '../contracts'
 import { actionText, actorOf, subjectOf } from './cardModel'
@@ -36,7 +36,7 @@ export function ConflictExtras({ lang, detail, context }: { lang: Lang; detail: 
           <ol className="inc-timeline dis-decisions">
             {context.audit.map((e) => (
               <li key={e.id}>
-                <time dateTime={e.at}>{formatTime(e.at)}</time>
+                <time dateTime={e.at}>{formatTimeZone(e.at)}</time>
                 <span>
                   {actorOf(detail, e, lang)} · {actionText(lang, e)}
                   {subjectOf(detail, e, lang) && ` · ${subjectOf(detail, e, lang)}`}

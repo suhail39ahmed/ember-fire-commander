@@ -76,7 +76,3 @@ export function canVerify(incident: Incident): boolean {
   return incident.status === 'open' || incident.status === 'held'
 }
 
-export function timeOf(iso: string): string {
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? iso : d.toISOString().slice(11, 16) + ' UTC'
-}

@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { authHeadersFor } from '../pwa/api/authHeaders'
 import { USE_MOCK_API } from '../pwa/api/config'
 import { ApiError } from '../pwa/api/types'
-import { formatTime } from '../pwa/formatTime'
+import { formatTimeZone } from '../pwa/formatTime'
 import { t } from '../pwa/i18n'
 import { useLanguage } from '../pwa/language'
 import { createHttpSupervisorApi } from './api/client'
@@ -62,7 +62,7 @@ function AuditTable({
               tabIndex={openable ? 0 : undefined}
               role={openable ? 'link' : undefined}
             >
-              <td className="audit-time">{formatTime(entry.at)}</td>
+              <td className="audit-time">{formatTimeZone(entry.at)}</td>
               <td>{entry.actorName}</td>
               <td className={withdraw ? 'audit-action-withdraw' : 'audit-action'}>
                 <code>{actionLabel(entry.action)}</code>

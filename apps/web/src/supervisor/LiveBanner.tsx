@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 
-import { formatTime } from '../pwa/formatTime'
+import { formatTimeZone } from '../pwa/formatTime'
 import { t, type Lang } from '../pwa/i18n'
 import { bannerCopy } from './bannerCopy'
 import type { LiveFire } from './chromeClient'
@@ -29,7 +29,7 @@ function firesNeedYou(count: number, lang: Lang): string {
 
 function LiveFireCard({ fire, lang }: { fire: LiveFire; lang: Lang }) {
   const middle = fire.liveCameras ?? fire.photoCadence
-  const last = fire.distanceToRisk ?? (fire.since ? `${t(lang, bannerCopy.since)} ${formatTime(fire.since)}` : null)
+  const last = fire.distanceToRisk ?? (fire.since ? `${t(lang, bannerCopy.since)} ${formatTimeZone(fire.since)}` : null)
   return (
     <article className="live-fire">
       <div>
@@ -62,8 +62,8 @@ export function LiveBanner({ fires, updatedAt, nextSatellitePass, loading, retry
     )
   }
   if (fires.length === 0 && !retrying) return null
-  const updated = updatedAt ? formatTime(updatedAt) : EMPTY
-  const pass = nextSatellitePass ? formatTime(nextSatellitePass) : EMPTY
+  const updated = updatedAt ? formatTimeZone(updatedAt) : EMPTY
+  const pass = nextSatellitePass ? formatTimeZone(nextSatellitePass) : EMPTY
   return (
     <section className="live-banner" aria-label={t(lang, bannerCopy.live)}>
       {fires.length > 0 && (

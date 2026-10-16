@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { USE_MOCK_API } from '../pwa/api/config'
 import { ApiError } from '../pwa/api/types'
-import { formatTime } from '../pwa/formatTime'
+import { formatTimeZone } from '../pwa/formatTime'
 import { t, type Lang } from '../pwa/i18n'
 import {
   dismissReignitionAlert,
@@ -37,7 +37,7 @@ function relativeAgo(iso: string, lang: Lang): string {
 }
 
 function extinguishedLine(alert: AlertData, lang: Lang): string {
-  const when = formatTime(alert.extinguishedAt)
+  const when = formatTimeZone(alert.extinguishedAt)
   const date = (() => {
     const d = new Date(alert.extinguishedAt)
     if (Number.isNaN(d.getTime())) return EMPTY

@@ -1,4 +1,4 @@
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { t, type Lang } from '../../pwa/i18n'
 import { chipLabel } from '../../pwa/report/chips'
 import type { Observation } from '../contracts'
@@ -19,7 +19,7 @@ export function ReportCard({ lang, obs }: { lang: Lang; obs: Observation }) {
       <header className="rep-head">
         <h3 className="rep-name">{name}</h3>
         <p className="rep-meta">
-          <time dateTime={obs.capturedAt}>{formatTime(obs.capturedAt)}</time> · ±{obs.accuracyM ?? '?'} m
+          <time dateTime={obs.capturedAt}>{formatTimeZone(obs.capturedAt)}</time> · ±{obs.accuracyM ?? '?'} m
         </p>
       </header>
       <div className="rep-pills">

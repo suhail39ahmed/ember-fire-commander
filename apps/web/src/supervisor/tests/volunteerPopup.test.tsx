@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { StaticRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import type { IncidentDetail, Observation } from '../contracts'
 import { fixture } from '../fixtures'
 import type { IncidentActions } from '../IncidentView'
@@ -80,8 +80,8 @@ describe('volunteer pop-up: every region of the frame is there', () => {
   it('shows the profile values the API has and a dash for the rest', () => {
     const html = popup(fixture('conflict'), 'uid_sari')
     expect(html).toContain('<dt>Position</dt><dd>-1.849, 110.051 · ±22 m</dd>')
-    expect(html).toContain(`<dt>First report</dt><dd>${formatTime('2026-10-17T03:05:00Z')}</dd>`)
-    expect(html).toContain('<dt>Incident</dt><dd>Ketapang, Kalimantan Barat · Pak Dedi · #1 · inc_demo_01</dd>')
+    expect(html).toContain(`<dt>First report</dt><dd>${formatTimeZone('2026-10-17T03:05:00Z')}</dd>`)
+    expect(html).toContain('<dt>Incident</dt><dd>Ketapang, Kalimantan Barat · Pak Dedi · #1</dd>')
     for (const label of ['Role', 'Network', 'Battery', 'Language', 'Last heard']) expect(html).toContain(`<dt>${label}</dt><dd>—</dd>`)
     expect(html).toContain('Crew role, network, battery and spoken language are not stored by any service.')
   })
@@ -96,7 +96,7 @@ describe('volunteer pop-up: every region of the frame is there', () => {
 
   it('lists photo reports by time and volunteer, asking for the signed link and never printing the storage path', () => {
     const html = popup(withPhoto(fixture('conflict')), 'uid_sari')
-    expect(html).toContain(`${formatTime('2026-10-17T03:07:00Z')} · Sari`)
+    expect(html).toContain(`${formatTimeZone('2026-10-17T03:07:00Z')} · Sari`)
     expect(html).toContain('Loading photo…')
     expect(html).not.toContain('photos/uid_sari')
   })

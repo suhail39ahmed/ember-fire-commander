@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import { formatTimeZone } from '../pwa/formatTime'
 import { t as tr, type Lang } from '../pwa/i18n'
 import { incidentLabel } from '../pwa/incidentName'
 import { taskCopy, taskStatusName } from './detail/copy'
@@ -8,7 +9,7 @@ import { nameOf } from './detail/model'
 import { outcomeText } from './detail/outcomeCopy'
 import type { IncidentDetail, Observation, Task, TaskDecision } from './contracts'
 import {
-  canVerify, conflictPair, SEVERITY_LABEL, STATUS_LABEL, TASK_LABEL, taskControls, timeOf, volunteerName, withdrawBanner,
+  canVerify, conflictPair, SEVERITY_LABEL, STATUS_LABEL, TASK_LABEL, taskControls, volunteerName, withdrawBanner,
 } from './view'
 
 /** Last backend answer for one task or incident, shown next to its controls. */
@@ -38,7 +39,7 @@ export interface IncidentActions {
 function ObservationCard({ obs }: { obs: Observation }) {
   return (
     <article className="sup-obs" aria-label={`Report from ${volunteerName(obs.volunteerId)}`}>
-      <p className="sup-obs-who">{volunteerName(obs.volunteerId)} · {timeOf(obs.capturedAt)}</p>
+      <p className="sup-obs-who">{volunteerName(obs.volunteerId)} · {formatTimeZone(obs.capturedAt)}</p>
       <p className={`sup-sev sev-${obs.severity}`}>{SEVERITY_LABEL[obs.severity]}</p>
       {obs.chip && <p className="sup-muted">Chip: {obs.chip.replace('_', ' ')}</p>}
       {obs.text && <p className="sup-obs-text">“{obs.text}”</p>}

@@ -2,7 +2,7 @@
  * What the supervisor read says about a volunteer, as short lines. Every line comes from a stored value on the
  * card; a value the API sent as null is left out, never replaced with a guess.
  */
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { t, type Lang } from '../../pwa/i18n'
 import type { DetailSummary, IncidentDetail, TimelineEntry, VolunteerCardData } from '../contracts'
 import { cardCopy, summaryCopy, timelineCopy } from './cardCopy'
@@ -27,7 +27,7 @@ export function deliveryFacts(lang: Lang, card: VolunteerCardData | null): strin
   const w = card?.withdraw
   if (!w) return []
   const facts: string[] = []
-  facts.push(w.heardAt ? `${t(lang, cardCopy.heard)} ${formatTime(w.heardAt)}` : t(lang, cardCopy.notHeard))
+  facts.push(w.heardAt ? `${t(lang, cardCopy.heard)} ${formatTimeZone(w.heardAt)}` : t(lang, cardCopy.notHeard))
   if (w.delivery) facts.push(t(lang, cardCopy.delivery[w.delivery]))
   if (w.sendCount !== null && w.sendCount > 1) facts.push(`${w.sendCount}×`)
   return facts
@@ -38,7 +38,7 @@ export function safeStamp(lang: Lang, card: VolunteerCardData | null): string | 
   const w = card?.withdraw
   if (!w || !w.safe) return null
   const parts = [t(lang, cardCopy.markedSafe)]
-  if (w.safeAt) parts[0] += ` ${formatTime(w.safeAt)}`
+  if (w.safeAt) parts[0] += ` ${formatTimeZone(w.safeAt)}`
   if (w.safeBy?.name) parts.push(`${t(lang, cardCopy.by)} ${w.safeBy.name}`)
   return parts.join(' · ')
 }

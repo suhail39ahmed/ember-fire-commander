@@ -16,10 +16,10 @@ const render = (props: Partial<Parameters<typeof IncidentMap>[0]> = {}) =>
   )
 
 describe('pin rules', () => {
-  it('labels pins with the incident name, or a short id for an unnamed one', () => {
+  it('labels pins with the incident name, or its place for an unnamed one', () => {
     const [conflict, normal] = region()
     expect(pinStyle(normal).label).toBe('Ketapang, Kalimantan Barat · Sari · #2 · Open · Small flame')
-    expect(pinStyle({ ...conflict, name: null, id: '4kQ9xZ7hLm' }).label).toMatch(/^INC-7HLM · /)
+    expect(pinStyle({ ...conflict, name: null, id: '4kQ9xZ7hLm' }).label).toMatch(/^Incident · Ketapang, Kalimantan Barat · /)
     expect(pinStyle({ ...conflict, name: undefined, id: '4kQ9xZ7hLm' }).label).not.toContain('4kQ9xZ7hLm')
   })
 

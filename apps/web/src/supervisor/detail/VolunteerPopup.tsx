@@ -1,11 +1,10 @@
 import { useState, type ReactNode } from 'react'
 
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { chipText } from '../../pwa/report/chips'
 import { t, type Lang } from '../../pwa/i18n'
-import { shortIncidentId } from '../../pwa/incidentName'
 import type { IncidentDetail, PhotoUrl, TaskDecision } from '../contracts'
-import { detailCopy, severityName, taskCopy } from './copy'
+import { severityName, taskCopy } from './copy'
 import { DeliveryLine } from './DeliveryLine'
 import { factorName } from './disagreeCopy'
 import { instructionCopy, photoCopy, profileCopy, suggestCopy } from './instructionCopy'
@@ -63,7 +62,7 @@ function Transcript({ lang, popup }: { lang: Lang; popup: Popup }) {
           {popup.reports.map((o) => (
             <li key={o.id}>
               <p className="pop-line-meta">
-                {formatTime(o.capturedAt)} · {t(lang, severityName[o.severity])}
+                {formatTimeZone(o.capturedAt)} · {t(lang, severityName[o.severity])}
                 {o.chip && ` · ${chipText(o.chip, lang)}`}
                 {o.source === 'photo' && ` · ${t(lang, popupCopy.photoReport)}`}
               </p>
@@ -87,7 +86,7 @@ function Snapshots({ lang, popup, incidentId, photoUrl }: { lang: Lang; popup: P
           {popup.photos.map((o) => (
             <li key={o.id} className="pop-snap">
               <SnapshotImage lang={lang} observationId={o.id} load={(observationId) => photoUrl(incidentId, observationId)} />
-              <span>{formatTime(o.capturedAt)} · {popup.profile.name}</span>
+              <span>{formatTimeZone(o.capturedAt)} · {popup.profile.name}</span>
             </li>
           ))}
         </ul>
@@ -106,7 +105,7 @@ function Sent({ lang, popup, now, onResend }: { lang: Lang; popup: Popup; now: n
         <ul className="pop-lines">
           {popup.tasks.map((task) => (
             <li key={task.id}>
-              <p className="pop-line-meta">{t(lang, taskCopy.type[task.type])}{task.sentAt && ` · ${formatTime(task.sentAt)}`}</p>
+              <p className="pop-line-meta">{t(lang, taskCopy.type[task.type])}{task.sentAt && ` · ${formatTimeZone(task.sentAt)}`}</p>
               <p className="pop-line-text">{task.instruction ?? '—'}</p>
               <DeliveryLine lang={lang} task={task} now={now} onResend={onResend} />
             </li>
@@ -122,16 +121,16 @@ function Profile({ lang, popup }: { lang: Lang; popup: Popup }) {
   const none = '—'
   const rows: Array<[string, string]> = [
     [t(lang, popupCopy.role), none],
-    [t(lang, popupCopy.incident), `${p.incidentName ?? `${t(lang, detailCopy.idLabel)} ${shortIncidentId(p.incidentId)}`} · ${p.incidentId}`],
+    [t(lang, popupCopy.incident), p.incidentName ?? '—'],
     [t(lang, popupCopy.position), p.position ? `${p.position}${p.accuracyM !== null ? ` · ±${p.accuracyM} m` : ''}` : none],
     [t(lang, popupCopy.distance), p.distance ?? none],
-    [t(lang, popupCopy.firstReport), p.firstReportAt ? formatTime(p.firstReportAt) : none],
-    [t(lang, popupCopy.lastReport), p.lastReportAt ? formatTime(p.lastReportAt) : none],
+    [t(lang, popupCopy.firstReport), p.firstReportAt ? formatTimeZone(p.firstReportAt) : none],
+    [t(lang, popupCopy.lastReport), p.lastReportAt ? formatTimeZone(p.lastReportAt) : none],
     [t(lang, popupCopy.reports), String(p.reportCount)],
     [t(lang, popupCopy.network), none],
     [t(lang, popupCopy.battery), none],
     [t(lang, popupCopy.language), none],
-    [t(lang, popupCopy.lastHeard), p.lastHeardAt ? formatTime(p.lastHeardAt) : none],
+    [t(lang, popupCopy.lastHeard), p.lastHeardAt ? formatTimeZone(p.lastHeardAt) : none],
     [t(lang, profileCopy.device), p.pushReady === null ? none : t(lang, p.pushReady ? profileCopy.deviceYes : profileCopy.deviceNo)],
   ]
   return (
@@ -275,7 +274,7 @@ export function VolunteerPopup({ lang, detail, volunteerId, onClose, offline, no
     <Modal title={profile.name} onClose={onClose} wide>
       <p className="pop-sub">
         <span className="inc-avatar" aria-hidden="true">{profile.initials}</span>
-        {profile.incidentName ?? shortIncidentId(profile.incidentId)} · {profile.incidentId}
+        {profile.incidentName}
         {popup.withdrawn && <span className="inc-pill inc-pill-red">{t(lang, popupCopy.withdrawn)}</span>}
       </p>
       <div className="pop-grid">

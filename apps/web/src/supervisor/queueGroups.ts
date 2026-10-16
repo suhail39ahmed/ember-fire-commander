@@ -2,7 +2,7 @@
  * The incident queue grouped by area (section 5.2 `area`). Display only: the
  * order and the groups come from fields ember-api returns, nothing is decided here.
  */
-import { incidentLabel } from '../pwa/incidentName'
+import { coordinateLabel, incidentLabel } from '../pwa/incidentName'
 import type { Incident, Severity } from './contracts'
 
 export const UNNAMED_AREA = 'Unnamed area'
@@ -14,12 +14,12 @@ export interface AreaGroup {
   incidents: Incident[]
 }
 
-/** `area`, else the part of `name` before the first " · ", else "Unnamed area". */
+/** `area`, else the part of `name` before the first " · ", else the position as a label, else "Unnamed area". */
 export function areaOf(incident: Incident): string {
   const area = incident.area?.trim()
   if (area) return area
   const fromName = incident.name?.split(' · ')[0].trim()
-  return fromName || UNNAMED_AREA
+  return fromName || coordinateLabel(incident.lat, incident.lng) || UNNAMED_AREA
 }
 
 /** The incident number in a name such as "Bengkalis, Riau · Pak Dedi · #3". Higher is newer; -1 when unnamed. */

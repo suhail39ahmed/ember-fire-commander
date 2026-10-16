@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { StaticRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import type { IncidentDetail } from '../contracts'
 import { fixture } from '../fixtures'
 import type { IncidentActions } from '../IncidentView'
@@ -120,10 +120,9 @@ describe('incident detail: default', () => {
     expect(html).toContain('<h1 class="inc-title">Ketapang, Kalimantan Barat · Pak Dedi · #1</h1>')
     expect(html).toContain('HELD · CONFLICT')
     expect(html).toContain('DISPATCH ON HOLD')
-    expect(html).toContain('ID inc_demo_01')
     expect(html).toContain('2 on site')
     expect(html).toContain('aria-label="SEVERITY"')
-    expect(html).toContain('Highest report wins · Dedi · ' + formatTime('2026-10-17T03:02:00Z'))
+    expect(html).toContain('Highest report wins · Dedi · ' + formatTimeZone('2026-10-17T03:02:00Z'))
     expect(html).toContain('aria-label="EVIDENCE"')
     expect(html).toContain('>40<')
     expect(html).toContain('-1.849, 110.051')
@@ -150,11 +149,12 @@ describe('incident detail: default', () => {
     expect(html).not.toContain('uid_sari')
   })
 
-  it('names an incident without a name by a short code', () => {
+  it('names an incident without a name by its place, never by its id', () => {
     const detail = fixture('normal')
     detail.incident = { ...detail.incident, id: '4kQ9xZ7hLm', name: null }
     const html = view({ detail, incidentId: '4kQ9xZ7hLm' })
-    expect(html).toContain('<h1 class="inc-title">INC-7HLM</h1>')
+    expect(html).toContain('<h1 class="inc-title">Incident · Ketapang, Kalimantan Barat</h1>')
+    expect(html).not.toMatch(/INC-|4kQ9/)
   })
 
   it('keeps Verify and the task decisions that existed before', () => {
@@ -222,8 +222,8 @@ describe('incident detail: loading and errors', () => {
     expect(html).not.toContain('Approve')
   })
 
-  it('uses the short code while loading an incident the queue does not have', () => {
-    expect(view({ detail: null, queue: null, incidentId: '4kQ9xZ7hLm' })).toContain('Loading INC-7HLM…')
+  it('uses a plain word while loading an incident the queue does not have', () => {
+    expect(view({ detail: null, queue: null, incidentId: '4kQ9xZ7hLm' })).toContain('Loading Incident…')
   })
 
   it('explains a missing incident in plain words with a way back, and no status code', () => {
@@ -246,7 +246,7 @@ describe('incident detail: connection lost', () => {
   it('keeps the last known incident, shows the reconnect bar and the safety rules', () => {
     const html = view({ link: 'lost' })
     expect(html).toContain('Reconnecting…')
-    expect(html).toContain(`last update ${formatTime(NOW - 2 * 60000)} (2 min ago)`)
+    expect(html).toContain(`last update ${formatTimeZone(NOW - 2 * 60000)} (2 min ago)`)
     expect(html).toContain('Retrying every 5 s.')
     expect(html).toContain('Retry now')
     expect(html).toContain('WHAT STILL WORKS WITHOUT YOUR CONSOLE')

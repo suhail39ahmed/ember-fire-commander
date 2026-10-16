@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
 import { ApiError } from '../../pwa/api/types'
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { createMockSupervisorApi } from '../api/mock'
 import { createHttpSupervisorApi, SUPERVISOR_ENDPOINTS } from '../api/client'
 import type { Task } from '../contracts'
@@ -81,7 +81,7 @@ describe('delivery: the heard toast events', () => {
 
   it('names who heard it, when, the text, and that it is logged, with no undo', () => {
     const html = renderToStaticMarkup(<HeardToast lang="en" name="Sari" event={{ taskId: 't1', volunteerId: 'uid_sari', heardAt: '2026-10-17T03:20:23.000Z', text: 'Move 20 m north' }} onClose={() => undefined} />)
-    expect(html).toContain(`Sari heard it · ${formatTime('2026-10-17T03:20:23.000Z')}`)
+    expect(html).toContain(`Sari heard it · ${formatTimeZone('2026-10-17T03:20:23.000Z')}`)
     expect(html).toContain('“Move 20 m north” · on their phone · logged')
     expect(html).toContain('UNDO NOT POSSIBLE · AUDIT')
     expect(html).not.toMatch(/>Undo<|batalkan/i)
@@ -95,19 +95,19 @@ describe('delivery: the card line', () => {
 
   it('shows heard with the time', () => {
     const html = renderToStaticMarkup(<DeliveryLine lang="en" task={task({ heardAt: '2026-10-17T03:20:23.000Z' })} now={at(SENT)} onResend={resend} />)
-    expect(html).toContain(`heard ✓ ${formatTime('2026-10-17T03:20:23.000Z')}`)
+    expect(html).toContain(`heard ✓ ${formatTimeZone('2026-10-17T03:20:23.000Z')}`)
     expect(html).not.toContain('Resend')
   })
 
   it('shows not heard, when it was sent and the resend countdown, without a resend button yet', () => {
     const html = renderToStaticMarkup(<DeliveryLine lang="en" task={task()} now={at('2026-10-17T03:20:20Z')} onResend={resend} />)
-    expect(html).toContain(`Not heard yet · sent ${formatTime(SENT)} · resend in 0:40`)
+    expect(html).toContain(`Not heard yet · sent ${formatTimeZone(SENT)} · resend in 0:40`)
     expect(html).not.toContain('>Resend<')
   })
 
   it('offers Resend once it is open, and never an undo', () => {
     const html = renderToStaticMarkup(<DeliveryLine lang="en" task={task()} now={at('2026-10-17T03:22:00Z')} onResend={resend} />)
-    expect(html).toContain(`Not heard · sent ${formatTime(SENT)}`)
+    expect(html).toContain(`Not heard · sent ${formatTimeZone(SENT)}`)
     expect(html).toContain('>Resend<')
     expect(html).not.toMatch(/undo/i)
   })

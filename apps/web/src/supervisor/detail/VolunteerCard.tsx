@@ -1,4 +1,4 @@
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { chipText } from '../../pwa/report/chips'
 import { t, type Lang } from '../../pwa/i18n'
 import { detailCopy, severityName } from './copy'
@@ -11,7 +11,7 @@ import { initialsOf, volunteerLabel, type VolunteerRow } from './model'
 function reportLine(lang: Lang, row: VolunteerRow): string {
   const n = row.reportCount
   const at = row.card?.lastReportAt ?? row.latest?.capturedAt
-  const time = at ? formatTime(at) : '--:--'
+  const time = at ? formatTimeZone(at) : '--:--'
   const word = lang === 'id' ? 'laporan' : n === 1 ? 'report' : 'reports'
   return `${n} ${word} · ${time}`
 }

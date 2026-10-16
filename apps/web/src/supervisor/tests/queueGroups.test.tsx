@@ -10,6 +10,7 @@ import {
 
 const base = fixture('normal').incident
 const inc = (id: string, over: Partial<Incident> = {}): Incident => ({ ...base, id, name: null, area: null, ...over })
+const noPosition = { lat: Number.NaN, lng: Number.NaN }
 const named = (id: string, area: string, n: number, over: Partial<Incident> = {}) =>
   inc(id, { area, name: `${area} · Pak Dedi · #${n}`, ...over })
 
@@ -22,9 +23,13 @@ describe('areaOf', () => {
     expect(areaOf(inc('a', { name: 'Dumai, Riau · Sari · #2' }))).toBe('Dumai, Riau')
   })
 
-  it('puts incidents with neither under "Unnamed area"', () => {
-    expect(areaOf(inc('a'))).toBe(UNNAMED_AREA)
-    expect(areaOf(inc('a', { area: '  ', name: '' }))).toBe(UNNAMED_AREA)
+  it('uses the position as the area when there is neither a stored area nor a name', () => {
+    expect(areaOf(inc('a'))).toBe('1.85°S 110.05°E')
+    expect(areaOf(inc('a', { area: '  ', name: '', lat: 13.05, lng: 77.63 }))).toBe('13.05°N 77.63°E')
+  })
+
+  it('puts incidents with no area, no name and no position under "Unnamed area"', () => {
+    expect(areaOf(inc('a', { lat: Number.NaN, lng: Number.NaN }))).toBe(UNNAMED_AREA)
     expect(UNNAMED_AREA).toBe('Unnamed area')
   })
 })
@@ -75,7 +80,7 @@ describe('groupByArea', () => {
   })
 
   it('shows unnamed incidents in one group, after named ones of the same severity', () => {
-    const groups = groupByArea([inc('x'), named('a', 'Dumai, Riau', 1), inc('y')])
+    const groups = groupByArea([inc('x', noPosition), named('a', 'Dumai, Riau', 1), inc('y', noPosition)])
     expect(groups.map((g) => [g.area, g.incidents.length])).toEqual([['Dumai, Riau', 1], [UNNAMED_AREA, 2]])
   })
 
@@ -101,7 +106,8 @@ describe('labelInArea', () => {
   })
 
   it('keeps the whole label when it does not start with the area', () => {
-    expect(labelInArea(inc('4kQ9xZ7hLm'), UNNAMED_AREA)).toBe('INC-7HLM')
+    expect(labelInArea(inc('4kQ9xZ7hLm', noPosition), UNNAMED_AREA)).toBe('Incident')
+    expect(labelInArea(inc('4kQ9xZ7hLm'), '1.85°S 110.05°E')).toBe('Incident · 1.85°S 110.05°E')
     expect(labelInArea(named('a', 'Dumai, Riau', 1), 'Bengkalis, Riau')).toBe('Dumai, Riau · Pak Dedi · #1')
   })
 })
@@ -111,7 +117,7 @@ describe('IncidentQueue', () => {
     named('a', 'Bengkalis, Riau', 3, { severity: 'large_flame' }),
     named('b', 'Bengkalis, Riau', 1),
     named('c', 'Dumai, Riau', 2),
-    inc('4kQ9xZ7hLm'),
+    inc('4kQ9xZ7hLm', noPosition),
   ])
   const html = renderToStaticMarkup(<IncidentQueue groups={groups} activeId="c" onSelect={() => undefined} />)
 
@@ -131,7 +137,8 @@ describe('IncidentQueue', () => {
     expect(html.indexOf('Bengkalis, Riau (2)')).toBeLessThan(html.indexOf('Dumai, Riau (1)'))
     expect(html.indexOf('Dumai, Riau (1)')).toBeLessThan(html.indexOf('Unnamed area (1)'))
     expect(html).toContain('<span>Pak Dedi · #3</span>')
-    expect(html).toContain('<span>INC-7HLM</span>')
+    expect(html).toContain('<span>Incident</span>')
+    expect(html).not.toMatch(/INC-|4kQ9/)
   })
 
   it('marks only the active incident', () => {

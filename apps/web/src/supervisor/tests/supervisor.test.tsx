@@ -30,11 +30,11 @@ describe('incident heading', () => {
     expect(html).not.toContain('inc_demo_01</h1>')
   })
 
-  it('shows a short id for an incident without a name', () => {
+  it('shows the place for an incident without a name, never its id', () => {
     const detail = fixture('normal')
     detail.incident = { ...detail.incident, id: '4kQ9xZ7hLm', name: null }
     const html = renderToStaticMarkup(<IncidentView detail={detail} actions={noop} />)
-    expect(html).toContain('<h1>INC-7HLM</h1>')
+    expect(html).toContain('<h1>Incident · Ketapang, Kalimantan Barat</h1>')
     expect(html).not.toContain('4kQ9xZ7hLm</h1>')
   })
 })

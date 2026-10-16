@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { t, type Lang } from '../../pwa/i18n'
 import type { IncidentDecision } from '../contracts'
 import { submitSafe } from './markSafe'
@@ -23,7 +23,7 @@ export interface WithdrawPanelProps {
 
 function Header({ lang, state }: { lang: Lang; state: WithdrawState }) {
   const by = state.source === 'code' ? t(lang, stateCopy.sentByCode) : state.source === 'supervisor' ? t(lang, stateCopy.sentBySupervisor) : null
-  const at = state.sentAt ? formatTime(state.sentAt) : null
+  const at = state.sentAt ? formatTimeZone(state.sentAt) : null
   return (
     <div className="wd-head">
       <p className="wd-eyebrow">
@@ -104,7 +104,7 @@ export function WithdrawPanel({ lang, state, now, offline, markSafe, nameOf }: W
                 </p>
                 {(lastAt || place || heard.length > 0) && (
                   <p className="wd-facts">
-                    {[lastAt ? `${t(lang, cardCopy.lastReport)} ${formatTime(lastAt)}` : null, place, ...heard].filter(Boolean).join(' · ')}
+                    {[lastAt ? `${t(lang, cardCopy.lastReport)} ${formatTimeZone(lastAt)}` : null, place, ...heard].filter(Boolean).join(' · ')}
                   </p>
                 )}
                 <div className="wd-actions">

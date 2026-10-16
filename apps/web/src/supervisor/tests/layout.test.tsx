@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { createLanguageStore } from '../../pwa/language'
 import { LanguageProvider } from '../../pwa/LanguageProvider'
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { ApiError } from '../../pwa/api/types'
 import { ConsoleLayout } from '../ConsoleLayout'
 import { useConsole } from '../ConsoleProvider'
@@ -85,7 +85,7 @@ describe('console chrome', () => {
     expect(html).toContain('Supervisor Console')
     expect(html).toContain('Bu Maya · BPBD Kepulauan Meranti')
     expect(html).toContain('Approvals · 3')
-    expect(html).toContain(formatTime(chrome.serverTime))
+    expect(html).toContain(formatTimeZone(chrome.serverTime))
     expect(html).toMatch(/date[tT]ime="2026-10-16T07:46:00Z"/)
     expect(html).toContain('On duty')
     expect(html).toContain('aria-label="Account"')
