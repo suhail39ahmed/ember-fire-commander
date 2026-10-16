@@ -135,3 +135,63 @@ def test_volunteer_cannot_dismiss_or_recheck(client, monkeypatch, db):
         json={"reason": "no"},
     ).status_code == 403
     assert client.post("/sites/inc_karimun/alerts/alert_1/recheck", headers=AUTH).status_code == 403
+
+
+def test_dashboard_has_no_alert_when_sites_are_empty(client, monkeypatch, db):
+    _as(monkeypatch)
+    assert client.get("/dashboard", headers=AUTH).get_json()["reignitionAlert"] is None
+
+
+def test_recheck_conflicts_when_no_volunteer_on_site(client, monkeypatch, db):
+    _as(monkeypatch)
+    _site(db)
+    db.data["sites"]["inc_karimun"]["observationIds"] = []
+    del db.data["observations"]["obs_k"]
+    response = client.post("/sites/inc_karimun/alerts/alert_1/recheck", headers=AUTH)
+    assert response.status_code == 409
+    assert response.get_json()["error"]["code"] == "conflict"
+    assert db.data["incidents"]["inc_karimun"]["status"] == "extinguished"
+    assert "tasks" not in db.data or not db.data.get("tasks")
+
+
+def test_recheck_conflicts_when_already_sent(client, monkeypatch, db):
+    _as(monkeypatch)
+    _site(db, {"taskId": "task_existing"})
+    response = client.post("/sites/inc_karimun/alerts/alert_1/recheck", headers=AUTH)
+    assert response.status_code == 409
+    assert client.get("/dashboard", headers=AUTH).get_json()["reignitionAlert"]["taskId"] == "task_existing"
+
+
+def test_dismiss_conflicts_when_already_dismissed(client, monkeypatch, db):
+    _as(monkeypatch)
+    _site(db, {
+        "dismissedAt": "2026-10-16T11:30:00Z",
+        "dismissReason": "Already looked",
+    })
+    response = client.post(
+        "/sites/inc_karimun/alerts/alert_1/dismiss",
+        headers=AUTH,
+        json={"reason": "again"},
+    )
+    assert response.status_code == 409
+    assert client.get("/dashboard", headers=AUTH).get_json()["reignitionAlert"] is None
+
+
+def test_dismiss_conflicts_when_recheck_already_sent(client, monkeypatch, db):
+    _as(monkeypatch)
+    _site(db, {"taskId": "task_existing"})
+    response = client.post(
+        "/sites/inc_karimun/alerts/alert_1/dismiss",
+        headers=AUTH,
+        json={"reason": "too late"},
+    )
+    assert response.status_code == 409
+
+
+def test_recheck_only_for_extinguished_incident(client, monkeypatch, db):
+    _as(monkeypatch)
+    _site(db)
+    db.data["incidents"]["inc_karimun"]["status"] = "open"
+    response = client.post("/sites/inc_karimun/alerts/alert_1/recheck", headers=AUTH)
+    assert response.status_code == 409
+    assert db.data["incidents"]["inc_karimun"]["status"] == "open"
