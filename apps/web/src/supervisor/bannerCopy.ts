@@ -10,6 +10,7 @@ export const bannerCopy = {
   satellite: { id: 'lintasan satelit berikutnya', en: 'next satellite pass' },
   empty: { id: '—', en: '—' },
   onSite: { id: 'di lokasi', en: 'on site' },
+  since: { id: 'sejak', en: 'since' },
   incident: { id: 'Insiden', en: 'Incident' },
   open: { id: 'Buka', en: 'Open' },
   withdraw: { id: 'Tarik diri', en: 'Withdraw' },

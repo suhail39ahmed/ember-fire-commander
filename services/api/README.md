@@ -71,7 +71,7 @@ Routes follow `docs/contracts/shared-contract.md` §6.3 to §6.5, and `GET /dash
 | `GET /incidents` | both roles | Supervisor: incidents that are `open`, `held` or `verified`. Volunteer: incidents linked to their observations, tasks or a withdraw instruction |
 | `GET /incidents/{id}` | both roles | `incident`, `observations`, `conflict`, `tasks`. A volunteer not on the incident gets `404` and sees only their own tasks |
 | `GET /digest` | both roles | `updatedAt`, `incidents` (summaries), `myTasks` (empty for a supervisor) |
-| `GET /dashboard` | supervisor | `agency` (or `null`), `serverTime`, `approvalsCount` of `proposed` tasks, the live banner (`updatedAt`, `nextSatellitePass`, `liveFires`), `seasonImpact`, and `charts`. Every season and chart field is `null` |
+| `GET /dashboard` | supervisor | `agency` (or `null`), `serverTime`, `approvalsCount` of `proposed` tasks, the live banner (`updatedAt`, `nextSatellitePass`, `liveFires`), `seasonImpact`, and `charts`. Figures are computed on read from stored incidents, observations, tasks, audit rows, leads, device records, and `weather/current`. Cameras, photo cadence, distance to risk, injuries, and the median target are `null` |
 | `POST /tasks/{id}/approve`, `/reject`, `/edit` | supervisor | Proposed task decided. `investigate` approval is `409` while the incident has an open conflict. Withdraw tasks are never approved, rejected or edited |
 | `POST /incidents/{id}/verify`, `/extinguish`, `/severity` | supervisor | Human-only actions. `/severity` stores the value only when it is strictly lower and never touches `withdraw` |
 | `POST /incidents/{id}/withdraw` | supervisor | Sets `withdraw`, creates approved `withdraw` tasks, no approval step |

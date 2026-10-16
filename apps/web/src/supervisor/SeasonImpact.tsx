@@ -16,6 +16,14 @@ function blank(value: string | number | null | undefined): string {
   return String(value)
 }
 
+/** The season start as a short date such as "14 Oct". Anything that is not a time stays as stored. */
+function seasonStart(value: string | null, lang: Lang): string {
+  if (!value) return EMPTY
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleDateString(lang === 'id' ? 'id-ID' : 'en-GB', { day: 'numeric', month: 'short' })
+}
+
 function Card({ label, value, note }: { label: string; value: string; note: string }) {
   return (
     <article className="season-card">
@@ -52,7 +60,7 @@ export function SeasonImpact({ impact, loading, retrying, lang }: SeasonImpactPr
       <div className="season-head">
         <h2 className="season-title">{t(lang, seasonCopy.title)}</h2>
         <p className="season-meta">
-          {t(lang, seasonCopy.since)} {blank(impact.since)} · {blank(impact.region)} · {blank(impact.crewCount)} {t(lang, seasonCopy.crews)}
+          {t(lang, seasonCopy.since)} {seasonStart(impact.since, lang)} · {blank(impact.region)} · {blank(impact.crewCount)} {t(lang, seasonCopy.crews)}
         </p>
         <p className="season-how">{t(lang, seasonCopy.howWeCount)}</p>
       </div>

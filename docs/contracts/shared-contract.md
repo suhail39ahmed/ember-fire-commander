@@ -451,7 +451,7 @@ Written by the hourly ingest job and nowhere else. It never writes incidents, ob
 | `needsHumanVerification` | `true` | |
 | `confirmedFire` | `false` | |
 | `disclaimer` | string | |
-| `status` | string | `to_verify` on first sight. A person or a later service may change it, and ingest never overwrites it |
+| `status` | string | `to_verify` on first sight. A person or a later service may change it, and ingest never overwrites it. `checked_no_fire` is the value `GET /dashboard` counts as a cleared false alarm (§6.9). Nothing in this repository writes it |
 | `firstSeenAt` | string | Kept from the first run |
 | `lastSeenAt` | string | The latest run that saw it |
 | `ingestRunId` | string | |
@@ -705,7 +705,7 @@ Volunteers only. A supervisor receives `403`. The body is `{ "token": "<FCM devi
 
 ### 6.9 `GET /dashboard`
 
-Supervisor only. A volunteer receives `403 forbidden`. This is the summary the console reads, every 15 seconds. The chrome uses `agency`, `serverTime`, and `approvalsCount`. The live banner uses `updatedAt`, `nextSatellitePass`, and `liveFires`. Season impact uses `seasonImpact`. The chart cards use `charts`. The crews, wind, satellite-lead, and peat map layers are not in this response. The route does not return tasks.
+Supervisor only. A volunteer receives `403 forbidden`. This is the summary the console reads, every 15 seconds. The chrome uses `agency`, `serverTime`, and `approvalsCount`. The live banner uses `updatedAt`, `nextSatellitePass`, and `liveFires`. Season impact uses `seasonImpact`. The chart cards use `charts`. The crews, wind, satellite-lead, and peat map layers are not in this response. The route does not return tasks, volunteer ids, volunteer names, or device tokens: only counts and figures. `ember-api` computes every figure on each read from records the other services already store, and writes nothing.
 
 ```json
 {
@@ -719,46 +719,46 @@ Supervisor only. A volunteer receives `403 forbidden`. This is the summary the c
       "id": "inc_01",
       "peopleOnSite": 2,
       "withdrawActive": false,
-      "code": null,
-      "placeName": null,
+      "code": "#3",
+      "placeName": "Bengkalis, Riau",
       "liveCameras": null,
       "photoCadence": null,
       "distanceToRisk": null,
-      "since": null
+      "since": "2026-10-16T07:10:30.000Z"
     }
   ],
   "seasonImpact": {
-    "since": null,
-    "region": null,
-    "crewCount": null,
-    "firesContained": null,
-    "firesContainedNote": null,
-    "falseAlarmsCleared": null,
-    "falseAlarmsNote": null,
+    "since": "2026-10-14T01:00:00.000Z",
+    "region": "Riau",
+    "crewCount": 4,
+    "firesContained": 2,
+    "firesContainedNote": "Extinguished by a supervisor, of 4 incidents",
+    "falseAlarmsCleared": 0,
+    "falseAlarmsNote": "Satellite leads a person checked and found no fire",
     "injuries": null,
-    "injuriesNote": null,
-    "medianTimeToHumanCheck": null,
-    "medianTimeNote": null,
-    "reignitionsCaught": null,
-    "reignitionsNote": null
+    "injuriesNote": "No injury reports are recorded in EMBER",
+    "medianTimeToHumanCheck": "20 min",
+    "medianTimeNote": "First report to supervisor verification, 3 incidents",
+    "reignitionsCaught": 1,
+    "reignitionsNote": "2 alerts near 1 extinguished site. A person still has to look"
   },
   "charts": {
-    "satelliteNote": null,
-    "realFires": null,
-    "dismissed": null,
-    "medianNote": null,
-    "medianToday": null,
+    "satelliteNote": "3 satellite leads in the last 7 days. Real = linked to an incident",
+    "realFires": 1,
+    "dismissed": 1,
+    "medianNote": "Last 24 hours, 2 incidents",
+    "medianToday": "15 min",
     "medianTarget": null,
-    "crewNote": null,
-    "onSite": null,
-    "enRoute": null,
-    "ready": null,
-    "offline": null,
-    "weatherNote": null,
-    "airTempC": null,
-    "humidity": null,
-    "wind": null,
-    "rain": null
+    "crewNote": "On site = reported from a live fire. En route = sent a task, no report yet. Offline = no device registered",
+    "onSite": 1,
+    "enRoute": 1,
+    "ready": 2,
+    "offline": 3,
+    "weatherNote": "Open-Meteo, fixed monitoring point, read 07:00 UTC",
+    "airTempC": 31.2,
+    "humidity": "62%",
+    "wind": "12 km/h SW",
+    "rain": "0.0 mm"
   }
 }
 ```
@@ -779,26 +779,41 @@ Each `liveFires` item:
 | `id` | string | Incident id |
 | `peopleOnSite` | number | Distinct `volunteerId` values on that incident's tasks, its `observationIds`, and the observations of its conflict. `0` when none |
 | `withdrawActive` | boolean | `incident.withdraw.active` is true |
-| `code`, `placeName`, `liveCameras`, `photoCadence`, `distanceToRisk`, `since` | null | No stored source. The banner shows the empty treatment. `name` and `area` are not `code` and `placeName` |
+| `code` | string | The `#<number>` at the end of the incident's `name` (§5.2), such as `#3`. For an incident with no named number, `INC-` and the last 4 characters of the id in capitals, the same short form the console uses |
+| `placeName` | string or null | The incident's `area`. When `area` is `null`, the place part of `name`. When both are `null`, a coordinate label such as `15.05°N 77.63°E` from the stored `lat` and `lng`. `null` only when none of these exists |
+| `since` | string or null | The earliest `receivedAt` (else `capturedAt`) among the incident's own `observationIds`. `null` when none of those observations can be read |
+| `liveCameras`, `photoCadence`, `distanceToRisk` | null | No stored source. The banner shows the empty treatment |
 
-`seasonImpact` is always present. Every field is `null` until a stored source exists. The console shows the empty treatment and does not derive these from extinguished incidents, leads, or re-ignition alerts.
+`seasonImpact` is always present. Each figure is computed on read from stored records. A figure with no stored source stays `null`. A count over zero records is `0`, not `null`.
 
-| Field | Type | What the card shows |
+| Field | Type | Source |
 |---|---|---|
-| `since`, `region` | null | The header date and region |
-| `crewCount` | null | Village crews in the header |
-| `firesContained`, `falseAlarmsCleared`, `injuries`, `reignitionsCaught` | null | The card figures |
-| `firesContainedNote`, `falseAlarmsNote`, `injuriesNote`, `medianTimeNote`, `reignitionsNote` | null | The line under each figure |
-| `medianTimeToHumanCheck` | null | The median-time figure |
+| `since` | string or null | The earliest first-report time (as `since` above) over all incidents. `null` when no incident has a readable observation |
+| `region` | string or null | The provinces in the stored `area` values, the part after the last `, ` (`Riau` in `Bengkalis, Riau`), most incidents first, at most 3, joined by `, `. Coordinate-label areas have no province. `null` when no area has one |
+| `crewCount` | number | Distinct volunteer ids across incident observations, tasks, and `volunteers` documents that hold at least one device token |
+| `firesContained` | number | Incidents with `status` `extinguished` |
+| `falseAlarmsCleared` | number | `leads` with `status` `checked_no_fire` (§5.7). Satellite leads only: there is no incident status for a false alarm |
+| `injuries` | null | No stored source. Withdraw `safeVolunteerIds` mean found safe and are not injuries |
+| `medianTimeToHumanCheck` | string or null | The median, over incidents, of the time from the first report to the first `incident.verify` audit row (§5.5), as `45 s`, `12 min`, or `1 h 05 min`. An incident with no verify row or no readable report is left out. `null` when none qualify |
+| `reignitionsCaught` | number | Distinct incidents with at least one `site.reinspect` audit row (§5.5). An alert asks a person to look again. It is not a confirmed re-ignition |
+| `firesContainedNote`, `falseAlarmsNote`, `medianTimeNote`, `reignitionsNote` | string or null | The line under each figure: what was counted and how many records it covers. `medianTimeNote` is `null` when the median is |
+| `injuriesNote` | string | `No injury reports are recorded in EMBER`, so the empty card says why |
 
-`charts` is always present. Every field is `null` until a client-safe source exists. The console shows the empty treatment. It does not draw bars or read `leads` or `weather`.
+`charts` is always present. Each field is computed on read, or `null` when its source has no data.
 
-| Field | Type | What the card shows |
+| Field | Type | Source |
 |---|---|---|
-| `satelliteNote`, `realFires`, `dismissed` | null | Satellite-leads subtitle, real fires, and dismissed leads |
-| `medianNote`, `medianToday`, `medianTarget` | null | Time-to-check subtitle, today's median, and the target |
-| `crewNote`, `onSite`, `enRoute`, `ready`, `offline` | null | Crews subtitle and the four crew states |
-| `weatherNote`, `airTempC`, `humidity`, `wind`, `rain` | null | Weather subtitle and the four weather lines |
+| `satelliteNote`, `realFires`, `dismissed` | string, number | `leads` whose `firstSeenAt` is within the last 7 days. `dismissed` counts `status` `checked_no_fire`. `realFires` counts leads a person linked to an incident (`incidentId` is set). `to_verify` leads count in neither |
+| `medianToday`, `medianNote` | string or null | The same median as `medianTimeToHumanCheck`, over incidents whose verify row is within the last 24 hours. This is a rolling 24 hours, not a calendar day. `medianToday` is `null` when none qualify and `medianNote` says so |
+| `medianTarget` | null | No target is stored anywhere |
+| `onSite` | number | Distinct volunteers with an observation on a live incident (`open`, `held`, `verified`), including its conflict observations |
+| `enRoute` | number | Distinct volunteers with an `approved` task that is not a `withdraw`, on a live incident, who are not already on site. Nothing stores a volunteer's movement, so this means "was sent a task and has not reported from the fire" |
+| `ready` | number | Volunteers with at least one device token (§5.7 `volunteers`) who are not on site or en route |
+| `offline` | number | Volunteers seen on an observation or task with no device token, who are not on site or en route |
+| `crewNote` | string | What the four counts mean |
+| `airTempC`, `humidity`, `wind`, `rain`, `weatherNote` | number or string, or null | `weather/current` (§5.7), from the hourly ingest at one fixed monitoring point, not at the incident. `airTempC` is `tempC` to one decimal. `humidity` is `62%`. `wind` is `12 km/h SW`, with the compass point the wind blows from when `windDirDeg` is stored. `rain` is `0.0 mm`. A missing value is `null`. All are `null` when no weather document exists. `weatherNote` carries the read time in UTC |
+
+A source that cannot be read (a Firestore error) leaves its own cards `null` and is logged. The rest of the body is still returned with `200`.
 
 `displayName` and `role` stay on `GET /me` (§6.1). There is no `onDuty` field, because no stored on-duty flag exists. `401` and `403` are as in §3. A profile with no agency is still `200` with `agency: null`. The crews, wind, satellite-lead, and peat map layers are not on this response.
 
@@ -1075,9 +1090,9 @@ Every route except `/healthz` needs the two headers in §2.
 | `serverTime` | `GET /dashboard` | Always present on `200`. The console shows it as local `HH:mm` and moves the clock on from that instant |
 | `updatedAt` | `GET /dashboard` | Always present on `200`. Same instant as `serverTime`. The live banner shows it as local `HH:mm` |
 | `nextSatellitePass` | `GET /dashboard` | The key is always there. `null` until a stored pass time exists. The banner shows the empty treatment |
-| `liveFires` | `GET /dashboard` | `[]` when no incident is `open`, `held`, or `verified`. The banner is hidden. `code`, `placeName`, `liveCameras`, `photoCadence`, `distanceToRisk`, and `since` are `null` until a stored source exists |
-| `seasonImpact` | `GET /dashboard` | The key is always there. Every field is `null` until a stored season metric exists. The cards stay visible and show the empty treatment |
-| `charts` | `GET /dashboard` | The key is always there. Every field is `null` until a client-safe chart source exists. The cards stay visible and show the empty treatment |
+| `liveFires` | `GET /dashboard` | `[]` when no incident is `open`, `held`, or `verified`. The banner is hidden. `liveCameras`, `photoCadence`, and `distanceToRisk` are always `null`. `since` is `null` when no observation of the incident can be read. `placeName` is `null` only when the incident has no area, name, or position |
+| `seasonImpact` | `GET /dashboard` | The key is always there. Counts are `0` when there is nothing to count. `injuries`, `since`, `region`, and `medianTimeToHumanCheck` are `null` without a source. The cards stay visible |
+| `charts` | `GET /dashboard` | The key is always there. Counts are `0` when there is nothing to count. `medianTarget` is always `null`, and the weather fields are `null` until ingest has stored a read. The cards stay visible |
 
 ### 12.3 Constraints the UI must respect
 
@@ -1148,5 +1163,6 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · #94: tasks gain optional `sentAt`, `heardAt`, `sendCount` and a computed `resendAt` (§5.3). New `POST /tasks/{id}/resend` (supervisor) and `POST /tasks/{id}/heard` (volunteer), audits `task.resend` and `task.heard` (§5.5, §6.5). Approve, the withdraw route and code stamp `sentAt`. The volunteer app does not call `heard` yet.
 - 2026-10-16 · #91: the same `GET /dashboard` body adds the live banner: `updatedAt`, `nextSatellitePass` (`null`), and `liveFires` for `open`, `held`, and `verified` incidents (§6.9).
 - 2026-10-16 · #91: `GET /dashboard` adds `seasonImpact` and `charts`. Every field is `null` until a stored source exists (§6.9).
+- 2026-10-16 · `GET /dashboard` fills `liveFires[].code`, `placeName`, and `since`, `seasonImpact`, and `charts` from stored incidents, observations, tasks, audit rows, leads, device records, and `weather/current`. Same keys and null rules. Counts over no records are `0`. Cameras, photo cadence, distance to risk, the next satellite pass, injuries, and the median target stay `null` (§6.9).
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).

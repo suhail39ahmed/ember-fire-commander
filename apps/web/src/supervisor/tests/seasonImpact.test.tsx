@@ -29,6 +29,24 @@ describe('season impact', () => {
     expect(markup).not.toContain('Riau')
   })
 
+  it('shows the stored figures, notes, region, and a short season start date', () => {
+    const markup = html({
+      impact: {
+        ...emptySeasonImpact(),
+        since: '2026-10-14T12:00:00.000Z',
+        region: 'Riau',
+        crewCount: 4,
+        firesContained: 2,
+        firesContainedNote: 'Extinguished by a supervisor, of 4 incidents',
+        medianTimeToHumanCheck: '20 min',
+      },
+    })
+    expect(markup).toContain('Since 14 Oct · Riau · 4 village crews')
+    expect(markup).toContain('Extinguished by a supervisor, of 4 incidents')
+    expect(markup).toContain('20 min')
+    expect(markup).not.toContain('2026-10-14')
+  })
+
   it('shows a loading line without figures before the first read', () => {
     const markup = html({ impact: null, loading: true })
     expect(markup).toContain('Loading season impact…')
