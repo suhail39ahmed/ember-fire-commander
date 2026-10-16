@@ -91,6 +91,18 @@ export function IncidentDetailPage() {
           throw error
         }
       }}
+      sendInstruction={async (volunteerId, instruction) => {
+        try {
+          const result = await api.sendInstruction(incidentId, volunteerId, instruction)
+          await refresh()
+          return result
+        } catch (error) {
+          // 409: a withdraw or an extinguish landed in the meantime. Show what is stored now.
+          if (error instanceof ApiError && error.status === 409) await refresh()
+          throw error
+        }
+      }}
+      photoUrl={(id, observationId) => api.getPhotoUrl(id, observationId)}
       extinguish={async () => {
         try {
           const result = await api.extinguishIncident(incidentId)

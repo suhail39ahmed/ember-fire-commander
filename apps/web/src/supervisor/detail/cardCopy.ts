@@ -33,6 +33,7 @@ export const timelineCopy = {
     'task.reject': { id: 'menolak instruksi', en: 'rejected an instruction' },
     'task.edit': { id: 'mengubah instruksi', en: 'edited an instruction' },
     'task.heard': { id: 'instruksi terdengar di ponsel', en: 'instruction heard on device' },
+    'task.instruct': { id: 'mengirim instruksi ke satu relawan', en: 'sent an instruction to one volunteer' },
     'task.resend': { id: 'mengirim ulang instruksi', en: 'sent an instruction again' },
     'task.withdraw': { id: 'mengirim MUNDUR', en: 'sent WITHDRAW' },
     'withdraw.safe': { id: 'menandai relawan aman', en: 'marked a volunteer safe' },

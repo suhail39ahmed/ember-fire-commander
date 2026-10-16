@@ -3,7 +3,7 @@
  * answer. A region whose data no route returns is not given invented content: see `popupCopy.gaps`.
  */
 import type { Lang } from '../../pwa/i18n'
-import type { IncidentDetail, Observation, Task } from '../contracts'
+import type { EvidenceFactor, IncidentDetail, Observation, Task } from '../contracts'
 import { cardOf, distanceLine, placeLine } from './cardModel'
 import { formatPosition, initialsOf, nameOf } from './model'
 
@@ -22,6 +22,10 @@ export interface PopupProfile {
   reportCount: number
   /** "120 m from the incident centre" from the supervisor read's card, or null. */
   distance: string | null
+  /** The latest of their newest report arriving and their app showing a task. Null when neither exists. */
+  lastHeardAt: string | null
+  /** A push token is stored for them. Null from an older API that sends no card. */
+  pushReady: boolean | null
 }
 
 export interface Popup {
@@ -34,6 +38,12 @@ export interface Popup {
   tasks: Task[]
   /** True when the volunteer has a withdraw task or is on the incident's active withdraw. */
   withdrawn: boolean
+  /** What EMBER proposes for this volunteer and waits for a supervisor to decide: their proposed tasks. */
+  suggestions: Task[]
+  /** True when the incident has a conflict, the one reason agents give for a proposed verify task. */
+  hasConflict: boolean
+  /** The factors behind the incident's evidence score, as agents stored them. */
+  factors: EvidenceFactor[]
 }
 
 function byTimeDesc(a: Observation, b: Observation): number {
@@ -64,10 +74,15 @@ export function popupFor(detail: IncidentDetail, volunteerId: string, lang: Lang
       lastReportAt: newest?.capturedAt ?? card?.lastReportAt ?? null,
       reportCount: Math.max(reports.length, card?.reportCount ?? 0),
       distance: distanceLine(lang, card),
+      lastHeardAt: card?.lastHeardAt ?? null,
+      pushReady: card ? card.pushReady : null,
     },
     reports,
     photos: reports.filter((o) => o.source === 'photo'),
     tasks,
     withdrawn: onWithdraw || tasks.some((t) => t.type === 'withdraw'),
+    suggestions: tasks.filter((t) => t.status === 'proposed'),
+    hasConflict: detail.conflict !== null,
+    factors: detail.evidenceFactors ?? [],
   }
 }

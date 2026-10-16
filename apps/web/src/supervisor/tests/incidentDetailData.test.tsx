@@ -21,7 +21,7 @@ const decision = { incident: fixture('normal').incident, auditId: 'aud_9' }
 function card(over: Partial<VolunteerCardData> = {}): VolunteerCardData {
   return {
     volunteerId: 'uid_dedi', name: 'Dedi', reportCount: 1, firstReportAt: '2026-10-17T03:02:00Z', lastReportAt: '2026-10-17T03:02:00Z',
-    lastSeverity: 'small_flame', lastLat: -1.849, lastLng: 110.051, lastAccuracyM: 15, distanceM: 0, withdraw: null, ...over,
+    lastSeverity: 'small_flame', lastLat: -1.849, lastLng: 110.051, lastAccuracyM: 15, distanceM: 0, lastHeardAt: '2026-10-17T03:02:04Z', pushReady: true, withdraw: null, ...over,
   }
 }
 
@@ -51,7 +51,9 @@ function view(detail: IncidentDetail | null, lang: 'id' | 'en' = 'en', over: Par
     lang, incidentId: 'inc_demo_01', detail, queue: detail ? [detail.incident] : null, failure: null, link: 'online',
     lastOkAt: NOW, now: NOW, actions: noop, onRetry: () => undefined, onSelect: () => undefined,
     markSafe: async () => decision, resendTask: async () => ({ auditId: 'aud_3' }), sendWithdraw: async () => decision, actorName: 'Bu Maya',
-    lowerSeverity: async () => decision, serverNow: () => NOW, extinguish: async () => decision, ...over,
+    lowerSeverity: async () => decision, serverNow: () => NOW, extinguish: async () => decision,
+    sendInstruction: async () => ({ task: fixture('normal').tasks[0], auditId: 'aud_i' }),
+    photoUrl: async () => ({ url: 'https://photo.example/x.jpg', expiresAt: '2026-10-17T03:15:00Z' }), ...over,
   }
   return renderToStaticMarkup(<StaticRouter location="/console/incidents/inc_demo_01"><IncidentDetailView {...props} /></StaticRouter>)
 }
@@ -103,7 +105,7 @@ describe('card lines', () => {
 
   it('word every audit action in both languages', () => {
     const actions = Object.keys(timelineCopy.action) as AuditAction[]
-    expect(actions).toHaveLength(13)
+    expect(actions).toHaveLength(14)
     for (const action of actions) {
       expect(timelineCopy.action[action].en.length).toBeGreaterThan(3)
       expect(timelineCopy.action[action].id.length).toBeGreaterThan(3)
@@ -153,7 +155,7 @@ describe('the volunteers the cards add', () => {
     expect(p.profile).toMatchObject({ name: 'Ayu', reportCount: 2, lastReportAt: '2026-10-17T03:06:00Z', position: '-1.850, 110.051', accuracyM: null, distance: '111 m from the incident centre' })
     expect(p.reports).toEqual([])
     expect(popupFor(withExtras(), 'uid_ghost', 'en')).toBeNull()
-    const html = renderToStaticMarkup(<VolunteerPopup lang="en" detail={withExtras()} volunteerId="uid_ayu" onClose={() => undefined} />)
+    const html = renderToStaticMarkup(<VolunteerPopup lang="en" detail={withExtras()} volunteerId="uid_ayu" onClose={() => undefined} offline={false} now={NOW} sendInstruction={async () => { throw new Error('unused') }} photoUrl={async () => { throw new Error('unused') }} />)
     expect(html).toContain('111 m from the incident centre')
     expect(html).toContain('Ayu')
   })

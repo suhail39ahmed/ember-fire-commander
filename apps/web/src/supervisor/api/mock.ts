@@ -264,6 +264,35 @@ export function createMockSupervisorApi(
       w.safeVolunteerIds = [...safe, volunteerId]
       return { incident: structuredClone(d.incident), auditId: append('withdraw.safe', id) }
     },
+    async sendInstruction(id, volunteerId, instruction) {
+      await wait()
+      const d = details.find((x) => x.incident.id === id)
+      if (!d) throw notFound()
+      const text = instruction.trim()
+      if (!text || text.length > 500) {
+        throw new ApiError('validation_error', 'instruction is not valid', 400, false, { instruction: 'required, not blank, at most 500 characters' })
+      }
+      const known = new Set([...d.observations.map((o) => o.volunteerId), ...d.tasks.map((t) => t.volunteerId), ...(d.incident.withdraw?.volunteerIds ?? [])])
+      if (!known.has(volunteerId)) {
+        throw new ApiError('validation_error', 'volunteerId is not valid', 400, false, { volunteerId: 'needs a report, a task or a withdraw entry on this incident' })
+      }
+      if (d.incident.status === 'extinguished') throw conflictError('An extinguished incident takes no new instruction')
+      const w = d.incident.withdraw
+      if (w?.active && w.volunteerIds.includes(volunteerId) && !(w.safeVolunteerIds ?? []).includes(volunteerId)) {
+        throw conflictError('This volunteer is on an active withdraw and is not marked safe')
+      }
+      const task: Task = { id: `task_mock_instruct_${d.tasks.length + 1}`, incidentId: id, volunteerId, type: 'instruct', status: 'approved', instruction: text }
+      stamp(task, 1)
+      d.tasks.push(task)
+      return { task: structuredClone(task), auditId: append('task.instruct', task.id) }
+    },
+    async getPhotoUrl(id, observationId) {
+      await wait()
+      const d = details.find((x) => x.incident.id === id)
+      const obs = d?.observations.find((o) => o.id === observationId)
+      if (!obs?.photoPath) throw notFound()
+      return { url: `mock-photo://${obs.photoPath}`, expiresAt: new Date(Date.now() + 300_000).toISOString() }
+    },
     async lowerSeverity(id, severity) {
       await wait()
       const d = details.find((x) => x.incident.id === id)

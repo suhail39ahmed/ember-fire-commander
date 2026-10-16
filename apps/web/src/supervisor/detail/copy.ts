@@ -125,6 +125,7 @@ export const taskCopy = {
     verify: { id: 'Verifikasi', en: 'Verify' },
     investigate: { id: 'Kirim tim', en: 'Dispatch' },
     withdraw: { id: 'Mundur', en: 'Withdraw' },
+    instruct: { id: 'Instruksi', en: 'Instruction' },
   },
   instruction: { id: 'Instruksi', en: 'Instruction' },
   save: { id: 'Simpan', en: 'Save' },

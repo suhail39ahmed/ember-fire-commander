@@ -38,6 +38,8 @@ function view(over: Partial<IncidentDetailViewProps> = {}, lang: 'id' | 'en' = '
     sendWithdraw: async () => ({ incident: detail.incident, auditId: 'aud_1' }),
     lowerSeverity: async () => ({ incident: detail.incident, auditId: 'aud_1' }),
     extinguish: async () => ({ incident: detail.incident, auditId: 'aud_1' }),
+    sendInstruction: async () => ({ task: fixture('normal').tasks[0], auditId: 'aud_i' }),
+    photoUrl: async () => ({ url: 'https://photo.example/x.jpg', expiresAt: '2026-10-17T03:15:00Z' }),
     markSafe: async () => ({ incident: detail.incident, auditId: 'aud_1' }),
     resendTask: async () => ({ auditId: 'aud_3' }),
     ...over,

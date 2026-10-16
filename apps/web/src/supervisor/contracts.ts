@@ -79,6 +79,10 @@ export interface VolunteerCardData {
   lastAccuracyM: number | null
   /** Metres from the incident's centre to their newest report. Not the distance to the flame edge. */
   distanceM: number | null
+  /** The latest of their newest report arriving and their app showing a task. Null when neither exists. */
+  lastHeardAt: string | null
+  /** A device token is stored for them. Only this yes or no is sent, never the token. */
+  pushReady: boolean
   withdraw: VolunteerWithdraw | null
 }
 
@@ -138,6 +142,12 @@ export interface IncidentDecision {
   auditId: string
 }
 
+/** What a short-lived signed read of one photo report returns (section 6.7). */
+export interface PhotoUrl {
+  url: string
+  expiresAt: string
+}
+
 /** Body of POST /incidents/{id}/withdraw/safe (section 6.5). */
 export interface MarkSafeRequest {
   volunteerId: string
@@ -159,6 +169,7 @@ export type AuditAction =
   | 'task.reject'
   | 'task.edit'
   | 'task.heard'
+  | 'task.instruct'
   | 'task.resend'
   | 'task.withdraw'
   | 'withdraw.safe'
