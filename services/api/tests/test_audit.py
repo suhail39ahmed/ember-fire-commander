@@ -153,3 +153,52 @@ def test_audit_filter_and_cursor(client, monkeypatch):
 
     page2 = client.get(f"/audit?limit=2&cursor={page['nextCursor']}", headers=AUTH).get_json()
     assert [i["id"] for i in page2["items"]] == ["aud_3", "aud_0"]
+
+
+def test_audit_never_shows_a_raw_id_for_a_person_or_an_incident(client, monkeypatch):
+    fake = FakeFirestore()
+    monkeypatch.setattr(store, "db", lambda: fake)
+    _as(monkeypatch)
+    # No volunteer records at all: names must come from the row, a report, or the role.
+    fake.add("incidents", "inc_13sWGNQce9QZLmgGQznA", {
+        "severity": "smoke", "observationIds": ["obs_1"], "lat": 13.05, "lng": 77.63,
+    })
+    fake.add("incidents", "inc_named", {"name": "Bengkalis, Riau · Pak Dedi · #3", "observationIds": []})
+    fake.add("observations", "obs_1", {
+        "volunteerId": "IUR0XPrGPvTqpApb7bkCRBcC0a2", "volunteerName": "Pak Dedi", "chip": "asap", "severity": "smoke",
+    })
+    fake.add("tasks", "task_1", {
+        "incidentId": "inc_13sWGNQce9QZLmgGQznA", "volunteerId": "IUR0XPrGPvTqpApb7bkCRBcC0a2",
+        "type": "instruct", "status": "approved", "instruction": "Move to the road",
+    })
+    fake.add("audit", "a1", {
+        "actorId": "uid_maya", "actorName": "Bu Maya", "action": "task.instruct", "targetId": "task_1",
+        "at": "2026-10-16T14:30:00Z",
+    })
+    fake.add("audit", "a2", {
+        "actorId": "uid_older", "action": "incident.verify", "targetId": "inc_13sWGNQce9QZLmgGQznA",
+        "at": "2026-10-16T14:20:00Z",
+    })
+    fake.add("audit", "a3", {
+        "actorId": "IUR0XPrGPvTqpApb7bkCRBcC0a2", "action": "observation.create", "targetId": "obs_1",
+        "at": "2026-10-16T14:10:00Z",
+    })
+    fake.add("audit", "a4", {
+        "actorId": "uid_dev1", "action": "task.heard", "targetId": "task_1", "at": "2026-10-16T14:05:00Z",
+    })
+    fake.add("audit", "a5", {
+        "actorId": "uid_older", "action": "incident.extinguish", "targetId": "inc_named", "at": "2026-10-16T14:01:00Z",
+    })
+    items = {i["id"]: i for i in client.get("/audit", headers=AUTH).get_json()["items"]}
+    assert items["a1"]["actorName"] == "Bu Maya"
+    assert items["a1"]["target"] == "instruct · Pak Dedi"
+    # A row from before names were stored, by a supervisor with no record: the role, not the uid.
+    assert items["a2"]["actorName"] == "Supervisor"
+    assert items["a2"]["target"] == "Incident · 13.05°N 77.63°E"
+    assert items["a3"]["actorName"] == "Pak Dedi"
+    assert items["a3"]["target"] == "obs · Pak Dedi"
+    assert items["a4"]["actorName"] == "Volunteer"
+    assert items["a5"]["target"] == "Bengkalis, Riau · Pak Dedi · #3"
+    for item in items.values():
+        text = " ".join(str(v) for v in item.values() if v is not None and v not in (item["actorId"], item["targetId"], item["incidentId"], item["id"]))
+        assert "IUR0XPrG" not in text and "uid_" not in text and "inc_13sW" not in text

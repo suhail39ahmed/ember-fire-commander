@@ -397,6 +397,9 @@ def _weather_chart():
     if humidity is not None:
         out["humidity"] = f"{round(humidity)}%"
     if wind is not None:
+        out["windKmh"] = round(wind, 1)
+        if direction is not None:
+            out["windDirDeg"] = round(direction % 360, 1)
         text = f"{round(wind)} km/h"
         if direction is not None:
             text += f" {COMPASS[int(((direction % 360) + 22.5) // 45) % 8]}"
@@ -425,7 +428,7 @@ _SEASON_KEYS = (
 )
 _CHART_KEYS = (
     "satelliteNote", "realFires", "dismissed", "medianNote", "medianToday", "medianTarget",
-    "crewNote", "onSite", "enRoute", "ready", "offline", "weatherNote", "airTempC", "humidity", "wind", "rain",
+    "crewNote", "onSite", "enRoute", "ready", "offline", "weatherNote", "airTempC", "humidity", "wind", "windKmh", "windDirDeg", "rain",
 )
 
 

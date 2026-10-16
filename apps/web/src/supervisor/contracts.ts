@@ -23,6 +23,17 @@ export interface Incident {
   withdraw: Withdraw | null
   lat: number
   lng: number
+  /**
+   * Supervisor list only (section 6.3): what the list card shows. Absent on a volunteer's list and
+   * on older servers, so a card with no value shows a dash rather than a made-up number.
+   */
+  reportCount?: number
+  volunteerCount?: number
+  /** True when any report on the incident used the "Need help" chip. */
+  needsHelp?: boolean
+  /** True when a verify action is on record, even if the verifier's name was not stored. */
+  verified?: boolean
+  verifiedBy?: string | null
 }
 
 /** One factor behind `evidenceScore`, written by agents fusion (section 5.2). */
@@ -276,4 +287,24 @@ export interface Site {
   /** Newest alerts only. */
   alerts: SiteAlert[]
   lastAlertAt?: string
+}
+
+/**
+ * One row of GET /tasks?status=proposed (section 6.5): a task waiting for a decision, with the incident
+ * it belongs to and the volunteer's name. `incident` is null when the incident record is gone, and
+ * `volunteerName` is null when no name is stored.
+ */
+export interface ProposedTask {
+  task: Task
+  incident: {
+    id: string
+    name: string | null
+    area: string | null
+    /** The label ember-api built with the one naming rule. Never an id. */
+    label: string
+    status: IncidentStatus
+    severity: Severity
+    conflictId: string | null
+  } | null
+  volunteerName: string | null
 }

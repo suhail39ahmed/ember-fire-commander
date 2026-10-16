@@ -2,7 +2,7 @@
  * Send WITHDRAW rules for the console. The route decides what is valid; these helpers
  * only keep an obviously invalid request from being sent and explain a refusal in words.
  */
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { t, type Lang } from '../../pwa/i18n'
 import { ApiError } from '../../pwa/api/types'
 import type { IncidentDecision, WithdrawRequest } from '../contracts'
@@ -57,7 +57,7 @@ export function buildRequest(rows: VolunteerRow[], selected: string[], instructi
 export function recipientDetail(row: VolunteerRow, lang: Lang): string {
   if (row.latest) {
     const word = t(lang, row.reportCount === 1 ? withdrawCopy.reportsOne : withdrawCopy.reportsMany)
-    return `${row.reportCount} ${word} · ${formatTime(row.latest.capturedAt)}`
+    return `${row.reportCount} ${word} · ${formatTimeZone(row.latest.capturedAt)}`
   }
   if (row.task && row.task.type !== 'withdraw') {
     return `${t(lang, taskCopy.type[row.task.type])} ${t(lang, withdrawCopy.taskOnly)} · ${t(lang, taskStatusName[row.task.status])}`

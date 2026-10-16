@@ -3,7 +3,7 @@ import { StaticRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
 import { ApiError } from '../../pwa/api/types'
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { createMockSupervisorApi } from '../api/mock'
 import { createHttpSupervisorApi, SUPERVISOR_ENDPOINTS } from '../api/client'
 import type { IncidentDetail } from '../contracts'
@@ -88,7 +88,7 @@ describe('withdraw state', () => {
 describe('withdraw not confirmed: the banner', () => {
   it('shows who sent it and when, the reason, the count and the unconfirmed volunteer', () => {
     const html = view(withdrawn({ safe: ['uid_sari'] }))
-    expect(html).toContain(`WITHDRAW IN FORCE · SENT BY CODE ${formatTime('2026-10-17T03:08:00Z')}`)
+    expect(html).toContain(`WITHDRAW IN FORCE · SENT BY CODE ${formatTimeZone('2026-10-17T03:08:00Z')}`)
     expect(html).toContain('NO APPROVAL NEEDED · CANNOT BE CANCELLED HERE')
     expect(html).toContain('<b>Reason:</b> large flame reported')
     expect(html).toContain('1 of 2 confirmed safe upwind')

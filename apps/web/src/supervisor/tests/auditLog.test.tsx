@@ -24,7 +24,10 @@ vi.mock('../../pwa/api/authHeaders', () => ({
   authHeadersFor: () => async () => ({ Authorization: 'Bearer test' }),
 }))
 
-import { AuditLogPage } from '../AuditLogPage'
+import { AuditLogPage, AuditTable } from '../AuditLogPage'
+import type { AuditEntry } from '../api/types'
+import { groupByDay, newestFirst } from '../auditModel'
+import { formatDateTime } from '../../pwa/formatTime'
 
 function renderPage(lang: 'id' | 'en' = 'en') {
   const store = createLanguageStore({ storage: { getItem: () => lang, setItem: () => undefined }, root: { lang: '' } })
@@ -78,5 +81,43 @@ describe('GET /audit client and mock', () => {
     expect(urls[0]).toContain(`${SUPERVISOR_ENDPOINTS.audit}?`)
     expect(urls[0]).toContain('limit=10')
     expect(urls[0]).toContain('targetId=inc_1')
+  })
+})
+
+describe('audit log: dates, order and names', () => {
+  const row = (id: string, at: string, over: Partial<AuditEntry> = {}): AuditEntry => ({
+    id, at, actorId: 'uid_maya', actorName: 'Bu Maya', action: 'task.approve', targetId: 't1', target: 'verify · Pak Dedi', detail: 'Approved', incidentId: 'inc_1', ...over,
+  })
+
+  it('sorts newest first, with a stable order for rows of the same time', () => {
+    const items = [row('a', '2026-10-15T05:00:00Z'), row('b', '2026-10-16T05:00:00Z'), row('c', '2026-10-16T05:00:00Z')]
+    expect(newestFirst(items).map((r) => r.id)).toEqual(['c', 'b', 'a'])
+  })
+
+  it('groups rows under their day, newest day first', () => {
+    const items = [
+      row('a', new Date(2026, 9, 15, 9, 0).toISOString()),
+      row('b', new Date(2026, 9, 16, 18, 0).toISOString()),
+      row('c', new Date(2026, 9, 16, 8, 0).toISOString()),
+    ]
+    const days = groupByDay(items)
+    expect(days.map((d) => d.day)).toEqual(['16 Oct 2026', '15 Oct 2026'])
+    expect(days[0].items.map((r) => r.id)).toEqual(['b', 'c'])
+  })
+
+  it('shows the full date, the time and the zone on every row, and the names the server sent', () => {
+    const at = new Date(2026, 9, 16, 17, 7).toISOString()
+    const store = createLanguageStore({ storage: { getItem: () => 'en', setItem: () => undefined }, root: { lang: '' } })
+    const html = renderToStaticMarkup(
+      <LanguageProvider store={store}>
+        <AuditTable items={[row('a', at, { actorName: 'Bu Maya', target: 'Dumai, Riau · Pak Dedi · #2' })]} onOpen={() => undefined} />
+      </LanguageProvider>,
+    )
+    expect(html).toContain(formatDateTime(at))
+    expect(html).toMatch(/16 Oct 2026, 17:07 \S+/)
+    expect(html).toMatch(/<th scope="rowgroup"[^>]*>16 Oct 2026<\/th>/)
+    expect(html).toContain('Bu Maya')
+    expect(html).toContain('Dumai, Riau · Pak Dedi · #2')
+    expect(html).not.toMatch(/uid_|13sWG/)
   })
 })

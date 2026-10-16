@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { t, type Lang } from '../../pwa/i18n'
 import { deliveryCopy } from './deliveryCopy'
 import type { HeardEvent } from './deliveryModel'
@@ -17,7 +17,7 @@ export function HeardToast({ lang, event, name, onClose }: { lang: Lang; event: 
   return (
     <aside className="inc-toast" role="status" aria-live="polite">
       <div>
-        <p className="inc-toast-title">{name?.trim() || volunteerLabel(event.volunteerId, lang)} {t(lang, deliveryCopy.toastHeard)} · {formatTime(event.heardAt)}</p>
+        <p className="inc-toast-title">{name?.trim() || volunteerLabel(event.volunteerId, lang)} {t(lang, deliveryCopy.toastHeard)} · {formatTimeZone(event.heardAt)}</p>
         <p className="inc-toast-text">“{event.text}” · {t(lang, deliveryCopy.toastOn)} · {t(lang, deliveryCopy.toastLogged)}</p>
       </div>
       <p className="inc-toast-note">{t(lang, deliveryCopy.toastNoUndo)}</p>

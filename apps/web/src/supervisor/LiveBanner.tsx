@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom'
 
-import { formatTime } from '../pwa/formatTime'
+import { formatTimeZone } from '../pwa/formatTime'
 import { t, type Lang } from '../pwa/i18n'
 import { bannerCopy } from './bannerCopy'
 import type { LiveFire } from './chromeClient'
+import type { Incident } from './contracts'
+import { fireLabel } from './fireLabel'
 import { consoleIncidentPath } from './paths'
 
 const EMPTY = '—'
@@ -15,6 +17,8 @@ export interface LiveBannerProps {
   loading: boolean
   retrying: boolean
   lang: Lang
+  /** The incident queue, so a fire is named like it is everywhere else. Optional: without it the banner uses the place the dashboard sends. */
+  queue?: Incident[] | null
 }
 
 function blank(value: string | number | null | undefined): string {
@@ -27,14 +31,13 @@ function firesNeedYou(count: number, lang: Lang): string {
   return `${count} ${t(lang, bannerCopy.manyFires)}`
 }
 
-function LiveFireCard({ fire, lang }: { fire: LiveFire; lang: Lang }) {
+function LiveFireCard({ fire, lang, queue }: { fire: LiveFire; lang: Lang; queue?: Incident[] | null }) {
   const middle = fire.liveCameras ?? fire.photoCadence
-  const last = fire.distanceToRisk ?? (fire.since ? `${t(lang, bannerCopy.since)} ${formatTime(fire.since)}` : null)
+  const last = fire.distanceToRisk ?? (fire.since ? `${t(lang, bannerCopy.since)} ${formatTimeZone(fire.since)}` : null)
   return (
     <article className="live-fire">
       <div>
-        <p className="live-fire-title">{blank(fire.code)} · {blank(fire.placeName)}</p>
-        <p className="live-fire-id">{t(lang, bannerCopy.incident)} {fire.id}</p>
+        <p className="live-fire-title">{fireLabel(fire, queue, lang)}</p>
         <p className="live-fire-meta">
           {fire.peopleOnSite} {t(lang, bannerCopy.onSite)} · {blank(middle)} · {blank(last)}
         </p>
@@ -51,7 +54,7 @@ function LiveFireCard({ fire, lang }: { fire: LiveFire; lang: Lang }) {
  * The orange live-fire strip on the dashboard. Hidden when the latest read
  * has no open, held, or verified fires. A failed refresh keeps the last list.
  */
-export function LiveBanner({ fires, updatedAt, nextSatellitePass, loading, retrying, lang }: LiveBannerProps) {
+export function LiveBanner({ fires, updatedAt, nextSatellitePass, loading, retrying, lang, queue }: LiveBannerProps) {
   if (fires === null) {
     return (
       <section className="live-banner" aria-label={t(lang, bannerCopy.live)}>
@@ -62,8 +65,8 @@ export function LiveBanner({ fires, updatedAt, nextSatellitePass, loading, retry
     )
   }
   if (fires.length === 0 && !retrying) return null
-  const updated = updatedAt ? formatTime(updatedAt) : EMPTY
-  const pass = nextSatellitePass ? formatTime(nextSatellitePass) : EMPTY
+  const updated = updatedAt ? formatTimeZone(updatedAt) : EMPTY
+  const pass = nextSatellitePass ? formatTimeZone(nextSatellitePass) : EMPTY
   return (
     <section className="live-banner" aria-label={t(lang, bannerCopy.live)}>
       {fires.length > 0 && (
@@ -78,7 +81,7 @@ export function LiveBanner({ fires, updatedAt, nextSatellitePass, loading, retry
             </div>
           </div>
           <div className="live-fires">
-            {fires.map((fire) => <LiveFireCard key={fire.id} fire={fire} lang={lang} />)}
+            {fires.map((fire) => <LiveFireCard key={fire.id} fire={fire} lang={lang} queue={queue} />)}
           </div>
         </>
       )}

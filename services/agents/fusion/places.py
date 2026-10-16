@@ -33,6 +33,17 @@ PLACES = (
     ("Sampit", "Kalimantan Tengah", -2.5333, 112.9500),
     ("Palangka Raya", "Kalimantan Tengah", -2.2161, 113.9135),
     ("Banjarmasin", "Kalimantan Selatan", -3.3194, 114.5908),
+    # Added with coordinates checked against Wikipedia (town-centre values, rounded to four decimals).
+    ("Bangkinang", "Riau", 0.3500, 101.0333),
+    ("Teluk Kuantan", "Riau", -0.5298, 101.5721),
+    ("Muara Bungo", "Jambi", -1.4840, 102.1170),
+    ("Sungai Penuh", "Jambi", -2.0589, 101.3914),
+    ("Pangkalan Balai", "Sumatera Selatan", -2.9068, 104.4143),
+    ("Singkawang", "Kalimantan Barat", 0.9000, 108.9833),
+    ("Kuala Kapuas", "Kalimantan Tengah", -3.0013, 114.3916),
+    # Where the team tests the app. A report from here gets a readable name, not a coordinate label.
+    ("Bengaluru", "Karnataka", 12.9789, 77.5917),
+    ("Pune", "Maharashtra", 18.5211, 73.8553),
 )
 
 

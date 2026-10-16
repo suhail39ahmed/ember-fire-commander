@@ -2,7 +2,7 @@ import type { ComponentProps } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { ReignitionAlertBanner } from '../ReignitionAlert'
 import type { ReignitionAlert } from '../chromeClient'
 
@@ -51,7 +51,7 @@ describe('re-ignition alert', () => {
     expect(markup).toContain('RE-IGNITION WATCH')
     expect(markup).toContain('140 m')
     expect(markup).toContain('from —')
-    expect(markup).toContain(formatTime(extinguishedAt))
+    expect(markup).toContain(formatTimeZone(extinguishedAt))
     expect(markup).toContain('Peat can smoulder underground for weeks')
     expect(markup).toContain('Send re-check task')
     expect(markup).toContain('Dismiss with reason')

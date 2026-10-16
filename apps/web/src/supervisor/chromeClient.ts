@@ -69,6 +69,10 @@ export interface DashboardCharts {
   airTempC: number | null
   humidity: string | null
   wind: string | null
+  /** The number behind `wind`, km/h. Absent from an older API. */
+  windKmh?: number | null
+  /** Degrees from north the wind blows FROM, 0 to 359.9. Absent from an older API. */
+  windDirDeg?: number | null
   rain: string | null
 }
 
@@ -88,6 +92,8 @@ export const emptyCharts = (): DashboardCharts => ({
   airTempC: null,
   humidity: null,
   wind: null,
+  windKmh: null,
+  windDirDeg: null,
   rain: null,
 })
 
@@ -201,6 +207,8 @@ function isCharts(value: unknown): value is DashboardCharts {
     && isNullOrNumber(charts.airTempC)
     && isNullableString(charts.humidity)
     && isNullableString(charts.wind)
+    && (charts.windKmh === undefined || isNullOrNumber(charts.windKmh))
+    && (charts.windDirDeg === undefined || isNullOrNumber(charts.windDirDeg))
     && isNullableString(charts.rain)
 }
 

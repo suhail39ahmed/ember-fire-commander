@@ -6,11 +6,12 @@ import type { ErrorBody } from '../../pwa/contracts/types'
 import type { AuthHeadersProvider } from '../../pwa/api/authHeaders'
 import { API_BASE_URL } from '../../pwa/api/config'
 import { ApiError } from '../../pwa/api/types'
-import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, PhotoUrl, TaskDecision, WithdrawRequest } from '../contracts'
+import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, PhotoUrl, ProposedTask, TaskDecision, WithdrawRequest } from '../contracts'
 import type { AuditPage, AuditQuery, SupervisorApi } from './types'
 
 export const SUPERVISOR_ENDPOINTS = {
   incidents: '/incidents',
+  proposedTasks: '/tasks?status=proposed',
   incident: (id: string) => `/incidents/${encodeURIComponent(id)}`,
   audit: '/audit',
   verify: (id: string) => `/incidents/${encodeURIComponent(id)}/verify`,
@@ -73,6 +74,7 @@ export function createHttpSupervisorApi(
   return {
     listIncidents: () => request<Incident[]>(SUPERVISOR_ENDPOINTS.incidents),
     getIncident: (id) => request<IncidentDetail>(SUPERVISOR_ENDPOINTS.incident(id)),
+    listProposedTasks: () => request<ProposedTask[]>(SUPERVISOR_ENDPOINTS.proposedTasks),
     listAudit: (query) => request<AuditPage>(auditQuery(query)),
     approveTask: (id) => post<TaskDecision>(SUPERVISOR_ENDPOINTS.approve(id)),
     rejectTask: (id) => post<TaskDecision>(SUPERVISOR_ENDPOINTS.reject(id)),

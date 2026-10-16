@@ -1,4 +1,4 @@
-import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, PhotoUrl, TaskDecision, WithdrawRequest } from '../contracts'
+import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, PhotoUrl, ProposedTask, TaskDecision, WithdrawRequest } from '../contracts'
 
 /** One row from GET /audit (issue #99). Display fields are built by ember-api. */
 export interface AuditEntry {
@@ -32,6 +32,8 @@ export interface AuditQuery {
 export interface SupervisorApi {
   listIncidents(): Promise<Incident[]>
   getIncident(id: string): Promise<IncidentDetail>
+  /** Every task waiting for a decision, across all incidents. Supervisor only. */
+  listProposedTasks(): Promise<ProposedTask[]>
   /** Append-only log. Newest first. Optional targetId and cursor for paging. */
   listAudit(query?: AuditQuery): Promise<AuditPage>
   approveTask(id: string): Promise<TaskDecision>

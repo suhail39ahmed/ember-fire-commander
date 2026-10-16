@@ -2,7 +2,7 @@
  * Mark extinguished for the console. The route decides what is allowed (any status but
  * `extinguished`). Nothing here reopens, re-rates or re-checks the incident.
  */
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { t, type Lang } from '../../pwa/i18n'
 import { ApiError } from '../../pwa/api/types'
 import type { IncidentDecision } from '../contracts'
@@ -39,5 +39,5 @@ export async function submitExtinguish(send: () => Promise<IncidentDecision>, la
 /** "Marked extinguished by Bu Maya at 14:12 · audit aud_…". `atMs` is the server-aligned clock. */
 export function doneText(lang: Lang, actor: string, atMs: number, auditId: string): string {
   const head = actor ? `${t(lang, extinguishCopy.done)} ${actor}` : t(lang, extinguishCopy.doneAnon)
-  return `${head} ${t(lang, extinguishCopy.at)} ${formatTime(atMs)} · ${t(lang, extinguishCopy.audit)} ${auditId}.`
+  return `${head} ${t(lang, extinguishCopy.at)} ${formatTimeZone(atMs)} · ${t(lang, extinguishCopy.audit)} ${auditId}.`
 }

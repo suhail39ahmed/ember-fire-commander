@@ -1,4 +1,4 @@
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { chipText } from '../../pwa/report/chips'
 import { t, type Lang } from '../../pwa/i18n'
 import { detailCopy, severityName } from './copy'
@@ -6,12 +6,14 @@ import { stateCopy } from './withdrawStateCopy'
 import { popupCopy } from './popupCopy'
 import { DeliveryLine } from './DeliveryLine'
 import { deliveryFacts, distanceLine, placeLine, safeStamp } from './cardModel'
+import { helpCopy } from './helpCopy'
+import { HELP_CHIP } from './helpModel'
 import { initialsOf, volunteerLabel, type VolunteerRow } from './model'
 
 function reportLine(lang: Lang, row: VolunteerRow): string {
   const n = row.reportCount
   const at = row.card?.lastReportAt ?? row.latest?.capturedAt
-  const time = at ? formatTime(at) : '--:--'
+  const time = at ? formatTimeZone(at) : '--:--'
   const word = lang === 'id' ? 'laporan' : n === 1 ? 'report' : 'reports'
   return `${n} ${word} · ${time}`
 }
@@ -26,16 +28,18 @@ export function VolunteerCard({ lang, row, safe = null, waiting = null, now = Da
   const { latest, task, card } = row
   const away = distanceLine(lang, card)
   const place = placeLine(card)
+  const needsHelp = latest?.chip === HELP_CHIP
   const stamp = safeStamp(lang, card)
   const facts = deliveryFacts(lang, card)
   return (
-    <article className={`${row.withdrawn ? 'inc-vol withdrawn' : 'inc-vol'}${row.withdrawn && safe === false ? ' wd-unconfirmed' : ''}`} aria-label={name}>
+    <article className={`${row.withdrawn ? 'inc-vol withdrawn' : 'inc-vol'}${row.withdrawn && safe === false ? ' wd-unconfirmed' : ''}${needsHelp ? ' help' : ''}`} aria-label={name}>
       <header className="inc-vol-head">
         <span className="inc-avatar" aria-hidden="true">{initialsOf(name)}</span>
         <div className="inc-vol-id">
           <p className="inc-vol-name">{name}</p>
           <p className="inc-muted">{reportLine(lang, row)}</p>
         </div>
+        {needsHelp && <span className="inc-pill inc-pill-red">{t(lang, helpCopy.badge)}</span>}
         {row.withdrawn && <span className="inc-pill inc-pill-red">{t(lang, detailCopy.withdrawSent)}</span>}
         {onOpen && (
           <button type="button" className="inc-btn inc-btn-plain inc-vol-open" aria-label={`${t(lang, popupCopy.open)} ${name}`} onClick={onOpen}>

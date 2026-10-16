@@ -5,7 +5,9 @@ import type { Incident } from '../contracts'
 import { mapCopy } from './mapCopy'
 import { hasMapsKey, MAPS_BROWSER_KEY, MAPS_MAP_ID } from './config'
 import { loadMaps, type GCircle, type GMap, type GMarker, type MapsApi } from './loadMaps'
-import { pinStyle, placeable, project, WITHDRAW_ZONE_M } from './markers'
+import { layerView } from './layers'
+import { pinStyle, placeable, projectWithCrews, WITHDRAW_ZONE_M, type CrewDot } from './markers'
+import { arrowDeg, windText, type WindReading } from './wind'
 import './map.css'
 
 const BOX_W = 640
@@ -19,57 +21,59 @@ export interface IncidentMapProps {
   mapsKey?: string
   /** Dashboard layer toggles. Detail leaves this off. */
   showLayers?: boolean
+  /** `full` fills the page, for the Map screen. The default sits inside the dashboard. */
+  size?: 'panel' | 'full'
+  /** Last positions of the open incident's volunteers, for the Crews layer. Empty when none is stored. */
+  crews?: CrewDot[]
+  /** The stored wind, for the Wind layer. Without it there is no Wind toggle. */
+  wind?: WindReading | null
   lang?: Lang
 }
 
-const EMPTY_LAYERS = ['crews', 'wind', 'satellite'] as const
-type EmptyLayer = (typeof EMPTY_LAYERS)[number]
-
 function LayerToggles({
   firesOn,
-  emptyOn,
+  crewsOn,
+  windOn,
+  hasWind,
   onFires,
-  onEmpty,
+  onCrews,
+  onWind,
   lang,
 }: {
   firesOn: boolean
-  emptyOn: ReadonlySet<EmptyLayer>
+  crewsOn: boolean
+  windOn: boolean
+  hasWind: boolean
   onFires(): void
-  onEmpty(layer: EmptyLayer): void
+  onCrews(): void
+  onWind(): void
   lang: Lang
 }) {
-  const emptyLabels: Record<EmptyLayer, (typeof mapCopy)[EmptyLayer]> = {
-    crews: mapCopy.crews,
-    wind: mapCopy.wind,
-    satellite: mapCopy.satellite,
-  }
   return (
     <div className="map-layers" role="group" aria-label={t(lang, mapCopy.title)}>
       <button type="button" className={firesOn ? 'map-layer on' : 'map-layer'} aria-pressed={firesOn} onClick={onFires}>
         {t(lang, mapCopy.fires)}
       </button>
-      {EMPTY_LAYERS.map((layer) => (
-        <button
-          key={layer}
-          type="button"
-          className={emptyOn.has(layer) ? 'map-layer on' : 'map-layer'}
-          aria-pressed={emptyOn.has(layer)}
-          onClick={() => onEmpty(layer)}
-        >
-          {t(lang, emptyLabels[layer])}
+      <button type="button" className={crewsOn ? 'map-layer on' : 'map-layer'} aria-pressed={crewsOn} onClick={onCrews}>
+        {t(lang, mapCopy.crews)}
+      </button>
+      {hasWind && (
+        <button type="button" className={windOn ? 'map-layer on' : 'map-layer'} aria-pressed={windOn} onClick={onWind}>
+          {t(lang, mapCopy.wind)}
         </button>
-      ))}
+      )}
       <span className="map-layer static">{t(lang, mapCopy.peat)} · {t(lang, mapCopy.staticLayer)}</span>
     </div>
   )
 }
 
-function Legend() {
+function Legend({ crews }: { crews: boolean }) {
   return (
     <div className="map-legend" aria-label="Map legend">
       <span><i className="dot sev-fire" /> Incident · colour is severity</span>
       <span><i className="dot ring-conflict" /> Same fire? · reports disagree</span>
       <span><i className="dot zone-withdraw" /> Withdraw zone · indicative</span>
+      {crews && <span><i className="dot crew" /> Crew · last reported position</span>}
     </div>
   )
 }
@@ -86,11 +90,12 @@ function pinElement(incident: Incident, selected: boolean): HTMLElement {
 }
 
 /** Google map with the browser key: tiles, pins and withdraw rings only. */
-function GoogleIncidentMap({ incidents, selectedId, onSelect, mapsKey, onFail }: IncidentMapProps & { mapsKey: string; onFail(): void }) {
+function GoogleIncidentMap({ incidents, selectedId, onSelect, mapsKey, onFail, crews = [] }: IncidentMapProps & { mapsKey: string; onFail(): void }) {
   const ref = useRef<HTMLDivElement>(null)
   const [api, setApi] = useState<MapsApi | null>(null)
   const mapRef = useRef<GMap | null>(null)
   const drawn = useRef<{ markers: GMarker[]; circles: GCircle[] }>({ markers: [], circles: [] })
+  const crewMarkers = useRef<GMarker[]>([])
   const fitted = useRef(false)
 
   useEffect(() => {
@@ -159,6 +164,17 @@ function GoogleIncidentMap({ incidents, selectedId, onSelect, mapsKey, onFail }:
   }, [api, incidents, selectedId, onSelect])
 
   useEffect(() => {
+    const map = mapRef.current
+    if (!api || !map) return
+    crewMarkers.current.forEach((m) => (m.map = null))
+    crewMarkers.current = crews.map((c) => {
+      const el = document.createElement('div')
+      el.className = 'map-crew'
+      return new api.AdvancedMarkerElement({ map, position: { lat: c.lat, lng: c.lng }, content: el, title: c.name ?? 'Crew' })
+    })
+  }, [api, crews])
+
+  useEffect(() => {
     const sel = incidents.find((i) => i.id === selectedId)
     if (sel && mapRef.current) mapRef.current.panTo({ lat: sel.lat, lng: sel.lng })
   }, [selectedId, incidents])
@@ -167,12 +183,21 @@ function GoogleIncidentMap({ incidents, selectedId, onSelect, mapsKey, onFail }:
 }
 
 /** Schematic positions when there is no key or Maps fails. Same pins, no tiles. */
-export function SchematicMap({ incidents, selectedId, onSelect, reason }: IncidentMapProps & { reason: string }) {
-  const points = project(incidents, BOX_W, BOX_H)
+export function SchematicMap({ incidents, selectedId, onSelect, reason, crews = [] }: IncidentMapProps & { reason: string }) {
+  const { incidents: points, crews: crewPoints } = projectWithCrews(incidents, crews, BOX_W, BOX_H)
+  const crewById = new Map(crews.map((c) => [c.id, c]))
   const byId = new Map(incidents.map((i) => [i.id, i]))
   return (
     <div className="map-schematic" role="region" aria-label="Incident positions">
       <p className="map-note">{reason} Positions are relative, north up.</p>
+      {crewPoints.map((p) => (
+        <i
+          key={p.id}
+          className="map-crew"
+          style={{ left: `${(p.x / BOX_W) * 100}%`, top: `${(p.y / BOX_H) * 100}%` }}
+          title={crewById.get(p.id)?.name ?? 'Crew'}
+        />
+      ))}
       {points.map((p) => {
         const incident = byId.get(p.id)!
         const s = pinStyle(incident)
@@ -203,49 +228,57 @@ export function IncidentMap(props: IncidentMapProps) {
   const [failed, setFailed] = useState(false)
   const [onFail] = useState(() => () => setFailed(true))
   const [firesOn, setFiresOn] = useState(true)
-  const [emptyOn, setEmptyOn] = useState<ReadonlySet<EmptyLayer>>(() => new Set())
+  const [crewsOn, setCrewsOn] = useState(false)
+  const [windOn, setWindOn] = useState(false)
   const lang = props.lang ?? 'en'
-  const shown = props.showLayers && !firesOn ? [] : props.incidents
+  const layers = Boolean(props.showLayers)
+  const view = layerView({ showLayers: layers, firesOn, crewsOn, windOn }, props.incidents, props.crews ?? [], props.wind ?? null)
+  const shown = view.incidents
+  const crews = view.crews
+  const wind = props.wind ?? null
   const count = placeable(props.incidents).length
 
   let body
-  if (props.showLayers && !firesOn) {
+  if (view.empty === 'firesOff') {
     body = <div className="map-empty" role="status">{t(lang, mapCopy.firesOff)}</div>
-  } else if (count === 0) {
+  } else if (view.empty === 'noPositions') {
     body = <div className="map-empty" role="status">No incident positions to show.</div>
   } else if (!hasMapsKey(key)) {
-    body = <SchematicMap {...props} incidents={shown} reason="Map tiles are off (no browser key)." />
+    body = <SchematicMap {...props} incidents={shown} crews={crews} reason="Map tiles are off (no browser key)." />
   } else if (failed) {
-    body = <SchematicMap {...props} incidents={shown} reason="Map tiles could not load." />
+    body = <SchematicMap {...props} incidents={shown} crews={crews} reason="Map tiles could not load." />
   } else {
-    body = <GoogleIncidentMap {...props} incidents={shown} mapsKey={key} onFail={onFail} />
+    body = <GoogleIncidentMap {...props} incidents={shown} crews={crews} mapsKey={key} onFail={onFail} />
   }
 
-  const emptyNote = EMPTY_LAYERS.filter((layer) => emptyOn.has(layer)).map((layer) => t(lang, mapCopy[layer]))
-
   return (
-    <section className="sup-card map-card" aria-label="Incident locations">
+    <section className={props.size === 'full' ? 'sup-card map-card map-full' : 'sup-card map-card'} aria-label="Incident locations">
       <div className="map-head">
-        <p className="sup-label">{props.showLayers ? t(lang, mapCopy.title) : 'INCIDENT LOCATIONS'}</p>
+        <p className="sup-label">{layers ? t(lang, mapCopy.title) : 'INCIDENT LOCATIONS'}</p>
         <p className="sup-muted">{count} {count === 1 ? 'incident' : 'incidents'} · positions from ember-api</p>
       </div>
-      {props.showLayers && (
+      {layers && (
         <LayerToggles
           firesOn={firesOn}
-          emptyOn={emptyOn}
+          crewsOn={crewsOn}
+          windOn={windOn}
+          hasWind={wind !== null}
           lang={lang}
           onFires={() => setFiresOn((on) => !on)}
-          onEmpty={(layer) => setEmptyOn((current) => {
-            const next = new Set(current)
-            if (next.has(layer)) next.delete(layer)
-            else next.add(layer)
-            return next
-          })}
+          onCrews={() => setCrewsOn((on) => !on)}
+          onWind={() => setWindOn((on) => !on)}
         />
       )}
+      {view.wind && (
+        <p className="map-wind" role="status">
+          <span className="map-wind-arrow" style={{ transform: `rotate(${arrowDeg(view.wind.fromDeg)}deg)` }} aria-hidden="true">↑</span>
+          {windText(view.wind, lang)}
+        </p>
+      )}
       {body}
-      {emptyNote.length > 0 && <p className="map-empty-layer" role="status">{emptyNote.join(' · ')} — {t(lang, mapCopy.nothing)}</p>}
-      <Legend />
+      {view.crewsNone && <p className="map-empty-layer" role="status">{t(lang, mapCopy.crewsNone)}</p>}
+      {crews.length > 0 && <p className="map-empty-layer">{crews.length} {t(lang, mapCopy.crewsShown)} · {t(lang, mapCopy.crews)}</p>}
+      <Legend crews={crews.length > 0} />
       <p className="map-caveat">Guidance is indicative. EMBER does not forecast fire spread or haze.</p>
     </section>
   )

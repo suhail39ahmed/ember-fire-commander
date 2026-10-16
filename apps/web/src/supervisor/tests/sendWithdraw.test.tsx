@@ -3,7 +3,7 @@ import { StaticRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '../../pwa/api/types'
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { createHttpSupervisorApi } from '../api/client'
 import { createMockSupervisorApi } from '../api/mock'
 import type { IncidentDetail } from '../contracts'
@@ -52,7 +52,7 @@ describe('send withdraw: recipients and request', () => {
 
   it('describes each row by its reports, or by its task when it has none', () => {
     const byId = (id: string) => rows.find((r) => r.id === id)!
-    expect(recipientDetail(byId('uid_sari'), 'en')).toBe(`1 report · ${formatTime('2026-10-17T03:05:00Z')}`)
+    expect(recipientDetail(byId('uid_sari'), 'en')).toBe(`1 report · ${formatTimeZone('2026-10-17T03:05:00Z')}`)
     expect(recipientDetail(byId('uid_rizal'), 'en')).toBe('Dispatch task · waiting for approval')
     expect(recipientDetail(byId('uid_rizal'), 'id')).toBe('Kirim tim tugas · menunggu persetujuan')
   })

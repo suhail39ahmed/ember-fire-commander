@@ -128,7 +128,7 @@ def _card(uid, observations, tasks, withdraw, names, push, centre, delivery, saf
             "safe": safe,
             # Who and when come from the audit row written at the time. A mark made before that row carried the volunteer has neither.
             "safeAt": mark.get("at") if safe and mark else None,
-            "safeBy": {"id": mark.get("actorId"), "name": names.get(mark.get("actorId"))} if safe and mark else None,
+            "safeBy": {"id": mark.get("actorId"), "name": _text(mark.get("actorName")) or names.get(mark.get("actorId"))} if safe and mark else None,
         }
     return card
 
@@ -139,7 +139,7 @@ def _audit_entry(row, task_by_id, names):
     return {
         "kind": "audit", "id": row["id"], "at": row.get("at"), "action": row.get("action"),
         "actorId": row.get("actorId"),
-        "actorName": None if row.get("actorId") == "code" else names.get(row.get("actorId")),
+        "actorName": None if row.get("actorId") == "code" else _text(row.get("actorName")) or names.get(row.get("actorId")),
         "volunteerId": row.get("subjectId") or task.get("volunteerId"),
         "taskId": row.get("targetId") if task else None,
         "severity": None, "source": None, "chip": None, "text": None,
@@ -237,3 +237,64 @@ def build(incident_id, data, observations, conflict_body, tasks):
         # Only a value stored on the incident itself. Nothing writes it yet, so it is None today.
         "agencyInCharge": _text(data.get("agency")),
     }
+
+
+HELP_CHIP = "butuh_bantuan"
+
+
+def list_extras(snapshots):
+    """Counts and flags for the supervisor's incident list, from stored records. {incident id: extras}.
+
+    `reportCount` is every observation the incident holds. `volunteerCount` is the distinct volunteers who
+    reported. `needsHelp` is true when any of those reports is the "butuh bantuan" chip. `verifiedBy` is the
+    name on the newest `incident.verify` audit row of a verified incident, and None when no name was stored.
+    `verified` says whether such a row exists, so a missing name is not read as a missing verification.
+    """
+    incidents = {snap.id: snap.to_dict() or {} for snap in snapshots}
+    wanted = []
+    for data in incidents.values():
+        ids = data.get("observationIds")
+        wanted += [i for i in ids if isinstance(i, str) and i] if isinstance(ids, list) else []
+    found = {oid: snap.to_dict() or {} for oid, snap in store.get_many(store.OBSERVATIONS, wanted).items()}
+
+    verified_ids = [i for i, data in incidents.items() if data.get("status") == "verified"]
+    verify_rows = {}
+    if verified_ids:
+        for row in _docs(store.where_any(store.AUDIT, "targetId", "in", sorted(verified_ids))):
+            if row.get("action") != "incident.verify":
+                continue
+            current = verify_rows.get(row.get("targetId"))
+            if current is None or (_when(row.get("at")), row["id"]) >= (_when(current.get("at")), current["id"]):
+                verify_rows[row.get("targetId")] = row
+    actor_ids = [r.get("actorId") for r in verify_rows.values() if not _text(r.get("actorName"))]
+    names, _ = _profiles(actor_ids)
+
+    out = {}
+    for incident_id, data in incidents.items():
+        reports = [found[i] for i in (data.get("observationIds") or []) if isinstance(i, str) and i in found]
+        row = verify_rows.get(incident_id)
+        out[incident_id] = {
+            "reportCount": len(reports),
+            "volunteerCount": len({o.get("volunteerId") for o in reports if o.get("volunteerId")}),
+            "needsHelp": any(o.get("chip") == HELP_CHIP for o in reports),
+            "verified": row is not None,
+            "verifiedBy": (_text(row.get("actorName")) or names.get(row.get("actorId"))) if row else None,
+        }
+    return out
+
+
+def volunteer_names(incidents, volunteer_ids):
+    """{volunteer id: display name} for people with a task. The name on one of their reports on those incidents, else the volunteer record."""
+    wanted = {v for v in volunteer_ids if v}
+    names = {}
+    report_ids = []
+    for data in incidents.values():
+        ids = data.get("observationIds")
+        report_ids += [i for i in ids if isinstance(i, str) and i] if isinstance(ids, list) else []
+    for snap in store.get_many(store.OBSERVATIONS, report_ids).values():
+        data = snap.to_dict() or {}
+        name = rules.reporter_name(data)
+        if name and data.get("volunteerId") in wanted:
+            names[data["volunteerId"]] = name
+    profile_names, _ = _profiles([v for v in wanted if v not in names])
+    return names | profile_names

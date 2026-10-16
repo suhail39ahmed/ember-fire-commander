@@ -4,6 +4,7 @@
  */
 import type { Lang } from '../../pwa/i18n'
 import type { EvidenceFactor, IncidentDetail, Observation, Task } from '../contracts'
+import { incidentLabel } from '../../pwa/incidentName'
 import { cardOf, distanceLine, placeLine } from './cardModel'
 import { formatPosition, initialsOf, nameOf } from './model'
 
@@ -11,7 +12,7 @@ export interface PopupProfile {
   id: string
   name: string
   initials: string
-  incidentName: string | null
+  incidentName: string
   incidentId: string
   /** Position of the newest report, or null when the volunteer has not reported. */
   position: string | null
@@ -65,7 +66,7 @@ export function popupFor(detail: IncidentDetail, volunteerId: string, lang: Lang
       id: volunteerId,
       name,
       initials: initialsOf(name),
-      incidentName: detail.incident.name ?? null,
+      incidentName: incidentLabel(detail.incident, lang),
       incidentId: detail.incident.id,
       // The card covers reports a conflict leaves out of `observations`.
       position: newest ? formatPosition(newest) : placeLine(card)?.split(' · ')[0] ?? null,

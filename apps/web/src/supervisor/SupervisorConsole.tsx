@@ -11,6 +11,7 @@ import type { SupervisorApi } from './api/types'
 import type { Incident, IncidentDetail } from './contracts'
 import { reasonOf } from './detail/outcomeCopy'
 import { LiveBanner } from './LiveBanner'
+import { UpdatedLine } from './UpdatedLine'
 import { ReignitionAlertBanner } from './ReignitionAlert'
 import { SeasonImpact } from './SeasonImpact'
 import { Charts } from './Charts'
@@ -18,6 +19,8 @@ import { IncidentQueue } from './IncidentQueue'
 import { IncidentView, type Outcome } from './IncidentView'
 import { IncidentsContext, POLL_MS, useIncidents, type DetailFailure, type IncidentsState } from './incidentsContext'
 import { IncidentMap } from './map/IncidentMap'
+import { crewDots } from './map/markers'
+import { windReading } from './map/wind'
 import { incidentIdFromPath, consoleIncidentPath } from './paths'
 import { useConsole } from './ConsoleProvider'
 import { flattenGroups, groupByArea } from './queueGroups'
@@ -190,6 +193,7 @@ export function IncidentsShell({ api: apiOverride, children }: { api?: Superviso
 function DashboardLiveBanner() {
   const { pathname } = useLocation()
   const { liveFires, updatedAt, nextSatellitePass, bannerRetrying, chromeError, language } = useConsole()
+  const { queue } = useIncidents()
   if (incidentIdFromPath(pathname) !== null) return null
   return (
     <LiveBanner
@@ -199,8 +203,16 @@ function DashboardLiveBanner() {
       loading={liveFires === null && chromeError === null}
       retrying={bannerRetrying}
       lang={language}
+      queue={queue}
     />
   )
+}
+
+function DashboardUpdated() {
+  const { liveFires, updatedAt, language } = useConsole()
+  // With fires on screen the banner already says when it was updated.
+  if (liveFires !== null && liveFires.length > 0) return null
+  return <UpdatedLine updatedAt={updatedAt} lang={language} />
 }
 
 function DashboardReignitionAlert() {
@@ -248,12 +260,15 @@ function DashboardCharts() {
 /** Temporary incidents content: the current queue, map, and incident, inside the console chrome. */
 export function IncidentsPage() {
   const { queue, detail, loadError, activeId, select, actions } = useIncidents()
-  const { language } = useConsole()
+  const { language, charts } = useConsole()
+  const crews = useMemo(() => crewDots(detail && detail.incident.id === activeId ? detail.volunteers : null), [detail, activeId])
+  const wind = useMemo(() => windReading(charts?.windKmh, charts?.windDirDeg), [charts])
   const groups = useMemo(() => groupByArea(queue ?? []), [queue])
   return (
     <div className="sup">
       <div className="sup-main">
         <DashboardLiveBanner />
+        <DashboardUpdated />
         <DashboardReignitionAlert />
         <DashboardSeasonImpact />
         <DashboardCharts />
@@ -276,9 +291,9 @@ export function IncidentsPage() {
           <div className="sup-work">
             <IncidentQueue groups={groups} activeId={activeId} onSelect={select} lang={language} />
             <div className="sup-work-detail">
-              <IncidentMap incidents={queue} selectedId={activeId} onSelect={select} showLayers lang={language} />
+              <IncidentMap incidents={queue} selectedId={activeId} onSelect={select} showLayers crews={crews} wind={wind} lang={language} />
               {detail && detail.incident.id === activeId ? (
-                <IncidentView key={detail.incident.id} detail={detail} actions={actions} />
+                <IncidentView key={detail.incident.id} detail={detail} actions={actions} lang={language} />
               ) : !loadError ? (
                 <div className="sup-state" role="status"><p className="sup-state-title">Loading live incident…</p></div>
               ) : null}

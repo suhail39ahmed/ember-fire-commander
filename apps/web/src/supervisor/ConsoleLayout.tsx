@@ -3,7 +3,7 @@ import { Link, Outlet } from 'react-router-dom'
 
 import { useAuth } from '../auth/AuthProvider'
 import { USE_MOCK_API } from '../pwa/api/config'
-import { formatTime } from '../pwa/formatTime'
+import { formatTimeZone } from '../pwa/formatTime'
 import { strings, t } from '../pwa/i18n'
 import { DisplayControls } from '../pwa/DisplayControls'
 import { copy } from '../routes/copy'
@@ -38,7 +38,6 @@ const MENU: { id: ConsoleMenu; to: string }[] = [
   { id: 'approvals', to: CONSOLE_PATHS.approvals },
   { id: 'map', to: CONSOLE_PATHS.map },
   { id: 'audit', to: CONSOLE_PATHS.audit },
-  { id: 'settings', to: CONSOLE_PATHS.settings },
 ]
 
 function menuLabel(id: ConsoleMenu, language: ReturnType<typeof useConsole>['language'], count: number | null): string {
@@ -53,7 +52,7 @@ function ServerClock({ serverTime, skewMs, label }: { serverTime: string | null;
     const id = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(id)
   }, [])
-  const text = serverTime && skewMs !== null ? formatTime(now + skewMs) : '--:--'
+  const text = serverTime && skewMs !== null ? formatTimeZone(now + skewMs) : '--:--'
   return (
     <time dateTime={serverTime ?? undefined} className="console-clock" aria-label={`${label} ${text}`}>
       {text}

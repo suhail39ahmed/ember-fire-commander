@@ -142,9 +142,10 @@
   border: 1px solid var(--line);
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
 }
 .incident-row-status { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
-.incident-row-empty { color: var(--ink-muted); }
+.incident-need-help { margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: #fde2e2; border: 1px solid var(--danger); color: var(--danger); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap; }
 .sup-work { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start; }
 .sup-work-detail { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .sup-main { padding: 24px 28px; display: flex; flex-direction: column; gap: 16px; min-height: 100%; }
@@ -185,7 +186,7 @@
   border-radius: 14px;
 }
 .live-fire-title { margin: 0; font-weight: 700; }
-.live-fire-id, .live-fire-meta { margin: 4px 0 0; color: var(--ink-muted); font-size: 13px; }
+.live-fire-meta { margin: 4px 0 0; color: var(--ink-muted); font-size: 13px; }
 .live-flag {
   display: inline-block;
   margin: 8px 0 0;
@@ -332,7 +333,10 @@
 .sup-obs { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
 .sup-obs p { margin: 2px 0; }
 .sup-obs-who { font-weight: 600; }
-.sup-obs-text { font-style: italic; }
+.sup-obs-text { font-style: italic; overflow-wrap: anywhere; white-space: pre-wrap; }
+.sup-obs, .sup-obs-who { min-width: 0; overflow-wrap: anywhere; }
+.sup-obs.help { border-color: var(--danger); box-shadow: 0 0 0 2px #fde2e2; }
+.sup-obs-help { margin: 2px 0; color: var(--danger); font-weight: 700; font-size: 12px; letter-spacing: 0.06em; }
 .sup-sev { font-weight: 700; }
 .sev-large_flame, .sev-small_flame { color: var(--danger); }
 .sev-smoke { color: var(--haze); }
@@ -364,3 +368,9 @@
   .console-top { flex-wrap: wrap; }
   .sup-work, .sup-grid { grid-template-columns: 1fr; }
 }
+.approvals-title { margin: 0; font-size: 22px; font-weight: 700; }
+.approvals-count { color: var(--ink-muted); font-size: 15px; font-weight: 600; }
+.approvals-group { display: flex; flex-direction: column; gap: 8px; }
+.approvals-incident { margin: 0; font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.approvals-incident a { color: inherit; }
+.dash-updated { margin: 0; font-size: 13px; color: var(--ink-muted); }

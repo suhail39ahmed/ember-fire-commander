@@ -1,9 +1,10 @@
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { t, type Lang } from '../../pwa/i18n'
 import { chipLabel } from '../../pwa/report/chips'
 import type { Observation } from '../contracts'
 import { detailCopy, severityName, taskCopy } from './copy'
 import { disagreeCopy } from './disagreeCopy'
+import { HELP_CHIP } from './helpModel'
 import { volunteerLabel } from './model'
 import './disagree.css'
 
@@ -15,11 +16,11 @@ export function ReportCard({ lang, obs }: { lang: Lang; obs: Observation }) {
   const name = obs.volunteerName?.trim() || volunteerLabel(obs.volunteerId, lang)
   const chip = obs.chip ? chipLabel(obs.chip, lang) : null
   return (
-    <article className="rep" aria-label={`${t(lang, taskCopy.reportFrom)} ${name}`}>
+    <article className={obs.chip === HELP_CHIP ? 'rep help' : 'rep'} aria-label={`${t(lang, taskCopy.reportFrom)} ${name}`}>
       <header className="rep-head">
         <h3 className="rep-name">{name}</h3>
         <p className="rep-meta">
-          <time dateTime={obs.capturedAt}>{formatTime(obs.capturedAt)}</time> · ±{obs.accuracyM ?? '?'} m
+          <time dateTime={obs.capturedAt}>{formatTimeZone(obs.capturedAt)}</time> · ±{obs.accuracyM ?? '?'} m
         </p>
       </header>
       <div className="rep-pills">

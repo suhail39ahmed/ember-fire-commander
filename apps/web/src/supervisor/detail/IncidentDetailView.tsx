@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import { chipText } from '../../pwa/report/chips'
 import { t, type Lang } from '../../pwa/i18n'
-import { incidentLabel, shortIncidentId } from '../../pwa/incidentName'
+import { incidentLabel } from '../../pwa/incidentName'
 import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, PhotoUrl, TaskDecision, WithdrawRequest } from '../contracts'
 import { conflictPair, taskControls } from '../view'
 import { IncidentMap } from '../map/IncidentMap'
@@ -22,6 +22,8 @@ import { LowerSeverityDialog } from './LowerSeverityDialog'
 import { disagreeCopy, factorName } from './disagreeCopy'
 import { AgencyInCharge } from './AgencyInCharge'
 import { ConflictExtras } from './ConflictExtras'
+import { helpRequests } from './helpModel'
+import { NeedHelpBanner } from './NeedHelpBanner'
 import { ProposalRow } from './ProposalRow'
 import { ReportCard } from './ReportCard'
 import { SendWithdrawDialog } from './SendWithdrawDialog'
@@ -78,7 +80,7 @@ export interface IncidentDetailViewProps {
 
 function ageText(lang: Lang, lastOkAt: number | null, now: number): string {
   if (lastOkAt === null) return ''
-  const time = formatTime(lastOkAt)
+  const time = formatTimeZone(lastOkAt)
   const mins = minutesBetween(lastOkAt, now)
   const ago = mins < 1 ? t(lang, detailCopy.justNow) : `${mins} ${t(lang, detailCopy.minAgo)}`
   return `${time} (${ago})`
@@ -186,6 +188,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
   const reportTotal = detail.volunteers ? detail.volunteers.reduce((sum, c) => sum + c.reportCount, 0) : detail.observations.length
   const reporters = detail.volunteers ? detail.volunteers.filter((c) => c.reportCount > 0).length : new Set(detail.observations.map((o) => o.volunteerId)).size
   const summary = summaryText(lang, detail.summary)
+  const help = helpRequests(detail, lang)
   return (
     <>
       <header className="inc-head">
@@ -201,9 +204,8 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           <span className={offline ? 'inc-pill inc-pill-red' : 'inc-pill inc-pill-quiet'}>
             {offline ? t(lang, detailCopy.lastKnown) : `${volunteers.length} ${t(lang, detailCopy.onSite)}`}
           </span>
-          <span className="inc-pill inc-pill-quiet">{t(lang, detailCopy.idLabel)} {incident.id}</span>
         </div>
-        <h1 className="inc-title">{incidentLabel(incident)}</h1>
+        <h1 className="inc-title">{incidentLabel(incident, lang)}</h1>
         <ActionBar
           lang={lang}
           incident={incident}
@@ -217,6 +219,8 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         {notice && <p className="sup-ok" role="status">{notice}</p>}
         <OutcomeLine outcome={actions.outcomes[incident.id]} lang={lang} />
       </header>
+
+      <NeedHelpBanner lang={lang} requests={help} offline={offline} onReply={(id) => setPopupId(id)} />
 
       {wd && <WithdrawPanel lang={lang} state={wd} now={serverNow} offline={offline} markSafe={markSafe} nameOf={(id) => nameOf(detail, id, lang)} />}
 
@@ -260,7 +264,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           label={t(lang, detailCopy.statSeverity)}
           value={t(lang, severityName[incident.severity])}
           tone={`sev-${incident.severity}`}
-          note={top ? `${t(lang, detailCopy.statSeverityRule)} · ${nameOf(detail, top.volunteerId, lang)} · ${formatTime(top.capturedAt)}` : t(lang, detailCopy.statSeverityRule)}
+          note={top ? `${t(lang, detailCopy.statSeverityRule)} · ${nameOf(detail, top.volunteerId, lang)} · ${formatTimeZone(top.capturedAt)}` : t(lang, detailCopy.statSeverityRule)}
         />
         <Stat label={t(lang, detailCopy.statEvidence)} value={String(incident.evidenceScore)} note={t(lang, detailCopy.statEvidenceNote)} />
         <Stat
@@ -393,7 +397,7 @@ function Rail({ lang, detail, queue, onSelect, mapsKey }: Pick<IncidentDetailVie
             <ol className="inc-timeline">
               {history.map((e) => (
                 <li key={`${e.kind}-${e.id}`}>
-                  <time dateTime={e.at}>{formatTime(e.at)}</time>
+                  <time dateTime={e.at}>{formatTimeZone(e.at)}</time>
                   {e.kind === 'report' ? (
                     <span>
                       {e.volunteerId ? nameOf(detail, e.volunteerId, lang) : '—'} · {e.chip ? chipText(e.chip, lang) : t(lang, severityName[e.severity ?? 'unknown'])}
@@ -415,7 +419,7 @@ function Rail({ lang, detail, queue, onSelect, mapsKey }: Pick<IncidentDetailVie
           <ol className="inc-timeline">
             {events.map((o) => (
               <li key={o.id}>
-                <time dateTime={o.capturedAt}>{formatTime(o.capturedAt)}</time>
+                <time dateTime={o.capturedAt}>{formatTimeZone(o.capturedAt)}</time>
                 <span>
                   {detail ? nameOf(detail, o.volunteerId, lang) : o.volunteerId} · {o.chip ? chipText(o.chip, lang) : t(lang, severityName[o.severity])}
                   {o.text ? ` · “${o.text}”` : ''}
@@ -432,9 +436,9 @@ function Rail({ lang, detail, queue, onSelect, mapsKey }: Pick<IncidentDetailVie
 /** The incident detail screen for `/console/incidents/:incidentId`: every state in one component, props only. */
 export function IncidentDetailView(props: IncidentDetailViewProps) {
   const { lang, incidentId, detail, failure, link, lastOkAt, now, actions, onRetry } = props
-  const label = detail ? incidentLabel(detail.incident) : props.queue?.find((i) => i.id === incidentId)
-    ? incidentLabel(props.queue.find((i) => i.id === incidentId)!)
-    : shortIncidentId(incidentId)
+  const label = detail ? incidentLabel(detail.incident, lang) : props.queue?.find((i) => i.id === incidentId)
+    ? incidentLabel(props.queue.find((i) => i.id === incidentId)!, lang)
+    : incidentLabel({ id: incidentId }, lang)
   let body
   if (detail) {
     body = <Body lang={lang} detail={detail} link={link} actions={actions} view={props} />

@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { StaticRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
-import { formatTime } from '../../pwa/formatTime'
+import { formatTimeZone } from '../../pwa/formatTime'
 import type { AuditAction, IncidentDetail, TimelineEntry, VolunteerCardData } from '../contracts'
 import { fixture } from '../fixtures'
 import type { IncidentActions } from '../IncidentView'
@@ -78,13 +78,13 @@ describe('card lines', () => {
     expect(deliveryFacts('en', card())).toEqual([])
     const base = { ...empty, sentAt: '2026-10-17T03:08:00Z' }
     expect(deliveryFacts('en', card({ withdraw: { ...base, delivery: 'failed', sendCount: 3 } }))).toEqual(['Not heard on device yet', 'Push failed', '3×'])
-    expect(deliveryFacts('en', card({ withdraw: { ...base, heardAt: '2026-10-17T03:08:20Z', delivery: 'sent', sendCount: 1 } }))).toEqual([`Heard on device ${formatTime('2026-10-17T03:08:20Z')}`, 'Push sent'])
+    expect(deliveryFacts('en', card({ withdraw: { ...base, heardAt: '2026-10-17T03:08:20Z', delivery: 'sent', sendCount: 1 } }))).toEqual([`Heard on device ${formatTimeZone('2026-10-17T03:08:20Z')}`, 'Push sent'])
     expect(deliveryFacts('id', card({ withdraw: { ...base, delivery: 'skipped' } }))).toEqual(['Belum terdengar di ponsel', 'Tanpa token perangkat, notifikasi dilewati'])
   })
 
   it('say who marked a volunteer safe and when, leaving out what was not stored', () => {
     const safe = { ...empty, safe: true }
-    expect(safeStamp('en', card({ withdraw: { ...safe, safeAt: '2026-10-17T03:09:00Z', safeBy: { id: 'uid_maya', name: 'Bu Maya' } } }))).toBe(`Marked safe ${formatTime('2026-10-17T03:09:00Z')} · by Bu Maya`)
+    expect(safeStamp('en', card({ withdraw: { ...safe, safeAt: '2026-10-17T03:09:00Z', safeBy: { id: 'uid_maya', name: 'Bu Maya' } } }))).toBe(`Marked safe ${formatTimeZone('2026-10-17T03:09:00Z')} · by Bu Maya`)
     expect(safeStamp('en', card({ withdraw: { ...safe, safeAt: null, safeBy: null } }))).toBe('Marked safe')
     expect(safeStamp('en', card({ withdraw: { ...safe, safeAt: null, safeBy: { id: 'uid_maya', name: null } } }))).toBe('Marked safe')
     expect(safeStamp('en', card({ withdraw: empty }))).toBeNull()
@@ -192,12 +192,12 @@ describe('incident detail with the supervisor extras', () => {
 
   it('shows on the unconfirmed volunteer when the report came, whether the phone heard it and the push result', () => {
     const html = view(withExtras())
-    expect(html).toContain(`Last report ${formatTime('2026-10-17T03:02:00Z')}`)
+    expect(html).toContain(`Last report ${formatTimeZone('2026-10-17T03:02:00Z')}`)
     expect(html).toContain('Not heard on device yet · Push failed · 2×')
   })
 
   it('shows who marked a volunteer safe and when, on their card', () => {
-    expect(view(withExtras())).toContain(`Marked safe ${formatTime('2026-10-17T03:09:00Z')} · by Bu Maya`)
+    expect(view(withExtras())).toContain(`Marked safe ${formatTimeZone('2026-10-17T03:09:00Z')} · by Bu Maya`)
   })
 
   it('draws the stored timeline: reports and actions, with who did them', () => {
