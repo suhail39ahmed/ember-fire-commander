@@ -203,6 +203,16 @@ def _detail(action, target_id, tasks, incidents, observations, names):
         return "Instruction sent again"
     if action == "task.heard":
         return "Heard on device"
+    if action == "site.dismiss":
+        site = store.db().collection(store.SITES).document(target_id).get()
+        if site.exists:
+            for alert in (site.to_dict() or {}).get("alerts") or []:
+                reason = alert.get("dismissReason") if isinstance(alert, dict) else None
+                if isinstance(reason, str) and reason.strip():
+                    return reason.strip()
+        return "Alert dismissed"
+    if action == "site.recheck":
+        return "Re-check task proposed"
     return EMPTY_DETAIL
 
 

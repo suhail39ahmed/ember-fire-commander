@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 
 import { useAuth } from '../auth/AuthProvider'
@@ -6,7 +6,7 @@ import { USE_MOCK_API } from '../pwa/api/config'
 import { ApiError } from '../pwa/api/types'
 import { t, type Lang } from '../pwa/i18n'
 import { useLanguage } from '../pwa/language'
-import { fetchConsoleChrome, mockConsoleChrome, type ConsoleChrome, type DashboardCharts, type LiveFire, type SeasonImpact } from './chromeClient'
+import { fetchConsoleChrome, mockConsoleChrome, type ConsoleChrome, type DashboardCharts, type LiveFire, type ReignitionAlert, type SeasonImpact } from './chromeClient'
 import { chromeCopy } from './chromeCopy'
 import { consoleMenu, type ConsoleMenu } from './paths'
 
@@ -33,8 +33,14 @@ export interface ConsoleContextValue {
   seasonImpact: SeasonImpact | null
   /** null until the first dashboard read that includes the charts. */
   charts: DashboardCharts | null
+  /** undefined until the first dashboard read that includes the key. null = no alert. */
+  reignitionAlert: ReignitionAlert | null | undefined
   /** The last picture is still showing while a refresh failed. */
   bannerRetrying: boolean
+  /** Re-read GET /dashboard after dismiss or send. */
+  reloadChrome(): Promise<void>
+  /** Patch only the re-ignition alert on the last picture (tests and post-write). */
+  setReignitionAlert(alert: ReignitionAlert | null): void
 }
 
 const ConsoleContext = createContext<ConsoleContextValue | null>(null)
@@ -69,34 +75,34 @@ export function ConsoleProvider({
   const [clockSkewMs, setClockSkewMs] = useState<number | null>(() => skewOf(chrome?.serverTime))
   const [failure, setFailure] = useState<ChromeFailure | null>(chromeErrorOverride ?? null)
 
-  useEffect(() => {
+  const loadChrome = useCallback(async () => {
     if (injected) return
-    let cancelled = false
-    const load = async () => {
-      try {
-        let next: ConsoleChrome
-        if (USE_MOCK_API) {
-          next = mockConsoleChrome()
-        } else {
-          const { authHeadersFor } = await import('../pwa/api/authHeaders')
-          next = await fetchConsoleChrome(authHeadersFor(user))
-        }
-        if (cancelled) return
-        setPicture(next)
-        setClockSkewMs(skewOf(next.serverTime))
-        setFailure(null)
-      } catch (err) {
-        if (cancelled) return
-        setFailure(err instanceof ApiError && err.code === 'network' ? 'network' : 'failed')
+    try {
+      let next: ConsoleChrome
+      if (USE_MOCK_API) {
+        next = mockConsoleChrome()
+      } else {
+        const { authHeadersFor } = await import('../pwa/api/authHeaders')
+        next = await fetchConsoleChrome(authHeadersFor(user))
       }
-    }
-    void load()
-    const timer = window.setInterval(() => { void load() }, CHROME_POLL_MS)
-    return () => {
-      cancelled = true
-      window.clearInterval(timer)
+      setPicture(next)
+      setClockSkewMs(skewOf(next.serverTime))
+      setFailure(null)
+    } catch (err) {
+      setFailure(err instanceof ApiError && err.code === 'network' ? 'network' : 'failed')
     }
   }, [injected, user])
+
+  useEffect(() => {
+    if (injected) return
+    void loadChrome()
+    const timer = window.setInterval(() => { void loadChrome() }, CHROME_POLL_MS)
+    return () => { window.clearInterval(timer) }
+  }, [injected, loadChrome])
+
+  const setReignitionAlert = useCallback((alert: ReignitionAlert | null) => {
+    setPicture((current) => (current ? { ...current, reignitionAlert: alert } : current))
+  }, [])
 
   const value = useMemo<ConsoleContextValue>(() => {
     const chromeError = failure === 'network'
@@ -122,9 +128,12 @@ export function ConsoleProvider({
       nextSatellitePass: picture?.nextSatellitePass ?? null,
       seasonImpact: picture && 'seasonImpact' in picture ? (picture.seasonImpact ?? null) : null,
       charts: picture && 'charts' in picture ? (picture.charts ?? null) : null,
+      reignitionAlert: picture && 'reignitionAlert' in picture ? (picture.reignitionAlert ?? null) : undefined,
       bannerRetrying: failure !== null,
+      reloadChrome: loadChrome,
+      setReignitionAlert,
     }
-  }, [me?.id, me?.displayName, lang, pathname, picture, clockSkewMs, failure])
+  }, [me?.id, me?.displayName, lang, pathname, picture, clockSkewMs, failure, loadChrome, setReignitionAlert])
 
   return <ConsoleContext.Provider value={value}>{children}</ConsoleContext.Provider>
 }

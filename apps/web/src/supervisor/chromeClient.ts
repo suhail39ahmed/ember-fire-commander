@@ -1,5 +1,6 @@
 /**
- * GET /dashboard — chrome fields, the live-fire banner, season impact, and charts.
+ * GET /dashboard — chrome fields, live banner, season impact, charts, re-ignition alert.
+ * Dismiss and recheck write through /sites/.../alerts/... .
  */
 import type { ErrorBody } from '../pwa/contracts/types'
 import type { AuthHeadersProvider } from '../pwa/api/authHeaders'
@@ -90,6 +91,17 @@ export const emptyCharts = (): DashboardCharts => ({
   rain: null,
 })
 
+/** Re-ignition alert on the dashboard. No lead id. code is null until stored. */
+export interface ReignitionAlert {
+  id: string
+  incidentId: string
+  code: string | null
+  distanceM: number
+  extinguishedAt: string
+  message: string
+  taskId: string | null
+}
+
 export interface ConsoleChrome {
   agency: string | null
   serverTime: string
@@ -99,6 +111,7 @@ export interface ConsoleChrome {
   liveFires?: LiveFire[]
   seasonImpact?: SeasonImpact
   charts?: DashboardCharts
+  reignitionAlert?: ReignitionAlert | null
 }
 
 /** Design fixture used only when VITE_USE_MOCK_API=true. Not a live task count. */
@@ -112,6 +125,7 @@ export function mockConsoleChrome(now = new Date()): ConsoleChrome {
     liveFires: [],
     seasonImpact: emptySeasonImpact(),
     charts: emptyCharts(),
+    reignitionAlert: null,
   }
 }
 
@@ -156,6 +170,19 @@ function isSeasonImpact(value: unknown): value is SeasonImpact {
     && isNullableString(impact.reignitionsNote)
 }
 
+function isReignitionAlert(value: unknown): value is ReignitionAlert {
+  if (typeof value !== 'object' || value === null) return false
+  const alert = value as Partial<ReignitionAlert>
+  return typeof alert.id === 'string'
+    && typeof alert.incidentId === 'string'
+    && isNullableString(alert.code)
+    && typeof alert.distanceM === 'number'
+    && Number.isFinite(alert.distanceM)
+    && typeof alert.extinguishedAt === 'string'
+    && typeof alert.message === 'string'
+    && (alert.taskId === null || typeof alert.taskId === 'string')
+}
+
 function isCharts(value: unknown): value is DashboardCharts {
   if (typeof value !== 'object' || value === null) return false
   const charts = value as Partial<DashboardCharts>
@@ -186,6 +213,9 @@ function isChrome(body: unknown): body is ConsoleChrome {
   const updatedOk = value.updatedAt === undefined || typeof value.updatedAt === 'string'
   const seasonOk = value.seasonImpact === undefined || isSeasonImpact(value.seasonImpact)
   const chartsOk = value.charts === undefined || isCharts(value.charts)
+  const alertOk = value.reignitionAlert === undefined
+    || value.reignitionAlert === null
+    || isReignitionAlert(value.reignitionAlert)
   return agencyOk
     && typeof value.serverTime === 'string'
     && typeof value.approvalsCount === 'number'
@@ -195,6 +225,7 @@ function isChrome(body: unknown): body is ConsoleChrome {
     && updatedOk
     && seasonOk
     && chartsOk
+    && alertOk
 }
 
 function isErrorBody(body: unknown): body is ErrorBody {
@@ -229,4 +260,69 @@ export async function fetchConsoleChrome(
     throw new ApiError('http_error', 'Dashboard response is missing chrome fields', res.status, false)
   }
   return body
+}
+
+async function postSitesAction<T>(
+  path: string,
+  getAuthHeaders: AuthHeadersProvider,
+  body?: unknown,
+  baseUrl: string = API_BASE_URL,
+  fetchImpl: typeof fetch = (...args) => fetch(...args),
+): Promise<T> {
+  const auth = await getAuthHeaders()
+  if (!auth) throw new ApiError('unauthorized', 'Not signed in', 401, false)
+  const headers: Record<string, string> = { Accept: 'application/json', ...auth }
+  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  let res: Response
+  try {
+    res = await fetchImpl(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers,
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    })
+  } catch {
+    throw new ApiError('network', 'Network error', null, true)
+  }
+  if (!res.ok) {
+    const errBody: unknown = await res.json().catch(() => null)
+    const retryable = res.status >= 500 || res.status === 429
+    if (isErrorBody(errBody)) {
+      throw new ApiError(errBody.error.code, errBody.error.message, res.status, retryable, errBody.error.fields ?? {})
+    }
+    throw new ApiError(retryable ? 'unavailable' : 'http_error', `HTTP ${res.status}`, res.status, retryable)
+  }
+  return (await res.json()) as T
+}
+
+export function dismissReignitionAlert(
+  incidentId: string,
+  alertId: string,
+  reason: string,
+  getAuthHeaders: AuthHeadersProvider,
+  baseUrl?: string,
+  fetchImpl?: typeof fetch,
+) {
+  return postSitesAction<{ dismissed: boolean; auditId: string }>(
+    `/sites/${encodeURIComponent(incidentId)}/alerts/${encodeURIComponent(alertId)}/dismiss`,
+    getAuthHeaders,
+    { reason },
+    baseUrl,
+    fetchImpl,
+  )
+}
+
+export function sendReignitionRecheck(
+  incidentId: string,
+  alertId: string,
+  getAuthHeaders: AuthHeadersProvider,
+  baseUrl?: string,
+  fetchImpl?: typeof fetch,
+) {
+  return postSitesAction<{ task: { id: string }; auditId: string; alert: ReignitionAlert }>(
+    `/sites/${encodeURIComponent(incidentId)}/alerts/${encodeURIComponent(alertId)}/recheck`,
+    getAuthHeaders,
+    undefined,
+    baseUrl,
+    fetchImpl,
+  )
 }

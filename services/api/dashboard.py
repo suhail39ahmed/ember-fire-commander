@@ -18,6 +18,7 @@ from flask import Blueprint, g, jsonify
 
 from identity import AuthError
 from incidents import rules, store
+from sites_routes import reignition_alert
 
 logger = logging.getLogger(__name__)
 
@@ -437,7 +438,7 @@ def _fill(keys, *parts):
 
 @dashboard_bp.route("/dashboard", methods=["GET"])
 def dashboard():
-    """Chrome, the live banner, season impact, and the chart cards."""
+    """Chrome, live banner, season impact, charts, and a re-ignition alert when one is open."""
     _require_supervisor()
     now = rules.now_iso()
     moment = _parse_time(now) or datetime.now(timezone.utc)
@@ -464,4 +465,5 @@ def dashboard():
         "liveFires": fires,
         "seasonImpact": season,
         "charts": charts,
+        "reignitionAlert": reignition_alert(),
     }), 200
