@@ -1,0 +1,159 @@
+import { renderToStaticMarkup } from 'react-dom/server'
+import { StaticRouter } from 'react-router-dom'
+import { describe, expect, it } from 'vitest'
+
+import { formatTime } from '../../pwa/formatTime'
+import type { IncidentDetail, Observation } from '../contracts'
+import { fixture } from '../fixtures'
+import type { IncidentActions } from '../IncidentView'
+import { IncidentDetailView } from '../detail/IncidentDetailView'
+import { popupCopy } from '../detail/popupCopy'
+import { popupFor } from '../detail/popupModel'
+import { VolunteerCard } from '../detail/VolunteerCard'
+import { VolunteerPopup } from '../detail/VolunteerPopup'
+import { volunteersOf } from '../detail/model'
+
+const NOW = Date.parse('2026-10-17T03:10:00Z')
+
+function withPhoto(detail: IncidentDetail): IncidentDetail {
+  const photo: Observation = {
+    id: 'obs_photo', volunteerId: 'uid_sari', capturedAt: '2026-10-17T03:07:00Z', receivedAt: '2026-10-17T03:07:03Z', source: 'photo',
+    lat: -1.85, lng: 110.06, accuracyM: 9, chip: null, text: 'Foto parit', severity: 'smoke', photoPath: 'photos/uid_sari/obs_photo.jpg', immutable: true,
+  }
+  return { ...detail, observations: [...detail.observations, photo] }
+}
+
+function popup(detail: IncidentDetail, id: string, lang: 'id' | 'en' = 'en') {
+  return renderToStaticMarkup(<VolunteerPopup lang={lang} detail={detail} volunteerId={id} onClose={() => undefined} />)
+}
+
+describe('volunteer pop-up: the data', () => {
+  it('reads one volunteer from the incident detail and nothing else', () => {
+    const p = popupFor(withPhoto(fixture('conflict')), 'uid_sari', 'en')!
+    expect(p.profile).toMatchObject({ id: 'uid_sari', name: 'Sari', initials: 'SA', incidentId: 'inc_demo_01', reportCount: 2 })
+    expect(p.reports.map((o) => o.id)).toEqual(['obs_photo', 'obs_demo_02'])
+    expect(p.photos.map((o) => o.id)).toEqual(['obs_photo'])
+    expect(p.tasks.map((t) => t.volunteerId)).toEqual(['uid_sari'])
+    expect(p.profile.firstReportAt).toBe('2026-10-17T03:05:00Z')
+    expect(p.profile.lastReportAt).toBe('2026-10-17T03:07:00Z')
+    expect(p.profile.position).toBe('-1.850, 110.060')
+    expect(p.profile.accuracyM).toBe(9)
+  })
+
+  it('knows a volunteer who only has a task or a withdraw entry, and not a stranger', () => {
+    const d = fixture('conflict')
+    d.observations = d.observations.filter((o) => o.volunteerId !== 'uid_sari')
+    const p = popupFor(d, 'uid_sari', 'en')!
+    expect(p.reports).toEqual([])
+    expect(p.profile.position).toBeNull()
+    expect(popupFor(d, 'uid_ghost', 'en')).toBeNull()
+  })
+
+  it('marks a volunteer on the active withdraw', () => {
+    expect(popupFor(fixture('withdraw'), 'uid_dedi', 'en')!.withdrawn).toBe(true)
+    expect(popupFor(fixture('conflict'), 'uid_dedi', 'en')!.withdrawn).toBe(false)
+  })
+})
+
+describe('volunteer pop-up: every region of the frame is there', () => {
+  const regions = ['Live video', 'Transcript', 'Snapshots saved to the incident', 'Sent to Sari', 'Profile', 'EMBER suggests', 'Ask EMBER about Sari', 'Send to this volunteer']
+
+  it.each(regions)('has the %s region', (label) => {
+    expect(popup(withPhoto(fixture('conflict')), 'uid_sari')).toContain(`aria-label="${label}"`)
+  })
+
+  it('speaks Bahasa in every region', () => {
+    const html = popup(fixture('conflict'), 'uid_sari', 'id')
+    for (const label of ['Video langsung', 'Transkrip', 'Foto tersimpan di insiden', 'Dikirim ke Sari', 'Profil', 'Saran EMBER', 'Tanya EMBER tentang Sari', 'Kirim ke relawan ini']) {
+      expect(html).toContain(`aria-label="${label}"`)
+    }
+    expect(html).toContain('>Tutup<')
+  })
+
+  it('shows the profile values the API has and a dash for the rest', () => {
+    const html = popup(fixture('conflict'), 'uid_sari')
+    expect(html).toContain('<dt>Position</dt><dd>-1.849, 110.051 · ±22 m</dd>')
+    expect(html).toContain(`<dt>First report</dt><dd>${formatTime('2026-10-17T03:05:00Z')}</dd>`)
+    expect(html).toContain('<dt>Incident</dt><dd>Ketapang, Kalimantan Barat · Pak Dedi · #1 · inc_demo_01</dd>')
+    for (const label of ['Role', 'Network', 'Battery', 'Language', 'Last heard']) expect(html).toContain(`<dt>${label}</dt><dd>—</dd>`)
+  })
+
+  it('lists the volunteer’s reports in their own words and their instructions with their status', () => {
+    const html = popup(fixture('conflict'), 'uid_sari')
+    expect(html).toContain('“Saya lihat asap saja, tidak ada api.”')
+    expect(html).toContain('Verify · waiting for approval')
+    expect(html).not.toContain('Api kecil di parit belakang kebun')
+  })
+
+  it('lists photo reports by time and volunteer, without an image', () => {
+    const html = popup(withPhoto(fixture('conflict')), 'uid_sari')
+    expect(html).toContain(`${formatTime('2026-10-17T03:07:00Z')} · Sari`)
+    expect(html).not.toContain('<img')
+    expect(html).not.toContain('photos/uid_sari')
+  })
+
+  it('says plainly what no route returns yet, region by region', () => {
+    const html = popup(fixture('conflict'), 'uid_sari')
+    expect(html).toContain('ember-api does not store an English translation yet')
+    expect(html).toContain('Not available yet</b> · Needs live media from voice-gateway')
+    expect(html).toContain('Needs suggestions with a rationale from agents')
+    expect(html).toContain('Needs an Ask EMBER thread, drafts, and a confirmed send')
+    expect(html).toContain('Needs a route that sends an instruction to one volunteer, with an audit entry')
+    expect(html).toContain('Send time and heard status are not stored yet')
+    expect(html).toContain('Role, network, battery, language and last heard are not sent by ember-api yet')
+  })
+
+  it('sends nothing: every control that would write is off', () => {
+    const html = popup(fixture('conflict'), 'uid_sari')
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Send<\/button>/)
+    expect(html).toMatch(/<input[^>]*disabled=""[^>]*placeholder="Ask EMBER, or tell it what to send…"/)
+    expect(html).toMatch(/<input[^>]*type="checkbox"[^>]*disabled=""/)
+    for (const label of ['Mic', 'Video', 'Snapshot', 'Flip camera', 'End live']) expect(html).toMatch(new RegExp(`<button[^>]*disabled=""[^>]*>${label}</button>`))
+    expect(html).not.toContain('<form')
+  })
+
+  it('says WITHDRAW is never held up by it, and marks a withdrawn volunteer', () => {
+    const html = popup(fixture('withdraw'), 'uid_dedi')
+    expect(html).toContain('WITHDRAW never waits on this chat and cannot be blocked here.')
+    expect(html).toContain('WITHDRAW sent')
+  })
+
+  it('has a Close and says so when the volunteer is no longer on the incident', () => {
+    expect(popup(fixture('conflict'), 'uid_sari')).toContain('>Close<')
+    const gone = popup(fixture('conflict'), 'uid_ghost')
+    expect(gone).toContain('no longer on this incident')
+    expect(gone).toContain('role="alert"')
+  })
+
+  it('has every label in both languages', () => {
+    for (const [key, value] of Object.entries(popupCopy)) {
+      expect(value.en, key).toBeTruthy()
+      expect(value.id, key).toBeTruthy()
+    }
+  })
+})
+
+describe('volunteer pop-up: where it opens', () => {
+  it('puts an Open button on each volunteer card', () => {
+    const row = volunteersOf(fixture('conflict'))[0]
+    expect(renderToStaticMarkup(<VolunteerCard lang="en" row={row} onOpen={() => undefined} />)).toContain('aria-label="Open Sari"')
+    expect(renderToStaticMarkup(<VolunteerCard lang="en" row={row} />)).not.toContain('>Open<')
+  })
+
+  it('keeps the incident detail as it is while closed', () => {
+    // Only the shape the view reads while no task is decided here.
+    const noop = { busyId: null, outcomes: {}, onApprove: () => undefined, onReject: () => undefined, onVerify: () => undefined } as unknown as IncidentActions
+    const d = fixture('conflict')
+    const html = renderToStaticMarkup(
+      <StaticRouter location="/console/incidents/inc_demo_01">
+        <IncidentDetailView
+          lang="en" incidentId="inc_demo_01" detail={d} queue={[d.incident]} failure={null} link="online" lastOkAt={NOW} now={NOW} actions={noop}
+          onRetry={() => undefined} onSelect={() => undefined} sendWithdraw={async () => ({ incident: d.incident, auditId: 'a' })} actorName="Bu Maya"
+          serverNow={() => NOW} lowerSeverity={async () => ({ incident: d.incident, auditId: 'a' })} extinguish={async () => ({ incident: d.incident, auditId: 'a' })} markSafe={async () => ({ incident: d.incident, auditId: 'a' })}
+        />
+      </StaticRouter>,
+    )
+    expect(html).not.toContain('role="dialog"')
+    expect(html.match(/aria-label="Open (Sari|Dedi)"/g)).toHaveLength(2)
+  })
+})

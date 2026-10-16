@@ -28,6 +28,7 @@ import { VolunteerCard } from './VolunteerCard'
 import { WithdrawPanel } from './WithdrawPanel'
 import { elapsedSince, unconfirmed, withdrawState } from './withdrawState'
 import { countText, stateCopy } from './withdrawStateCopy'
+import { VolunteerPopup } from './VolunteerPopup'
 import { sentText } from './withdrawModel'
 import './detail.css'
 
@@ -137,6 +138,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
   const { actorName, sendWithdraw, lowerSeverity, markSafe, serverNow } = view
   const [dialog, setDialog] = useState<'withdraw' | 'severity' | 'extinguish' | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [popupId, setPopupId] = useState<string | null>(null)
   const offline = link === 'lost'
   const volunteers = volunteersOf(detail)
   const wd = withdrawState(detail)
@@ -239,7 +241,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           <p className="inc-muted">{t(lang, detailCopy.fieldEmpty)}</p>
         ) : (
           <div className="inc-field">
-            {volunteers.map((row) => <VolunteerCard key={row.id} lang={lang} row={row} safe={wd ? wd.people.find((x) => x.id === row.id)?.safe ?? null : null} waiting={waiting.get(row.id) ?? null} />)}
+            {volunteers.map((row) => <VolunteerCard key={row.id} lang={lang} row={row} safe={wd ? wd.people.find((x) => x.id === row.id)?.safe ?? null : null} waiting={waiting.get(row.id) ?? null} onOpen={() => setPopupId(row.id)} />)}
           </div>
         )}
       </section>
@@ -260,6 +262,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         {paused && <p className="wd-paused">{t(lang, stateCopy.paused)}</p>}
         <p className="inc-callout">{t(lang, detailCopy.withdrawRule)}</p>
       </section>
+      {popupId !== null && <VolunteerPopup lang={lang} detail={detail} volunteerId={popupId} onClose={() => setPopupId(null)} />}
       {dialog === 'withdraw' && (
         <SendWithdrawDialog
           lang={lang}

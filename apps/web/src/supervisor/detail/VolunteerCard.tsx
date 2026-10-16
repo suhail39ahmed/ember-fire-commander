@@ -3,6 +3,7 @@ import { chipText } from '../../pwa/report/chips'
 import { t, type Lang } from '../../pwa/i18n'
 import { detailCopy, severityName, taskStatusName } from './copy'
 import { stateCopy } from './withdrawStateCopy'
+import { popupCopy } from './popupCopy'
 import { initialsOf, volunteerLabel, type VolunteerRow } from './model'
 
 function reportLine(lang: Lang, row: VolunteerRow): string {
@@ -17,7 +18,7 @@ function reportLine(lang: Lang, row: VolunteerRow): string {
  * `safe` is null when no withdraw is in force or this volunteer is not on it. `waiting` is the time since
  * the send, shown while they are unconfirmed.
  */
-export function VolunteerCard({ lang, row, safe = null, waiting = null }: { lang: Lang; row: VolunteerRow; safe?: boolean | null; waiting?: string | null }) {
+export function VolunteerCard({ lang, row, safe = null, waiting = null, onOpen }: { lang: Lang; row: VolunteerRow; safe?: boolean | null; waiting?: string | null; onOpen?: () => void }) {
   const name = row.name ?? volunteerLabel(row.id, lang)
   const { latest, task } = row
   return (
@@ -29,6 +30,11 @@ export function VolunteerCard({ lang, row, safe = null, waiting = null }: { lang
           <p className="inc-muted">{reportLine(lang, row)}</p>
         </div>
         {row.withdrawn && <span className="inc-pill inc-pill-red">{t(lang, detailCopy.withdrawSent)}</span>}
+        {onOpen && (
+          <button type="button" className="inc-btn inc-btn-plain inc-vol-open" aria-label={`${t(lang, popupCopy.open)} ${name}`} onClick={onOpen}>
+            {t(lang, popupCopy.open)}
+          </button>
+        )}
       </header>
 
       <section className="inc-vol-report" aria-label={t(lang, detailCopy.lastReport)}>

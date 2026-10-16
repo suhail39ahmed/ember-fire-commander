@@ -12,12 +12,15 @@ export function Modal({
   title,
   onClose,
   dismissible = true,
+  wide = false,
   children,
 }: {
   title: string
   onClose(): void
   /** False while a write is in flight, so the dialog cannot be dismissed half way. */
   dismissible?: boolean
+  /** The wide panel the volunteer pop-up uses. */
+  wide?: boolean
   children: ReactNode
 }) {
   const titleId = useId()
@@ -59,7 +62,7 @@ export function Modal({
 
   return (
     <div className="inc-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && canClose.current) onClose() }}>
-      <div ref={panel} className="inc-modal" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <div ref={panel} className={wide ? 'inc-modal wide' : 'inc-modal'} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <h2 className="inc-modal-title" id={titleId}>{title}</h2>
         {children}
       </div>
