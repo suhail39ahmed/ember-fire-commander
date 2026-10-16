@@ -54,6 +54,21 @@ describe('live banner', () => {
     expect(markup).not.toContain('180')
   })
 
+  it('shows the code, the place, and the time the first report came in', () => {
+    const since = '2026-10-16T07:10:30.000Z'
+    const markup = html({
+      fires: [fire({ code: '#3', placeName: 'Bengkalis, Riau', since })],
+    })
+    expect(markup).toContain('#3 · Bengkalis, Riau')
+    expect(markup).toContain(`2 on site · — · since ${formatTime(since)}`)
+    expect(markup).not.toContain(since)
+  })
+
+  it('prefers the distance to risk over the first-report time when both exist', () => {
+    const markup = html({ fires: [fire({ distanceToRisk: '3 km', since: '2026-10-16T07:10:30.000Z' })] })
+    expect(markup).toContain('2 on site · — · 3 km')
+  })
+
   it('uses the singular heading for one fire', () => {
     expect(html({ fires: [fire()] })).toContain('1 FIRE NEEDS YOU')
   })

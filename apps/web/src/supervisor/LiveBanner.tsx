@@ -29,7 +29,7 @@ function firesNeedYou(count: number, lang: Lang): string {
 
 function LiveFireCard({ fire, lang }: { fire: LiveFire; lang: Lang }) {
   const middle = fire.liveCameras ?? fire.photoCadence
-  const last = fire.distanceToRisk ?? fire.since
+  const last = fire.distanceToRisk ?? (fire.since ? `${t(lang, bannerCopy.since)} ${formatTime(fire.since)}` : null)
   return (
     <article className="live-fire">
       <div>
