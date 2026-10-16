@@ -42,5 +42,7 @@ export const timelineCopy = {
     'incident.severity.lower': { id: 'menurunkan tingkat', en: 'lowered the severity' },
     'incident.severity.raise': { id: 'menaikkan tingkat', en: 'raised the severity' },
     'site.reinspect': { id: 'menemukan aktivitas baru di lokasi padam', en: 'found new activity at the extinguished site' },
+    'site.dismiss': { id: 'menutup peringatan nyala ulang', en: 'dismissed a re-ignition alert' },
+    'site.recheck': { id: 'meminta pemeriksaan ulang lokasi padam', en: 'asked for a re-check of the extinguished site' },
   } satisfies Record<AuditAction, { id: string; en: string }>,
 } as const
