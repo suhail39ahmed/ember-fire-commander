@@ -859,6 +859,8 @@ Supervisor only. A volunteer receives `403 forbidden`. This is the summary the c
     "airTempC": 31.2,
     "humidity": "62%",
     "wind": "12 km/h SW",
+    "windKmh": 12.4,
+    "windDirDeg": 225,
     "rain": "0.0 mm"
   },
   "reignitionAlert": null
@@ -913,6 +915,7 @@ Each `liveFires` item:
 | `ready` | number | Volunteers with at least one device token (§5.7 `volunteers`) who are not on site or en route |
 | `offline` | number | Volunteers seen on an observation or task with no device token, who are not on site or en route |
 | `crewNote` | string | What the four counts mean |
+| `windKmh`, `windDirDeg` | number or null | `weather/current.windKmh` to one decimal, and `windDirDeg` (the direction the wind blows **from**, 0 to 359.9) to one decimal. The console draws one arrow from them. `null` when not stored. Same fixed monitoring point as `wind` |
 | `airTempC`, `humidity`, `wind`, `rain`, `weatherNote` | number or string, or null | `weather/current` (§5.7), from the hourly ingest at one fixed monitoring point, not at the incident. `airTempC` is `tempC` to one decimal. `humidity` is `62%`. `wind` is `12 km/h SW`, with the compass point the wind blows from when `windDirDeg` is stored. `rain` is `0.0 mm`. A missing value is `null`. All are `null` when no weather document exists. `weatherNote` carries the read time in UTC |
 
 A source that cannot be read (a Firestore error) leaves its own cards `null` and is logged. The rest of the body is still returned with `200`.
@@ -1306,5 +1309,6 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · #95, #105: a supervisor's `GET /incidents/{id}` adds `conflictContext` (the reports on neither side of a disagreement, and the audit rows that decide it) and `agencyInCharge` (the agency stored on the incident, `null` today). Both are optional additions; a volunteer's read and `GET /incidents` are unchanged. Not stored, so not returned: wind or satellite evidence factors, a "conflict opened" audit row, `investigate` proposals, and who is in charge (§5.2, §6.3, §12.2, §12.4). Handing an incident to an agency stays outside the contract (§10).
 - 2026-10-16 · console gaps, audit: new supervisor audit rows store the optional `actorName` from the token, and `GET /audit` shows names instead of ids for the actor, the volunteer and the incident, with the fallbacks in §5.5. No route and no field is removed.
 - 2026-10-16 · console gaps, lists: a supervisor's `GET /incidents` adds `reportCount`, `volunteerCount`, `needsHelp`, `verified` and `verifiedBy` to each record (§6.3), and the new supervisor route `GET /tasks?status=proposed` lists the tasks waiting for a decision with the incident label and the volunteer's name (§6.5, §12.1). A volunteer's `GET /incidents` and `/digest` are unchanged.
+- 2026-10-16 · console gaps, map: `GET /dashboard` `charts` adds the numbers `windKmh` and `windDirDeg` from `weather/current`, `null` when not stored (§6.9). The console draws a wind arrow from them.
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).
