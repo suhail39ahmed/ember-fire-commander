@@ -14,6 +14,8 @@ export interface SupervisorApi {
   verifyIncident(id: string): Promise<IncidentDecision>
   /** Immediate. No approval step: the route sets the incident withdraw and one approved task per volunteer. */
   withdrawIncident(id: string, request: WithdrawRequest): Promise<IncidentDecision>
+  /** Records that a supervisor found a withdrawn volunteer safe. Audited. It never clears the withdraw. */
+  markWithdrawSafe(id: string, volunteerId: string): Promise<IncidentDecision>
   /** Stores a strictly lower severity. An active withdraw stays in effect. Only code can raise severity. */
   lowerSeverity(id: string, severity: LowerableSeverity): Promise<IncidentDecision>
   /** Human only, and the console cannot undo it. `409` when the incident is already extinguished. */

@@ -2,6 +2,7 @@ import { formatTime } from '../../pwa/formatTime'
 import { chipText } from '../../pwa/report/chips'
 import { t, type Lang } from '../../pwa/i18n'
 import { detailCopy, severityName, taskStatusName } from './copy'
+import { stateCopy } from './withdrawStateCopy'
 import { initialsOf, volunteerLabel, type VolunteerRow } from './model'
 
 function reportLine(lang: Lang, row: VolunteerRow): string {
@@ -12,11 +13,15 @@ function reportLine(lang: Lang, row: VolunteerRow): string {
 }
 
 /** One bulletin per volunteer, from their latest report and their last task. */
-export function VolunteerCard({ lang, row }: { lang: Lang; row: VolunteerRow }) {
+/**
+ * `safe` is null when no withdraw is in force or this volunteer is not on it. `waiting` is the time since
+ * the send, shown while they are unconfirmed.
+ */
+export function VolunteerCard({ lang, row, safe = null, waiting = null }: { lang: Lang; row: VolunteerRow; safe?: boolean | null; waiting?: string | null }) {
   const name = row.name ?? volunteerLabel(row.id, lang)
   const { latest, task } = row
   return (
-    <article className={row.withdrawn ? 'inc-vol withdrawn' : 'inc-vol'} aria-label={name}>
+    <article className={`${row.withdrawn ? 'inc-vol withdrawn' : 'inc-vol'}${row.withdrawn && safe === false ? ' wd-unconfirmed' : ''}`} aria-label={name}>
       <header className="inc-vol-head">
         <span className="inc-avatar" aria-hidden="true">{initialsOf(name)}</span>
         <div className="inc-vol-id">
@@ -55,6 +60,12 @@ export function VolunteerCard({ lang, row }: { lang: Lang; row: VolunteerRow }) 
           <p className="inc-muted">{t(lang, detailCopy.noInstruction)}</p>
         )}
       </section>
+
+      {row.withdrawn && safe !== null && (
+        <p className={safe ? 'inc-vol-wd safe' : 'inc-vol-wd'}>
+          {t(lang, stateCopy.withdrawLabel)} · {safe ? t(lang, stateCopy.safeLine) : `${t(lang, stateCopy.notConfirmed)}${waiting ? ` · ${waiting}` : ''}`}
+        </p>
+      )}
     </article>
   )
 }

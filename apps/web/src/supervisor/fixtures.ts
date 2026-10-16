@@ -104,8 +104,17 @@ export function fixture(name: FixtureName): IncidentDetail {
       ...conflict.incident,
       severity: 'large_flame',
       evidenceScore: 55,
-      withdraw: { active: true, instruction: WITHDRAW_TEXT, reasons: ['large flame reported'], volunteerIds: ['uid_dedi', 'uid_sari'] },
+      withdraw: {
+        active: true,
+        instruction: WITHDRAW_TEXT,
+        reasons: ['large flame reported'],
+        volunteerIds: ['uid_dedi', 'uid_sari'],
+        source: 'code',
+        sentAt: '2026-10-17T03:08:00Z',
+        safeVolunteerIds: ['uid_sari'],
+      },
     },
+    volunteerPhones: { uid_dedi: '+62 812 5550 0142' },
     evidenceFactors: [
       { factor: 'severity', points: 50, detail: 'highest reported severity is large_flame' },
       ...(conflict.evidenceFactors ?? []).filter((f) => f.factor !== 'severity'),

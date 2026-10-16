@@ -6,7 +6,7 @@ import { chipText } from '../../pwa/report/chips'
 import { t, type Lang } from '../../pwa/i18n'
 import { incidentLabel, shortIncidentId } from '../../pwa/incidentName'
 import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, WithdrawRequest } from '../contracts'
-import { conflictPair, taskControls, withdrawBanner } from '../view'
+import { conflictPair, taskControls } from '../view'
 import { IncidentMap } from '../map/IncidentMap'
 import { OutcomeLine, TaskRow, type IncidentActions } from '../IncidentView'
 import type { DetailFailure } from '../incidentsContext'
@@ -25,6 +25,9 @@ import { ReportCard } from './ReportCard'
 import { SendWithdrawDialog } from './SendWithdrawDialog'
 import { loweredText } from './severityModel'
 import { VolunteerCard } from './VolunteerCard'
+import { WithdrawPanel } from './WithdrawPanel'
+import { elapsedSince, unconfirmed, withdrawState } from './withdrawState'
+import { countText, stateCopy } from './withdrawStateCopy'
 import { sentText } from './withdrawModel'
 import './detail.css'
 
@@ -53,6 +56,8 @@ export interface IncidentDetailViewProps {
   lowerSeverity(severity: LowerableSeverity): Promise<IncidentDecision>
   /** POST /incidents/{id}/extinguish, then a fresh read. Resolves with the route's answer. */
   extinguish(): Promise<IncidentDecision>
+  /** POST /incidents/{id}/withdraw/safe, then a fresh read. Resolves with the route's answer. */
+  markSafe(volunteerId: string): Promise<IncidentDecision>
   mapsKey?: string
 }
 
@@ -127,14 +132,17 @@ function Stat({ label, value, note, tone }: { label: string; value: string; note
   )
 }
 
-function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish'> }) {
+function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe'> }) {
   const { incident, conflict } = detail
-  const { actorName, sendWithdraw, lowerSeverity } = view
+  const { actorName, sendWithdraw, lowerSeverity, markSafe, serverNow } = view
   const [dialog, setDialog] = useState<'withdraw' | 'severity' | 'extinguish' | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const offline = link === 'lost'
   const volunteers = volunteersOf(detail)
-  const banner = withdrawBanner(incident)
+  const wd = withdrawState(detail)
+  // The frame pauses instructions while someone is still unconfirmed.
+  const paused = wd !== null && !wd.allSafe
+  const waiting = new Map(wd ? unconfirmed(wd).map((p) => [p.id, elapsedSince(wd.sentAt, serverNow())] as const) : [])
   const pair = conflictPair(detail)
   const top = highestReport(detail)
   const gap = pair.length === 2 ? distanceM(pair[0], pair[1]) : null
@@ -147,7 +155,11 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         <div className="inc-pills">
           <span className={`inc-pill status-${incident.status}`}>{t(lang, statusName[incident.status])}</span>
           <span className="inc-pill"><i className={`inc-dot sev-${incident.severity}`} aria-hidden="true" />{t(lang, severityName[incident.severity])}</span>
-          {incident.withdraw?.active && <span className="inc-pill inc-pill-red">{t(lang, detailCopy.withdrawPill)}</span>}
+          {wd && (
+            <span className="inc-pill inc-pill-red">
+              {t(lang, detailCopy.withdrawPill)}{!wd.allSafe && ` · ${countText(lang, wd)} ${t(lang, stateCopy.pillOf)}`}
+            </span>
+          )}
           {incident.status === 'held' && <span className="inc-pill inc-pill-amber">{t(lang, detailCopy.holdPill)}</span>}
           <span className={offline ? 'inc-pill inc-pill-red' : 'inc-pill inc-pill-quiet'}>
             {offline ? t(lang, detailCopy.lastKnown) : `${volunteers.length} ${t(lang, detailCopy.onSite)}`}
@@ -169,18 +181,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         <OutcomeLine outcome={actions.outcomes[incident.id]} lang={lang} />
       </header>
 
-      {banner && (
-        <div className="inc-withdraw" role="alert" aria-live="assertive">
-          <p className="inc-eyebrow">
-            {t(lang, detailCopy.withdrawPill)} · {banner.volunteerIds.length} {lang === 'id' ? 'ponsel' : banner.volunteerIds.length === 1 ? 'phone' : 'phones'}
-          </p>
-          <p className="inc-withdraw-text">{banner.instruction}</p>
-          <p className="inc-withdraw-meta">
-            {banner.volunteerIds.map((id) => nameOf(detail, id, lang)).join(', ')}
-            {banner.reasons.length > 0 && ` · ${banner.reasons.join(', ')}`}
-          </p>
-        </div>
-      )}
+      {wd && <WithdrawPanel lang={lang} state={wd} now={serverNow} offline={offline} markSafe={markSafe} nameOf={(id) => nameOf(detail, id, lang)} />}
 
       {conflict && (
         <section aria-label={t(lang, detailCopy.conflictTitle)}>
@@ -208,7 +209,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         <section aria-labelledby="inc-prop-title">
           <h2 className="inc-h2" id="inc-prop-title">{t(lang, disagreeCopy.proposals)}</h2>
           <ul className="prop-list">
-            {proposals.map((task) => <ProposalRow key={task.id} lang={lang} task={task} detail={detail} actions={actions} offline={offline} />)}
+            {proposals.map((task) => <ProposalRow key={task.id} lang={lang} task={task} detail={detail} actions={actions} offline={offline || paused} />)}
           </ul>
         </section>
       )}
@@ -238,7 +239,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           <p className="inc-muted">{t(lang, detailCopy.fieldEmpty)}</p>
         ) : (
           <div className="inc-field">
-            {volunteers.map((row) => <VolunteerCard key={row.id} lang={lang} row={row} />)}
+            {volunteers.map((row) => <VolunteerCard key={row.id} lang={lang} row={row} safe={wd ? wd.people.find((x) => x.id === row.id)?.safe ?? null : null} waiting={waiting.get(row.id) ?? null} />)}
           </div>
         )}
       </section>
@@ -252,10 +253,11 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           <p className="inc-muted">{t(lang, detailCopy.tasksEmpty)}</p>
         ) : others.length > 0 && (
           <ul className="sup sup-tasks">
-            {others.map((task) => <TaskRow key={task.id} task={task} detail={detail} actions={actions} offline={offline} lang={lang} />)}
+            {others.map((task) => <TaskRow key={task.id} task={task} detail={detail} actions={actions} offline={offline || paused} lang={lang} />)}
           </ul>
         )}
         {offline && <p className="inc-muted">{t(lang, detailCopy.offlineSend)}</p>}
+        {paused && <p className="wd-paused">{t(lang, stateCopy.paused)}</p>}
         <p className="inc-callout">{t(lang, detailCopy.withdrawRule)}</p>
       </section>
       {dialog === 'withdraw' && (

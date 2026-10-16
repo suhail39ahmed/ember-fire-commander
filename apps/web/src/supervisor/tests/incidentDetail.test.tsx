@@ -37,6 +37,7 @@ function view(over: Partial<IncidentDetailViewProps> = {}, lang: 'id' | 'en' = '
     actions: noop,
     onRetry: () => undefined,
     onSelect: () => undefined,
+    markSafe: async () => ({ incident: fixture('normal').incident, auditId: 'aud_2' }),
     sendWithdraw: async () => ({ incident: fixture('normal').incident, auditId: 'aud_1' }),
     actorName: 'Bu Maya',
     lowerSeverity: async () => ({ incident: fixture('normal').incident, auditId: 'aud_1' }),
@@ -168,7 +169,7 @@ describe('incident detail: default', () => {
     expect(html).toContain('MUNDUR sekarang ke titik kumpul')
     expect(html).toContain('WITHDRAW sent')
     expect(html).toContain('inc-vol withdrawn')
-    expect(html).toContain('2 phones')
+    expect(html).toContain('1 of 2')
   })
 
   it('offers no Verify on a verified incident and always says WITHDRAW is code, not an instruction', () => {

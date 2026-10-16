@@ -151,6 +151,7 @@ def get_incident(incident_id):
         tasks = [t for t in tasks if t["volunteerId"] == user["id"]]
 
     observations = [rules.to_record(found[obs_id], rules.OBSERVATION_FIELDS) for obs_id in shown_ids if obs_id in found]
+
     body = {
         "incident": rules.to_record(snapshot, rules.INCIDENT_FIELDS),
         "observations": observations,
@@ -164,6 +165,15 @@ def get_incident(incident_id):
             if name:
                 record["volunteerName"] = name
         body["evidenceFactors"] = rules.evidence_factors(data)
+        # Supervisor only: the phone numbers stored for the volunteers on an active withdraw.
+        withdraw = data.get("withdraw") or {}
+        if withdraw.get("active") and withdraw.get("volunteerIds"):
+            phones = {}
+            for uid, snap in store.get_many(store.VOLUNTEERS, withdraw["volunteerIds"]).items():
+                phone = rules.phone_of(snap.to_dict() or {})
+                if phone:
+                    phones[uid] = phone
+            body["volunteerPhones"] = phones
     return jsonify(body), 200
 
 
@@ -359,6 +369,28 @@ def _withdraw_body():
     return list(dict.fromkeys(volunteer_ids)), instruction.strip(), reasons
 
 
+@incidents_bp.route("/incidents/<incident_id>/withdraw/safe", methods=["POST"])
+def mark_safe(incident_id):
+    """Record that a supervisor found a withdrawn volunteer safe. It never clears the withdraw."""
+    _require_supervisor()
+    volunteer_id = _body().get("volunteerId")
+    if not isinstance(volunteer_id, str) or not volunteer_id.strip():
+        raise validation("volunteerId", "required, a volunteer id")
+
+    def apply(incident):
+        current = incident.get("withdraw") or {}
+        if not current.get("active"):
+            raise conflict("This incident has no active withdraw")
+        if volunteer_id not in (current.get("volunteerIds") or []):
+            raise validation("volunteerId", "not part of this withdraw")
+        safe = list(current.get("safeVolunteerIds") or [])
+        if volunteer_id in safe:
+            raise conflict("This volunteer is already marked safe")
+        return {"withdraw": dict(current, safeVolunteerIds=safe + [volunteer_id])}
+
+    return _decide_incident(incident_id, "withdraw.safe", apply)
+
+
 def _volunteers_on(incident_id, data):
     """Volunteers who already have an observation or a task on this incident."""
     volunteers = {(s.to_dict() or {}).get("volunteerId") for s in store.where(store.TASKS, "incidentId", "==", incident_id)}
@@ -395,11 +427,16 @@ def withdraw(incident_id):
         current = incident.get("withdraw") or {}
         # Volunteers already withdrawn stay withdrawn.
         targets = list(dict.fromkeys(list(current.get("volunteerIds") or []) + volunteer_ids)) if current.get("active") else volunteer_ids
+        active = bool(current.get("active"))
         changes = {"withdraw": {
             "active": True,
             "instruction": instruction,
             "reasons": reasons,
             "volunteerIds": targets,
+            # The event keeps the source and time it was first sent with. Volunteers marked safe stay marked.
+            "source": (current.get("source") or "supervisor") if active else "supervisor",
+            "sentAt": (current.get("sentAt") or rules.now_iso()) if active else rules.now_iso(),
+            "safeVolunteerIds": list(current.get("safeVolunteerIds") or []) if active else [],
         }}
         created = []
         for volunteer_id in volunteer_ids:

@@ -41,6 +41,12 @@ def reporter_name(data):
     return name.strip() if isinstance(name, str) and name.strip() else None
 
 
+def phone_of(data):
+    """A volunteer's stored phone number, or None when there is none."""
+    phone = data.get("phone")
+    return phone.strip() if isinstance(phone, str) and phone.strip() else None
+
+
 def now_iso():
     """Same server timestamp format as stored observations."""
     return utc_now_iso()

@@ -38,6 +38,7 @@ function view(over: Partial<IncidentDetailViewProps> = {}, lang: 'id' | 'en' = '
     sendWithdraw: async () => ({ incident: detail.incident, auditId: 'aud_1' }),
     lowerSeverity: async () => ({ incident: detail.incident, auditId: 'aud_1' }),
     extinguish: async () => ({ incident: detail.incident, auditId: 'aud_1' }),
+    markSafe: async () => ({ incident: detail.incident, auditId: 'aud_1' }),
     ...over,
   }
   return renderToStaticMarkup(

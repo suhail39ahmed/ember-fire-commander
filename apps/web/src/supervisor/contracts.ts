@@ -60,6 +60,8 @@ export interface IncidentDetail {
   tasks: Task[]
   /** Supervisor read only. `[]` when none are stored. Absent from an older API. */
   evidenceFactors?: EvidenceFactor[]
+  /** Supervisor read only: phone numbers stored for the volunteers on an active withdraw. */
+  volunteerPhones?: Record<string, string>
 }
 
 /** Task decisions (section 6.5). */
@@ -72,6 +74,11 @@ export interface TaskDecision {
 export interface IncidentDecision {
   incident: Incident
   auditId: string
+}
+
+/** Body of POST /incidents/{id}/withdraw/safe (section 6.5). */
+export interface MarkSafeRequest {
+  volunteerId: string
 }
 
 /** Body of POST /incidents/{id}/withdraw (section 6.5). `reasons` defaults to [] on the server. */
@@ -90,6 +97,7 @@ export type AuditAction =
   | 'task.reject'
   | 'task.edit'
   | 'task.withdraw'
+  | 'withdraw.safe'
   | 'incident.verify'
   | 'incident.extinguish'
   | 'incident.severity.lower'

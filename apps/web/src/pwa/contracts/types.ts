@@ -86,6 +86,12 @@ export interface Withdraw {
   instruction: string
   reasons: string[]
   volunteerIds: string[]
+  /** Who sent it. Absent on a withdraw written before these fields existed. */
+  source?: 'code' | 'supervisor'
+  /** When it was first sent (ISO). Absent on an older withdraw. */
+  sentAt?: string
+  /** Volunteers a supervisor marked found safe. Absent on an older withdraw. */
+  safeVolunteerIds?: string[]
 }
 
 /** Incident summary as carried in the digest (section 5.6). */

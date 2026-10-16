@@ -12,6 +12,7 @@ CONFLICTS = "conflicts"
 TASKS = "tasks"
 OBSERVATIONS = "observations"
 AUDIT = "audit"
+VOLUNTEERS = "volunteers"
 
 _client = None
 

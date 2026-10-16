@@ -120,11 +120,29 @@ export function createMockSupervisorApi(
         instruction,
         reasons: request.reasons ?? [],
         volunteerIds: [...new Set([...(before?.volunteerIds ?? []), ...ids])],
+        source: before?.source ?? 'supervisor',
+        sentAt: before?.sentAt ?? new Date().toISOString(),
+        safeVolunteerIds: before?.safeVolunteerIds ?? [],
       }
       for (const volunteerId of ids) {
         d.tasks.push({ id: `task_mock_withdraw_${d.tasks.length + 1}`, incidentId: id, volunteerId, type: 'withdraw', status: 'approved', instruction })
       }
       return { incident: structuredClone(d.incident), auditId: append('task.withdraw', id) }
+    },
+    async markWithdrawSafe(id, volunteerId) {
+      await wait()
+      const d = details.find((x) => x.incident.id === id)
+      if (!d) throw notFound()
+      const w = d.incident.withdraw
+      if (!w?.active) throw conflictError('This incident has no active withdraw')
+      if (!volunteerId || !w.volunteerIds.includes(volunteerId)) {
+        throw new ApiError('validation_error', 'volunteerId is not valid', 400, false, { volunteerId: 'not part of this withdraw' })
+      }
+      const safe = w.safeVolunteerIds ?? []
+      if (safe.includes(volunteerId)) throw conflictError('This volunteer is already marked safe')
+      // The withdraw itself stays active: there is no call that clears it.
+      w.safeVolunteerIds = [...safe, volunteerId]
+      return { incident: structuredClone(d.incident), auditId: append('withdraw.safe', id) }
     },
     async lowerSeverity(id, severity) {
       await wait()

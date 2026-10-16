@@ -69,6 +69,17 @@ export function IncidentDetailPage() {
           throw error
         }
       }}
+      markSafe={async (volunteerId) => {
+        try {
+          const result = await api.markWithdrawSafe(incidentId, volunteerId)
+          await refresh()
+          return result
+        } catch (error) {
+          // 409: someone already marked this person, or the withdraw is gone. Show what is stored now.
+          if (error instanceof ApiError && error.status === 409) await refresh()
+          throw error
+        }
+      }}
       extinguish={async () => {
         try {
           const result = await api.extinguishIncident(incidentId)
