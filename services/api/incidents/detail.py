@@ -14,7 +14,7 @@ SUMMARIES = "incident_summaries"
 TIMELINE_LIMIT = 100
 # Audit rows that belong on an incident's timeline. `observation.create` is left out because the report itself is listed.
 TIMELINE_ACTIONS = (
-    "task.approve", "task.reject", "task.edit", "task.resend", "task.heard", "task.withdraw",
+    "task.approve", "task.reject", "task.edit", "task.instruct", "task.resend", "task.heard", "task.withdraw",
     "withdraw.safe", "incident.verify", "incident.extinguish", "incident.severity.lower",
     "incident.severity.raise", "site.reinspect",
 )
@@ -37,6 +37,12 @@ def _when(iso):
     return parsed.timestamp() if parsed else 0.0
 
 
+def _latest(times):
+    """The latest of some ISO times, ignoring blanks. None when there is none."""
+    times = [t for t in times if t]
+    return max(times, key=_when) if times else None
+
+
 def _newest(rows, key):
     """The row with the latest time, then the highest id, so the choice never flickers."""
     return max(rows, key=lambda r: (_when(r.get(key)), r.get("id") or ""), default=None)
@@ -46,14 +52,20 @@ def _text(value):
     return value.strip() if isinstance(value, str) and value.strip() else None
 
 
-def _names(uids):
-    """Display names from volunteers/{uid}. Only the name is read: never a phone or a device token."""
-    names = {}
+def _profiles(uids):
+    """What volunteers/{uid} says about each volunteer: a display name, and whether a device is registered.
+
+    The phone and the device tokens themselves are never copied out. `push` is only whether one token exists.
+    """
+    names, push = {}, {}
     for uid, snap in store.get_many(store.VOLUNTEERS, [u for u in uids if u]).items():
-        name = _text((snap.to_dict() or {}).get("displayName"))
+        data = snap.to_dict() or {}
+        name = _text(data.get("displayName"))
         if name:
             names[uid] = name
-    return names
+        tokens = data.get("fcmTokens")
+        push[uid] = isinstance(tokens, list) and any(isinstance(t, str) and t.strip() for t in tokens)
+    return names, push
 
 
 def _docs(snaps):
@@ -75,7 +87,7 @@ def _audit_rows(incident_id, task_ids):
     return [r for r in rows if r.get("action") in TIMELINE_ACTIONS]
 
 
-def _card(uid, observations, tasks, withdraw, names, centre, delivery, safe_marks):
+def _card(uid, observations, tasks, withdraw, names, push, centre, delivery, safe_marks):
     mine = sorted(
         (o for o in observations if o.get("volunteerId") == uid),
         key=lambda o: (_when(o.get("capturedAt")), o.get("id") or ""),
@@ -94,6 +106,10 @@ def _card(uid, observations, tasks, withdraw, names, centre, delivery, safe_mark
         "lastAccuracyM": last.get("accuracyM") if last else None,
         # From the incident's centre, which is the centroid of its reports. Not the flame edge.
         "distanceM": distance_m(centre[0], centre[1], last.get("lat"), last.get("lng")) if last else None,
+        # The latest sign of life: their newest report arriving, or their app saying it showed an instruction.
+        "lastHeardAt": _latest([last.get("receivedAt") if last else None] + [t.get("heardAt") for t in tasks if t.get("volunteerId") == uid]),
+        # Whether a device token is stored for them. No role, network, battery or language is stored anywhere.
+        "pushReady": push.get(uid, False),
         "withdraw": None,
     }
     if withdraw.get("active") and uid in (withdraw.get("volunteerIds") or []):
@@ -126,7 +142,7 @@ def build(incident_id, data, observations, conflict_body, tasks):
     uids |= set(withdraw.get("volunteerIds") or []) if withdraw.get("active") else set()
     uids |= {r.get("actorId") for r in audit} | {r.get("subjectId") for r in audit}
     uids.discard(None)
-    names = _names(uids)
+    names, push = _profiles(uids)
 
     withdraw_task_ids = {t["id"] for t in tasks if t.get("type") == "withdraw"}
     safe_marks = {}
@@ -142,7 +158,7 @@ def build(incident_id, data, observations, conflict_body, tasks):
     if withdraw.get("active"):
         people |= set(withdraw.get("volunteerIds") or [])
     people.discard(None)
-    cards = [_card(uid, observations, tasks, withdraw, names, centre, delivery, safe_marks) for uid in sorted(people)]
+    cards = [_card(uid, observations, tasks, withdraw, names, push, centre, delivery, safe_marks) for uid in sorted(people)]
     cards.sort(key=lambda c: (-_when(c["lastReportAt"]), c["volunteerId"]))
 
     task_by_id = {t["id"]: t for t in tasks}

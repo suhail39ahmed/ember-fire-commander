@@ -254,3 +254,42 @@ def test_was_issued_matches_owner_and_path(monkeypatch):
     assert store.was_issued("uid_sari", path) is True
     assert store.was_issued("uid_budi", path) is False
     assert store.was_issued("uid_sari", path.replace("a", "b")) is False
+
+
+def test_signed_read_url_is_v4_get_with_the_short_expiry(monkeypatch):
+    credentials = _fake_service_account()
+    monkeypatch.setattr(credentials, "refresh", lambda request: None)
+    monkeypatch.setattr(signing.google.auth, "default", lambda scopes=None: (credentials, "ember-fire-commander"))
+    url = signing.sign_get_url("ember-fire-commander-ember-photos", "photos/uid_sari/20261017/abc.jpg", 300)
+    query = parse_qs(urlparse(url).query)
+    assert urlparse(url).path.endswith("/ember-fire-commander-ember-photos/photos/uid_sari/20261017/abc.jpg")
+    assert query["X-Goog-Expires"] == ["300"]
+    assert "content-type" not in query["X-Goog-SignedHeaders"][0]
+    assert "X-Goog-Signature" in query
+
+
+def test_cloud_run_credentials_sign_a_read_through_iam(monkeypatch):
+    class MetadataCredentials:
+        service_account_email = "sa-ember-api@ember-fire-commander.iam.gserviceaccount.com"
+        token = "access-token"
+
+        def refresh(self, request):
+            pass
+
+    captured = {}
+    monkeypatch.setattr(signing.google.auth, "default", lambda scopes=None: (MetadataCredentials(), "ember-fire-commander"))
+    monkeypatch.setattr(signing.storage.Client, "__init__", lambda self, project=None, credentials=None: None)
+    monkeypatch.setattr(signing.storage.Client, "bucket", lambda self, name: signing.storage.Bucket(None, name))
+    monkeypatch.setattr(signing.storage.Blob, "generate_signed_url", lambda self, **kwargs: captured.update(kwargs) or "https://storage.googleapis.com/signed")
+    signing.sign_get_url("bucket", "photos/uid_sari/20261017/abc.jpg", 300)
+    assert (captured["method"], captured["version"], captured["access_token"]) == ("GET", "v4", "access-token")
+    assert captured["service_account_email"].startswith("sa-ember-api@")
+
+
+def test_read_ttl_is_capped_and_has_a_floor(monkeypatch):
+    monkeypatch.setenv("PHOTO_READ_TTL_SECONDS", "86400")
+    assert signing.read_ttl_seconds() == 900
+    monkeypatch.setenv("PHOTO_READ_TTL_SECONDS", "5")
+    assert signing.read_ttl_seconds() == 60
+    monkeypatch.setenv("PHOTO_READ_TTL_SECONDS", "nonsense")
+    assert signing.read_ttl_seconds() == 300

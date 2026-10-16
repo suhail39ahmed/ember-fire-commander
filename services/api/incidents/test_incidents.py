@@ -951,3 +951,195 @@ def test_extras_read_in_batches_not_per_volunteer(client, monkeypatch, db):
     assert len([r for r in db.batch_reads if r[0] == "volunteers"]) <= 2
     assert "volunteers" not in db.doc_reads and "observations" not in db.doc_reads
     assert all(fields for _, fields in db.queries)
+
+
+# Profile: last heard, device ----------------------------------------------------------
+
+def test_card_profile_has_last_heard_and_whether_a_device_is_stored(client, monkeypatch, db):
+    db.data["tasks"]["task_verify_sari"].update(status="approved", sentAt="2026-10-13T08:30:00Z", heardAt="2026-10-13T08:31:00Z")
+    db.add("volunteers", "uid_sari", {"fcmTokens": ["secret-token", "  "], "phone": "+62 812 0000 111"})
+    db.add("volunteers", "uid_rizal", {"fcmTokens": [" ", 7]})
+    _as(monkeypatch)
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    sari, rizal = _card(body, "uid_sari"), _card(body, "uid_rizal")
+    assert sari["lastHeardAt"] == "2026-10-13T08:31:00Z"  # a later task receipt beats the report that arrived at 08:12:04
+    assert rizal["lastHeardAt"] == "2026-10-13T08:13:03Z"  # only their newest report arriving
+    assert (sari["pushReady"], rizal["pushReady"]) == (True, False)
+    assert "secret-token" not in str(body) and "812" not in str(body)
+
+
+def test_card_without_a_report_or_receipt_has_no_last_heard_and_no_device(client, monkeypatch, db):
+    db.add("tasks", "task_new", {"incidentId": "inc_01", "volunteerId": "uid_new", "type": "verify", "status": "proposed", "instruction": "Look"})
+    _as(monkeypatch)
+    card = _card(client.get("/incidents/inc_01", headers=AUTH).get_json(), "uid_new")
+    assert card["lastHeardAt"] is None and card["pushReady"] is False
+
+
+# Send one instruction to one volunteer -------------------------------------------------
+
+def _instruct(client, volunteer="uid_sari", body=None, incident="inc_01"):
+    return client.post(f"/incidents/{incident}/volunteers/{volunteer}/instruct", headers=AUTH,
+                       json={"instruction": "  Move to the east road and report.  "} if body is None else body)
+
+
+def test_instruct_creates_a_sent_task_for_one_volunteer_with_an_audit_row_and_a_push(client, monkeypatch, db):
+    pushed = []
+    monkeypatch.setattr("incidents.routes.deliver_task", lambda task: pushed.append(task))
+    _as(monkeypatch)
+    before = set(db.data["tasks"])
+    response = _instruct(client)
+    body = response.get_json()
+    assert response.status_code == 201
+    (new_id,) = set(db.data["tasks"]) - before
+    task = db.data["tasks"][new_id]
+    assert task == {
+        "incidentId": "inc_01", "volunteerId": "uid_sari", "type": "instruct", "status": "approved",
+        "instruction": "Move to the east road and report.", "sentAt": task["sentAt"], "sendCount": 1,
+    }
+    assert body["task"]["id"] == new_id and body["task"]["type"] == "instruct"
+    assert body["task"]["heardAt"] is None and body["task"]["resendAt"] is not None
+    audit = db.data["audit"][body["auditId"]]
+    assert (audit["action"], audit["actorId"], audit["targetId"]) == ("task.instruct", "uid_maya", new_id)
+    assert [p["id"] for p in pushed] == [new_id]
+    # The incident itself is untouched: status, severity, conflict and dispatch hold stay as they were.
+    assert db.data["incidents"]["inc_01"]["status"] == "held" and db.data["incidents"]["inc_01"]["withdraw"] is None
+
+
+def test_instruct_is_allowed_while_a_conflict_is_open_and_shows_in_the_timeline(client, monkeypatch, db):
+    monkeypatch.setattr("incidents.routes.deliver_task", lambda task: None)
+    _as(monkeypatch)
+    assert db.data["conflicts"]["con_01"]["status"] == "open"
+    assert _instruct(client).status_code == 201
+    row = next(e for e in client.get("/incidents/inc_01", headers=AUTH).get_json()["timeline"] if e["action"] == "task.instruct")
+    assert (row["volunteerId"], row["actorName"] or "", row["kind"]) == ("uid_sari", "", "audit")
+    assert "Instruction sent to one volunteer" in str(client.get("/audit", headers=AUTH).get_json())
+
+
+def test_a_push_failure_does_not_undo_the_instruction(client, monkeypatch, db):
+    def boom(task):
+        raise RuntimeError("fcm down")
+
+    monkeypatch.setattr("incidents.routes.deliver_task", boom)
+    _as(monkeypatch)
+    assert _instruct(client).status_code == 201
+    assert [a["action"] for a in _audit(db)] == ["task.instruct"]
+
+
+@pytest.mark.parametrize("body,field", [
+    ({}, "instruction"), ({"instruction": "   "}, "instruction"), ({"instruction": 5}, "instruction"),
+    ({"instruction": "x" * 501}, "instruction"),
+])
+def test_instruct_refuses_a_bad_instruction_and_writes_nothing(client, monkeypatch, db, body, field):
+    _as(monkeypatch)
+    tasks, audits = dict(db.data["tasks"]), _audit(db)
+    response = _instruct(client, body=body)
+    assert response.status_code == 400 and field in response.get_json()["error"]["fields"]
+    assert db.data["tasks"] == tasks and _audit(db) == audits
+
+
+def test_instruct_refusals_unknown_incident_unknown_volunteer_extinguished(client, monkeypatch, db):
+    _as(monkeypatch)
+    assert _instruct(client, incident="nope").status_code == 404
+    unknown = _instruct(client, volunteer="uid_stranger")
+    assert unknown.status_code == 400 and "volunteerId" in unknown.get_json()["error"]["fields"]
+    db.data["incidents"]["inc_01"]["status"] = "extinguished"
+    assert _instruct(client).status_code == 409
+    assert not [t for t in db.data["tasks"].values() if t["type"] == "instruct"]
+    assert _audit(db) == []
+
+
+def test_instruct_cannot_be_used_on_a_volunteer_under_an_active_withdraw(client, monkeypatch, db):
+    monkeypatch.setattr("incidents.routes.deliver_task", lambda task: None)
+    db.data["incidents"]["inc_01"]["withdraw"] = dict(ACTIVE_WITHDRAW, safeVolunteerIds=["uid_rizal"])
+    _as(monkeypatch)
+    refused = _instruct(client, volunteer="uid_sari")
+    assert refused.status_code == 409 and refused.get_json()["error"]["code"] == "conflict"
+    assert _audit(db) == []
+    # Marked safe by a supervisor: the volunteer can be instructed again. The withdraw itself is untouched.
+    assert _instruct(client, volunteer="uid_rizal").status_code == 201
+    assert db.data["incidents"]["inc_01"]["withdraw"]["active"] is True
+
+
+def test_a_volunteer_cannot_send_an_instruction(client, monkeypatch, db):
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    assert _instruct(client).status_code == 403
+    assert not [t for t in db.data["tasks"].values() if t["type"] == "instruct"] and _audit(db) == []
+
+
+def test_the_volunteer_sees_the_instruction_in_their_digest(client, monkeypatch, db):
+    monkeypatch.setattr("incidents.routes.deliver_task", lambda task: None)
+    _as(monkeypatch)
+    _instruct(client)
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    mine = [t for t in client.get("/digest", headers=AUTH).get_json()["myTasks"] if t["type"] == "instruct"]
+    assert [t["instruction"] for t in mine] == ["Move to the east road and report."]
+
+
+# Photo read ------------------------------------------------------------------------------
+
+PHOTO = "photos/uid_sari/20261013/" + "a" * 32 + ".jpg"
+
+
+def _photo_db(db):
+    db.data["observations"]["obs_01"].update(source="photo", photoPath=PHOTO)
+    db.data["incidents"]["inc_01"]["observationIds"] = ["obs_01", "obs_02"]
+
+
+def test_a_supervisor_gets_a_short_lived_read_url_for_a_photo_report(client, monkeypatch, db):
+    _photo_db(db)
+    calls = []
+    monkeypatch.setattr("incidents.routes.signing.sign_get_url", lambda bucket, path, ttl: calls.append((bucket, path, ttl)) or "https://storage.googleapis.com/signed?X-Goog-Signature=s")
+    _as(monkeypatch)
+    response = client.get("/incidents/inc_01/photos/obs_01", headers=AUTH)
+    body = response.get_json()
+    assert response.status_code == 200
+    assert calls == [("ember-fire-commander-ember-photos", PHOTO, 300)]
+    assert body["url"].startswith("https://storage.googleapis.com/") and body["expiresAt"].endswith("Z")
+    assert response.headers["Cache-Control"] == "no-store"
+    assert PHOTO not in str(body.get("expiresAt"))
+
+
+def test_a_photo_in_a_conflict_is_readable_even_when_the_incident_list_lacks_it(client, monkeypatch, db):
+    db.data["observations"]["obs_02"].update(source="photo", photoPath="photos/uid_rizal/20261013/" + "b" * 32 + ".webp")
+    monkeypatch.setattr("incidents.routes.signing.sign_get_url", lambda bucket, path, ttl: "https://storage.googleapis.com/signed")
+    _as(monkeypatch)
+    assert client.get("/incidents/inc_01/photos/obs_02", headers=AUTH).status_code == 200
+
+
+def test_a_volunteer_cannot_read_incident_photos(client, monkeypatch, db):
+    _photo_db(db)
+    monkeypatch.setattr("incidents.routes.signing.sign_get_url", lambda *a: pytest.fail("must not sign"))
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    assert client.get("/incidents/inc_01/photos/obs_01", headers=AUTH).status_code == 403
+
+
+@pytest.mark.parametrize("incident,observation,patch", [
+    ("nope", "obs_01", None),                       # unknown incident
+    ("inc_01", "obs_gone", None),                   # unknown observation
+    ("inc_old", "obs_01", None),                    # observation is not on this incident
+    ("inc_01", "obs_02", None),                     # a report with no photo
+    ("inc_01", "obs_01", "photos/uid_rizal/20261013/" + "a" * 32 + ".jpg"),  # path owned by someone else
+    ("inc_01", "obs_01", "https://evil.example/x.jpg"),                      # not an object path
+    ("inc_01", "obs_01", "photos/uid_sari/../uid_rizal/x.jpg"),
+])
+def test_photo_read_is_refused_for_anything_that_is_not_a_stored_photo_of_this_incident(client, monkeypatch, db, incident, observation, patch):
+    _photo_db(db)
+    if patch:
+        db.data["observations"]["obs_01"]["photoPath"] = patch
+    monkeypatch.setattr("incidents.routes.signing.sign_get_url", lambda *a: pytest.fail("must not sign"))
+    _as(monkeypatch)
+    response = client.get(f"/incidents/{incident}/photos/{observation}", headers=AUTH)
+    assert response.status_code == 404 and response.get_json()["error"]["code"] == "not_found"
+
+
+def test_photo_read_says_unavailable_when_signing_fails(client, monkeypatch, db):
+    _photo_db(db)
+
+    def boom(*a):
+        raise RuntimeError("signBlob denied")
+
+    monkeypatch.setattr("incidents.routes.signing.sign_get_url", boom)
+    _as(monkeypatch)
+    response = client.get("/incidents/inc_01/photos/obs_01", headers=AUTH)
+    assert response.status_code == 503 and response.get_json()["error"]["code"] == "unavailable"
+    assert "signBlob" not in response.get_data(as_text=True)

@@ -6,6 +6,7 @@ A task or WITHDRAW push runs only after that commit, and a failed push
 does not undo it.
 """
 import logging
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, g, jsonify, request
 
@@ -13,6 +14,7 @@ from identity import AuthError
 from incidents import detail as incident_detail, rules, store
 from incidents.errors import ApiError, conflict, error_response, not_found, validation
 from notifications.send import deliver_task
+from photos import paths as photo_paths, signing
 
 logger = logging.getLogger(__name__)
 
@@ -464,6 +466,96 @@ def _volunteers_on(incident_id, data):
         volunteers.add((obs.to_dict() or {}).get("volunteerId"))
     volunteers.discard(None)
     return volunteers
+
+
+def _known_volunteer(incident_id, data, volunteer_id):
+    """True when the volunteer has a report, a task or a withdraw entry on this incident."""
+    if volunteer_id in _volunteers_on(incident_id, data):
+        return True
+    return volunteer_id in ((data.get("withdraw") or {}).get("volunteerIds") or [])
+
+
+@incidents_bp.route("/incidents/<incident_id>/volunteers/<volunteer_id>/instruct", methods=["POST"])
+def instruct_volunteer(incident_id, volunteer_id):
+    """Send one free-text instruction to one volunteer. It is sent now: the supervisor's decision is the approval.
+
+    It creates an `instruct` task already `approved`, pushes it, and appends a `task.instruct` audit row. It is
+    never WITHDRAW and cannot hold or replace one: while the volunteer is on an active withdraw and not marked
+    safe, it is refused.
+    """
+    _require_supervisor()
+    instruction = _body().get("instruction")
+    if not isinstance(instruction, str) or not instruction.strip():
+        raise validation("instruction", "required, a non-empty string")
+    if len(instruction) > rules.INSTRUCTION_MAX:
+        raise validation("instruction", f"at most {rules.INSTRUCTION_MAX} characters")
+    pre = _get(store.INCIDENTS, incident_id)
+    if pre is None:
+        raise not_found("incident")
+    data = pre.to_dict() or {}
+    if not _known_volunteer(incident_id, data, volunteer_id):
+        raise validation("volunteerId", "needs a report, a task or a withdraw entry on this incident")
+
+    def run(transaction):
+        ref = _ref(store.INCIDENTS, incident_id)
+        snapshot = ref.get(transaction=transaction)
+        if not snapshot.exists:
+            raise not_found("incident")
+        incident = snapshot.to_dict() or {}
+        if incident.get("status") == "extinguished":
+            raise conflict("An extinguished incident takes no new instruction")
+        current = incident.get("withdraw") or {}
+        if current.get("active") and volunteer_id in (current.get("volunteerIds") or []) \
+                and volunteer_id not in (current.get("safeVolunteerIds") or []):
+            raise conflict("This volunteer is on an active withdraw and is not marked safe")
+        task_ref = store.db().collection(store.TASKS).document()
+        task = {
+            "incidentId": incident_id,
+            "volunteerId": volunteer_id,
+            "type": "instruct",
+            "status": "approved",
+            "instruction": instruction.strip(),
+            "sentAt": rules.now_iso(),
+            "sendCount": 1,
+        }
+        transaction.set(task_ref, task)
+        audit_id = _commit_with_audit(transaction, task_ref, None, "task.instruct", task_ref.id)
+        return rules.with_receipt(rules.pick(dict(task, id=task_ref.id), rules.TASK_FIELDS)), audit_id
+
+    task, audit_id = store.run_transaction(run)
+    _push_after_commit(task)
+    return jsonify({"task": task, "auditId": audit_id}), 201
+
+
+@incidents_bp.route("/incidents/<incident_id>/photos/<observation_id>", methods=["GET"])
+def incident_photo(incident_id, observation_id):
+    """A short-lived signed read URL for one photo report on this incident. Supervisor only; the object stays private."""
+    _require_supervisor()
+    snapshot = _get(store.INCIDENTS, incident_id)
+    if snapshot is None:
+        raise not_found("incident")
+    data = snapshot.to_dict() or {}
+    known = set(data.get("observationIds") or [])
+    if data.get("conflictId"):
+        con = _get(store.CONFLICTS, data["conflictId"])
+        if con is not None:
+            known.update((con.to_dict() or {}).get("observationIds") or [])
+    obs = _get(store.OBSERVATIONS, observation_id) if observation_id in known else None
+    obs_data = (obs.to_dict() or {}) if obs is not None else {}
+    path = obs_data.get("photoPath")
+    # Only a well-formed path under the reporter's own prefix is ever signed.
+    if not photo_paths.is_owned_photo_path(path, obs_data.get("volunteerId")):
+        raise not_found("photo")
+    ttl = signing.read_ttl_seconds()
+    try:
+        url = signing.sign_get_url(signing.photo_bucket(), path, ttl)
+    except Exception:
+        logger.exception("could not sign a read URL for observation %s", observation_id)
+        raise ApiError(503, "unavailable", "The photo cannot be read right now")
+    expires = (datetime.now(timezone.utc) + timedelta(seconds=ttl)).replace(microsecond=0)
+    response = jsonify({"url": url, "expiresAt": expires.isoformat().replace("+00:00", "Z")})
+    response.headers["Cache-Control"] = "no-store"
+    return response, 200
 
 
 @incidents_bp.route("/incidents/<incident_id>/withdraw", methods=["POST"])
