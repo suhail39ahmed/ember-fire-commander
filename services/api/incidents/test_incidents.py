@@ -82,7 +82,16 @@ def test_supervisor_lists_live_incidents_only(client, monkeypatch, db):
     assert response.status_code == 200
     body = response.get_json()
     assert [i["id"] for i in body] == ["inc_01"]
-    assert set(body[0]) == {"id", "name", "area", "status", "severity", "evidenceScore", "conflictId", "withdraw", "lat", "lng"}
+    assert set(body[0]) == {
+        "id", "name", "area", "status", "severity", "evidenceScore", "conflictId", "withdraw", "lat", "lng",
+        "reportCount", "volunteerCount", "needsHelp", "verified", "verifiedBy",
+    }
+
+
+def test_a_volunteer_list_has_no_supervisor_counts(client, monkeypatch, db):
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    body = client.get("/incidents", headers=AUTH).get_json()
+    assert body and all(set(i) == {"id", "name", "area", "status", "severity", "evidenceScore", "conflictId", "withdraw", "lat", "lng"} for i in body)
 
 
 def test_incident_name_is_returned_and_old_incidents_have_none(client, monkeypatch, db):
@@ -1256,3 +1265,109 @@ def test_a_token_without_a_name_stores_no_actor_name(client, monkeypatch, db):
     assert client.post("/incidents/inc_01/verify", headers=AUTH).status_code == 200
     row = next(r for r in _audit(db) if r["action"] == "incident.verify")
     assert "actorName" not in row
+
+
+# Supervisor list counts --------------------------------------------------------
+
+def _obs(db, obs_id, uid, chip="asap", name=None, severity="smoke"):
+    db.add("observations", obs_id, {
+        "volunteerId": uid, "capturedAt": "2026-10-16T08:00:00Z", "receivedAt": "2026-10-16T08:00:02Z",
+        "source": "chip", "lat": 13.05, "lng": 77.63, "accuracyM": 10, "chip": chip, "text": None,
+        "severity": severity, "photoPath": None, "immutable": True, **({"volunteerName": name} if name else {}),
+    })
+
+
+def test_the_supervisor_list_counts_reports_and_volunteers_from_stored_reports(client, monkeypatch, db):
+    _obs(db, "o1", "uid_a")
+    _obs(db, "o2", "uid_a")
+    _obs(db, "o3", "uid_b")
+    db.add("incidents", "inc_counts", {
+        "status": "open", "severity": "smoke", "evidenceScore": 35, "conflictId": None, "withdraw": None,
+        "lat": 13.05, "lng": 77.63, "observationIds": ["o1", "o2", "o3", "o_missing"],
+    })
+    _as(monkeypatch)
+    listed = {i["id"]: i for i in client.get("/incidents", headers=AUTH).get_json()}
+    row = listed["inc_counts"]
+    assert (row["reportCount"], row["volunteerCount"], row["needsHelp"]) == (3, 2, False)
+    assert (row["verified"], row["verifiedBy"]) == (False, None)
+    # An incident with no stored reports reports zero, never a dash or a guess.
+    assert (listed["inc_01"]["reportCount"], listed["inc_01"]["volunteerCount"]) == (0, 0)
+
+
+def test_the_supervisor_list_flags_a_need_help_report(client, monkeypatch, db):
+    _obs(db, "o1", "uid_a")
+    _obs(db, "o2", "uid_b", chip="butuh_bantuan", severity="unknown")
+    db.add("incidents", "inc_help", {
+        "status": "open", "severity": "unknown", "evidenceScore": 5, "conflictId": None, "withdraw": None,
+        "lat": 13.05, "lng": 77.63, "observationIds": ["o1", "o2"],
+    })
+    _as(monkeypatch)
+    listed = {i["id"]: i for i in client.get("/incidents", headers=AUTH).get_json()}
+    assert listed["inc_help"]["needsHelp"] is True
+    assert listed["inc_01"]["needsHelp"] is False
+
+
+def test_the_supervisor_list_names_who_verified(client, monkeypatch, db):
+    db.add("incidents", "inc_v", {
+        "status": "verified", "severity": "smoke", "evidenceScore": 35, "conflictId": None, "withdraw": None,
+        "lat": 1.0, "lng": 2.0, "observationIds": [],
+    })
+    db.add("incidents", "inc_v2", {
+        "status": "verified", "severity": "smoke", "evidenceScore": 35, "conflictId": None, "withdraw": None,
+        "lat": 1.0, "lng": 2.0, "observationIds": [],
+    })
+    db.add("audit", "a_old", {"actorId": "uid_x", "action": "incident.verify", "targetId": "inc_v", "at": "2026-10-16T08:00:00Z"})
+    db.add("audit", "a_new", {"actorId": "uid_maya", "actorName": "Bu Maya", "action": "incident.verify", "targetId": "inc_v", "at": "2026-10-16T09:00:00Z"})
+    db.add("audit", "a_noname", {"actorId": "uid_x", "action": "incident.verify", "targetId": "inc_v2", "at": "2026-10-16T08:00:00Z"})
+    _as(monkeypatch)
+    listed = {i["id"]: i for i in client.get("/incidents", headers=AUTH).get_json()}
+    assert (listed["inc_v"]["verified"], listed["inc_v"]["verifiedBy"]) == (True, "Bu Maya")
+    # Verified, but the row predates stored names and the supervisor has no record: no name is made up.
+    assert (listed["inc_v2"]["verified"], listed["inc_v2"]["verifiedBy"]) == (True, None)
+
+
+# Proposed tasks ---------------------------------------------------------------
+
+def test_proposed_tasks_need_a_supervisor_and_the_status_filter(client, monkeypatch, db):
+    assert client.get("/tasks?status=proposed").status_code == 401
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    assert client.get("/tasks?status=proposed", headers=AUTH).status_code == 403
+    _as(monkeypatch)
+    assert client.get("/tasks", headers=AUTH).status_code == 400
+    bad = client.get("/tasks?status=approved", headers=AUTH)
+    assert bad.status_code == 400 and bad.get_json()["error"]["fields"] == {"status": "use proposed"}
+
+
+def test_proposed_tasks_carry_the_incident_label_and_the_volunteer_name(client, monkeypatch, db):
+    db.data["observations"]["obs_01"]["volunteerName"] = "Sari"
+    db.data["incidents"]["inc_01"]["observationIds"] = ["obs_01", "obs_02"]
+    db.add("volunteers", "uid_rizal", {"displayName": "Rizal"})
+    db.data["tasks"]["task_verify_rizal"]["status"] = "approved"
+    _as(monkeypatch)
+    items = client.get("/tasks?status=proposed", headers=AUTH).get_json()
+    assert [i["task"]["id"] for i in items] == ["task_investigate", "task_verify_sari"]
+    first = items[0]
+    assert first["volunteerName"] == "Sari"
+    assert first["task"]["status"] == "proposed" and first["task"]["type"] == "investigate"
+    assert first["incident"] == {
+        "id": "inc_01", "name": None, "area": None, "label": "Incident · 1.48°N 102.11°E",
+        "status": "held", "severity": "small_flame", "conflictId": "con_01",
+    }
+
+
+def test_a_proposed_task_on_an_unknown_incident_and_a_nameless_volunteer_stay_honest(client, monkeypatch, db):
+    db.add("tasks", "task_orphan", {
+        "incidentId": "inc_gone", "volunteerId": "uid_nobody", "type": "verify", "status": "proposed", "instruction": None,
+    })
+    _as(monkeypatch)
+    items = {i["task"]["id"]: i for i in client.get("/tasks?status=proposed", headers=AUTH).get_json()}
+    assert items["task_orphan"]["incident"] is None
+    assert items["task_orphan"]["volunteerName"] is None
+    assert items["task_orphan"]["task"]["instruction"] is None
+
+
+def test_the_approvals_count_matches_the_list(client, monkeypatch, db):
+    _as(monkeypatch)
+    listed = client.get("/tasks?status=proposed", headers=AUTH).get_json()
+    count = client.get("/dashboard", headers=AUTH).get_json()["approvalsCount"]
+    assert len(listed) == count == 3

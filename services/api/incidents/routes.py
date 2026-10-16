@@ -120,7 +120,14 @@ def _open_conflict_ids(incident_id, conflict_id):
 
 @incidents_bp.route("/incidents", methods=["GET"])
 def list_incidents():
-    return jsonify([rules.to_record(s, rules.INCIDENT_FIELDS) for s in _scoped_incidents()]), 200
+    snapshots = _scoped_incidents()
+    records = [rules.to_record(s, rules.INCIDENT_FIELDS) for s in snapshots]
+    if g.user["role"] == "supervisor":
+        # Supervisor only: counts and flags read from the stored reports, so the list needs no read per incident.
+        extras = incident_detail.list_extras(snapshots)
+        for record in records:
+            record.update(extras[record["id"]])
+    return jsonify(records), 200
 
 
 @incidents_bp.route("/incidents/<incident_id>", methods=["GET"])
@@ -183,6 +190,37 @@ def get_incident(incident_id):
         known = [found[i].to_dict() | {"id": i} for i in dict.fromkeys(wanted_ids) if i in found]
         body.update(incident_detail.build(incident_id, data, known, conflict_body, tasks))
     return jsonify(body), 200
+
+
+@incidents_bp.route("/tasks", methods=["GET"])
+def list_tasks():
+    """Supervisor only: the tasks waiting for a decision, each with its incident and the volunteer's name.
+
+    `status=proposed` is the only filter. Tasks are sorted by incident id, then task id.
+    """
+    _require_supervisor()
+    if request.args.get("status") != "proposed":
+        raise validation("status", "use proposed")
+    tasks = sorted(
+        (rules.with_receipt(rules.to_record(s, rules.TASK_FIELDS)) for s in store.where(store.TASKS, "status", "==", "proposed")),
+        key=lambda t: (t["incidentId"] or "", t["id"]),
+    )
+    incident_snaps = store.get_many(store.INCIDENTS, [t["incidentId"] for t in tasks if t["incidentId"]])
+    incident_data = {i: snap.to_dict() or {} for i, snap in incident_snaps.items()}
+    names = incident_detail.volunteer_names(incident_data, [t["volunteerId"] for t in tasks if t["volunteerId"]])
+    items = []
+    for task in tasks:
+        data = incident_data.get(task["incidentId"])
+        items.append({
+            "task": task,
+            "incident": None if data is None else {
+                "id": task["incidentId"], "name": data.get("name"), "area": data.get("area"),
+                "label": rules.incident_label(data), "status": data.get("status"), "severity": data.get("severity"),
+                "conflictId": data.get("conflictId"),
+            },
+            "volunteerName": names.get(task["volunteerId"]),
+        })
+    return jsonify(items), 200
 
 
 @incidents_bp.route("/digest", methods=["GET"])

@@ -578,6 +578,16 @@ The hand-off to agents happens after the write. If it fails, the response is sti
 
 `GET /incidents` returns a JSON array of incident records, scoped as in §5.6.
 
+A supervisor's `GET /incidents` adds five fields to each record, read from the stored reports so the list needs no call per incident. A volunteer's list has none of them.
+
+| Field | Type | Notes |
+|---|---|---|
+| `reportCount` | number | The observations the incident holds that can be read. `0` when there are none |
+| `volunteerCount` | number | Distinct volunteers who reported on the incident. `0` when there are none |
+| `needsHelp` | boolean | `true` when any of those reports is the `butuh_bantuan` chip. Nothing clears it: the report stays on the incident |
+| `verified` | boolean | `true` when an `incident.verify` audit row exists for the incident |
+| `verifiedBy` | string or null | `actorName` of the newest `incident.verify` row, else that supervisor's `volunteers/{uid}.displayName`. `null` when neither is stored, including on rows written before `actorName` existed |
+
 `GET /incidents/{id}` returns the picture the supervisor screen needs:
 
 ```json
@@ -687,6 +697,18 @@ The same data supports what the screen shows. The reasons behind `evidenceScore`
 Returns the §5.6 digest for the caller. The two web apps poll `GET /digest` (volunteer) and `GET /incidents` (console) every 5 seconds.
 
 ### 6.5 Approval and human incident actions
+
+`GET /tasks?status=proposed` (supervisor only) lists the tasks waiting for a decision, sorted by `incidentId` and then `id`. `status=proposed` is the only filter: another value, or none, is `400` with `fields.status`. A volunteer is `403`. Each item is:
+
+```json
+{
+  "task": { "id": "task_01", "incidentId": "inc_01", "volunteerId": "uid_sari", "type": "verify", "status": "proposed", "instruction": "Check the east bank", "sentAt": null, "heardAt": null, "sendCount": null, "resendAt": null },
+  "incident": { "id": "inc_01", "name": null, "area": null, "label": "Incident · 1.48°N 102.11°E", "status": "held", "severity": "small_flame", "conflictId": "con_01" },
+  "volunteerName": "Sari"
+}
+```
+
+`incident.label` is the stored `name`, else `Incident · <area>`, else `Incident · <coordinates>`, else `Incident`. `incident` is `null` when the incident record cannot be read. `volunteerName` is the name on one of the volunteer's reports on that incident, else `volunteers/{uid}.displayName`, else `null`. The list has the same members as the `approvalsCount` in §6.9, and approve, reject and edit below work on these task ids.
 
 All of these are supervisor-only. A volunteer receives `403`. Each success returns the updated record and the new audit id:
 
@@ -1160,6 +1182,7 @@ Everything here is taken from the code and tests on `main`. Where the code leave
 | `POST /photos/upload-url` | volunteer | Yes |
 | `POST /notifications/token`, `DELETE /notifications/token` | volunteer | Yes |
 | `GET /incidents`, `GET /incidents/{id}` | any, scoped (§6.3) | Yes (console, every 5 s) |
+| `GET /tasks?status=proposed` | supervisor | Yes (Approvals page, §6.5) |
 | `POST /tasks/{id}/approve`, `/reject`, `/edit` | supervisor | Yes |
 | `POST /tasks/{id}/resend` | supervisor | Yes |
 | `POST /tasks/{id}/heard` | volunteer | Yes. The volunteer app calls it once when a sent task or WITHDRAW is on screen |
@@ -1282,5 +1305,6 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · #93, #94: new supervisor route `POST /incidents/{id}/volunteers/{volunteerId}/instruct` sends one free-text instruction to one volunteer as a new task type `instruct` (stored `approved`, pushed, audit `task.instruct`). It is refused for an extinguished incident and for a volunteer under an active withdraw who is not marked safe, so it never holds or replaces a WITHDRAW. New supervisor route `GET /incidents/{id}/photos/{observationId}` returns a short-lived signed read URL for a photo report. A volunteer card adds `lastHeardAt` and `pushReady`. The volunteer app now calls `POST /tasks/{id}/heard` when a sent task is on screen (§5.3, §5.5, §6.3, §6.5, §6.6, §6.7, §12.1).
 - 2026-10-16 · #95, #105: a supervisor's `GET /incidents/{id}` adds `conflictContext` (the reports on neither side of a disagreement, and the audit rows that decide it) and `agencyInCharge` (the agency stored on the incident, `null` today). Both are optional additions; a volunteer's read and `GET /incidents` are unchanged. Not stored, so not returned: wind or satellite evidence factors, a "conflict opened" audit row, `investigate` proposals, and who is in charge (§5.2, §6.3, §12.2, §12.4). Handing an incident to an agency stays outside the contract (§10).
 - 2026-10-16 · console gaps, audit: new supervisor audit rows store the optional `actorName` from the token, and `GET /audit` shows names instead of ids for the actor, the volunteer and the incident, with the fallbacks in §5.5. No route and no field is removed.
+- 2026-10-16 · console gaps, lists: a supervisor's `GET /incidents` adds `reportCount`, `volunteerCount`, `needsHelp`, `verified` and `verifiedBy` to each record (§6.3), and the new supervisor route `GET /tasks?status=proposed` lists the tasks waiting for a decision with the incident label and the volunteer's name (§6.5, §12.1). A volunteer's `GET /incidents` and `/digest` are unchanged.
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).
