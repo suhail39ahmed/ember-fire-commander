@@ -74,3 +74,16 @@
 .dot-target circle { fill: var(--haze); }
 .dot-target .ring { stroke: var(--haze); }
 .dot-you circle { fill: var(--data); }
+
+/* Task screens */
+.stats.two { grid-template-columns: repeat(2, 1fr); }
+.task-actions { display: flex; gap: 8px; } .task-actions .btn { flex: 1; }
+.order { background: var(--safe-tint); border: 2px solid var(--safe); }
+.order .section-label { color: var(--safe-text); }
+.on-fire { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.notice { padding: 10px 14px; border-radius: 12px; background: var(--surface-2); font-weight: 600; }
+.notice.ok { background: var(--surface); color: var(--safe-text); }
+.choices { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.choice { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 10px 14px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface); }
+.choice input { width: 22px; height: 22px; accent-color: var(--ember); flex: none; }
+.field { display: flex; flex-direction: column; gap: 6px; }

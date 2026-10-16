@@ -11,6 +11,9 @@ import { IncidentDetailScreen } from '../screens/IncidentDetailScreen'
 import { IncidentsScreen } from '../screens/IncidentsScreen'
 import { ProfileScreen } from '../screens/ProfileScreen'
 import { ReportScreen } from '../screens/ReportScreen'
+import { DeclineScreen } from '../screens/DeclineScreen'
+import { NotAFireScreen } from '../screens/NotAFireScreen'
+import { TaskScreen } from '../screens/TaskScreen'
 import { useMarkHeard } from '../useMarkHeard'
 import { useWakeLock } from '../useWakeLock'
 import { VolunteerHeader } from '../VolunteerHeader'
@@ -62,6 +65,9 @@ export function PhoneLayout() {
           <Route path="report" element={<ReportScreen />} />
           <Route path="incidents" element={<IncidentsScreen />} />
           <Route path="incidents/:id" element={<IncidentDetailScreen />} />
+          <Route path="task/:id" element={<TaskScreen />} />
+          <Route path="task/:id/decline" element={<DeclineScreen />} />
+          <Route path="task/:id/not-a-fire" element={<NotAFireScreen />} />
           <Route path="guide" element={<GuideScreen />} />
           <Route path="profile" element={<ProfileScreen />} />
           <Route path="*" element={<Navigate to="/pwa" replace />} />

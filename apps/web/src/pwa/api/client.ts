@@ -4,7 +4,7 @@
  * see ../gateway/). No Firestore or Cloud Storage SDK is used in the browser.
  * The one exception is the photo PUT to a signed URL that ember-api issued (see ../photo/).
  */
-import type { Digest, ErrorBody, IncidentDetail, Observation, ObservationRequest, UploadUrl } from '../contracts/types'
+import type { DeclineReason, Digest, ErrorBody, IncidentDetail, Observation, ObservationRequest, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
 import type { AuthHeadersProvider } from './authHeaders'
 import { API_BASE_URL } from './config'
 import { ApiError, type EmberApi } from './types'
@@ -14,6 +14,9 @@ export const ENDPOINTS = {
   incident: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}`,
   observations: '/observations',
   photoUploadUrl: '/photos/upload-url',
+  accept: (taskId: string) => `/tasks/${encodeURIComponent(taskId)}/accept`,
+  decline: (taskId: string) => `/tasks/${encodeURIComponent(taskId)}/decline`,
+  withdrawAnswer: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}/withdraw/answer`,
   heard: (taskId: string) => `/tasks/${encodeURIComponent(taskId)}/heard`,
 } as const
 
@@ -58,6 +61,15 @@ export function createHttpApi(
       request<UploadUrl>(ENDPOINTS.photoUploadUrl, { method: 'POST', body: JSON.stringify({ contentType }) }),
     markTaskHeard: async (taskId) => {
       await request<unknown>(ENDPOINTS.heard(taskId), { method: 'POST' })
+    },
+    acceptTask: async (taskId) => {
+      await request<unknown>(ENDPOINTS.accept(taskId), { method: 'POST' })
+    },
+    declineTask: async (taskId: string, reason: DeclineReason, note?: string) => {
+      await request<unknown>(ENDPOINTS.decline(taskId), { method: 'POST', body: JSON.stringify({ reason, note: note?.trim() ? note.trim() : null }) })
+    },
+    answerWithdraw: async (incidentId: string, answer: WithdrawAnswerRequest) => {
+      await request<unknown>(ENDPOINTS.withdrawAnswer(incidentId), { method: 'POST', body: JSON.stringify(answer) })
     },
   }
 }

@@ -146,6 +146,24 @@ export interface Task {
   sendCount?: number | null
   /** When a sent, unheard task can be sent again. Computed by ember-api, null otherwise. */
   resendAt?: string | null
+  /** When the volunteer tapped Doing it. Absent or null until then. */
+  acceptedAt?: string | null
+  /** When the volunteer said they cannot do it, with the reason key and the optional note. Absent or null until then. */
+  declinedAt?: string | null
+  declineReason?: DeclineReason | null
+  declineNote?: string | null
+}
+
+/** Why a volunteer cannot follow an instruction (contract section 6.11). Labels come from the copy bundle. */
+export const DECLINE_REASONS = ['unsafe', 'too_far', 'no_equipment', 'other'] as const
+export type DeclineReason = (typeof DECLINE_REASONS)[number]
+
+/** Body of POST /incidents/{id}/withdraw/answer (section 6.11). */
+export interface WithdrawAnswerRequest {
+  state: 'safe' | 'stuck'
+  lat?: number
+  lng?: number
+  accuracyM?: number | null
 }
 
 /** GET /digest (section 6.4). */

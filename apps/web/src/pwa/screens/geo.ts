@@ -29,6 +29,10 @@ export function compassOf(deg: number): Compass {
   return COMPASS[Math.round((((deg % 360) + 360) % 360) / 45) % 8]
 }
 
+/** The compass letters in the volunteer's language: Indonesian uses U, T, S and B for the four main directions. */
+const COMPASS_ID: Record<Compass, string> = { N: 'U', NE: 'TL', E: 'T', SE: 'TG', S: 'S', SW: 'BD', W: 'B', NW: 'BL' }
+export const compassLabel = (compass: Compass, lang: 'id' | 'en'): string => (lang === 'id' ? COMPASS_ID[compass] : compass)
+
 /** Metres under 1 km, kilometres with one decimal above. */
 export function formatDistance(m: number): { value: string; unit: 'm' | 'km' } {
   if (m < 1000) return { value: String(Math.max(0, Math.round(m))), unit: 'm' }

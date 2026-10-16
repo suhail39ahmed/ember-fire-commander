@@ -16,7 +16,7 @@ import { screenStrings } from './strings'
 export function ReportScreen() {
   const { lang } = useLanguage()
   const { api, volunteerId, outbox, upload, talk, digest } = useVolunteer()
-  const state = useLocation().state as { chip?: ChipValue | null; n?: number; incidentId?: string } | null
+  const state = useLocation().state as { chip?: ChipValue | null; n?: number; incidentId?: string; taskId?: string } | null
   const preset = state && state.chip !== undefined ? { chip: state.chip, n: state.n ?? 1 } : undefined
 
   return (
@@ -24,6 +24,11 @@ export function ReportScreen() {
       {state?.incidentId && (
         <p className="muted small" data-testid="report-context">
           {t(lang, screenStrings.report.forIncident)} {incidentLabelById(state.incidentId, digest?.incidents)}
+        </p>
+      )}
+      {state?.taskId && (
+        <p className="muted small" data-testid="report-task-context">
+          {t(lang, screenStrings.report.forTask)} {digest?.myTasks.find((x) => x.id === state.taskId)?.instruction ?? ''}
         </p>
       )}
       <TalkCard lang={lang} view={talk.view} onPress={talk.onPress} onRelease={talk.onRelease} />

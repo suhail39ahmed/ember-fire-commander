@@ -1,4 +1,4 @@
-import type { Digest, IncidentDetail, Observation, ObservationRequest, PhotoContentType, UploadUrl } from '../contracts/types'
+import type { DeclineReason, Digest, IncidentDetail, Observation, ObservationRequest, PhotoContentType, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
 
 /** Error surfaced to the UI. `retryable` is true for network failures, 429 and 5xx. */
 export class ApiError extends Error {
@@ -24,4 +24,10 @@ export interface EmberApi {
   createUploadUrl(contentType: PhotoContentType): Promise<UploadUrl>
   /** POST /tasks/{id}/heard: this phone showed the task. Sets `heardAt` once; a repeat changes nothing. */
   markTaskHeard(taskId: string): Promise<void>
+  /** POST /tasks/{id}/accept: Doing it. Recorded once; a repeat changes nothing. */
+  acceptTask(taskId: string): Promise<void>
+  /** POST /tasks/{id}/decline: Can't do it, with a reason key and an optional note. The instruction is not changed. */
+  declineTask(taskId: string, reason: DeclineReason, note?: string): Promise<void>
+  /** POST /incidents/{id}/withdraw/answer: safe upwind, or can't get out. The latest answer replaces the earlier one. */
+  answerWithdraw(incidentId: string, answer: WithdrawAnswerRequest): Promise<void>
 }
