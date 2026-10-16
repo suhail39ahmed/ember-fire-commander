@@ -21,7 +21,6 @@ export function parseLang(value: string | null | undefined): Lang {
 
 const strings = {
   simulated: { id: 'SIMULASI · data sintetis', en: 'SIMULATED · synthetic data' },
-  team: { id: 'Regu A · Desa (fiktif)', en: 'Crew A · Village (fictional)' },
   loading: { id: 'Memuat tugas…', en: 'Loading your tasks…' },
   loadError: { id: 'Tidak bisa terhubung ke EMBER.', en: 'Could not reach EMBER.' },
   loadRefused: {

@@ -6,27 +6,33 @@ import { createLanguageStore } from '../language'
 import { LanguageProvider } from '../LanguageProvider'
 import { VolunteerHeader } from '../VolunteerHeader'
 
-function render(lang: 'id' | 'en', name: string | null = 'Pak Dedi') {
+function render(lang: 'id' | 'en', name: string | null = 'Pak Dedi', crew: string | null = 'Regu Tohor') {
   const data = new Map([[LANG_KEY, lang]])
   const store = createLanguageStore({ storage: { getItem: (k) => data.get(k) ?? null, setItem: () => {} }, root: { lang: '' } })
   return renderToStaticMarkup(
     <LanguageProvider store={store}>
-      <VolunteerHeader name={name} lang={lang} />
+      <VolunteerHeader name={name} crew={crew} lang={lang} />
     </LanguageProvider>,
   )
 }
 
 describe('VolunteerHeader', () => {
-  it('shows the volunteer name and the crew line in the current language', () => {
+  it('shows the volunteer name and the crew from the profile', () => {
     expect(render('en')).toContain('Pak Dedi')
-    expect(render('en')).toContain('Crew A · Village (fictional)')
-    expect(render('id')).toContain('Regu A · Desa (fiktif)')
+    expect(render('en')).toContain('Regu Tohor')
+    expect(render('id')).toContain('Regu Tohor')
+  })
+
+  it('says there is no crew yet instead of showing a made-up one', () => {
+    expect(render('en', 'Pak Dedi', null)).toContain('No crew set yet')
+    expect(render('id', 'Pak Dedi', '  ')).toContain('Regu belum diatur')
+    expect(render('en', 'Pak Dedi', null)).not.toContain('Crew A')
   })
 
   it('keeps the name and the crew line in separate single-line elements', () => {
     const html = render('en')
     expect(html).toMatch(/<strong>Pak Dedi<\/strong>/)
-    expect(html).toMatch(/<span class="vol-sub">Crew A/)
+    expect(html).toMatch(/<span class="vol-sub">Regu Tohor/)
   })
 
   it('falls back to EMBER when there is no name yet', () => {

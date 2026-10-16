@@ -23,7 +23,7 @@ export function AppRoutes() {
     <Routes>
       <Route path="/" element={<RoleChoice />} />
       <Route
-        path="/pwa"
+        path="/pwa/*"
         element={
           <RequireRole role="volunteer">
             <PageBoundary>

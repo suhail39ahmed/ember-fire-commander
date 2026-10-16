@@ -7,6 +7,8 @@ export interface Me {
   id: string
   displayName: string
   role: 'volunteer' | 'supervisor'
+  /** The volunteer's crew, from GET /me. Absent or null when no crew is set. */
+  crewName?: string | null
 }
 
 export interface MeFailure {

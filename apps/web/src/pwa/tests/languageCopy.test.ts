@@ -5,6 +5,7 @@ import { describeItem } from '../outbox/describeItem'
 import { outboxStrings } from '../outbox/strings'
 import type { OutboxItem } from '../outbox/types'
 import { photoStrings } from '../photo/strings'
+import { screenStrings } from '../screens/strings'
 
 type Leaf = { id: string; en: string }
 
@@ -14,7 +15,7 @@ function leaves(node: unknown, path = ''): Array<[string, Leaf]> {
   return []
 }
 
-const groups = { strings, outboxStrings, photoStrings }
+const groups = { strings, outboxStrings, photoStrings, screenStrings }
 const all = Object.entries(groups).flatMap(([name, g]) => leaves(g, name))
 
 describe('UI copy', () => {
