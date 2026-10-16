@@ -1,0 +1,95 @@
+/*
+ * Dark theme for the supervisor console. It is off unless the page root says data-theme="dark"
+ * (the switch in the top bar, kept in this browser). Light is the default and is drawn by the
+ * other console stylesheets, which this file does not change.
+ */
+[data-theme='dark'] .console,
+[data-theme='dark'] .sup {
+  --ember: #f06a35;
+  --danger: #ef5b5b;
+  --safe: #5fc58a;
+  --safe-tint: #16301f;
+  --haze: #e0a63f;
+  --haze-tint: #3a2c10;
+  --data: #7aa2f7;
+  --ink: #faf7f2;
+  --ink-muted: #a79f94;
+  --paper: #141210;
+  --line: #3a352f;
+  --surface: #1f1c19;
+  --tint-red: #3a1a1a;
+  --tint-ember: #3a2216;
+  --tint-data: #172238;
+  --tint-neutral: #2a2622;
+  color-scheme: dark;
+}
+
+[data-theme='dark'] .console-top,
+[data-theme='dark'] .console-menu,
+[data-theme='dark'] .console-account summary,
+[data-theme='dark'] .console-account-menu,
+[data-theme='dark'] .console-signout,
+[data-theme='dark'] .sup-queue-item,
+[data-theme='dark'] .sup-card,
+[data-theme='dark'] .sup-obs,
+[data-theme='dark'] .btn-secondary,
+[data-theme='dark'] .inc-btn,
+[data-theme='dark'] .inc-pill,
+[data-theme='dark'] .inc-card,
+[data-theme='dark'] .inc-stat,
+[data-theme='dark'] .inc-vol,
+[data-theme='dark'] .inc-skel-card,
+[data-theme='dark'] .inc-skel-vol,
+[data-theme='dark'] .inc-choice.on,
+[data-theme='dark'] .inc-modal,
+[data-theme='dark'] .inc-input { background: var(--surface); }
+[data-theme='dark'] .console-nav.active,
+[data-theme='dark'] .sup-queue-item.active,
+[data-theme='dark'] .inc-vol-task,
+[data-theme='dark'] .inc-choice { background: var(--paper); }
+[data-theme='dark'] .inc-btn-danger { background: var(--danger); color: #fff; }
+[data-theme='dark'] .inc-btn-danger[disabled] { color: #fff; }
+[data-theme='dark'] .inc-pill.status-extinguished,
+[data-theme='dark'] .inc-skel { background: var(--tint-neutral); }
+[data-theme='dark'] .inc-pill-red,
+[data-theme='dark'] .type-withdraw .sup-chip,
+[data-theme='dark'] .inc-callout,
+[data-theme='dark'] .inc-modal-error { background: var(--tint-red); }
+[data-theme='dark'] .inc-choice.sev.on { background: var(--tint-ember); }
+[data-theme='dark'] .inc-watch,
+[data-theme='dark'] .sup-chip { background: var(--tint-data); }
+[data-theme='dark'] .inc-pill.status-held,
+[data-theme='dark'] .inc-pill-amber { color: var(--haze); }
+[data-theme='dark'] .sup-conflict.status-open > .sup-label,
+[data-theme='dark'] .sup-hold { color: var(--haze); }
+[data-theme='dark'] .map-schematic { background: #23261d; }
+[data-theme='dark'] .map-empty { background: var(--paper); }
+[data-theme='dark'] .map-note { background: rgba(31, 28, 25, 0.85); }
+[data-theme='dark'] .console-main { background: var(--paper); }
+[data-theme='dark'] .console { background: var(--paper); }
+[data-theme='dark'] .inc-input,
+[data-theme='dark'] .sup-edit textarea { background: var(--surface); color: var(--ink); }
+
+/* The withdraw panel, the pop-up, the edit dialog and the delivery line, added after the first dark pass. */
+[data-theme='dark'] .wd,
+[data-theme='dark'] .wd-person,
+[data-theme='dark'] .wd-btn,
+[data-theme='dark'] .pop-region,
+[data-theme='dark'] .pop-btn,
+[data-theme='dark'] .inc-vol-open,
+[data-theme='dark'] .inc-edit-field { background: var(--surface); color: var(--ink); }
+[data-theme='dark'] .wd-open,
+[data-theme='dark'] .inc-vol-wd { background: var(--tint-red); }
+[data-theme='dark'] .inc-vol-wd.safe,
+[data-theme='dark'] .inc-toast { background: var(--safe-tint); }
+[data-theme='dark'] .wd-call { background: var(--danger); color: #fff; }
+[data-theme='dark'] .wd-yes,
+[data-theme='dark'] .pop-send { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+[data-theme='dark'] .wd-result,
+[data-theme='dark'] .inc-vol-wd.safe,
+[data-theme='dark'] .inc-delivery.heard { color: var(--safe); }
+[data-theme='dark'] .wd-result.wd-error { color: var(--danger); }
+[data-theme='dark'] .pop-input { background: var(--paper); color: var(--ink); }
+[data-theme='dark'] .pop-snap-img { background: repeating-linear-gradient(45deg, #2a2622, #2a2622 6px, #34302b 6px, #34302b 12px); }
+[data-theme='dark'] .inc-edit-field { border-color: var(--data); }
+[data-theme='dark'] .inc-toast { border-color: var(--safe); }

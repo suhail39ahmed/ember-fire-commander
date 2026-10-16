@@ -6,13 +6,15 @@ import type { Incident, IncidentDetail, Observation, Severity, Task } from '../c
 
 const SEVERITY_ORDER: Record<Severity, number> = { none: 0, unknown: 1, smoke: 2, small_flame: 3, large_flame: 4 }
 
-/** The route does not return `volunteerName` on observations, so the id is all there is. */
+/** What to call a volunteer with no stored name: a short code from the id. A name is never worked out from the id. */
 export function volunteerLabel(id: string, lang: 'id' | 'en'): string {
-  if (id.startsWith('uid_') && id.length > 4) {
-    const base = id.slice(4)
-    return base.charAt(0).toUpperCase() + base.slice(1)
-  }
   return `${lang === 'id' ? 'Relawan' : 'Volunteer'} ${id.slice(-4).toUpperCase()}`
+}
+
+/** The reporter's name as the API gave it on any of their observations, else the short code. */
+export function nameOf(detail: Pick<IncidentDetail, 'observations'>, id: string, lang: 'id' | 'en'): string {
+  const named = detail.observations.find((o) => o.volunteerId === id && o.volunteerName?.trim())
+  return named?.volunteerName?.trim() || volunteerLabel(id, lang)
 }
 
 export function initialsOf(label: string): string {
@@ -53,6 +55,8 @@ export function lastTaskFor(tasks: Task[], volunteerId: string): Task | null {
 
 export interface VolunteerRow {
   id: string
+  /** The stored display name, when any of this volunteer's reports carried one. */
+  name: string | null
   reportCount: number
   latest: Observation | null
   task: Task | null
@@ -69,7 +73,7 @@ export function volunteersOf(detail: IncidentDetail): VolunteerRow[] {
   const withdrawn = new Set(detail.incident.withdraw?.active ? detail.incident.withdraw.volunteerIds : [])
   const rows = [...ids].map<VolunteerRow>((id) => {
     const mine = newestFirst(detail.observations.filter((o) => o.volunteerId === id))
-    return { id, reportCount: mine.length, latest: mine[0] ?? null, task: lastTaskFor(detail.tasks, id), withdrawn: withdrawn.has(id) }
+    return { id, name: mine.find((o) => o.volunteerName?.trim())?.volunteerName?.trim() ?? null, reportCount: mine.length, latest: mine[0] ?? null, task: lastTaskFor(detail.tasks, id), withdrawn: withdrawn.has(id) }
   })
   const time = (r: VolunteerRow) => (r.latest ? Date.parse(r.latest.capturedAt) || 0 : -1)
   return rows.sort((a, b) => time(b) - time(a) || a.id.localeCompare(b.id))
@@ -106,4 +110,15 @@ export type LinkState = 'online' | 'lost' | 'restored'
 export function linkState(lost: boolean, restoredUntil: number | null, now: number): LinkState {
   if (lost) return 'lost'
   return restoredUntil !== null && now < restoredUntil ? 'restored' : 'online'
+}
+
+/** Straight-line distance in metres between two reported positions. For display only; no rule reads it. */
+export function distanceM(a: Pick<Observation, 'lat' | 'lng'>, b: Pick<Observation, 'lat' | 'lng'>): number | null {
+  const values = [a.lat, a.lng, b.lat, b.lng]
+  if (!values.every(Number.isFinite)) return null
+  const rad = Math.PI / 180
+  const dLat = (b.lat - a.lat) * rad
+  const dLng = (b.lng - a.lng) * rad
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2
+  return Math.round(2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h))))
 }

@@ -1,0 +1,29 @@
+.wd { border-radius: 12px; padding: 14px 16px; background: #fff; color: var(--ink); display: flex; flex-direction: column; gap: 8px; }
+.wd-open { border: 2px solid var(--danger); background: #fdf3f3; }
+.wd-safe { border: 1px solid var(--danger); }
+.wd-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; }
+.wd-eyebrow, .wd-rule { margin: 0; font-size: 11px; letter-spacing: 0.06em; font-weight: 700; text-transform: uppercase; }
+.wd-eyebrow { color: var(--danger); display: flex; align-items: center; gap: 6px; }
+.wd-rule { color: var(--ink-muted); font-weight: 600; }
+.wd-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); flex: none; }
+.wd-text { margin: 0; font-size: 16px; font-weight: 600; }
+.wd-reason { margin: 0; font-size: 13px; color: var(--ink-muted); }
+.wd-bar { display: flex; gap: 4px; }
+.wd-seg { flex: 1; height: 5px; border-radius: 3px; background: var(--danger); }
+.wd-seg.safe { background: #2f8f4e; }
+.wd-count { margin: 0; font-size: 13px; font-weight: 700; }
+.wd-note { margin: 0; font-size: 13px; color: var(--ink-muted); }
+.wd-people { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.wd-person { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.wd-who { margin: 0; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.wd-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.wd-btn { font: inherit; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; text-decoration: none; }
+.wd-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.wd-call { background: var(--danger); border-color: var(--danger); color: #fff; }
+.wd-yes { background: var(--ink); border-color: var(--ink); color: #fff; }
+.wd-result { margin: 0; font-size: 13px; color: #1f6b3a; }
+.wd-result.wd-error { color: var(--danger); }
+.wd-paused { margin: 0; font-size: 13px; color: var(--haze); }
+.inc-vol-wd { margin: 0; font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 8px; background: #fdf3f3; color: var(--danger); font-variant-numeric: tabular-nums; }
+.inc-vol-wd.safe { background: #e8f4ec; color: #1f6b3a; }
+.inc-vol.wd-unconfirmed { border-color: var(--danger); }

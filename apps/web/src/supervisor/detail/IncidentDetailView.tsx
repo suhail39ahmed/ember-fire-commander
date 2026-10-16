@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { formatTime } from '../../pwa/formatTime'
@@ -6,7 +6,7 @@ import { chipText } from '../../pwa/report/chips'
 import { t, type Lang } from '../../pwa/i18n'
 import { incidentLabel, shortIncidentId } from '../../pwa/incidentName'
 import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, WithdrawRequest } from '../contracts'
-import { conflictPair, withdrawBanner } from '../view'
+import { conflictPair, taskControls } from '../view'
 import { IncidentMap } from '../map/IncidentMap'
 import { OutcomeLine, TaskRow, type IncidentActions } from '../IncidentView'
 import type { DetailFailure } from '../incidentsContext'
@@ -14,15 +14,23 @@ import { POLL_MS } from '../incidentsContext'
 import { CONSOLE_PATHS } from '../paths'
 import { ActionBar } from './ActionBar'
 import { detailCopy, severityName, statusName } from './copy'
-import { formatPosition, highestReport, minutesBetween, timelineOf, volunteerLabel, volunteersOf, type LinkState } from './model'
+import { distanceM, formatPosition, highestReport, minutesBetween, nameOf, timelineOf, volunteersOf, type LinkState } from './model'
 import { ExtinguishDialog } from './ExtinguishDialog'
 import { doneText } from './extinguishModel'
 import { extinguishCopy } from './extinguishCopy'
 import { LowerSeverityDialog } from './LowerSeverityDialog'
+import { disagreeCopy, factorName } from './disagreeCopy'
+import { ProposalRow } from './ProposalRow'
 import { ReportCard } from './ReportCard'
 import { SendWithdrawDialog } from './SendWithdrawDialog'
 import { loweredText } from './severityModel'
 import { VolunteerCard } from './VolunteerCard'
+import { WithdrawPanel } from './WithdrawPanel'
+import { elapsedSince, unconfirmed, withdrawState } from './withdrawState'
+import { countText, stateCopy } from './withdrawStateCopy'
+import { VolunteerPopup } from './VolunteerPopup'
+import { HeardToast } from './HeardToast'
+import { heardEvents, needsClock, type HeardEvent } from './deliveryModel'
 import { sentText } from './withdrawModel'
 import './detail.css'
 
@@ -49,8 +57,12 @@ export interface IncidentDetailViewProps {
   serverNow(): number
   /** POST /incidents/{id}/severity, then a fresh read. Resolves with the route's answer. */
   lowerSeverity(severity: LowerableSeverity): Promise<IncidentDecision>
+  /** POST /tasks/{id}/resend, then a fresh read. Resolves with the route's answer and throws its refusal. */
+  resendTask(taskId: string): Promise<{ auditId: string }>
   /** POST /incidents/{id}/extinguish, then a fresh read. Resolves with the route's answer. */
   extinguish(): Promise<IncidentDecision>
+  /** POST /incidents/{id}/withdraw/safe, then a fresh read. Resolves with the route's answer. */
+  markSafe(volunteerId: string): Promise<IncidentDecision>
   mapsKey?: string
 }
 
@@ -125,16 +137,39 @@ function Stat({ label, value, note, tone }: { label: string; value: string; note
   )
 }
 
-function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish'> }) {
+function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask'> }) {
   const { incident, conflict } = detail
-  const { actorName, sendWithdraw, lowerSeverity } = view
+  const { actorName, sendWithdraw, lowerSeverity, markSafe, resendTask, serverNow } = view
   const [dialog, setDialog] = useState<'withdraw' | 'severity' | 'extinguish' | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [popupId, setPopupId] = useState<string | null>(null)
   const offline = link === 'lost'
+  const [clock, setClock] = useState(() => serverNow())
+  const clockOn = needsClock(detail.tasks, clock)
+  useEffect(() => {
+    setClock(serverNow())
+    if (!clockOn) return
+    const timer = window.setInterval(() => setClock(serverNow()), 1000)
+    return () => window.clearInterval(timer)
+  }, [clockOn, serverNow, detail.tasks])
+  const [toasts, setToasts] = useState<HeardEvent[]>([])
+  const seen = useRef<typeof detail.tasks | null>(null)
+  useEffect(() => {
+    const found = heardEvents(seen.current, detail.tasks)
+    seen.current = detail.tasks
+    if (found.length > 0) setToasts((list) => [...list, ...found])
+  }, [detail.tasks])
+  const dismiss = useCallback(() => setToasts((list) => list.slice(1)), [])
   const volunteers = volunteersOf(detail)
-  const banner = withdrawBanner(incident)
+  const wd = withdrawState(detail)
+  // The frame pauses instructions while someone is still unconfirmed.
+  const paused = wd !== null && !wd.allSafe
+  const waiting = new Map(wd ? unconfirmed(wd).map((p) => [p.id, elapsedSince(wd.sentAt, serverNow())] as const) : [])
   const pair = conflictPair(detail)
   const top = highestReport(detail)
+  const gap = pair.length === 2 ? distanceM(pair[0], pair[1]) : null
+  const proposals = detail.tasks.filter((task) => taskControls(task, detail).canDecide)
+  const others = detail.tasks.filter((task) => !taskControls(task, detail).canDecide)
   const reporters = new Set(detail.observations.map((o) => o.volunteerId)).size
   return (
     <>
@@ -142,7 +177,11 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         <div className="inc-pills">
           <span className={`inc-pill status-${incident.status}`}>{t(lang, statusName[incident.status])}</span>
           <span className="inc-pill"><i className={`inc-dot sev-${incident.severity}`} aria-hidden="true" />{t(lang, severityName[incident.severity])}</span>
-          {incident.withdraw?.active && <span className="inc-pill inc-pill-red">{t(lang, detailCopy.withdrawPill)}</span>}
+          {wd && (
+            <span className="inc-pill inc-pill-red">
+              {t(lang, detailCopy.withdrawPill)}{!wd.allSafe && ` · ${countText(lang, wd)} ${t(lang, stateCopy.pillOf)}`}
+            </span>
+          )}
           {incident.status === 'held' && <span className="inc-pill inc-pill-amber">{t(lang, detailCopy.holdPill)}</span>}
           <span className={offline ? 'inc-pill inc-pill-red' : 'inc-pill inc-pill-quiet'}>
             {offline ? t(lang, detailCopy.lastKnown) : `${volunteers.length} ${t(lang, detailCopy.onSite)}`}
@@ -161,20 +200,40 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           onExtinguish={() => { setNotice(null); setDialog('extinguish') }}
         />
         {notice && <p className="sup-ok" role="status">{notice}</p>}
-        <OutcomeLine outcome={actions.outcomes[incident.id]} />
+        <OutcomeLine outcome={actions.outcomes[incident.id]} lang={lang} />
       </header>
 
-      {banner && (
-        <div className="inc-withdraw" role="alert" aria-live="assertive">
-          <p className="inc-eyebrow">
-            {t(lang, detailCopy.withdrawPill)} · {banner.volunteerIds.length} {lang === 'id' ? 'ponsel' : banner.volunteerIds.length === 1 ? 'phone' : 'phones'}
-          </p>
-          <p className="inc-withdraw-text">{banner.instruction}</p>
-          <p className="inc-withdraw-meta">
-            {banner.volunteerIds.map((id) => volunteerLabel(id, lang)).join(', ')}
-            {banner.reasons.length > 0 && ` · ${banner.reasons.join(', ')}`}
-          </p>
-        </div>
+      {wd && <WithdrawPanel lang={lang} state={wd} now={serverNow} offline={offline} markSafe={markSafe} nameOf={(id) => nameOf(detail, id, lang)} />}
+
+      {conflict && (
+        <section aria-label={t(lang, detailCopy.conflictTitle)}>
+          <div className={conflict.status === 'open' ? 'dis-banner' : 'dis-banner resolved'} role={conflict.status === 'open' ? 'alert' : undefined}>
+            <h2>{conflict.status === 'open' ? t(lang, disagreeCopy.bannerTitle) : t(lang, disagreeCopy.bannerResolved)}</h2>
+            <p>
+              {pair.length === 2 && (
+                <>
+                  {nameOf(detail, pair[0].volunteerId, lang)} {t(lang, disagreeCopy.says)} {t(lang, severityName[pair[0].severity]).toLowerCase()},{' '}
+                  {nameOf(detail, pair[1].volunteerId, lang)} {t(lang, disagreeCopy.says)} {t(lang, severityName[pair[1].severity]).toLowerCase()}
+                  {gap !== null && `, ${gap} m ${t(lang, disagreeCopy.apart)}`}.{' '}
+                </>
+              )}
+              {t(lang, disagreeCopy.bannerRule)}
+            </p>
+          </div>
+          <div className="inc-pair">
+            {pair.map((o) => <ReportCard key={o.id} lang={lang} obs={o} />)}
+          </div>
+          <p className="inc-muted">{t(lang, detailCopy.conflictBody)} {t(lang, detailCopy.conflictHigher)}: {t(lang, severityName[conflict.higherSeverity])}.</p>
+        </section>
+      )}
+
+      {proposals.length > 0 && (
+        <section aria-labelledby="inc-prop-title">
+          <h2 className="inc-h2" id="inc-prop-title">{t(lang, disagreeCopy.proposals)}</h2>
+          <ul className="prop-list">
+            {proposals.map((task) => <ProposalRow key={task.id} lang={lang} task={task} detail={detail} actions={actions} offline={offline || paused} editor={actorName} />)}
+          </ul>
+        </section>
       )}
 
       <div className="inc-stats">
@@ -182,7 +241,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           label={t(lang, detailCopy.statSeverity)}
           value={t(lang, severityName[incident.severity])}
           tone={`sev-${incident.severity}`}
-          note={top ? `${t(lang, detailCopy.statSeverityRule)} · ${volunteerLabel(top.volunteerId, lang)} · ${formatTime(top.capturedAt)}` : t(lang, detailCopy.statSeverityRule)}
+          note={top ? `${t(lang, detailCopy.statSeverityRule)} · ${nameOf(detail, top.volunteerId, lang)} · ${formatTime(top.capturedAt)}` : t(lang, detailCopy.statSeverityRule)}
         />
         <Stat label={t(lang, detailCopy.statEvidence)} value={String(incident.evidenceScore)} note={t(lang, detailCopy.statEvidenceNote)} />
         <Stat
@@ -202,22 +261,10 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           <p className="inc-muted">{t(lang, detailCopy.fieldEmpty)}</p>
         ) : (
           <div className="inc-field">
-            {volunteers.map((row) => <VolunteerCard key={row.id} lang={lang} row={row} />)}
+            {volunteers.map((row) => <VolunteerCard key={row.id} lang={lang} row={row} safe={wd ? wd.people.find((x) => x.id === row.id)?.safe ?? null : null} waiting={waiting.get(row.id) ?? null} now={clock} onResend={resendTask} onOpen={() => setPopupId(row.id)} />)}
           </div>
         )}
       </section>
-
-      {conflict && (
-        <section className={`inc-card inc-conflict status-${conflict.status}`} aria-label={t(lang, detailCopy.conflictTitle)}>
-          <p className="inc-eyebrow">{conflict.status === 'open' ? t(lang, detailCopy.conflictOpen) : t(lang, detailCopy.conflictResolved)}</p>
-          <h2 className="inc-h3">{t(lang, detailCopy.conflictTitle)}</h2>
-          <p className="inc-muted">{t(lang, detailCopy.conflictBody)}</p>
-          <div className="inc-pair">
-            {pair.map((o) => <ReportCard key={o.id} lang={lang} obs={o} />)}
-          </div>
-          <p className="inc-muted">{t(lang, detailCopy.conflictHigher)}: {t(lang, severityName[conflict.higherSeverity])}.</p>
-        </section>
-      )}
 
       <section className="inc-card" aria-labelledby="inc-instr-title">
         <h2 className="inc-h2" id="inc-instr-title">
@@ -226,14 +273,17 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         </h2>
         {detail.tasks.length === 0 ? (
           <p className="inc-muted">{t(lang, detailCopy.tasksEmpty)}</p>
-        ) : (
+        ) : others.length > 0 && (
           <ul className="sup sup-tasks">
-            {detail.tasks.map((task) => <TaskRow key={task.id} task={task} detail={detail} actions={actions} offline={offline} lang={lang} />)}
+            {others.map((task) => <TaskRow key={task.id} task={task} detail={detail} actions={actions} offline={offline || paused} lang={lang} editor={actorName} />)}
           </ul>
         )}
         {offline && <p className="inc-muted">{t(lang, detailCopy.offlineSend)}</p>}
+        {paused && <p className="wd-paused">{t(lang, stateCopy.paused)}</p>}
         <p className="inc-callout">{t(lang, detailCopy.withdrawRule)}</p>
       </section>
+      {popupId !== null && <VolunteerPopup lang={lang} detail={detail} volunteerId={popupId} onClose={() => setPopupId(null)} />}
+      {toasts[0] && <HeardToast lang={lang} event={toasts[0]} name={nameOf(detail, toasts[0].volunteerId, lang)} onClose={dismiss} />}
       {dialog === 'withdraw' && (
         <SendWithdrawDialog
           lang={lang}
@@ -282,6 +332,24 @@ function Rail({ lang, detail, queue, onSelect, mapsKey }: Pick<IncidentDetailVie
   return (
     <aside className="inc-rail">
       <IncidentMap incidents={incidents} selectedId={detail?.incident.id ?? null} onSelect={onSelect} mapsKey={mapsKey} />
+      {detail && (
+        <section className="inc-card" aria-labelledby="inc-why-title">
+          <h2 className="inc-h2" id="inc-why-title">{t(lang, disagreeCopy.factorsTitle)} {detail.incident.evidenceScore}</h2>
+          {!detail.evidenceFactors || detail.evidenceFactors.length === 0 ? (
+            <p className="inc-muted">{t(lang, disagreeCopy.factorsEmpty)}</p>
+          ) : (
+            <ul className="why">
+              {detail.evidenceFactors.map((f, i) => (
+                <li key={`${f.factor}-${i}`}>
+                  <span className={f.points < 0 ? 'why-points neg' : 'why-points'}>{f.points > 0 ? `+${f.points}` : f.points < 0 ? `−${Math.abs(f.points)}` : '0'}</span>
+                  <span><span className="why-name">{factorName[f.factor] ? t(lang, factorName[f.factor]) : f.factor}</span><br />{f.detail}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="inc-muted">{t(lang, disagreeCopy.notProbability)} {t(lang, disagreeCopy.auditNote)}</p>
+        </section>
+      )}
       <section className="inc-card" aria-labelledby="inc-timeline-title">
         <h2 className="inc-h2" id="inc-timeline-title">{t(lang, detailCopy.timeline)}</h2>
         <p className="inc-muted">{t(lang, detailCopy.timelineNote)}</p>
@@ -293,7 +361,7 @@ function Rail({ lang, detail, queue, onSelect, mapsKey }: Pick<IncidentDetailVie
               <li key={o.id}>
                 <time dateTime={o.capturedAt}>{formatTime(o.capturedAt)}</time>
                 <span>
-                  {volunteerLabel(o.volunteerId, lang)} · {o.chip ? chipText(o.chip, lang) : t(lang, severityName[o.severity])}
+                  {detail ? nameOf(detail, o.volunteerId, lang) : o.volunteerId} · {o.chip ? chipText(o.chip, lang) : t(lang, severityName[o.severity])}
                   {o.text ? ` · “${o.text}”` : ''}
                 </span>
               </li>

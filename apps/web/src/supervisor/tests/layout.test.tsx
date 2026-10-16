@@ -95,8 +95,9 @@ describe('console chrome', () => {
     const incidents = anchor(html, '/console')
     expect(incidents).toContain('class="console-nav active"')
     expect(incidents).toContain('aria-current="page"')
-    expect(html).not.toContain('Dark')
-    expect(html).not.toContain('>Light<')
+    // The language dropdown and the Dark / Light switch (#106) share the top bar.
+    expect(html).toContain('class="lang-menu"')
+    expect(html).toContain('class="theme-switch"')
   })
 
   it('highlights the menu item for the open slot and leaves the others empty', () => {
@@ -116,7 +117,7 @@ describe('console chrome', () => {
     expect(anchor(detail, '/console')).toContain('aria-current="page"')
   })
 
-  it('follows the language pill', () => {
+  it('follows the language dropdown', () => {
     const html = renderAt('/console', 'id')
     expect(html).toContain('Konsol Supervisor')
     expect(html).toContain('Insiden')

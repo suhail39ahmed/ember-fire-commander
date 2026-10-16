@@ -102,7 +102,7 @@ def _volunteer_on_incident(uid, data, observations, tasks):
 
 
 def _tasks_for(incident_id):
-    tasks = [rules.to_record(s, rules.TASK_FIELDS) for s in store.where(store.TASKS, "incidentId", "==", incident_id)]
+    tasks = [rules.with_receipt(rules.to_record(s, rules.TASK_FIELDS)) for s in store.where(store.TASKS, "incidentId", "==", incident_id)]
     return sorted(tasks, key=lambda t: t["id"])
 
 
@@ -152,12 +152,29 @@ def get_incident(incident_id):
 
     observations = [rules.to_record(found[obs_id], rules.OBSERVATION_FIELDS) for obs_id in shown_ids if obs_id in found]
 
-    return jsonify({
+    body = {
         "incident": rules.to_record(snapshot, rules.INCIDENT_FIELDS),
         "observations": observations,
         "conflict": conflict_body,
         "tasks": tasks,
-    }), 200
+    }
+    if user["role"] == "supervisor":
+        # Supervisor only: the reporter's name, when one was stored, and the factors behind evidenceScore.
+        for record in observations:
+            name = rules.reporter_name(found[record["id"]].to_dict() or {})
+            if name:
+                record["volunteerName"] = name
+        body["evidenceFactors"] = rules.evidence_factors(data)
+        # Supervisor only: the phone numbers stored for the volunteers on an active withdraw.
+        withdraw = data.get("withdraw") or {}
+        if withdraw.get("active") and withdraw.get("volunteerIds"):
+            phones = {}
+            for uid, snap in store.get_many(store.VOLUNTEERS, withdraw["volunteerIds"]).items():
+                phone = rules.phone_of(snap.to_dict() or {})
+                if phone:
+                    phones[uid] = phone
+            body["volunteerPhones"] = phones
+    return jsonify(body), 200
 
 
 @incidents_bp.route("/digest", methods=["GET"])
@@ -167,7 +184,7 @@ def digest():
     my_tasks = []
     if user["role"] == "volunteer":
         my_tasks = sorted(
-            (rules.to_record(s, rules.TASK_FIELDS) for s in store.where(store.TASKS, "volunteerId", "==", user["id"])),
+            (rules.with_receipt(rules.to_record(s, rules.TASK_FIELDS)) for s in store.where(store.TASKS, "volunteerId", "==", user["id"])),
             key=lambda t: t["id"],
         )
     return jsonify({"updatedAt": rules.now_iso(), "incidents": incidents, "myTasks": my_tasks}), 200
@@ -211,7 +228,7 @@ def _decide_task(task_id, action, apply):
         audit_id = _commit_with_audit(transaction, ref, changes, action, task_id)
         task.update(changes)
         task["id"] = task_id
-        return rules.pick(task, rules.TASK_FIELDS), audit_id
+        return rules.with_receipt(rules.pick(task, rules.TASK_FIELDS)), audit_id
 
     task, audit_id = store.run_transaction(run)
     return task, audit_id
@@ -242,7 +259,8 @@ def approve_task(task_id):
         _check_proposed(task, "approved")
         if task.get("type") == "investigate" and held:
             raise conflict("Dispatch is held while this incident has an open conflict")
-        return {"status": "approved"}
+        # The approval is the send: the volunteer's phone gets it now (§6.6).
+        return {"status": "approved", "sentAt": rules.now_iso(), "sendCount": 1}
 
     task, audit_id = _decide_task(task_id, "task.approve", apply)
     _push_after_commit(task)
@@ -256,6 +274,53 @@ def reject_task(task_id):
         return {"status": "rejected"}
 
     return _task_response(*_decide_task(task_id, "task.reject", apply))
+
+
+@incidents_bp.route("/tasks/<task_id>/heard", methods=["POST"])
+def task_heard(task_id):
+    """The volunteer's app says this instruction was shown or spoken to them. Recorded once."""
+    user = g.user
+    if user["role"] != "volunteer":
+        raise AuthError(403, "forbidden", "Only the volunteer who got the instruction can confirm it")
+    snapshot = _get(store.TASKS, task_id)
+    if snapshot is None or (snapshot.to_dict() or {}).get("volunteerId") != user["id"]:
+        raise not_found("task")
+
+    def run(transaction):
+        ref = _ref(store.TASKS, task_id)
+        current = ref.get(transaction=transaction)
+        if not current.exists:
+            raise not_found("task")
+        task = current.to_dict() or {}
+        if task.get("status") != "approved":
+            raise conflict("Only a sent instruction can be heard")
+        if task.get("heardAt"):
+            # Already recorded. A repeat changes nothing and writes no second audit entry.
+            task["id"] = task_id
+            return rules.with_receipt(rules.pick(task, rules.TASK_FIELDS)), None
+        changes = {"heardAt": rules.now_iso()}
+        audit_id = _commit_with_audit(transaction, ref, changes, "task.heard", task_id)
+        task.update(changes)
+        task["id"] = task_id
+        return rules.with_receipt(rules.pick(task, rules.TASK_FIELDS)), audit_id
+
+    task, audit_id = store.run_transaction(run)
+    return jsonify({"task": task, "auditId": audit_id}), 200
+
+
+@incidents_bp.route("/tasks/<task_id>/resend", methods=["POST"])
+def resend_task(task_id):
+    """Send a sent, unheard instruction again. Records another attempt and an audit entry."""
+    def apply(task, held):
+        if task.get("status") != "approved":
+            raise conflict("Only a sent instruction can be sent again")
+        if task.get("heardAt"):
+            raise conflict("This instruction was already heard")
+        return {"sentAt": rules.now_iso(), "sendCount": int(task.get("sendCount") or 1) + 1}
+
+    task, audit_id = _decide_task(task_id, "task.resend", apply)
+    _push_after_commit(task)
+    return _task_response(task, audit_id)
 
 
 @incidents_bp.route("/tasks/<task_id>/edit", methods=["POST"])
@@ -272,7 +337,14 @@ def edit_task(task_id):
             raise conflict("A withdraw instruction cannot be edited")
         return {"instruction": instruction.strip()}
 
-    return _task_response(*_decide_task(task_id, "task.edit", apply))
+    response, status = _task_response(*_decide_task(task_id, "task.edit", apply))
+    # The editor's own name, so the screen can say who saved it. Absent when the token has no name.
+    name = (g.user.get("displayName") or "").strip()
+    if name:
+        body = response.get_json()
+        body["editedBy"] = name
+        response = jsonify(body)
+    return response, status
 
 
 def _decide_incident(incident_id, action, apply):
@@ -352,6 +424,28 @@ def _withdraw_body():
     return list(dict.fromkeys(volunteer_ids)), instruction.strip(), reasons
 
 
+@incidents_bp.route("/incidents/<incident_id>/withdraw/safe", methods=["POST"])
+def mark_safe(incident_id):
+    """Record that a supervisor found a withdrawn volunteer safe. It never clears the withdraw."""
+    _require_supervisor()
+    volunteer_id = _body().get("volunteerId")
+    if not isinstance(volunteer_id, str) or not volunteer_id.strip():
+        raise validation("volunteerId", "required, a volunteer id")
+
+    def apply(incident):
+        current = incident.get("withdraw") or {}
+        if not current.get("active"):
+            raise conflict("This incident has no active withdraw")
+        if volunteer_id not in (current.get("volunteerIds") or []):
+            raise validation("volunteerId", "not part of this withdraw")
+        safe = list(current.get("safeVolunteerIds") or [])
+        if volunteer_id in safe:
+            raise conflict("This volunteer is already marked safe")
+        return {"withdraw": dict(current, safeVolunteerIds=safe + [volunteer_id])}
+
+    return _decide_incident(incident_id, "withdraw.safe", apply)
+
+
 def _volunteers_on(incident_id, data):
     """Volunteers who already have an observation or a task on this incident."""
     volunteers = {(s.to_dict() or {}).get("volunteerId") for s in store.where(store.TASKS, "incidentId", "==", incident_id)}
@@ -388,11 +482,16 @@ def withdraw(incident_id):
         current = incident.get("withdraw") or {}
         # Volunteers already withdrawn stay withdrawn.
         targets = list(dict.fromkeys(list(current.get("volunteerIds") or []) + volunteer_ids)) if current.get("active") else volunteer_ids
+        active = bool(current.get("active"))
         changes = {"withdraw": {
             "active": True,
             "instruction": instruction,
             "reasons": reasons,
             "volunteerIds": targets,
+            # The event keeps the source and time it was first sent with. Volunteers marked safe stay marked.
+            "source": (current.get("source") or "supervisor") if active else "supervisor",
+            "sentAt": (current.get("sentAt") or rules.now_iso()) if active else rules.now_iso(),
+            "safeVolunteerIds": list(current.get("safeVolunteerIds") or []) if active else [],
         }}
         created = []
         for volunteer_id in volunteer_ids:
@@ -403,6 +502,8 @@ def withdraw(incident_id):
                 "type": "withdraw",
                 "status": "approved",
                 "instruction": instruction,
+                "sentAt": rules.now_iso(),
+                "sendCount": 1,
             }
             transaction.set(task_ref, task)
             created.append(dict(task, id=task_ref.id))

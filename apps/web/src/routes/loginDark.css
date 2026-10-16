@@ -1,0 +1,24 @@
+/* Dark theme for the sign-in screens. Off unless the page root says data-theme="dark". */
+[data-theme='dark'] .login-screen,
+[data-theme='dark'] .role-screen { background: #141210; color: #faf7f2; }
+[data-theme='dark'] .login-card,
+[data-theme='dark'] .me-card { background: #1f1c19; border-color: #3a352f; box-shadow: none; }
+[data-theme='dark'] .login-card .sub,
+[data-theme='dark'] .note,
+[data-theme='dark'] .status-code,
+[data-theme='dark'] .role-card-desc { color: #a79f94; }
+[data-theme='dark'] .google-button { background: #1f1c19; border-color: #3a352f; color: #faf7f2; }
+[data-theme='dark'] .google-button:disabled { color: #a79f94; }
+[data-theme='dark'] .action-button,
+[data-theme='dark'] .sign-out { background: #faf7f2; color: #1c1917; }
+[data-theme='dark'] .text-button { color: #faf7f2; }
+[data-theme='dark'] .role-card { background: #141210; border-color: #3a352f; }
+[data-theme='dark'] .error { color: #ef5b5b; }
+[data-theme='dark'] .login-brand { background: #0c0b0a; }
+[data-theme='dark'] .login-lang {
+  --surface: #1f1c19;
+  --line: #3a352f;
+  --ink: #faf7f2;
+  --ink-muted: #a79f94;
+  --paper: #141210;
+}

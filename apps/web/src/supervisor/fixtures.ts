@@ -16,6 +16,7 @@ const LNG = 110.051
 const obsDedi: Observation = {
   id: 'obs_demo_01',
   volunteerId: 'uid_dedi',
+  volunteerName: 'Dedi',
   capturedAt: '2026-10-17T03:02:00Z',
   receivedAt: '2026-10-17T03:02:04Z',
   source: 'chip',
@@ -32,6 +33,7 @@ const obsDedi: Observation = {
 const obsSari: Observation = {
   id: 'obs_demo_02',
   volunteerId: 'uid_sari',
+  volunteerName: 'Sari',
   capturedAt: '2026-10-17T03:05:00Z',
   receivedAt: '2026-10-17T03:05:03Z',
   source: 'chip',
@@ -62,14 +64,18 @@ const investigate = task('task_demo_investigate', 'uid_dedi', 'investigate', 'pr
 export function fixture(name: FixtureName): IncidentDetail {
   if (name === 'normal') {
     return {
-      incident: { id: 'inc_demo_01', name: DEMO_NAME, area: DEMO_AREA, status: 'open', severity: 'small_flame', evidenceScore: 41, conflictId: null, withdraw: null, lat: LAT, lng: LNG },
+      incident: { id: 'inc_demo_01', name: DEMO_NAME, area: DEMO_AREA, status: 'open', severity: 'small_flame', evidenceScore: 45, conflictId: null, withdraw: null, lat: LAT, lng: LNG },
       observations: [structuredClone(obsDedi)],
       conflict: null,
       tasks: [structuredClone(investigate)],
+      evidenceFactors: [
+        { factor: 'severity', points: 35, detail: 'highest reported severity is small_flame' },
+        { factor: 'gps', points: 10, detail: 'a report has GPS accuracy of 50 m or better' },
+      ],
     }
   }
   const conflict: IncidentDetail = {
-    incident: { id: 'inc_demo_01', name: DEMO_NAME, area: DEMO_AREA, status: 'held', severity: 'small_flame', evidenceScore: 64, conflictId: 'con_demo_01', withdraw: null, lat: LAT, lng: LNG },
+    incident: { id: 'inc_demo_01', name: DEMO_NAME, area: DEMO_AREA, status: 'held', severity: 'small_flame', evidenceScore: 40, conflictId: 'con_demo_01', withdraw: null, lat: LAT, lng: LNG },
     observations: [structuredClone(obsDedi), structuredClone(obsSari)],
     conflict: {
       id: 'con_demo_01',
@@ -84,6 +90,12 @@ export function fixture(name: FixtureName): IncidentDetail {
       task('task_demo_verify_sari', 'uid_sari', 'verify', 'proposed', VERIFY_TEXT),
       structuredClone(investigate),
     ],
+    evidenceFactors: [
+      { factor: 'severity', points: 35, detail: 'highest reported severity is small_flame' },
+      { factor: 'corroboration', points: 15, detail: '2 volunteers reported smoke or worse' },
+      { factor: 'gps', points: 10, detail: 'a report has GPS accuracy of 50 m or better' },
+      { factor: 'conflict', points: -20, detail: 'reports disagree' },
+    ],
   }
   if (name === 'conflict') return conflict
   return {
@@ -91,9 +103,22 @@ export function fixture(name: FixtureName): IncidentDetail {
     incident: {
       ...conflict.incident,
       severity: 'large_flame',
-      evidenceScore: 82,
-      withdraw: { active: true, instruction: WITHDRAW_TEXT, reasons: ['large flame reported'], volunteerIds: ['uid_dedi', 'uid_sari'] },
+      evidenceScore: 55,
+      withdraw: {
+        active: true,
+        instruction: WITHDRAW_TEXT,
+        reasons: ['large flame reported'],
+        volunteerIds: ['uid_dedi', 'uid_sari'],
+        source: 'code',
+        sentAt: '2026-10-17T03:08:00Z',
+        safeVolunteerIds: ['uid_sari'],
+      },
     },
+    volunteerPhones: { uid_dedi: '+62 812 5550 0142' },
+    evidenceFactors: [
+      { factor: 'severity', points: 50, detail: 'highest reported severity is large_flame' },
+      ...(conflict.evidenceFactors ?? []).filter((f) => f.factor !== 'severity'),
+    ],
     tasks: [
       ...conflict.tasks,
       task('task_demo_withdraw_dedi', 'uid_dedi', 'withdraw', 'approved', WITHDRAW_TEXT),

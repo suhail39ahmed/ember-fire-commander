@@ -256,6 +256,10 @@ def fuse(observation, state, new_id, now, wind_kmh=None, settings=None):
             "instruction": instruction,
             "reasons": merged_reasons,
             "volunteerIds": sorted(already | set(newly)),
+            # Who sent it and when stay as first written. Volunteers a supervisor marked safe stay marked.
+            "source": current.get("source", "code") if active else "code",
+            "sentAt": current.get("sentAt", now) if active else now,
+            "safeVolunteerIds": list(current.get("safeVolunteerIds") or []) if active else [],
         }
         for volunteer_id in newly:
             plan.tasks.append({
@@ -265,6 +269,8 @@ def fuse(observation, state, new_id, now, wind_kmh=None, settings=None):
                 "type": "withdraw",
                 "status": "approved",
                 "instruction": instruction,
+                "sentAt": now,
+                "sendCount": 1,
             })
         if newly or set(merged_reasons) != set(current["reasons"] if active else []):
             plan.audits.append(_audit(new_id, "task.withdraw", incident["id"], now))

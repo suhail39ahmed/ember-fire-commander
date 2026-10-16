@@ -9,7 +9,7 @@ import type { IncidentActions } from '../IncidentView'
 import { IncidentDetailView, type IncidentDetailViewProps } from '../detail/IncidentDetailView'
 import { Modal } from '../detail/Modal'
 import {
-  formatPosition, highestReport, initialsOf, lastTaskFor, linkState, minutesBetween, timelineOf, volunteerLabel, volunteersOf,
+  formatPosition, highestReport, initialsOf, lastTaskFor, linkState, minutesBetween, nameOf, timelineOf, volunteerLabel, volunteersOf,
 } from '../detail/model'
 
 const noop: IncidentActions = {
@@ -17,7 +17,7 @@ const noop: IncidentActions = {
   outcomes: {},
   onApprove: () => undefined,
   onReject: () => undefined,
-  onEdit: () => undefined,
+  saveEdit: async () => { throw new Error('not used') },
   onVerify: () => undefined,
 }
 
@@ -37,6 +37,8 @@ function view(over: Partial<IncidentDetailViewProps> = {}, lang: 'id' | 'en' = '
     actions: noop,
     onRetry: () => undefined,
     onSelect: () => undefined,
+    markSafe: async () => ({ incident: fixture('normal').incident, auditId: 'aud_2' }),
+    resendTask: async () => ({ auditId: 'aud_3' }),
     sendWithdraw: async () => ({ incident: fixture('normal').incident, auditId: 'aud_1' }),
     actorName: 'Bu Maya',
     lowerSeverity: async () => ({ incident: fixture('normal').incident, auditId: 'aud_1' }),
@@ -52,8 +54,11 @@ function view(over: Partial<IncidentDetailViewProps> = {}, lang: 'id' | 'en' = '
 }
 
 describe('incident detail model', () => {
-  it('labels a volunteer from the id, with a short fallback for a real uid', () => {
-    expect(volunteerLabel('uid_dedi', 'en')).toBe('Dedi')
+  it('uses the name the API stored, and a short code when there is none (never a name worked out from the id)', () => {
+    const detail = fixture('normal')
+    expect(nameOf(detail, 'uid_dedi', 'en')).toBe('Dedi')
+    expect(nameOf(detail, 'uid_rizal', 'en')).toBe('Volunteer IZAL')
+    expect(volunteerLabel('uid_dedi', 'en')).toBe('Volunteer DEDI')
     expect(volunteerLabel('x8KdPq2LmZ7hLm', 'en')).toBe('Volunteer 7HLM')
     expect(volunteerLabel('x8KdPq2LmZ7hLm', 'id')).toBe('Relawan 7HLM')
     expect(initialsOf('Dedi')).toBe('DE')
@@ -118,7 +123,7 @@ describe('incident detail: default', () => {
     expect(html).toContain('aria-label="SEVERITY"')
     expect(html).toContain('Highest report wins · Dedi · ' + formatTime('2026-10-17T03:02:00Z'))
     expect(html).toContain('aria-label="EVIDENCE"')
-    expect(html).toContain('>64<')
+    expect(html).toContain('>40<')
     expect(html).toContain('-1.849, 110.051')
     expect(html).toContain('Live from the field')
     expect(html).toContain('aria-label="Sari"')
@@ -156,7 +161,7 @@ describe('incident detail: default', () => {
     expect(html).toContain('>Approve<')
     expect(html).toContain('>Reject<')
     expect(html).toContain('Reports disagree')
-    expect(html).toContain('Dispatch is held until the conflict is resolved.')
+    expect(html).toContain('409 · Can’t approve dispatch while reports disagree')
   })
 
   it('shows the withdraw banner and marks the volunteers it went to', () => {
@@ -165,7 +170,7 @@ describe('incident detail: default', () => {
     expect(html).toContain('MUNDUR sekarang ke titik kumpul')
     expect(html).toContain('WITHDRAW sent')
     expect(html).toContain('inc-vol withdrawn')
-    expect(html).toContain('2 phones')
+    expect(html).toContain('1 of 2')
   })
 
   it('offers no Verify on a verified incident and always says WITHDRAW is code, not an instruction', () => {

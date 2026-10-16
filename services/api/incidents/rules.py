@@ -3,6 +3,8 @@
 No route here lets a client clear `withdraw`, raise severity, or set an
 incident to `open` or `held`. Those belong to code in ember-agents.
 """
+from datetime import datetime, timedelta
+
 from observations.store import utc_now_iso
 
 SEVERITY_ORDER = ("none", "smoke", "small_flame", "large_flame")
@@ -14,7 +16,11 @@ INCIDENT_FIELDS = (
     "id", "name", "area", "status", "severity", "evidenceScore", "conflictId", "withdraw", "lat", "lng",
 )
 SUMMARY_FIELDS = ("id", "name", "area", "status", "severity", "withdraw", "lat", "lng")
-TASK_FIELDS = ("id", "incidentId", "volunteerId", "type", "status", "instruction")
+TASK_FIELDS = (
+    "id", "incidentId", "volunteerId", "type", "status", "instruction", "sentAt", "heardAt", "sendCount", "resendAt",
+)
+# A task that was sent and not heard can be sent again after this long.
+RESEND_AFTER_SECONDS = 60
 CONFLICT_FIELDS = (
     "id", "incidentId", "observationIds", "higherSeverity", "status", "dispatchHeld",
 )
@@ -22,6 +28,46 @@ OBSERVATION_FIELDS = (
     "id", "volunteerId", "capturedAt", "receivedAt", "source", "lat", "lng",
     "accuracyM", "chip", "text", "severity", "photoPath", "immutable",
 )
+
+
+EVIDENCE_FACTOR_FIELDS = ("factor", "points", "detail")
+
+
+def evidence_factors(data):
+    """The stored evidence factors, as the supervisor read returns them. Anything malformed is left out."""
+    factors = data.get("evidenceFactors")
+    if not isinstance(factors, list):
+        return []
+    return [pick(f, EVIDENCE_FACTOR_FIELDS) for f in factors if isinstance(f, dict) and isinstance(f.get("factor"), str)]
+
+
+def reporter_name(data):
+    """The reporter's display name stored on the observation, or None when there is none."""
+    name = data.get("volunteerName")
+    return name.strip() if isinstance(name, str) and name.strip() else None
+
+
+def phone_of(data):
+    """A volunteer's stored phone number, or None when there is none."""
+    phone = data.get("phone")
+    return phone.strip() if isinstance(phone, str) and phone.strip() else None
+
+
+def _parse(iso):
+    try:
+        return datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def with_receipt(record):
+    """Add `resendAt` to a task record: the moment a sent, unheard task can be sent again. None otherwise."""
+    sent = _parse(record.get("sentAt")) if record.get("sentAt") else None
+    waiting = record.get("status") == "approved" and not record.get("heardAt") and sent is not None
+    record["resendAt"] = (
+        (sent + timedelta(seconds=RESEND_AFTER_SECONDS)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z" if waiting else None
+    )
+    return record
 
 
 def now_iso():

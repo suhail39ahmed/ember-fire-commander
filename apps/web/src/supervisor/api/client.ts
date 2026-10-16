@@ -14,10 +14,12 @@ export const SUPERVISOR_ENDPOINTS = {
   incident: (id: string) => `/incidents/${encodeURIComponent(id)}`,
   verify: (id: string) => `/incidents/${encodeURIComponent(id)}/verify`,
   withdraw: (id: string) => `/incidents/${encodeURIComponent(id)}/withdraw`,
+  withdrawSafe: (id: string) => `/incidents/${encodeURIComponent(id)}/withdraw/safe`,
   severity: (id: string) => `/incidents/${encodeURIComponent(id)}/severity`,
   extinguish: (id: string) => `/incidents/${encodeURIComponent(id)}/extinguish`,
   approve: (id: string) => `/tasks/${encodeURIComponent(id)}/approve`,
   reject: (id: string) => `/tasks/${encodeURIComponent(id)}/reject`,
+  resend: (id: string) => `/tasks/${encodeURIComponent(id)}/resend`,
   edit: (id: string) => `/tasks/${encodeURIComponent(id)}/edit`,
 } as const
 
@@ -62,8 +64,10 @@ export function createHttpSupervisorApi(
     approveTask: (id) => post<TaskDecision>(SUPERVISOR_ENDPOINTS.approve(id)),
     rejectTask: (id) => post<TaskDecision>(SUPERVISOR_ENDPOINTS.reject(id)),
     editTask: (id, instruction) => post<TaskDecision>(SUPERVISOR_ENDPOINTS.edit(id), { instruction }),
+    resendTask: (id) => post<TaskDecision>(SUPERVISOR_ENDPOINTS.resend(id)),
     verifyIncident: (id) => post<IncidentDecision>(SUPERVISOR_ENDPOINTS.verify(id)),
     withdrawIncident: (id, request: WithdrawRequest) => post<IncidentDecision>(SUPERVISOR_ENDPOINTS.withdraw(id), request),
+    markWithdrawSafe: (id, volunteerId) => post<IncidentDecision>(SUPERVISOR_ENDPOINTS.withdrawSafe(id), { volunteerId }),
     lowerSeverity: (id, severity: LowerableSeverity) => post<IncidentDecision>(SUPERVISOR_ENDPOINTS.severity(id), { severity }),
     extinguishIncident: (id) => post<IncidentDecision>(SUPERVISOR_ENDPOINTS.extinguish(id)),
   }

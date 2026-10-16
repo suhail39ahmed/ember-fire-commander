@@ -231,3 +231,43 @@ def test_evidence_is_bounded_and_explained():
     assert {f["factor"] for f in factors} == {"severity", "corroboration", "photo", "gps"}
     score, _ = evidence([obs("o", "u", "none")], conflict_open=True)
     assert score == 0
+
+
+def test_code_withdraw_records_source_time_and_no_one_safe_yet():
+    world = World()
+    plan = world.intake(obs("obs_01", "uid_sari", "large_flame"))
+    withdraw = plan.incident["withdraw"]
+    assert withdraw["source"] == "code"
+    assert withdraw["sentAt"] == NOW
+    assert withdraw["safeVolunteerIds"] == []
+
+
+def test_later_intake_keeps_source_sent_time_and_the_safe_list():
+    world = World()
+    world.intake(obs("obs_01", "uid_sari", "large_flame"))
+    world.state.incidents[0]["withdraw"].update(
+        {"source": "supervisor", "sentAt": "2026-10-13T08:00:00Z", "safeVolunteerIds": ["uid_sari"]}
+    )
+    plan = world.intake(obs("obs_02", "uid_rizal", "smoke"))
+    withdraw = plan.incident["withdraw"]
+    assert (withdraw["source"], withdraw["sentAt"]) == ("supervisor", "2026-10-13T08:00:00Z")
+    assert withdraw["safeVolunteerIds"] == ["uid_sari"]
+    assert withdraw["volunteerIds"] == ["uid_rizal", "uid_sari"]
+
+
+def test_a_withdraw_written_before_these_fields_gets_source_code_and_the_intake_time():
+    world = World()
+    world.intake(obs("obs_01", "uid_sari", "large_flame"))
+    for key in ("source", "sentAt", "safeVolunteerIds"):
+        world.state.incidents[0]["withdraw"].pop(key)
+    plan = world.intake(obs("obs_02", "uid_rizal", "smoke"))
+    assert plan.incident["withdraw"]["source"] == "code"
+    assert plan.incident["withdraw"]["safeVolunteerIds"] == []
+
+
+def test_code_withdraw_tasks_carry_the_send_time_and_count():
+    world = World()
+    plan = world.intake(obs("obs_01", "uid_sari", "large_flame"))
+    tasks = [t for t in plan.tasks if t["type"] == "withdraw"]
+    assert tasks and all(t["sentAt"] == NOW and t["sendCount"] == 1 for t in tasks)
+    assert all("heardAt" not in t for t in tasks)

@@ -86,6 +86,12 @@ export interface Withdraw {
   instruction: string
   reasons: string[]
   volunteerIds: string[]
+  /** Who sent it. Absent on a withdraw written before these fields existed. */
+  source?: 'code' | 'supervisor'
+  /** When it was first sent (ISO). Absent on an older withdraw. */
+  sentAt?: string
+  /** Volunteers a supervisor marked found safe. Absent on an older withdraw. */
+  safeVolunteerIds?: string[]
 }
 
 /** Incident summary as carried in the digest (section 5.6). */
@@ -109,6 +115,14 @@ export interface Task {
   type: TaskType
   status: TaskStatus
   instruction: string | null
+  /** When it was last sent (ISO). Absent or null on a task never sent, and on one sent before receipts. */
+  sentAt?: string | null
+  /** When the volunteer's app showed or spoke it. Absent or null until then. */
+  heardAt?: string | null
+  /** 1 for the first send, one more for each resend. */
+  sendCount?: number | null
+  /** When a sent, unheard task can be sent again. Computed by ember-api, null otherwise. */
+  resendAt?: string | null
 }
 
 /** GET /digest (section 6.4). */

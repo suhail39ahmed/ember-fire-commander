@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react'
 
 import type { SupervisorApi } from './api/types'
-import type { Incident, IncidentDetail } from './contracts'
+import type { Incident, IncidentDetail, TaskDecision } from './contracts'
 import type { Outcome } from './IncidentView'
 
 /** How often the queue and the open incident are read. */
@@ -29,7 +29,7 @@ export interface IncidentsState {
     outcomes: Record<string, Outcome>
     onApprove: (id: string) => void
     onReject: (id: string) => void
-    onEdit: (id: string, instruction: string) => void
+    saveEdit: (id: string, instruction: string) => Promise<TaskDecision>
     onVerify: (id: string) => void
   }
 }

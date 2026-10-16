@@ -55,10 +55,10 @@ def db(monkeypatch):
     return fake
 
 
-def _as(monkeypatch, role="supervisor", uid="uid_maya"):
+def _as(monkeypatch, role="supervisor", uid="uid_maya", name="Bu Maya"):
     monkeypatch.setattr(
         identity, "verify_id_token",
-        lambda token: {"uid": uid, "name": "Bu Maya", "role": role},
+        lambda token: {"uid": uid, "name": name, "role": role},
     )
 
 
@@ -126,6 +126,41 @@ def test_incident_detail_has_both_conflicting_observations(client, monkeypatch, 
     assert [o["id"] for o in body["observations"]] == ["obs_01", "obs_02"]
     assert [o["severity"] for o in body["observations"]] == ["small_flame", "none"]
     assert len(body["tasks"]) == 3
+
+
+def test_supervisor_detail_has_reporter_names_and_evidence_factors(client, monkeypatch, db):
+    db.data["observations"]["obs_01"]["volunteerName"] = "Sari"
+    db.data["observations"]["obs_02"]["volunteerName"] = "   "
+    db.data["incidents"]["inc_01"]["evidenceFactors"] = [
+        {"factor": "severity", "points": 35, "detail": "highest reported severity is small_flame", "extra": "x"},
+        {"factor": "conflict", "points": -20, "detail": "reports disagree"},
+        "not a factor",
+    ]
+    _as(monkeypatch)
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    names = {o["id"]: o.get("volunteerName") for o in body["observations"]}
+    assert names == {"obs_01": "Sari", "obs_02": None}
+    assert "volunteerName" not in body["observations"][1]
+    assert body["evidenceFactors"] == [
+        {"factor": "severity", "points": 35, "detail": "highest reported severity is small_flame"},
+        {"factor": "conflict", "points": -20, "detail": "reports disagree"},
+    ]
+
+
+def test_detail_without_stored_factors_has_an_empty_list(client, monkeypatch, db):
+    _as(monkeypatch)
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    assert body["evidenceFactors"] == []
+    assert all("volunteerName" not in o for o in body["observations"])
+
+
+def test_volunteer_detail_has_no_names_or_factors(client, monkeypatch, db):
+    db.data["observations"]["obs_02"]["volunteerName"] = "Rizal"
+    db.data["incidents"]["inc_01"]["evidenceFactors"] = [{"factor": "photo", "points": 10, "detail": "a photo"}]
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    assert "evidenceFactors" not in body
+    assert all("volunteerName" not in o for o in body["observations"])
 
 
 def test_unknown_incident_is_404(client, monkeypatch, db):
@@ -309,7 +344,11 @@ def test_withdraw_is_immediate_and_audited(client, monkeypatch, db):
         "instruction": "Withdraw upwind. Do not engage.",
         "reasons": ["supervisor instruction"],
         "volunteerIds": ["uid_sari", "uid_rizal"],
+        "source": "supervisor",
+        "sentAt": body["incident"]["withdraw"]["sentAt"],
+        "safeVolunteerIds": [],
     }
+    assert body["incident"]["withdraw"]["sentAt"].endswith("Z")
     withdraw_tasks = [t for t in db.data["tasks"].values() if t["type"] == "withdraw"]
     assert sorted(t["volunteerId"] for t in withdraw_tasks) == ["uid_rizal", "uid_sari"]
     assert all(t["status"] == "approved" for t in withdraw_tasks)
@@ -521,3 +560,206 @@ def test_withdraw_checks_volunteers_with_one_batched_read(client, monkeypatch, d
     assert response.status_code == 200
     assert "observations" not in db.doc_reads
     assert [r for r in db.batch_reads if r[0] == "observations"] == [("observations", 2)]
+
+
+# WITHDRAW: source, time sent, found safe -------------------------------------------
+
+ACTIVE_WITHDRAW = {
+    "active": True, "instruction": "Withdraw upwind. Do not engage.", "reasons": ["large flame reported"],
+    "volunteerIds": ["uid_sari", "uid_rizal"], "source": "code", "sentAt": "2026-10-13T08:20:00Z",
+    "safeVolunteerIds": [],
+}
+
+
+def test_resending_keeps_the_first_source_time_and_safe_list(client, monkeypatch, db):
+    _as(monkeypatch)
+    db.data["incidents"]["inc_01"]["withdraw"] = dict(ACTIVE_WITHDRAW, safeVolunteerIds=["uid_sari"])
+    body = client.post("/incidents/inc_01/withdraw", headers=AUTH, json={
+        "volunteerIds": ["uid_rizal"], "instruction": "Withdraw now.", "reasons": ["wind shift"],
+    }).get_json()
+    withdraw = body["incident"]["withdraw"]
+    assert withdraw["source"] == "code"
+    assert withdraw["sentAt"] == "2026-10-13T08:20:00Z"
+    assert withdraw["safeVolunteerIds"] == ["uid_sari"]
+    assert withdraw["instruction"] == "Withdraw now."
+
+
+def test_mark_safe_is_audited_and_never_clears_the_withdraw(client, monkeypatch, db):
+    _as(monkeypatch)
+    db.data["incidents"]["inc_01"]["withdraw"] = dict(ACTIVE_WITHDRAW)
+    response = client.post("/incidents/inc_01/withdraw/safe", headers=AUTH, json={"volunteerId": "uid_sari"})
+    body = response.get_json()
+    assert response.status_code == 200
+    assert body["incident"]["withdraw"]["safeVolunteerIds"] == ["uid_sari"]
+    assert body["incident"]["withdraw"]["active"] is True
+    record = db.data["audit"][body["auditId"]]
+    assert (record["action"], record["actorId"], record["targetId"]) == ("withdraw.safe", "uid_maya", "inc_01")
+    # Everyone safe still leaves the withdraw in force: only code can end it.
+    client.post("/incidents/inc_01/withdraw/safe", headers=AUTH, json={"volunteerId": "uid_rizal"})
+    assert db.data["incidents"]["inc_01"]["withdraw"]["active"] is True
+    assert db.data["incidents"]["inc_01"]["withdraw"]["safeVolunteerIds"] == ["uid_sari", "uid_rizal"]
+    assert not [t for t in db.data["tasks"].values() if t.get("type") == "withdraw"]
+
+
+@pytest.mark.parametrize("withdraw,body,status", [
+    (None, {"volunteerId": "uid_sari"}, 409),
+    (ACTIVE_WITHDRAW, {"volunteerId": "uid_other"}, 400),
+    (ACTIVE_WITHDRAW, {"volunteerId": ""}, 400),
+    (ACTIVE_WITHDRAW, {}, 400),
+    (dict(ACTIVE_WITHDRAW, safeVolunteerIds=["uid_sari"]), {"volunteerId": "uid_sari"}, 409),
+])
+def test_mark_safe_refusals_write_nothing(client, monkeypatch, db, withdraw, body, status):
+    _as(monkeypatch)
+    db.data["incidents"]["inc_01"]["withdraw"] = dict(withdraw) if withdraw else None
+    before = _audit(db)
+    response = client.post("/incidents/inc_01/withdraw/safe", headers=AUTH, json=body)
+    assert response.status_code == status
+    assert _audit(db) == before
+
+
+def test_mark_safe_unknown_incident_and_volunteer_role(client, monkeypatch, db):
+    _as(monkeypatch)
+    assert client.post("/incidents/nope/withdraw/safe", headers=AUTH, json={"volunteerId": "uid_sari"}).status_code == 404
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    db.data["incidents"]["inc_01"]["withdraw"] = dict(ACTIVE_WITHDRAW)
+    assert client.post("/incidents/inc_01/withdraw/safe", headers=AUTH, json={"volunteerId": "uid_sari"}).status_code == 403
+    assert db.data["incidents"]["inc_01"]["withdraw"]["safeVolunteerIds"] == []
+
+
+def test_supervisor_read_carries_phones_for_the_withdrawn_volunteers_only(client, monkeypatch, db):
+    db.data["incidents"]["inc_01"]["withdraw"] = dict(ACTIVE_WITHDRAW)
+    db.add("volunteers", "uid_sari", {"phone": " +62 812 0000 111 ", "fcmTokens": ["secret"]})
+    db.add("volunteers", "uid_rizal", {"phone": "  "})
+    db.add("volunteers", "uid_ayu", {"phone": "+62 812 0000 333"})
+    _as(monkeypatch)
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    assert body["volunteerPhones"] == {"uid_sari": "+62 812 0000 111"}
+    assert "secret" not in str(body)
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    assert "volunteerPhones" not in client.get("/incidents/inc_01", headers=AUTH).get_json()
+
+
+def test_no_phones_without_an_active_withdraw(client, monkeypatch, db):
+    db.add("volunteers", "uid_sari", {"phone": "+62 812 0000 111"})
+    _as(monkeypatch)
+    assert "volunteerPhones" not in client.get("/incidents/inc_01", headers=AUTH).get_json()
+
+
+# Edit: the editor's name ------------------------------------------------------------
+
+def test_edit_returns_the_editors_name_when_the_token_has_one(client, monkeypatch, db):
+    _as(monkeypatch)
+    body = client.post("/tasks/task_verify_sari/edit", headers=AUTH, json={"instruction": "Check the west ditch"}).get_json()
+    assert body["editedBy"] == "Bu Maya"
+    assert set(body) == {"task", "auditId", "editedBy"}
+    assert body["task"]["instruction"] == "Check the west ditch"
+    assert db.data["audit"][body["auditId"]]["action"] == "task.edit"
+
+
+def test_edit_has_no_editor_name_when_the_token_has_none(client, monkeypatch, db):
+    _as(monkeypatch, name="")
+    body = client.post("/tasks/task_verify_sari/edit", headers=AUTH, json={"instruction": "Check the west ditch"}).get_json()
+    assert "editedBy" not in body
+
+
+# Delivery: sent time, heard, resend ---------------------------------------------------
+
+def test_approving_a_task_is_the_send_and_records_when(client, monkeypatch, db):
+    _as(monkeypatch)
+    body = client.post("/tasks/task_verify_sari/approve", headers=AUTH).get_json()
+    task = body["task"]
+    assert task["status"] == "approved"
+    assert task["sentAt"].endswith("Z") and task["sendCount"] == 1
+    assert task["heardAt"] is None
+    assert task["resendAt"] is not None and task["resendAt"] > task["sentAt"]
+
+
+def test_a_task_that_was_never_sent_has_no_receipt_fields_set(client, monkeypatch, db):
+    _as(monkeypatch)
+    task = client.get("/incidents/inc_01", headers=AUTH).get_json()["tasks"][0]
+    assert (task["sentAt"], task["heardAt"], task["sendCount"], task["resendAt"]) == (None, None, None, None)
+
+
+def test_the_withdraw_route_stamps_the_send_time(client, monkeypatch, db):
+    _as(monkeypatch)
+    client.post("/incidents/inc_01/withdraw", headers=AUTH, json={"volunteerIds": ["uid_sari"], "instruction": "Withdraw"})
+    task = next(t for t in db.data["tasks"].values() if t["type"] == "withdraw")
+    assert task["sentAt"].endswith("Z") and task["sendCount"] == 1
+
+
+def _sent(db, task_id="task_sent", volunteer="uid_sari", **extra):
+    db.add("tasks", task_id, {
+        "incidentId": "inc_01", "volunteerId": volunteer, "type": "verify", "status": "approved",
+        "instruction": "Check the west ditch", "sentAt": "2026-10-13T08:20:00.000Z", "sendCount": 1, **extra,
+    })
+
+
+def test_the_volunteer_records_that_they_heard_it_once(client, monkeypatch, db):
+    _sent(db)
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    body = client.post("/tasks/task_sent/heard", headers=AUTH).get_json()
+    assert body["task"]["heardAt"].endswith("Z")
+    assert body["task"]["resendAt"] is None
+    assert db.data["audit"][body["auditId"]]["action"] == "task.heard"
+    assert db.data["audit"][body["auditId"]]["actorId"] == "uid_sari"
+    first = db.data["tasks"]["task_sent"]["heardAt"]
+    again = client.post("/tasks/task_sent/heard", headers=AUTH).get_json()
+    assert again["auditId"] is None
+    assert db.data["tasks"]["task_sent"]["heardAt"] == first
+    assert len(_audit(db)) == 1
+
+
+def test_heard_is_for_the_volunteer_who_got_it_and_only_for_a_sent_task(client, monkeypatch, db):
+    _sent(db)
+    _as(monkeypatch, role="volunteer", uid="uid_rizal")
+    assert client.post("/tasks/task_sent/heard", headers=AUTH).status_code == 404
+    _as(monkeypatch)
+    assert client.post("/tasks/task_sent/heard", headers=AUTH).status_code == 403
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    assert client.post("/tasks/task_verify_sari/heard", headers=AUTH).status_code == 409
+    assert client.post("/tasks/nope/heard", headers=AUTH).status_code == 404
+    assert "heardAt" not in db.data["tasks"]["task_sent"]
+    assert _audit(db) == []
+
+
+def test_resend_records_another_attempt_and_an_audit_entry(client, monkeypatch, db):
+    pushed = []
+    monkeypatch.setattr("incidents.routes.deliver_task", lambda task: pushed.append(task["id"]))
+    _sent(db)
+    _as(monkeypatch)
+    body = client.post("/tasks/task_sent/resend", headers=AUTH).get_json()
+    assert body["task"]["sendCount"] == 2
+    assert body["task"]["sentAt"] > "2026-10-13T08:20:00.000Z"
+    assert db.data["audit"][body["auditId"]]["action"] == "task.resend"
+    assert pushed == ["task_sent"]
+
+
+@pytest.mark.parametrize("extra,status", [
+    ({"heardAt": "2026-10-13T08:20:30.000Z"}, 409),
+    ({"status": "proposed"}, 409),
+])
+def test_resend_refusals_write_nothing(client, monkeypatch, db, extra, status):
+    pushed = []
+    monkeypatch.setattr("incidents.routes.deliver_task", lambda task: pushed.append(task["id"]))
+    _sent(db, **extra)
+    _as(monkeypatch)
+    assert client.post("/tasks/task_sent/resend", headers=AUTH).status_code == status
+    assert db.data["tasks"]["task_sent"]["sendCount"] == 1
+    assert _audit(db) == [] and pushed == []
+
+
+def test_a_volunteer_cannot_resend_and_an_unknown_task_is_404(client, monkeypatch, db):
+    _sent(db)
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    assert client.post("/tasks/task_sent/resend", headers=AUTH).status_code == 403
+    _as(monkeypatch)
+    assert client.post("/tasks/nope/resend", headers=AUTH).status_code == 404
+
+
+def test_resend_at_is_a_minute_after_the_send_and_only_while_unheard():
+    from incidents import rules
+    waiting = rules.with_receipt({"status": "approved", "sentAt": "2026-10-13T08:20:00.000Z", "heardAt": None})
+    assert waiting["resendAt"] == "2026-10-13T08:21:00.000Z"
+    assert rules.with_receipt({"status": "approved", "sentAt": "2026-10-13T08:20:00.000Z", "heardAt": "2026-10-13T08:20:10Z"})["resendAt"] is None
+    assert rules.with_receipt({"status": "proposed", "sentAt": None})["resendAt"] is None
+    assert rules.with_receipt({"status": "approved", "sentAt": "garbage"})["resendAt"] is None
