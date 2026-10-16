@@ -55,7 +55,7 @@
 .error-card { border: 1.5px solid var(--danger); }
 .sent { background: var(--safe-tint); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
 .sent strong { color: var(--safe); font-size: 18px; }
-.install { text-align: center; }
+.install { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
 .dev { border: 1.5px dashed var(--line); flex-direction: row; flex-wrap: wrap; }
 .dev .section-label { width: 100%; }
 .withdraw { position: fixed; inset: 0; z-index: 10; background: var(--withdraw); color: #fff; display: flex; flex-direction: column; justify-content: center; gap: 16px; padding: 32px 24px; text-align: left; }

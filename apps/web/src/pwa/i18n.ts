@@ -80,6 +80,7 @@ const strings = {
     en: 'Push is unavailable. EMBER still checks for tasks while the app is open.',
   },
   install: { id: 'Pasang EMBER', en: 'Install EMBER' },
+  installLater: { id: 'Nanti saja', en: 'Not now' },
   installIos: {
     id: 'Di iPhone: Bagikan → Tambahkan ke Layar Utama, lalu buka dari sana.',
     en: 'On iPhone: Share → Add to Home Screen, then open it from there.',
