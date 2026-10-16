@@ -38,6 +38,7 @@ function view(over: Partial<IncidentDetailViewProps> = {}, lang: 'id' | 'en' = '
     onRetry: () => undefined,
     onSelect: () => undefined,
     markSafe: async () => ({ incident: fixture('normal').incident, auditId: 'aud_2' }),
+    resendTask: async () => ({ auditId: 'aud_3' }),
     sendWithdraw: async () => ({ incident: fixture('normal').incident, auditId: 'aud_1' }),
     actorName: 'Bu Maya',
     lowerSeverity: async () => ({ incident: fixture('normal').incident, auditId: 'aud_1' }),

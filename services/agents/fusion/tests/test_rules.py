@@ -263,3 +263,11 @@ def test_a_withdraw_written_before_these_fields_gets_source_code_and_the_intake_
     plan = world.intake(obs("obs_02", "uid_rizal", "smoke"))
     assert plan.incident["withdraw"]["source"] == "code"
     assert plan.incident["withdraw"]["safeVolunteerIds"] == []
+
+
+def test_code_withdraw_tasks_carry_the_send_time_and_count():
+    world = World()
+    plan = world.intake(obs("obs_01", "uid_sari", "large_flame"))
+    tasks = [t for t in plan.tasks if t["type"] == "withdraw"]
+    assert tasks and all(t["sentAt"] == NOW and t["sendCount"] == 1 for t in tasks)
+    assert all("heardAt" not in t for t in tasks)

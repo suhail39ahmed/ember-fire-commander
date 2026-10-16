@@ -102,7 +102,7 @@ def _volunteer_on_incident(uid, data, observations, tasks):
 
 
 def _tasks_for(incident_id):
-    tasks = [rules.to_record(s, rules.TASK_FIELDS) for s in store.where(store.TASKS, "incidentId", "==", incident_id)]
+    tasks = [rules.with_receipt(rules.to_record(s, rules.TASK_FIELDS)) for s in store.where(store.TASKS, "incidentId", "==", incident_id)]
     return sorted(tasks, key=lambda t: t["id"])
 
 
@@ -184,7 +184,7 @@ def digest():
     my_tasks = []
     if user["role"] == "volunteer":
         my_tasks = sorted(
-            (rules.to_record(s, rules.TASK_FIELDS) for s in store.where(store.TASKS, "volunteerId", "==", user["id"])),
+            (rules.with_receipt(rules.to_record(s, rules.TASK_FIELDS)) for s in store.where(store.TASKS, "volunteerId", "==", user["id"])),
             key=lambda t: t["id"],
         )
     return jsonify({"updatedAt": rules.now_iso(), "incidents": incidents, "myTasks": my_tasks}), 200
@@ -228,7 +228,7 @@ def _decide_task(task_id, action, apply):
         audit_id = _commit_with_audit(transaction, ref, changes, action, task_id)
         task.update(changes)
         task["id"] = task_id
-        return rules.pick(task, rules.TASK_FIELDS), audit_id
+        return rules.with_receipt(rules.pick(task, rules.TASK_FIELDS)), audit_id
 
     task, audit_id = store.run_transaction(run)
     return task, audit_id
@@ -259,7 +259,8 @@ def approve_task(task_id):
         _check_proposed(task, "approved")
         if task.get("type") == "investigate" and held:
             raise conflict("Dispatch is held while this incident has an open conflict")
-        return {"status": "approved"}
+        # The approval is the send: the volunteer's phone gets it now (§6.6).
+        return {"status": "approved", "sentAt": rules.now_iso(), "sendCount": 1}
 
     task, audit_id = _decide_task(task_id, "task.approve", apply)
     _push_after_commit(task)
@@ -273,6 +274,53 @@ def reject_task(task_id):
         return {"status": "rejected"}
 
     return _task_response(*_decide_task(task_id, "task.reject", apply))
+
+
+@incidents_bp.route("/tasks/<task_id>/heard", methods=["POST"])
+def task_heard(task_id):
+    """The volunteer's app says this instruction was shown or spoken to them. Recorded once."""
+    user = g.user
+    if user["role"] != "volunteer":
+        raise AuthError(403, "forbidden", "Only the volunteer who got the instruction can confirm it")
+    snapshot = _get(store.TASKS, task_id)
+    if snapshot is None or (snapshot.to_dict() or {}).get("volunteerId") != user["id"]:
+        raise not_found("task")
+
+    def run(transaction):
+        ref = _ref(store.TASKS, task_id)
+        current = ref.get(transaction=transaction)
+        if not current.exists:
+            raise not_found("task")
+        task = current.to_dict() or {}
+        if task.get("status") != "approved":
+            raise conflict("Only a sent instruction can be heard")
+        if task.get("heardAt"):
+            # Already recorded. A repeat changes nothing and writes no second audit entry.
+            task["id"] = task_id
+            return rules.with_receipt(rules.pick(task, rules.TASK_FIELDS)), None
+        changes = {"heardAt": rules.now_iso()}
+        audit_id = _commit_with_audit(transaction, ref, changes, "task.heard", task_id)
+        task.update(changes)
+        task["id"] = task_id
+        return rules.with_receipt(rules.pick(task, rules.TASK_FIELDS)), audit_id
+
+    task, audit_id = store.run_transaction(run)
+    return jsonify({"task": task, "auditId": audit_id}), 200
+
+
+@incidents_bp.route("/tasks/<task_id>/resend", methods=["POST"])
+def resend_task(task_id):
+    """Send a sent, unheard instruction again. Records another attempt and an audit entry."""
+    def apply(task, held):
+        if task.get("status") != "approved":
+            raise conflict("Only a sent instruction can be sent again")
+        if task.get("heardAt"):
+            raise conflict("This instruction was already heard")
+        return {"sentAt": rules.now_iso(), "sendCount": int(task.get("sendCount") or 1) + 1}
+
+    task, audit_id = _decide_task(task_id, "task.resend", apply)
+    _push_after_commit(task)
+    return _task_response(task, audit_id)
 
 
 @incidents_bp.route("/tasks/<task_id>/edit", methods=["POST"])
@@ -454,6 +502,8 @@ def withdraw(incident_id):
                 "type": "withdraw",
                 "status": "approved",
                 "instruction": instruction,
+                "sentAt": rules.now_iso(),
+                "sendCount": 1,
             }
             transaction.set(task_ref, task)
             created.append(dict(task, id=task_ref.id))

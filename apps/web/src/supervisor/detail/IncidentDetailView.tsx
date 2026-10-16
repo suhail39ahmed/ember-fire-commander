@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { formatTime } from '../../pwa/formatTime'
@@ -29,6 +29,8 @@ import { WithdrawPanel } from './WithdrawPanel'
 import { elapsedSince, unconfirmed, withdrawState } from './withdrawState'
 import { countText, stateCopy } from './withdrawStateCopy'
 import { VolunteerPopup } from './VolunteerPopup'
+import { HeardToast } from './HeardToast'
+import { heardEvents, needsClock, type HeardEvent } from './deliveryModel'
 import { sentText } from './withdrawModel'
 import './detail.css'
 
@@ -55,6 +57,8 @@ export interface IncidentDetailViewProps {
   serverNow(): number
   /** POST /incidents/{id}/severity, then a fresh read. Resolves with the route's answer. */
   lowerSeverity(severity: LowerableSeverity): Promise<IncidentDecision>
+  /** POST /tasks/{id}/resend, then a fresh read. Resolves with the route's answer and throws its refusal. */
+  resendTask(taskId: string): Promise<{ auditId: string }>
   /** POST /incidents/{id}/extinguish, then a fresh read. Resolves with the route's answer. */
   extinguish(): Promise<IncidentDecision>
   /** POST /incidents/{id}/withdraw/safe, then a fresh read. Resolves with the route's answer. */
@@ -133,13 +137,29 @@ function Stat({ label, value, note, tone }: { label: string; value: string; note
   )
 }
 
-function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe'> }) {
+function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask'> }) {
   const { incident, conflict } = detail
-  const { actorName, sendWithdraw, lowerSeverity, markSafe, serverNow } = view
+  const { actorName, sendWithdraw, lowerSeverity, markSafe, resendTask, serverNow } = view
   const [dialog, setDialog] = useState<'withdraw' | 'severity' | 'extinguish' | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [popupId, setPopupId] = useState<string | null>(null)
   const offline = link === 'lost'
+  const [clock, setClock] = useState(() => serverNow())
+  const clockOn = needsClock(detail.tasks, clock)
+  useEffect(() => {
+    setClock(serverNow())
+    if (!clockOn) return
+    const timer = window.setInterval(() => setClock(serverNow()), 1000)
+    return () => window.clearInterval(timer)
+  }, [clockOn, serverNow, detail.tasks])
+  const [toasts, setToasts] = useState<HeardEvent[]>([])
+  const seen = useRef<typeof detail.tasks | null>(null)
+  useEffect(() => {
+    const found = heardEvents(seen.current, detail.tasks)
+    seen.current = detail.tasks
+    if (found.length > 0) setToasts((list) => [...list, ...found])
+  }, [detail.tasks])
+  const dismiss = useCallback(() => setToasts((list) => list.slice(1)), [])
   const volunteers = volunteersOf(detail)
   const wd = withdrawState(detail)
   // The frame pauses instructions while someone is still unconfirmed.
@@ -241,7 +261,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           <p className="inc-muted">{t(lang, detailCopy.fieldEmpty)}</p>
         ) : (
           <div className="inc-field">
-            {volunteers.map((row) => <VolunteerCard key={row.id} lang={lang} row={row} safe={wd ? wd.people.find((x) => x.id === row.id)?.safe ?? null : null} waiting={waiting.get(row.id) ?? null} onOpen={() => setPopupId(row.id)} />)}
+            {volunteers.map((row) => <VolunteerCard key={row.id} lang={lang} row={row} safe={wd ? wd.people.find((x) => x.id === row.id)?.safe ?? null : null} waiting={waiting.get(row.id) ?? null} now={clock} onResend={resendTask} onOpen={() => setPopupId(row.id)} />)}
           </div>
         )}
       </section>
@@ -263,6 +283,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         <p className="inc-callout">{t(lang, detailCopy.withdrawRule)}</p>
       </section>
       {popupId !== null && <VolunteerPopup lang={lang} detail={detail} volunteerId={popupId} onClose={() => setPopupId(null)} />}
+      {toasts[0] && <HeardToast lang={lang} event={toasts[0]} name={nameOf(detail, toasts[0].volunteerId, lang)} onClose={dismiss} />}
       {dialog === 'withdraw' && (
         <SendWithdrawDialog
           lang={lang}

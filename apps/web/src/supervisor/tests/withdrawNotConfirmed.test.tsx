@@ -34,7 +34,7 @@ function view(detail: IncidentDetail | null, lang: 'id' | 'en' = 'en', over: Par
   const props: IncidentDetailViewProps = {
     lang, incidentId: 'inc_demo_01', detail, queue: detail ? [detail.incident] : null, failure: null, link: 'online',
     lastOkAt: NOW, now: NOW, actions: noop, onRetry: () => undefined, onSelect: () => undefined,
-    markSafe: async () => decision, sendWithdraw: async () => decision, actorName: 'Bu Maya',
+    markSafe: async () => decision, resendTask: async () => ({ auditId: 'aud_3' }), sendWithdraw: async () => decision, actorName: 'Bu Maya',
     lowerSeverity: async () => decision, serverNow: () => NOW, extinguish: async () => decision, ...over,
   }
   return renderToStaticMarkup(<StaticRouter location="/console/incidents/inc_demo_01"><IncidentDetailView {...props} /></StaticRouter>)
@@ -225,7 +225,7 @@ describe('the route and the mock', () => {
 
   it('has no client call that clears a withdraw', () => {
     const api = createMockSupervisorApi('sup_1', 'withdraw', 0)
-    expect(Object.keys(api).filter((k) => /clear|cancel|end|stop/i.test(k))).toEqual([])
+    expect(Object.keys(api).filter((k) => /clear|cancel|^end|stop/i.test(k))).toEqual([])
   })
 
   it('marks safe in the mock, audits it, counts it, and keeps the withdraw active', async () => {

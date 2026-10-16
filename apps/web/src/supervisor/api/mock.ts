@@ -48,6 +48,14 @@ export function createMockSupervisorApi(
     }
     throw notFound()
   }
+  /** Like the route: the send time, the attempt count, and the moment a resend opens. */
+  const stamp = (t: Task, count: number) => {
+    const now = Date.now()
+    t.sentAt = new Date(now).toISOString()
+    t.sendCount = count
+    t.heardAt = null
+    t.resendAt = new Date(now + 60000).toISOString()
+  }
   const decide = (id: string, verb: 'approved' | 'rejected') => {
     const [detail, t] = findTask(id)
     if (t.type === 'withdraw') throw conflictError(`A withdraw task is never proposed and cannot be ${verb}`)
@@ -56,6 +64,7 @@ export function createMockSupervisorApi(
       throw conflictError('Dispatch is held while this incident has an open conflict')
     }
     t.status = verb
+    if (verb === 'approved') stamp(t, 1)
     return { task: structuredClone(t), auditId: append(verb === 'approved' ? 'task.approve' : 'task.reject', id) }
   }
 
@@ -78,6 +87,14 @@ export function createMockSupervisorApi(
     async rejectTask(id) {
       await wait()
       return decide(id, 'rejected')
+    },
+    async resendTask(id) {
+      await wait()
+      const [, t] = findTask(id)
+      if (t.status !== 'approved') throw conflictError('Only a sent instruction can be sent again')
+      if (t.heardAt) throw conflictError('This instruction was already heard')
+      stamp(t, (t.sendCount ?? 1) + 1)
+      return { task: structuredClone(t), auditId: append('task.resend', id) }
     },
     async editTask(id, instruction) {
       await wait()

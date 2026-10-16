@@ -80,6 +80,17 @@ export function IncidentDetailPage() {
           throw error
         }
       }}
+      resendTask={async (taskId) => {
+        try {
+          const result = await api.resendTask(taskId)
+          await refresh()
+          return result
+        } catch (error) {
+          // 409: it was heard in the meantime. Show what is stored now.
+          if (error instanceof ApiError && error.status === 409) await refresh()
+          throw error
+        }
+      }}
       extinguish={async () => {
         try {
           const result = await api.extinguishIncident(incidentId)

@@ -269,6 +269,8 @@ def fuse(observation, state, new_id, now, wind_kmh=None, settings=None):
                 "type": "withdraw",
                 "status": "approved",
                 "instruction": instruction,
+                "sentAt": now,
+                "sendCount": 1,
             })
         if newly or set(merged_reasons) != set(current["reasons"] if active else []):
             plan.audits.append(_audit(new_id, "task.withdraw", incident["id"], now))

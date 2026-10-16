@@ -115,6 +115,14 @@ export interface Task {
   type: TaskType
   status: TaskStatus
   instruction: string | null
+  /** When it was last sent (ISO). Absent or null on a task never sent, and on one sent before receipts. */
+  sentAt?: string | null
+  /** When the volunteer's app showed or spoke it. Absent or null until then. */
+  heardAt?: string | null
+  /** 1 for the first send, one more for each resend. */
+  sendCount?: number | null
+  /** When a sent, unheard task can be sent again. Computed by ember-api, null otherwise. */
+  resendAt?: string | null
 }
 
 /** GET /digest (section 6.4). */

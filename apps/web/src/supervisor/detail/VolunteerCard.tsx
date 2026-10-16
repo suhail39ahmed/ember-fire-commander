@@ -1,9 +1,10 @@
 import { formatTime } from '../../pwa/formatTime'
 import { chipText } from '../../pwa/report/chips'
 import { t, type Lang } from '../../pwa/i18n'
-import { detailCopy, severityName, taskStatusName } from './copy'
+import { detailCopy, severityName } from './copy'
 import { stateCopy } from './withdrawStateCopy'
 import { popupCopy } from './popupCopy'
+import { DeliveryLine } from './DeliveryLine'
 import { initialsOf, volunteerLabel, type VolunteerRow } from './model'
 
 function reportLine(lang: Lang, row: VolunteerRow): string {
@@ -18,7 +19,7 @@ function reportLine(lang: Lang, row: VolunteerRow): string {
  * `safe` is null when no withdraw is in force or this volunteer is not on it. `waiting` is the time since
  * the send, shown while they are unconfirmed.
  */
-export function VolunteerCard({ lang, row, safe = null, waiting = null, onOpen }: { lang: Lang; row: VolunteerRow; safe?: boolean | null; waiting?: string | null; onOpen?: () => void }) {
+export function VolunteerCard({ lang, row, safe = null, waiting = null, now = Date.now(), onResend, onOpen }: { lang: Lang; row: VolunteerRow; safe?: boolean | null; waiting?: string | null; onOpen?: () => void; now?: number; onResend?: (taskId: string) => Promise<{ auditId: string }> }) {
   const name = row.name ?? volunteerLabel(row.id, lang)
   const { latest, task } = row
   return (
@@ -60,7 +61,7 @@ export function VolunteerCard({ lang, row, safe = null, waiting = null, onOpen }
         {task ? (
           <>
             <p className="inc-vol-task-text">{task.instruction ?? '—'}</p>
-            <p className="inc-muted">{t(lang, taskStatusName[task.status])}</p>
+            <DeliveryLine lang={lang} task={task} now={now} onResend={onResend} />
           </>
         ) : (
           <p className="inc-muted">{t(lang, detailCopy.noInstruction)}</p>

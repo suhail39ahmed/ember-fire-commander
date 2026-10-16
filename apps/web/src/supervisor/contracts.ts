@@ -98,6 +98,8 @@ export type AuditAction =
   | 'task.approve'
   | 'task.reject'
   | 'task.edit'
+  | 'task.heard'
+  | 'task.resend'
   | 'task.withdraw'
   | 'withdraw.safe'
   | 'incident.verify'

@@ -11,6 +11,8 @@ export interface SupervisorApi {
   approveTask(id: string): Promise<TaskDecision>
   rejectTask(id: string): Promise<TaskDecision>
   editTask(id: string, instruction: string): Promise<TaskDecision>
+  /** Sends a sent, unheard instruction again. Records another attempt and an audit entry. `409` once it was heard. */
+  resendTask(id: string): Promise<TaskDecision>
   verifyIncident(id: string): Promise<IncidentDecision>
   /** Immediate. No approval step: the route sets the incident withdraw and one approved task per volunteer. */
   withdrawIncident(id: string, request: WithdrawRequest): Promise<IncidentDecision>

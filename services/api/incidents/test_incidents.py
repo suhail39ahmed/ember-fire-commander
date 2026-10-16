@@ -660,3 +660,106 @@ def test_edit_has_no_editor_name_when_the_token_has_none(client, monkeypatch, db
     _as(monkeypatch, name="")
     body = client.post("/tasks/task_verify_sari/edit", headers=AUTH, json={"instruction": "Check the west ditch"}).get_json()
     assert "editedBy" not in body
+
+
+# Delivery: sent time, heard, resend ---------------------------------------------------
+
+def test_approving_a_task_is_the_send_and_records_when(client, monkeypatch, db):
+    _as(monkeypatch)
+    body = client.post("/tasks/task_verify_sari/approve", headers=AUTH).get_json()
+    task = body["task"]
+    assert task["status"] == "approved"
+    assert task["sentAt"].endswith("Z") and task["sendCount"] == 1
+    assert task["heardAt"] is None
+    assert task["resendAt"] is not None and task["resendAt"] > task["sentAt"]
+
+
+def test_a_task_that_was_never_sent_has_no_receipt_fields_set(client, monkeypatch, db):
+    _as(monkeypatch)
+    task = client.get("/incidents/inc_01", headers=AUTH).get_json()["tasks"][0]
+    assert (task["sentAt"], task["heardAt"], task["sendCount"], task["resendAt"]) == (None, None, None, None)
+
+
+def test_the_withdraw_route_stamps_the_send_time(client, monkeypatch, db):
+    _as(monkeypatch)
+    client.post("/incidents/inc_01/withdraw", headers=AUTH, json={"volunteerIds": ["uid_sari"], "instruction": "Withdraw"})
+    task = next(t for t in db.data["tasks"].values() if t["type"] == "withdraw")
+    assert task["sentAt"].endswith("Z") and task["sendCount"] == 1
+
+
+def _sent(db, task_id="task_sent", volunteer="uid_sari", **extra):
+    db.add("tasks", task_id, {
+        "incidentId": "inc_01", "volunteerId": volunteer, "type": "verify", "status": "approved",
+        "instruction": "Check the west ditch", "sentAt": "2026-10-13T08:20:00.000Z", "sendCount": 1, **extra,
+    })
+
+
+def test_the_volunteer_records_that_they_heard_it_once(client, monkeypatch, db):
+    _sent(db)
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    body = client.post("/tasks/task_sent/heard", headers=AUTH).get_json()
+    assert body["task"]["heardAt"].endswith("Z")
+    assert body["task"]["resendAt"] is None
+    assert db.data["audit"][body["auditId"]]["action"] == "task.heard"
+    assert db.data["audit"][body["auditId"]]["actorId"] == "uid_sari"
+    first = db.data["tasks"]["task_sent"]["heardAt"]
+    again = client.post("/tasks/task_sent/heard", headers=AUTH).get_json()
+    assert again["auditId"] is None
+    assert db.data["tasks"]["task_sent"]["heardAt"] == first
+    assert len(_audit(db)) == 1
+
+
+def test_heard_is_for_the_volunteer_who_got_it_and_only_for_a_sent_task(client, monkeypatch, db):
+    _sent(db)
+    _as(monkeypatch, role="volunteer", uid="uid_rizal")
+    assert client.post("/tasks/task_sent/heard", headers=AUTH).status_code == 404
+    _as(monkeypatch)
+    assert client.post("/tasks/task_sent/heard", headers=AUTH).status_code == 403
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    assert client.post("/tasks/task_verify_sari/heard", headers=AUTH).status_code == 409
+    assert client.post("/tasks/nope/heard", headers=AUTH).status_code == 404
+    assert "heardAt" not in db.data["tasks"]["task_sent"]
+    assert _audit(db) == []
+
+
+def test_resend_records_another_attempt_and_an_audit_entry(client, monkeypatch, db):
+    pushed = []
+    monkeypatch.setattr("incidents.routes.deliver_task", lambda task: pushed.append(task["id"]))
+    _sent(db)
+    _as(monkeypatch)
+    body = client.post("/tasks/task_sent/resend", headers=AUTH).get_json()
+    assert body["task"]["sendCount"] == 2
+    assert body["task"]["sentAt"] > "2026-10-13T08:20:00.000Z"
+    assert db.data["audit"][body["auditId"]]["action"] == "task.resend"
+    assert pushed == ["task_sent"]
+
+
+@pytest.mark.parametrize("extra,status", [
+    ({"heardAt": "2026-10-13T08:20:30.000Z"}, 409),
+    ({"status": "proposed"}, 409),
+])
+def test_resend_refusals_write_nothing(client, monkeypatch, db, extra, status):
+    pushed = []
+    monkeypatch.setattr("incidents.routes.deliver_task", lambda task: pushed.append(task["id"]))
+    _sent(db, **extra)
+    _as(monkeypatch)
+    assert client.post("/tasks/task_sent/resend", headers=AUTH).status_code == status
+    assert db.data["tasks"]["task_sent"]["sendCount"] == 1
+    assert _audit(db) == [] and pushed == []
+
+
+def test_a_volunteer_cannot_resend_and_an_unknown_task_is_404(client, monkeypatch, db):
+    _sent(db)
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    assert client.post("/tasks/task_sent/resend", headers=AUTH).status_code == 403
+    _as(monkeypatch)
+    assert client.post("/tasks/nope/resend", headers=AUTH).status_code == 404
+
+
+def test_resend_at_is_a_minute_after_the_send_and_only_while_unheard():
+    from incidents import rules
+    waiting = rules.with_receipt({"status": "approved", "sentAt": "2026-10-13T08:20:00.000Z", "heardAt": None})
+    assert waiting["resendAt"] == "2026-10-13T08:21:00.000Z"
+    assert rules.with_receipt({"status": "approved", "sentAt": "2026-10-13T08:20:00.000Z", "heardAt": "2026-10-13T08:20:10Z"})["resendAt"] is None
+    assert rules.with_receipt({"status": "proposed", "sentAt": None})["resendAt"] is None
+    assert rules.with_receipt({"status": "approved", "sentAt": "garbage"})["resendAt"] is None
