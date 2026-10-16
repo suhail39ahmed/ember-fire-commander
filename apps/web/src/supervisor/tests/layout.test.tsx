@@ -8,7 +8,7 @@ import { formatTimeZone } from '../../pwa/formatTime'
 import { ApiError } from '../../pwa/api/types'
 import { ConsoleLayout } from '../ConsoleLayout'
 import { useConsole } from '../ConsoleProvider'
-import { fetchConsoleChrome, type ConsoleChrome } from '../chromeClient'
+import { emptyCharts, fetchConsoleChrome, type ConsoleChrome } from '../chromeClient'
 import { consoleMenu, incidentIdFromPath } from '../paths'
 
 vi.mock('../../auth/AuthProvider', () => ({
@@ -149,6 +149,18 @@ describe('dashboard chrome client', () => {
     expect(url).toBe('https://api.example/dashboard')
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer id-token')
     expect((init.headers as Record<string, string>)['X-Firebase-AppCheck']).toBe('app-check')
+  })
+
+  it('accepts the wind numbers in the charts, and rejects one that is not a number', async () => {
+    const withCharts = (over: Record<string, unknown>) => ({ ...chrome, charts: { ...emptyCharts(), ...over } })
+    const read = (body: unknown) => fetchConsoleChrome(headers, 'https://api.example', (async () => new Response(JSON.stringify(body), { status: 200 })) as unknown as typeof fetch)
+    const good = await read(withCharts({ windKmh: 14.2, windDirDeg: 225 }))
+    expect(good.charts).toMatchObject({ windKmh: 14.2, windDirDeg: 225 })
+    const older = { ...emptyCharts() } as Record<string, unknown>
+    delete older.windKmh
+    delete older.windDirDeg
+    await expect(read({ ...chrome, charts: older })).resolves.toBeTruthy()
+    await expect(read(withCharts({ windKmh: 'fast' }))).rejects.toBeInstanceOf(ApiError)
   })
 
   it('rejects a body that is missing the chrome fields', async () => {

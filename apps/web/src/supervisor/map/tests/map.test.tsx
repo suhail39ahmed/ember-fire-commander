@@ -7,7 +7,10 @@ import { hasMapsKey } from '../config'
 import { regionFixtures } from '../fixtures'
 import { IncidentMap } from '../IncidentMap'
 import { loadMaps } from '../loadMaps'
-import { PIN_COLOR, pinStyle, placeable, project } from '../markers'
+import { crewDots, PIN_COLOR, pinStyle, placeable, project, projectWithCrews } from '../markers'
+import { layerView } from '../layers'
+import { mapCopy } from '../mapCopy'
+import { arrowDeg, compass, windReading, windText } from '../wind'
 
 const region = () => regionFixtures().map((d) => d.incident)
 const render = (props: Partial<Parameters<typeof IncidentMap>[0]> = {}) =>
@@ -93,19 +96,77 @@ describe('IncidentMap', () => {
     expect(html).not.toMatch(/illustrative data|exposure corridor|hotspot/i)
   })
 
-  it('shows the layer toggles without drawing crews, wind, leads, or peat', () => {
+  it('shows the Fires, Crews and peat toggles, and no Satellite toggle', () => {
     const html = render({ showLayers: true })
     expect(html).toContain('Live map')
     expect(html).toContain('aria-pressed="true">Fires')
     expect(html).toContain('>Crews<')
-    expect(html).toContain('>Wind<')
-    expect(html).toContain('>Satellite leads<')
     expect(html).toContain('Peat dryness · Static')
     expect(html).toContain('class="map-pin')
+    expect(html).not.toMatch(/Satellite|satelit/i)
     expect(html).not.toContain('km/h')
-    expect(html).not.toContain('Nothing to show')
   })
 
+  it('has no Wind toggle without a stored wind, and one with it', () => {
+    expect(render({ showLayers: true })).not.toContain('>Wind<')
+    expect(render({ showLayers: true, wind: { kmh: 14, fromDeg: 225 } })).toContain('>Wind<')
+  })
+
+  it('draws the wind as an arrow and a label only when the layer is on', () => {
+    // Static markup cannot click, so the label and arrow are checked through the helpers.
+    expect(windText({ kmh: 14.04, fromDeg: 225 }, 'en')).toBe('Wind 14 km/h from SW (225°)')
+    expect(windText({ kmh: 8, fromDeg: 0 }, 'id')).toBe('Angin 8 km/h dari U (0°)')
+    expect(arrowDeg(225)).toBe(45)
+    expect(arrowDeg(180)).toBe(0)
+    expect(arrowDeg(350)).toBe(170)
+    expect(compass(337.5)).toBe('N')
+    expect(compass(-45)).toBe('NW')
+    expect(windReading(14, 725)).toEqual({ kmh: 14, fromDeg: 5 })
+    expect(windReading(null, 10)).toBeNull()
+    expect(windReading(10, null)).toBeNull()
+    expect(windReading(-1, 10)).toBeNull()
+    expect(windReading(Number.NaN, 10)).toBeNull()
+    expect(windReading(undefined, undefined)).toBeNull()
+  })
+
+  it('says the Fires layer is a toggle when it is off', () => {
+    expect(mapCopy.firesOff.en).toBe('Fires layer is off. Press Fires to turn it on.')
+    expect(mapCopy.firesOff.id).toContain('Tekan Kebakaran')
+  })
+
+  it('puts the crew dots in the same box as the incidents, north up', () => {
+    const cards = [
+      card('uid_a', -1.85, 110.05),
+      card('uid_b', -1.9, 110.1),
+      card('uid_none', null, null),
+      card('uid_far', 95, 10),
+      card('uid_nan', Number.NaN, 1),
+    ]
+    const crews = crewDots(cards)
+    expect(crews.map((c) => c.id)).toEqual(['uid_a', 'uid_b'])
+    const placed = projectWithCrews(region(), crews, 640, 300)
+    expect(placed.incidents).toHaveLength(3)
+    expect(placed.crews).toHaveLength(2)
+    expect(new Set(placed.crews.map((p) => `${Math.round(p.x)},${Math.round(p.y)}`)).size).toBe(2)
+    expect(crewDots(null)).toEqual([])
+    expect(projectWithCrews([], [], 640, 300)).toEqual({ incidents: [], crews: [] })
+  })
+
+  it('draws no crew dot until the Crews layer is on, and never invents one', () => {
+    const crews = crewDots([card('uid_a', -1.85, 110.05)])
+    expect(render({ showLayers: true, crews })).not.toContain('map-crew')
+    expect(render({ crews })).not.toContain('map-crew')
+  })
+})
+
+function card(volunteerId: string, lat: number | null, lng: number | null) {
+  return {
+    volunteerId, name: null, reportCount: 1, firstReportAt: null, lastReportAt: null, lastSeverity: null, lastLat: lat, lastLng: lng,
+    lastAccuracyM: null, distanceM: null, lastHeardAt: null, pushReady: false, withdraw: null,
+  }
+}
+
+describe('IncidentMap (continued)', () => {
   it('renders the map container when a key is set', () => {
     const html = render({ mapsKey: 'AIza-test' })
     expect(html).toContain('aria-label="Incident map"')
@@ -131,5 +192,55 @@ describe('region mock', () => {
 
   it('leaves the single-incident fixtures unchanged', () => {
     expect(regionFixtures()[0]).toEqual(fixture('conflict'))
+  })
+})
+
+describe('layer toggles', () => {
+  const [a, b] = region()
+  const crews = crewDots([card('uid_a', -1.85, 110.05)])
+  const wind = { kmh: 14, fromDeg: 225 }
+  const on = { showLayers: true, firesOn: true, crewsOn: false, windOn: false }
+
+  it('Fires off hides the incidents and says how to turn them back on', () => {
+    const v = layerView({ ...on, firesOn: false }, [a, b], crews, wind)
+    expect(v.incidents).toEqual([])
+    expect(v.empty).toBe('firesOff')
+  })
+
+  it('Fires off with Crews on shows the crews alone, not the empty message', () => {
+    const v = layerView({ ...on, firesOn: false, crewsOn: true }, [a, b], crews, wind)
+    expect(v.incidents).toEqual([])
+    expect(v.crews).toHaveLength(1)
+    expect(v.empty).toBeNull()
+  })
+
+  it('Crews off draws no crew dot, Crews on draws every stored position', () => {
+    expect(layerView(on, [a], crews, wind).crews).toEqual([])
+    expect(layerView({ ...on, crewsOn: true }, [a], crews, wind).crews).toEqual(crews)
+  })
+
+  it('Crews on with nothing stored says so instead of drawing', () => {
+    const v = layerView({ ...on, crewsOn: true }, [a], [], wind)
+    expect(v.crews).toEqual([])
+    expect(v.crewsNone).toBe(true)
+    expect(layerView(on, [a], [], wind).crewsNone).toBe(false)
+  })
+
+  it('Wind shows only when its toggle is on and a reading exists', () => {
+    expect(layerView(on, [a], [], wind).wind).toBeNull()
+    expect(layerView({ ...on, windOn: true }, [a], [], wind).wind).toEqual(wind)
+    expect(layerView({ ...on, windOn: true }, [a], [], null).wind).toBeNull()
+  })
+
+  it('without the toggles every incident is drawn and the extra layers are not', () => {
+    const v = layerView({ ...on, showLayers: false, firesOn: false, crewsOn: true, windOn: true }, [a, b], crews, wind)
+    expect(v.incidents).toHaveLength(2)
+    expect(v.crews).toEqual([])
+    expect(v.wind).toBeNull()
+  })
+
+  it('says there are no positions when there is nothing to draw at all', () => {
+    expect(layerView(on, [], [], null).empty).toBe('noPositions')
+    expect(layerView(on, [{ ...a, lat: Number.NaN }], [], null).empty).toBe('noPositions')
   })
 })
