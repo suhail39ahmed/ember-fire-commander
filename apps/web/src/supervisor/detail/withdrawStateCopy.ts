@@ -28,6 +28,7 @@ export const stateCopy = {
     en: 'Instructions are paused while WITHDRAW is in force. They resume when code clears it or you mark everyone safe.',
   },
   notConfirmed: { id: 'belum dipastikan', en: 'not confirmed' },
+  noLastContact: { id: 'Kontak terakhir belum tersedia', en: 'Last contact not available yet' },
   safeLine: { id: 'sudah aman di arah angin', en: 'confirmed safe upwind' },
   withdrawLabel: { id: 'MUNDUR', en: 'WITHDRAW' },
   pillOf: { id: 'AMAN', en: 'SAFE' },

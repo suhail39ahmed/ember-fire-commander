@@ -88,11 +88,11 @@ describe('approvals list', () => {
     expect(html).toContain('menunggu keputusan')
   })
 
-  it('turns Approve off for a check on a held incident and says why', () => {
+  it('leaves Approve enabled on an investigate task for a held incident; the API returns the refusal', () => {
     const held = item('t2', { incident: { ...item('x').incident!, status: 'held', conflictId: 'con_1' } }, { type: 'investigate' })
     const html = view({ items: [held] })
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Approve<\/button>/)
-    expect(html).toContain('Can’t approve dispatch while reports disagree')
+    // No pre-block; the supervisor clicks and ember-api returns 409, which OutcomeLine shows in plain language.
+    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*>Approve<\/button>/)
     const open = view({ items: [item('t3', {}, { type: 'investigate' })] })
     expect(open).not.toMatch(/<button[^>]*disabled=""[^>]*>Approve<\/button>/)
   })
