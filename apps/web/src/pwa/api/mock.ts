@@ -21,6 +21,8 @@ import {
 import { bearingDeg, distanceM } from '../screens/geo'
 import { ApiError, type EmberApi } from './types'
 import type { Me } from '../../auth/api'
+import type { PracticeAnswer } from '../contracts/types'
+import { practiceFixture } from './practiceFixture'
 
 export interface MockControls {
   /** Simulate the backend safety rule firing (code WITHDRAW). */
@@ -51,9 +53,9 @@ const MOCK_PHOTO_PREFIX = 'photos/'
 const mockTraining: TrainingPayload = {
   video: {
     id: 'how_ember_works',
-    title: { id: 'Cara EMBER bekerja', en: 'How EMBER works: report, stay upwind, withdraw' },
-    durationSec: 180,
-    url: null,
+    title: { id: 'Pelatihan keselamatan kebakaran · Modul 01', en: 'Fire Safety Training · Module 01' },
+    durationSec: 658,
+    url: 'https://www.youtube.com/watch?v=LVcnXNLAPKo',
     progressSec: 80,
   },
   lessons: [
@@ -79,7 +81,7 @@ const mockTraining: TrainingPayload = {
       id: 'withdraw',
       title: { id: 'Kapan WITHDRAW', en: 'When to WITHDRAW' },
       minutes: 4,
-      summary: { id: 'Mundur jika tidak aman', en: 'Leave when unsafe' },
+      summary: { id: 'EMBER memandu Anda', en: 'EMBER talks you through it' },
       body: { id: 'Latihan mundur.', en: 'Practice withdraw.' },
       status: 'not_started',
       score: null,
@@ -88,7 +90,7 @@ const mockTraining: TrainingPayload = {
       id: 'peat_return',
       title: { id: 'Api gambut kembali', en: 'Peat fires come back' },
       minutes: 4,
-      summary: { id: 'Situs lama', en: 'Old site' },
+      summary: { id: 'Memeriksa lokasi lama', en: 'checking an old site' },
       body: { id: 'Latihan gambut.', en: 'Practice peat.' },
       status: 'not_started',
       score: null,
@@ -99,6 +101,8 @@ const mockTraining: TrainingPayload = {
   askChips: [
     { id: 'thick_smoke', label: { id: 'Asap semakin tebal', en: 'Smoke is getting thick' } },
     { id: 'wind_changed', label: { id: 'Angin berubah', en: 'The wind changed' } },
+    { id: 'underground', label: { id: 'Api di bawah tanah', en: 'Fire under the ground' } },
+    { id: 'alone', label: { id: 'Saya sendirian di api', en: 'I am alone at the fire' } },
   ],
   safetyLines: [{ id: 'Jaga jarak aman.', en: 'Keep a safe distance.' }],
 }
@@ -126,6 +130,10 @@ function validate(body: ObservationRequest, volunteerId: string): void {
 const SEVERITY = { asap: 'smoke', api: 'small_flame', aman: 'none', butuh_bantuan: 'unknown' } as const
 
 export function createMockApi(volunteerId: string, latencyMs = 300, initialProfile?: Me): EmberApi & { mock: MockControls } {
+  const training = structuredClone(mockTraining)
+  const turns = new Map<string, { response: PracticeResponse; correctId: string; feedback: { en: string; id: string }; count: number; answer?: PracticeAnswer; nextTurnId?: string }>()
+  const trainingKey = `ember:mock:training:${volunteerId}`
+  const persistTraining = () => { try { localStorage.setItem(trainingKey, JSON.stringify(training)) } catch { /* Storage optional in tests. */ } }
   let profile: Me = initialProfile ?? { id: volunteerId, displayName: 'Pak Dedi', role: 'volunteer', crewName: 'Crew A · Desa Tohor', roleLabel: 'pump team', supervisorName: 'Bu Maya · BPBD Kep. Meranti', phoneMasked: '•••• 4417', trainingDone: 2, trainingTotal: 4, language: null, shareMyLocationWithCrew: true, demoMode: true }
   let digest: Digest
   let failure: 'network' | 'validation' | null = null
@@ -158,15 +166,27 @@ export function createMockApi(volunteerId: string, latencyMs = 300, initialProfi
     joins.clear()
     memberships.clear()
     lastPosition = null
-    mockTraining.video.progressSec = 80
-    mockTraining.lessons.forEach((lesson, i) => {
+    training.video.progressSec = 80
+    training.lessons.forEach((lesson, i) => {
       lesson.status = i < 2 ? 'done' : 'not_started'
       lesson.score = i < 2 ? 3 : null
     })
-    mockTraining.doneCount = 2
+    training.doneCount = 2
+    turns.clear()
     joinRequests.length = 0
   }
   reset()
+  try {
+    const saved = JSON.parse(localStorage.getItem(trainingKey) || 'null') as TrainingPayload | null
+    if (saved?.video && Array.isArray(saved.lessons)) {
+      training.video.progressSec = saved.video.progressSec
+      for (const lesson of training.lessons) {
+        const previous = saved.lessons.find((row) => row.id === lesson.id)
+        if (previous) { lesson.status = previous.status; lesson.score = previous.score; lesson.total = previous.total }
+      }
+      training.doneCount = training.lessons.filter((row) => row.status === 'done').length
+    }
+  } catch { /* No saved mock progress. */ }
 
   const wait = () => new Promise((r) => setTimeout(r, latencyMs))
 
@@ -378,46 +398,55 @@ export function createMockApi(volunteerId: string, latencyMs = 300, initialProfi
     },
     async getTraining() {
       await wait()
-      return structuredClone(mockTraining)
+      return structuredClone(training)
     },
     async saveTrainingProgress(body) {
       await wait()
-      if (typeof body.videoProgressSec === 'number') mockTraining.video.progressSec = body.videoProgressSec
+      if (typeof body.videoProgressSec === 'number') training.video.progressSec = body.videoProgressSec
       if (body.lessonId) {
-        const lesson = mockTraining.lessons.find((row) => row.id === body.lessonId)
+        const lesson = training.lessons.find((row) => row.id === body.lessonId)
         if (lesson && body.status) {
           lesson.status = body.status as typeof lesson.status
           if (body.score != null) lesson.score = body.score
         }
       }
-      mockTraining.doneCount = mockTraining.lessons.filter((row) => row.status === 'done').length
+      training.doneCount = training.lessons.filter((row) => row.status === 'done').length
+      persistTraining()
     },
-    async practiceTurn(body) {
+    async askPractice(body) {
       await wait()
-      const reply = {
-        id: 'Laporkan dari jarak aman dan tunggu instruksi.',
-        en: 'Report from a safe distance and wait for an instruction.',
+      const previous = body.previousTurnId ? turns.get(body.previousTurnId) : undefined
+      if (body.previousTurnId && (!previous?.answer || (previous.response.check?.index ?? 3) >= 3 || previous.response.check?.lessonId !== body.lessonId)) throw validationError('previousTurnId', 'answer the previous check')
+      if (previous?.nextTurnId) return structuredClone(turns.get(previous.nextTurnId)!.response)
+      const index = previous ? previous.response.check!.index + 1 : 1
+      const fixture = practiceFixture(body.lessonId, body.message, index)
+      const { correctId, feedback, ...publicFixture } = fixture
+      const turnId = `practice_${turns.size + 1}`
+      const response: PracticeResponse = { ...publicFixture, turnId }
+      turns.set(turnId, { response, correctId, feedback, count: previous?.count ?? 0 })
+      if (previous) previous.nextTurnId = turnId
+      const lesson = training.lessons.find((row) => row.id === body.lessonId)
+      if (lesson && lesson.status !== 'done') lesson.status = 'in_progress'
+      persistTraining()
+      return structuredClone(response)
+    },
+    async answerPractice(turnId, optionId) {
+      await wait()
+      const turn = turns.get(turnId)
+      if (!turn || !turn.response.check) throw new ApiError('not_found', 'Practice not found', 404, false)
+      if (turn.answer) return structuredClone(turn.answer)
+      if (!turn.response.check.options.some((row) => row.id === optionId)) throw validationError('optionId', 'unknown option')
+      const correct = optionId === turn.correctId
+      turn.count += Number(correct)
+      const lessonComplete = turn.response.check.index === 3
+      turn.answer = { correct, lessonComplete, feedback: correct ? turn.feedback : { en: 'Not yet. Move to safety first and report from clear air.', id: 'Belum tepat. Pergi ke tempat aman dulu dan lapor dari udara bersih.' } }
+      if (lessonComplete) {
+        const lesson = training.lessons.find((row) => row.id === turn.response.check!.lessonId)
+        if (lesson) { lesson.status = 'done'; lesson.score = turn.count; lesson.total = 3 }
+        training.doneCount = training.lessons.filter((row) => row.status === 'done').length
+        persistTraining()
       }
-      const response: PracticeResponse = {
-        practice: true,
-        reply,
-        correct: body.optionId ? body.optionId === 'report' || body.optionId === 'upwind' || body.optionId === 'withdraw' : null,
-        check: body.optionId
-          ? null
-          : {
-              question: { id: 'Apa yang Anda lakukan dulu?', en: 'What do you do first?' },
-              options: [
-                { id: 'report', label: { id: 'Laporkan dari jarak aman', en: 'Report from a safe distance' } },
-                { id: 'run_in', label: { id: 'Masuk ke api', en: 'Run into the fire' } },
-              ],
-              lessonId: body.lessonId || 'report_30s',
-            },
-        safetyLines: [
-          { id: 'Jangan masuk ke api besar sendirian.', en: 'Do not walk into a large fire alone.' },
-          { id: 'Datang dari sisi datang angin.', en: 'Approach from upwind.' },
-        ],
-      }
-      return response
+      return structuredClone(turn.answer)
     },
     mock: {
       triggerWithdraw() {

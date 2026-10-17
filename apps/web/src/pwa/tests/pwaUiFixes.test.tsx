@@ -151,7 +151,7 @@ describe('guide + practice (#153, #154)', () => {
   it('mock training never creates an observation', async () => {
     const api = createMockApi('uid_dedi', 0)
     const before = api.mock.observations.length
-    const reply = await api.practiceTurn({ message: 'What if the wind changes?' })
+    const reply = await api.askPractice({ message: 'What if the wind changes?', lang: 'en' })
     expect(reply.practice).toBe(true)
     expect(api.mock.observations.length).toBe(before)
     const training = await api.getTraining()

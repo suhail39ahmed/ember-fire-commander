@@ -84,8 +84,9 @@ Incident list and detail responses use `INCIDENT_FIELDS`: `id`, `name`, `area`, 
 | POST | `/incidents/{id}/join` | volunteer | PWA Join now | none | `200` `{ membership, auditId }`. Immediate join; no approval |
 | POST | `/incidents/{id}/en-route` | volunteer | PWA I'm on my way | none | `200` `{ membership, auditId }`. Sets `enRouteAt` once |
 | GET | `/training` | volunteer | PWA Guide | — | `200` training video, lessons, ask chips, safety lines, and progress (§6.12) |
-| POST | `/training/progress` | volunteer | PWA Guide | `{ videoProgressSec?, lessonId?, status?, score? }` | `200` `{ ok: true }` |
-| POST | `/training/practice` | volunteer | PWA Practice | `{ message, lessonId?, optionId? }` | `200` practice reply. Never creates an observation or opens live voice |
+| POST | `/training/progress` | volunteer | PWA Guide | `{ videoProgressSec?, lessonId?, status?, score?, total? }` | `200` `{ ok: true }`, saves one progress field |
+| POST | `/training/practice` | volunteer | PWA Practice | `{ message, lang: "id" or "en", lessonId?, previousTurnId? }` | `200` `{ practice: true, turnId, reply, ruleKey, check, correct: null, safetyLines: [] }`. Calls grounded practice coach; no live incident writes |
+| POST | `/training/practice/{turnId}/answer` | volunteer | PWA Practice | `{ optionId }` | `200` `{ correct, feedback, lessonComplete }`. Grades once; completes the selected lesson after three checks; another volunteer's or expired turn is `404` |
 | POST | `/incidents/{id}/join-requests` | volunteer | PWA | none | `201` `{ joinRequest, auditId }`, or `200` with `auditId: null` for a repeat. `404` unknown, `409` extinguished, already on the incident, or already declined |
 | GET | `/join-requests?status=pending` | supervisor | console | — | `200` `[ { request, incident, volunteerName } ]`, oldest first |
 | POST | `/join-requests/{id}/approve` | supervisor | console | `{ "instruction": string }` max 500 characters | `200` `{ joinRequest, task, auditId }`. Creates an approved `instruct` task and pushes after commit. `409` when not pending |
@@ -136,6 +137,7 @@ Private. Only the `ember-api` and `voice-gateway` service accounts can invoke it
 | POST | `/internal/observations/{id}/triage` | optional `{ callerId }` | `200` `photo_triage` record |
 | POST | `/internal/incidents/{id}/summary` | none | `200` `incident_summaries` record |
 | POST | `/internal/sites/scan` | none | `200` `{ sitesWatched, sitesRemembered, sitesExpired, alertsCreated }` |
+| POST | `/internal/practice` | `{ message, lang, lessonId?, index: 1..3 }` | Grounded localized reply, allowlisted `ruleKey`, question, three options, `correctId` and right/wrong feedback. Private to backend service callers; `503 practice_grounding_unconfigured` when no datastore is configured |
 
 `ember-api` calls intake with a 3 second timeout after storing an observation. A failed call stays in `intakePending` and is retried later, up to 20 attempts. The observation is not refused because agents is down.
 

@@ -63,6 +63,10 @@ resource "google_cloud_run_v2_service" "ember_api" {
         value = "600"
       }
       env {
+        name  = "TRAINING_VIDEO_URL"
+        value = var.training_video_url
+      }
+      env {
         name  = "ALLOWED_ORIGINS"
         value = local.allowed_origins_csv
       }
@@ -252,6 +256,10 @@ resource "google_cloud_run_v2_service" "ember_agents" {
       env {
         name  = "EMBER_FLASH_MODEL"
         value = var.agents_flash_model
+      }
+      env {
+        name  = "VERTEX_SEARCH_DATASTORE"
+        value = var.practice_search_datastore
       }
       env {
         name  = "EMBER_VERTEX_LOCATION"

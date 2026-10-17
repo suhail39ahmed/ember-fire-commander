@@ -22,6 +22,7 @@ locals {
     "recaptchaenterprise.googleapis.com",
     # Gemini via Agent Platform (service-account auth, billed to Cloud Billing).
     "aiplatform.googleapis.com",
+    "discoveryengine.googleapis.com", # Guide practice grounding
     # Needed by Terraform resources in this folder:
     "cloudresourcemanager.googleapis.com",
     "serviceusage.googleapis.com",

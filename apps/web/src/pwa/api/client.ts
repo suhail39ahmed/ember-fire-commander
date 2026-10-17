@@ -6,6 +6,7 @@
  */
 import type { DeclineReason, Digest, DigestOptions, DigestPosition, ErrorBody, FlagRequest, IncidentDetail, IncidentMembership, JoinRequestSummary, Observation, ObservationRequest, PracticeResponse, TrainingPayload, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
 import type { AuthHeadersProvider } from './authHeaders'
+import type { PracticeAnswer } from '../contracts/types'
 import { API_BASE_URL } from './config'
 import { ApiError, type EmberApi } from './types'
 
@@ -114,6 +115,7 @@ export function createHttpApi(
     saveTrainingProgress: async (body) => {
       await request<unknown>(ENDPOINTS.trainingProgress, { method: 'POST', body: JSON.stringify(body) })
     },
-    practiceTurn: (body) => request<PracticeResponse>(ENDPOINTS.practice, { method: 'POST', body: JSON.stringify(body) }),
+    askPractice: (body) => request<PracticeResponse>(ENDPOINTS.practice, { method: 'POST', body: JSON.stringify(body) }),
+    answerPractice: (turnId, optionId) => request<PracticeAnswer>(`${ENDPOINTS.practice}/${encodeURIComponent(turnId)}/answer`, { method: 'POST', body: JSON.stringify({ optionId }) }),
   }
 }

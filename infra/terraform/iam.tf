@@ -28,7 +28,8 @@ locals {
     ]
     "ember-agents" = [
       "roles/datastore.user",
-      "roles/aiplatform.user", # Flash + ADK
+      "roles/discoveryengine.viewer", # Grounded practice coaching
+      "roles/aiplatform.user",        # Flash + ADK
     ]
     "ember-ingest" = [
       "roles/logging.logWriter",

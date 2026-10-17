@@ -61,11 +61,13 @@ describe('http api client', () => {
     const api = createHttpApi(headers, 'https://api.example', fetchImpl as unknown as typeof fetch)
     await expect(api.getTraining()).resolves.toEqual(training)
     await api.saveTrainingProgress({ videoProgressSec: 10 })
-    await api.practiceTurn({ message: 'wind' })
+    await api.askPractice({ message: 'wind', lang: 'en' })
+    await api.answerPractice('turn/one', '2')
     expect(fetchImpl.mock.calls.map((c) => String(c[0]))).toEqual([
       'https://api.example/training',
       'https://api.example/training/progress',
       'https://api.example/training/practice',
+      'https://api.example/training/practice/turn%2Fone/answer',
     ])
   })
 

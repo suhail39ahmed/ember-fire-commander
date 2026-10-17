@@ -1,142 +1,63 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-
-import type { TrainingLesson, TrainingPayload } from '../contracts/types'
+import type { TrainingPayload } from '../contracts/types'
 import { t } from '../i18n'
 import { useLanguage } from '../language'
 import { useVolunteer } from '../layout/volunteerContext'
+import { PracticeComposer } from './PracticeComposer'
+import { TrainingVideo } from './TrainingVideo'
 import { screenStrings } from './strings'
+import './guide.css'
 
-function lessonLabel(lesson: TrainingLesson, lang: 'id' | 'en') {
-  return lesson.title[lang] || lesson.title.en
-}
-
-/** Guide tab (#153): training video metadata, lessons, ask chips → practice. */
 export function GuideScreen() {
   const { lang } = useLanguage()
-  const { api } = useVolunteer()
+  const { api, volunteerId, outbox: { online } } = useVolunteer()
   const navigate = useNavigate()
   const [training, setTraining] = useState<TrainingPayload | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [ask, setAsk] = useState('')
+  const [error, setError] = useState(false)
+  const [attempt, setAttempt] = useState(0)
   const s = screenStrings.guide
-
+  useEffect(() => { window.scrollTo(0, 0) }, [])
   useEffect(() => {
     let cancelled = false
-    void api
-      .getTraining()
-      .then((next) => {
-        if (!cancelled) setTraining(next)
-      })
-      .catch(() => {
-        if (!cancelled) setError(t(lang, s.loadFailed))
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [api, lang, s.loadFailed])
-
-  if (error) {
-    return (
-      <section className="card">
-        <p role="alert">{error}</p>
-      </section>
-    )
-  }
-  if (!training) {
-    return <p className="muted">{t(lang, screenStrings.common.loading)}</p>
-  }
-
-  const video = training.video
-  const progress = Math.min(100, Math.round(((video.progressSec || 0) / Math.max(1, video.durationSec)) * 100))
-
-  return (
-    <section className="guide" data-testid="guide-screen">
-      <h2>{t(lang, s.title)}</h2>
-      <p className="muted">{t(lang, s.subtitle)}</p>
-
-      <div className="card guide-video">
-        <p className="section-label">{t(lang, s.startHere)}</p>
-        <div className="guide-video-frame" aria-hidden="true">
-          <span className="guide-play" />
-        </div>
-        <strong>{video.title[lang] || video.title.en}</strong>
-        <div className="guide-progress" aria-hidden="true">
-          <i style={{ width: `${progress}%` }} />
-        </div>
-        <p className="muted small">
-          {Math.floor((video.progressSec || 0) / 60)}:{String((video.progressSec || 0) % 60).padStart(2, '0')} /{' '}
-          {Math.floor(video.durationSec / 60)}:{String(video.durationSec % 60).padStart(2, '0')}
-        </p>
-        <button
-          type="button"
-          className="btn secondary"
-          onClick={() => void api.saveTrainingProgress({ videoProgressSec: Math.min(video.durationSec, (video.progressSec || 0) + 20) }).then(() => api.getTraining().then(setTraining))}
-        >
-          {t(lang, s.resumeVideo)}
-        </button>
-      </div>
-
-      <div className="list-head">
-        <h3 className="section-label">{t(lang, s.aiTraining)}</h3>
-        <span className="muted small">
-          {training.doneCount} {t(lang, s.of)} {training.lessonCount} {t(lang, s.done)}
-        </span>
-      </div>
-      <ul className="guide-lessons">
-        {training.lessons.map((lesson, index) => (
-          <li key={lesson.id} className={`card guide-lesson status-${lesson.status}`}>
-            <span className="guide-lesson-n" aria-hidden="true">
-              {lesson.status === 'done' ? '✓' : index + 1}
-            </span>
-            <div>
-              <strong>{lessonLabel(lesson, lang)}</strong>
-              <p className="muted small">
-                {lesson.minutes} {t(lang, s.min)} · {lesson.summary[lang] || lesson.summary.en}
-              </p>
-            </div>
-            {lesson.status !== 'done' && (
-              <Link className="btn ink small" to={`/pwa/guide/practice?lesson=${encodeURIComponent(lesson.id)}`}>
-                {t(lang, s.start)}
-              </Link>
-            )}
-          </li>
-        ))}
-      </ul>
-
-      <section className="card">
-        <h3 className="section-label">{t(lang, s.askTitle)}</h3>
-        <p className="muted">{t(lang, s.askBody)}</p>
-        <div className="guide-chips">
-          {training.askChips.map((chip) => (
-            <button
-              key={chip.id}
-              type="button"
-              className="chip"
-              onClick={() => navigate(`/pwa/guide/practice?q=${encodeURIComponent(chip.label[lang] || chip.label.en)}`)}
-            >
-              {chip.label[lang] || chip.label.en}
-            </button>
-          ))}
-        </div>
-        <div className="guide-ask-row">
-          <input
-            className="text-field"
-            value={ask}
-            placeholder={t(lang, s.askPlaceholder)}
-            onChange={(e) => setAsk(e.target.value)}
-          />
-          <button
-            type="button"
-            className="btn ink"
-            disabled={!ask.trim()}
-            onClick={() => navigate(`/pwa/guide/practice?q=${encodeURIComponent(ask.trim())}`)}
-          >
-            {t(lang, s.ask)}
-          </button>
-        </div>
-        <p className="muted small">{t(lang, s.practiceOnly)}</p>
-      </section>
+    setError(false)
+    const key = `ember:training:catalog:${volunteerId}`
+    void api.getTraining().then((next) => {
+      if (cancelled) return
+      setTraining(next)
+      try { localStorage.setItem(key, JSON.stringify(next)) } catch { /* Storage is optional. */ }
+    }).catch(() => {
+      if (cancelled) return
+      try {
+        const cached = JSON.parse(localStorage.getItem(key) || 'null') as TrainingPayload | null
+        if (cached?.video && Array.isArray(cached.lessons) && Array.isArray(cached.askChips)) { setTraining(cached); return }
+      } catch { /* Show the same readable load failure. */ }
+      setError(true)
+    })
+    return () => { cancelled = true }
+  }, [api, volunteerId, attempt])
+  if (error) return <section className="card"><p role="alert">{t(lang, s.loadFailed)}</p><button type="button" className="btn secondary" onClick={() => setAttempt((value) => value + 1)}>{t(lang, s.retry)}</button></section>
+  if (!training) return <p className="muted">{t(lang, screenStrings.common.loading)}</p>
+  const startable = training.lessons.find((lesson) => lesson.status !== 'done')?.id
+  function openPractice(text: string) { if (online) navigate(`/pwa/guide/practice?q=${encodeURIComponent(text)}`) }
+  return <section className="guide" data-testid="guide-screen">
+    <h2>{t(lang, s.title)}</h2>
+    <p className="muted guide-subtitle">{t(lang, s.subtitle)}</p>
+    <TrainingVideo key={`${volunteerId}:${training.video.id}:${training.video.url}`} video={training.video} lang={lang} volunteerId={volunteerId} online={online} save={(videoProgressSec) => api.saveTrainingProgress({ videoProgressSec })} onComplete={() => { if (online) navigate('/pwa/guide/practice?lesson=report_30s') }} />
+    <div className="guide-training-head"><h3>{t(lang, s.aiTraining)}</h3><span className="guide-count">{training.doneCount} {t(lang, s.of)} {training.lessonCount} {t(lang, s.done)}</span></div>
+    <ol className="guide-lessons">
+      {training.lessons.map((lesson, index) => <li key={lesson.id} className={`guide-lesson status-${lesson.status}${lesson.id === startable ? ' is-current' : ''}`}>
+        <span className="guide-lesson-n" aria-hidden="true">{lesson.status === 'done' ? '✓' : index + 1}</span>
+        <div className="guide-lesson-copy"><strong>{t(lang, lesson.title)}</strong><p className="muted small">{lesson.status === 'done' ? `${t(lang, s.lessonDone)} · ${lesson.score ?? 0} ${t(lang, s.ofLower)} ${lesson.total ?? 3} ${t(lang, s.right)}` : `${lesson.minutes} ${t(lang, s.min)} · ${t(lang, lesson.summary)}`}</p></div>
+        {lesson.id === startable && (online ? <Link className="guide-start" to={`/pwa/guide/practice?lesson=${encodeURIComponent(lesson.id)}`}>{t(lang, s.start)}</Link> : <button type="button" className="guide-start" disabled>{t(lang, s.start)}</button>)}
+      </li>)}
+    </ol>
+    <section className="card guide-ask">
+      <h3>{t(lang, s.askTitle)}</h3><p className="muted small">{t(lang, s.askBody)}</p>
+      <div className="guide-chips">{training.askChips.map((chip) => <button key={chip.id} type="button" className="guide-chip" disabled={!online} onClick={() => openPractice(t(lang, chip.label))}>{t(lang, chip.label)}</button>)}</div>
+      <PracticeComposer lang={lang} placeholder={t(lang, s.askPlaceholder)} disabled={!online} onSend={openPractice} />
+      {!online && <p className="muted small" role="status">{t(lang, screenStrings.practice.needsSignal)}</p>}
+      <p className="guide-footnote">{t(lang, s.practiceOnly)}</p>
     </section>
-  )
+  </section>
 }
