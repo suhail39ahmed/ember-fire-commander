@@ -32,7 +32,7 @@ def start_gemini_session(user, ws):
     run_session(user, ws)
 
 
-@app.route("/")
+@app.route("/", websocket=True)
 def gateway():
     """WebSocket upgrade endpoint.
 
