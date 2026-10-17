@@ -43,8 +43,15 @@ describe('probeVoice', () => {
     expect(createSocket).not.toHaveBeenCalled()
   })
 
-  it('is unavailable in a browser, where the socket cannot carry the identity headers', async () => {
+  it('is unavailable in a browser when no getTicket is provided (no ticket, factory returns null)', async () => {
     expect(await probeVoice({ url: 'wss://gw', getAuthHeaders: auth, createSocket: browserSocketFactory })).toBe('unavailable')
+  })
+
+  it('is unavailable when getTicket returns null', async () => {
+    const createSocket = vi.fn()
+    const result = await probeVoice({ url: 'wss://gw', getAuthHeaders: auth, createSocket, getTicket: async () => null })
+    expect(result).toBe('unavailable')
+    expect(createSocket).not.toHaveBeenCalled()
   })
 
   it('is unavailable when the factory throws', async () => {
@@ -54,14 +61,35 @@ describe('probeVoice', () => {
     expect(await probeVoice({ url: 'wss://gw', getAuthHeaders: auth, createSocket })).toBe('unavailable')
   })
 
-  it('is ready when the gateway is reachable, passes both headers, and closes the probe without starting a session', async () => {
+  it('is ready when the gateway is reachable, passes headers and ticket, and closes the probe', async () => {
+    const sock = fakeSocket()
+    const createSocket = vi.fn(() => sock)
+    const getTicket = vi.fn(async () => 'tok_abc')
+    const result = probeVoice({ url: 'wss://gw', getAuthHeaders: auth, createSocket, getTicket })
+    await vi.waitFor(() => expect(sock.onopen).not.toBeNull())
+    sock.onopen?.(new Event('open'))
+    expect(await result).toBe('ready')
+    expect(createSocket).toHaveBeenCalledWith(
+      'wss://gw',
+      { Authorization: 'Bearer id-token', 'X-Firebase-AppCheck': 'app-check' },
+      'tok_abc',
+    )
+    expect(sock.sent).toEqual([])
+    expect(sock.closed).toBe(true)
+  })
+
+  it('is ready without a ticket when no getTicket is provided and the factory accepts it', async () => {
     const sock = fakeSocket()
     const createSocket = vi.fn(() => sock)
     const result = probeVoice({ url: 'wss://gw', getAuthHeaders: auth, createSocket })
     await vi.waitFor(() => expect(sock.onopen).not.toBeNull())
     sock.onopen?.(new Event('open'))
     expect(await result).toBe('ready')
-    expect(createSocket).toHaveBeenCalledWith('wss://gw', { Authorization: 'Bearer id-token', 'X-Firebase-AppCheck': 'app-check' })
+    expect(createSocket).toHaveBeenCalledWith(
+      'wss://gw',
+      { Authorization: 'Bearer id-token', 'X-Firebase-AppCheck': 'app-check' },
+      undefined,
+    )
     expect(sock.sent).toEqual([])
     expect(sock.closed).toBe(true)
   })

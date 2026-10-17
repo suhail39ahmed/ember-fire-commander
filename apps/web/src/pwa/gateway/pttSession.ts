@@ -1,11 +1,17 @@
 /**
  * Push-to-talk session with voice-gateway (contract section 7).
- * - Opens only for a signed-in user. The upgrade must carry the two identity
- *   headers from section 2, so the socket factory receives them.
- * - Sends session.start once the socket is open and session.stop when done.
- * - Closes on session.closed, or about 30 s after the volunteer lets go.
- * Audio capture and framing belong to the gateway workstream; this module
- * only manages the session lifecycle.
+ *
+ * Browser path (PWA): the caller supplies a `getTicket` function that fetches
+ * a short-lived voice ticket from ember-api. The ticket is passed as the
+ * WebSocket subprotocol so the browser can open the socket without setting
+ * auth headers, which the WebSocket API does not support. `browserSocketFactory`
+ * implements this path and requires `getTicket` in `PttDeps`.
+ *
+ * Native path: the socket factory receives the identity headers and can set
+ * them on the upgrade request directly.
+ *
+ * Audio capture and playback belong to the callers (VolunteerProvider); this
+ * module manages the session lifecycle and exposes `sendAudio` and `sendFrame`.
  */
 import type { AuthHeaders, AuthHeadersProvider } from '../api/authHeaders'
 
@@ -24,8 +30,8 @@ export interface SocketLike {
   onerror: ((ev: Event) => void) | null
 }
 
-/** Returns null when this runtime cannot send the identity headers on the upgrade. */
-export type SocketFactory = (url: string, headers: AuthHeaders) => SocketLike | null
+/** Returns null when this runtime cannot open an authenticated socket. */
+export type SocketFactory = (url: string, headers: AuthHeaders, ticket?: string) => SocketLike | null
 
 export interface GatewayMessage {
   type: string
@@ -36,17 +42,22 @@ export interface PttDeps {
   url: string
   getAuthHeaders: AuthHeadersProvider
   createSocket: SocketFactory
+  /** Fetch a short-lived voice ticket from ember-api for the browser WebSocket path. */
+  getTicket?: () => Promise<string | null>
   onState: (s: SessionState) => void
   onMessage?: (msg: GatewayMessage) => void
   timeoutMs?: number
 }
 
 /**
- * The browser WebSocket API cannot set request headers, so it cannot meet the
- * section 2 handshake. Until the contract defines a browser-compatible
- * handshake, the PWA reports voice as unavailable and the quick report is used.
+ * Browser socket factory for the PWA. Opens the WebSocket with the voice ticket
+ * as the subprotocol (§7 browser handshake). Returns null when no ticket was
+ * provided (voice unavailable path for probing before the first press).
  */
-export const browserSocketFactory: SocketFactory = () => null
+export const browserSocketFactory: SocketFactory = (url, _headers, ticket) => {
+  if (!ticket) return null
+  return new WebSocket(url, [ticket]) as unknown as SocketLike
+}
 
 export class PttSession {
   private socket: SocketLike | null = null
@@ -73,7 +84,13 @@ export class PttSession {
     if (!this.deps.url) return 'no_gateway'
     const headers = await this.deps.getAuthHeaders()
     if (!headers) return 'signed_out'
-    const ws = this.deps.createSocket(this.deps.url, headers)
+    let ticket: string | undefined
+    if (this.deps.getTicket) {
+      const t = await this.deps.getTicket()
+      if (!t) return 'no_gateway'
+      ticket = t
+    }
+    const ws = this.deps.createSocket(this.deps.url, headers, ticket)
     if (!ws) return 'unsupported'
     this.socket = ws
     this.set('connecting')
@@ -84,6 +101,22 @@ export class PttSession {
       if (this.socket === ws) this.close(this.state === 'idle' ? 'idle' : 'lost')
     }
     return 'opened'
+  }
+
+  /** Send a base64 PCM audio frame to the gateway while the session is live. */
+  sendAudio(base64: string): void {
+    if (this.state === 'live' || this.state === 'connecting') {
+      this.sendJson({ type: 'audio', data: base64 })
+    }
+  }
+
+  /** Send a base64 JPEG camera frame to the gateway. */
+  sendFrame(base64: string, capturedAt?: string): void {
+    if (this.state === 'live' || this.state === 'connecting') {
+      const msg: GatewayMessage = { type: 'frame', data: base64 }
+      if (capturedAt) msg.capturedAt = capturedAt
+      this.sendJson(msg)
+    }
   }
 
   /** The volunteer let go: wait for the reply, then stop after the timeout. */

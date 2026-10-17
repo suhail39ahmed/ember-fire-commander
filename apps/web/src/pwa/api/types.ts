@@ -51,4 +51,6 @@ export interface EmberApi {
   /** POST /training/practice: practice chat that cannot create observations (#154). */
   askPractice(body: PracticeRequest): Promise<PracticeResponse>
   answerPractice(turnId: string, optionId: string): Promise<PracticeAnswer>
+  /** POST /voice/ticket: issue a 60-second single-use ticket for the browser WebSocket handshake (§7, §6.14). */
+  requestVoiceTicket(): Promise<{ ticket: string; expiresAt: string }>
 }

@@ -2,8 +2,13 @@
  * Is push-to-talk usable right now? Answered once on load so the Hold to talk
  * button shows its real state before the first press (#74).
  *
- * The probe only opens the socket and waits for it to open. It never sends
+ * The probe opens the socket and waits for it to open. It never sends
  * session.start, and it always closes the socket again.
+ *
+ * Browser path: `getTicket` fetches a short-lived voice ticket from ember-api.
+ * The probe passes the ticket to `createSocket` (which opens the WebSocket with
+ * the ticket as the subprotocol). When `getTicket` is not provided or the
+ * factory returns null without a ticket, the result is 'unavailable'.
  */
 import type { AuthHeadersProvider } from '../api/authHeaders'
 import type { SocketFactory } from './pttSession'
@@ -16,6 +21,8 @@ export interface VoiceProbeDeps {
   url: string
   getAuthHeaders: AuthHeadersProvider
   createSocket: SocketFactory
+  /** Fetch a voice ticket for the browser WebSocket path (§7). */
+  getTicket?: () => Promise<string | null>
   timeoutMs?: number
 }
 
@@ -29,9 +36,16 @@ export async function probeVoice(deps: VoiceProbeDeps): Promise<Exclude<VoiceAva
   const headers = await deps.getAuthHeaders()
   if (!headers) return 'signed_out'
 
+  let ticket: string | undefined
+  if (deps.getTicket) {
+    const t = await deps.getTicket()
+    if (!t) return 'unavailable'
+    ticket = t
+  }
+
   let ws: ReturnType<SocketFactory>
   try {
-    ws = deps.createSocket(deps.url, headers)
+    ws = deps.createSocket(deps.url, headers, ticket)
   } catch {
     return 'unavailable'
   }

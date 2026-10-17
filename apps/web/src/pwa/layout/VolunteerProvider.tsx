@@ -9,6 +9,8 @@ import { reportAuthFailures } from '../api/reportAuthFailures'
 import type { EmberApi } from '../api/types'
 import { recordDigestClock } from '../clock'
 import type { CoachState } from './volunteerContext'
+import { AudioPlayer } from '../gateway/audioPlayer'
+import { MicCapture } from '../gateway/micCapture'
 import { browserSocketFactory, PttSession, type SessionState } from '../gateway/pttSession'
 import { coachReceiptOf, coachTextOf, transcriptOf } from '../gateway/transcript'
 import { useVoiceAvailability } from '../gateway/useVoiceAvailability'
@@ -69,18 +71,62 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
   useWithdrawUpdates(user, refresh, apiOverride === undefined)
   usePushRegistration(user, perms.notifications, refresh)
 
+  const getTicket = useMemo<(() => Promise<string | null>) | undefined>(
+    () =>
+      GATEWAY_WSS_URL
+        ? async () => {
+            try {
+              const { ticket } = await baseApi.requestVoiceTicket()
+              return ticket
+            } catch {
+              return null
+            }
+          }
+        : undefined,
+    [baseApi],
+  )
+
+  const mic = useMemo(
+    () =>
+      new MicCapture({
+        onAudio: (b64) => pttRef.current?.sendAudio(b64),
+        onError: (err) => void err, // non-fatal; the session can continue without audio
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
+  const player = useMemo(() => new AudioPlayer(), [])
+  useEffect(
+    () => () => {
+      mic.stop()
+      player.close()
+    },
+    [mic, player],
+  )
+
   const ptt = useMemo(
     () =>
       new PttSession({
         url: GATEWAY_WSS_URL,
         getAuthHeaders,
         createSocket: browserSocketFactory,
-        onState: setSession,
+        getTicket,
+        onState: (s) => {
+          setSession(s)
+          if (s === 'live') {
+            void mic.start()
+          } else if (s === 'idle' || s === 'lost') {
+            mic.stop()
+          }
+        },
         onMessage: (msg) => {
           const line = transcriptOf(msg)
           if (line) {
             transcriptRef.current = line
             setTranscript(line)
+          }
+          if (msg.type === 'audio' && typeof msg.data === 'string') {
+            player.play(msg.data)
           }
           const reply = coachTextOf(msg)
           if (reply) {
@@ -95,10 +141,14 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
           }
         },
       }),
-    [getAuthHeaders],
+    [getAuthHeaders, getTicket, mic, player],
   )
+  const pttRef = useRef<PttSession>(ptt)
+  useEffect(() => {
+    pttRef.current = ptt
+  }, [ptt])
   useEffect(() => () => ptt.close(), [ptt])
-  const voice = useVoiceAvailability({ url: GATEWAY_WSS_URL, getAuthHeaders, createSocket: browserSocketFactory })
+  const voice = useVoiceAvailability({ url: GATEWAY_WSS_URL, getAuthHeaders, createSocket: browserSocketFactory, getTicket })
   const pressed = useRef(false)
 
   const onPress = async () => {
@@ -116,6 +166,7 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
   }
   const onRelease = () => {
     pressed.current = false
+    mic.stop()
     if (ptt.isOpen) ptt.release()
   }
 

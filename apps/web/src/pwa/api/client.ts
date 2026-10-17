@@ -12,6 +12,7 @@ import { ApiError, type EmberApi } from './types'
 
 export const ENDPOINTS = {
   me: '/me',
+  voiceTicket: '/voice/ticket',
   digest: '/digest',
   // About 1 m of precision is plenty for "how far is that fire", and keeps the URL free of exponent forms.
   digestAt: (position: DigestPosition) => `/digest?lat=${position.lat.toFixed(5)}&lng=${position.lng.toFixed(5)}`,
@@ -120,5 +121,6 @@ export function createHttpApi(
     },
     askPractice: (body) => request<PracticeResponse>(ENDPOINTS.practice, { method: 'POST', body: JSON.stringify(body) }),
     answerPractice: (turnId, optionId) => request<PracticeAnswer>(`${ENDPOINTS.practice}/${encodeURIComponent(turnId)}/answer`, { method: 'POST', body: JSON.stringify({ optionId }) }),
+    requestVoiceTicket: () => request<{ ticket: string; expiresAt: string }>(ENDPOINTS.voiceTicket, { method: 'POST' }),
   }
 }
