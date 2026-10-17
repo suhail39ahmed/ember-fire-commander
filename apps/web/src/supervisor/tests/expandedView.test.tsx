@@ -294,16 +294,19 @@ describe('expanded view: right pane — Ask EMBER', () => {
       expect(html).not.toContain(expandedCopy.chatNote.en)
     })
 
-    it('sizes the thread by its content and scrolls it when it overflows', () => {
+    it('keeps the thread a white card at least 40vh tall that grows and scrolls inside', () => {
       const rule = css.match(/\.exp-thread \{[^}]*\}/)?.[0] ?? ''
-      expect(rule).toMatch(/flex:\s*1 1 auto/)
       expect(rule).toMatch(/min-height:\s*0/)
       expect(rule).toMatch(/overflow-y:\s*auto/)
-      expect(rule).toMatch(/border:\s*1px solid/)
+      expect(rule).toMatch(/padding:\s*14px 14px/)
+      expect(rule).toMatch(/background:\s*#fff/)
       expect(rule).toMatch(/border-radius:\s*12px/)
       const zone = css.match(/\.exp-thread-zone \{[^}]*\}/)?.[0] ?? ''
-      expect(zone).toMatch(/flex:\s*0 1 auto/)
-      expect(zone).toMatch(/max-height:\s*42vh/)
+      expect(zone).toMatch(/flex:\s*1 1 0/)
+      expect(zone).toMatch(/min-height:\s*40vh/)
+      const empty = css.match(/\.exp-thread-empty \{[^}]*\}/)?.[0] ?? ''
+      expect(empty).toMatch(/background:\s*#fff/)
+      expect(empty).toMatch(/border-radius:\s*12px/)
     })
   })
 
