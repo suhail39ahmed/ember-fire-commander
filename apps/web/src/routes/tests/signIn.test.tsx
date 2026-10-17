@@ -48,15 +48,15 @@ describe('sign-in button', () => {
     expect(html).not.toMatch(/<button[^>]*disabled/)
   })
 
-  it('shows the designed default copy and the create-account link', () => {
+  it('shows the designed default copy without a pre-auth create-account link', () => {
     state.status = 'signed-out'
     state.message = null
     const html = render()
     expect(html).toContain('VOLUNTEER APP · RELAWAN')
     expect(html).toContain('Report fires by voice, camera or one tap. Your supervisor sees it and sends help.')
-    expect(html).toContain('NEW TO EMBER?')
-    expect(html).toContain('Create a volunteer account')
-    expect(html).toContain('href="/pwa/create-account"')
+    expect(html).not.toContain('NEW TO EMBER?')
+    expect(html).not.toContain('Create a volunteer account')
+    expect(html).not.toContain('href="/pwa/create-account"')
     expect(html).toContain('aria-haspopup="menu"')
     expect(html).toContain('aria-label="Language: English"')
     expect(html).toContain('>EN</span>')

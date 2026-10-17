@@ -25,7 +25,7 @@ export async function uploadPhoto(
  * `capturedAt` is when the photo was taken, not when it finished uploading.
  * The client never sends id or severity; ember-api sets both.
  */
-export function buildPhotoObservation(photoPath: string, capturedAt: string, pos: Position, note = '', device?: ObservationDevice): PhotoObservationCreate {
+export function buildPhotoObservation(photoPath: string, capturedAt: string, pos: Position, note = '', device?: ObservationDevice, taskId?: string): PhotoObservationCreate {
   const text = note.trim()
   return {
     source: 'photo',
@@ -37,5 +37,6 @@ export function buildPhotoObservation(photoPath: string, capturedAt: string, pos
     text: text ? text : null,
     photoPath,
     ...(device ? { device } : {}),
+    ...(taskId ? { taskId } : {}),
   }
 }

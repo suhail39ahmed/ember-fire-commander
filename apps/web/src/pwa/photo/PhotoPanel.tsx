@@ -41,6 +41,7 @@ interface Props {
   submit?: (body: PhotoObservationCreate) => Promise<'sent' | 'queued'>
   /** Keeps a photo whose upload failed on weak signal; the outbox uploads it later (#21). */
   queuePhoto?: (photo: PendingPhoto) => Promise<void>
+  taskId?: string
 }
 
 function describe(e: unknown, lang: Lang): { message: string; retryable: boolean } {
@@ -54,7 +55,7 @@ function describe(e: unknown, lang: Lang): { message: string; retryable: boolean
 }
 
 /** #20: take one still, upload it to a signed URL, then send `source: photo`. */
-export function PhotoPanel({ api, upload, lang, getPosition, submit, queuePhoto }: Props) {
+export function PhotoPanel({ api, upload, lang, getPosition, submit, queuePhoto, taskId }: Props) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const deviceFacts = useDeviceFacts(lang)
   const [shot, setShot] = useState<Shot | null>(null)
@@ -86,7 +87,7 @@ export function PhotoPanel({ api, upload, lang, getPosition, submit, queuePhoto 
       }
       // source: photo is sent only after the upload succeeded.
       setStatus({ kind: 'submitting' })
-      const body = buildPhotoObservation(photoPath, current.capturedAt, current.pos, '', deviceFacts())
+      const body = buildPhotoObservation(photoPath, current.capturedAt, current.pos, '', deviceFacts(), taskId)
       const result = submit ? await submit(body) : (await api.createObservation(body), 'sent')
       setStatus(result === 'queued' ? { kind: 'queued', uploaded: true } : { kind: 'done' })
     } catch (e) {

@@ -375,6 +375,9 @@ def fuse(observation, state, new_id, now, wind_kmh=None, settings=None, leads=No
 
     conflict_open = bool(conflict and conflict.get("status") == "open")
     lead = nearest_lead(leads, incident["lat"], incident["lng"], now, settings)
+    if lead and isinstance(lead.get("id"), str):
+        # Internal attribution only. The API never returns this lead id to clients.
+        incident["satelliteLeadId"] = lead["id"]
     incident["evidenceScore"], incident["evidenceFactors"] = evidence(members, conflict_open, wind_kmh=wind_kmh, lead=lead)
     plan.incident = incident
     return plan

@@ -7,6 +7,7 @@ import { useLanguage } from '../pwa/language'
 import { AuthShell } from './AuthShell'
 import { copy, fill } from './copy'
 import { SignInScreen } from './SignInScreen'
+import { VolunteerCreateAccountScreen } from './VolunteerCreateAccountScreen'
 import {
   VolunteerAccountCheckFailed,
   VolunteerDeviceNotVerified,
@@ -70,6 +71,9 @@ export function RequireRole({ role, children }: { role: Me['role']; children: Re
   }
   if (me.role !== role) {
     return <VolunteerWrongRole me={me} />
+  }
+  if (volunteer && me.onboardingComplete === false) {
+    return <VolunteerCreateAccountScreen />
   }
   return children
 }

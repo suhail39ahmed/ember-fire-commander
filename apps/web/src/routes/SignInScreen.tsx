@@ -1,10 +1,8 @@
-import { Link } from 'react-router-dom'
-
 import { t } from '../pwa/i18n'
 import { useLanguage } from '../pwa/language'
 import { AuthShell } from './AuthShell'
 import { copy, signInErrorText } from './copy'
-import { CREATE_ACCOUNT_PATH, type Audience } from './paths'
+import { type Audience } from './paths'
 import { useSignIn } from './useSignIn'
 import { SignInAlert, VolunteerAuthShell } from './VolunteerAuthShell'
 
@@ -28,14 +26,7 @@ export function VolunteerSignIn() {
       <p className="vauth-tagline">{t(lang, copy.volunteer.tagline)}</p>
       {message && !busy ? <SignInAlert message={message} /> : null}
       <GoogleButton busy={busy} retry={Boolean(message)} onClick={onGoogle} />
-      {busy ? (
-        <p className="vauth-sr" role="status">{t(lang, copy.signIn.waiting)}</p>
-      ) : message ? null : (
-        <>
-          <div className="vauth-divider">{t(lang, copy.volunteer.newToEmber)}</div>
-          <Link className="vauth-secondary" to={CREATE_ACCOUNT_PATH}>{t(lang, copy.volunteer.createAccount)}</Link>
-        </>
-      )}
+      {busy ? <p className="vauth-sr" role="status">{t(lang, copy.signIn.waiting)}</p> : null}
     </VolunteerAuthShell>
   )
 }

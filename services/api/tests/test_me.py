@@ -46,7 +46,8 @@ def test_me_returns_volunteer(client, monkeypatch):
     body = response.get_json()
     assert response.status_code == 200
     assert body == {"id": "uid_sari", "displayName": "Sari", "role": "volunteer", "crewName": None,
-                    "roleLabel": None, "supervisorName": None, "phoneMasked": None,
+                    "area": None, "roleLabel": None, "supervisorName": None, "phoneMasked": None,
+                    "onboardingComplete": False,
                     "trainingDone": None, "trainingTotal": None, "language": None,
                     "shareMyLocationWithCrew": True, "demoMode": False}
 
@@ -113,6 +114,35 @@ def test_me_returns_the_crew_from_the_volunteer_profile(client, monkeypatch):
     monkeypatch.setattr(volunteer_routes, "read_profile", lambda uid: {"crewName": "  Regu Tohor "})
     body = client.get("/me", headers={"Authorization": "Bearer valid"}).get_json()
     assert body["crewName"] == "Regu Tohor"
+
+
+def test_me_treats_a_legacy_profile_with_phone_and_crew_as_complete(client, monkeypatch, profiles):
+    monkeypatch.setattr(identity, "verify_id_token", lambda token: _claims())
+    profiles.add("volunteers", "uid_sari", {"phone": "+6281299994417", "crewName": "Regu Tohor"})
+    body = client.get("/me", headers={"Authorization": "Bearer valid"}).get_json()
+    assert body["onboardingComplete"] is True
+    assert body["area"] is None
+
+
+def test_patch_me_saves_first_run_profile_and_masks_phone(client, monkeypatch, profiles):
+    monkeypatch.setattr(identity, "verify_id_token", lambda token: _claims())
+    response = client.patch("/me", headers={"Authorization": "Bearer valid"}, json={
+        "displayName": "  Dedi Saputra ",
+        "phone": "+6281234564417",
+        "area": "  Desa Tohor ",
+        "crewName": "  Crew A ",
+        "language": "id",
+        "onboardingComplete": True,
+    })
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["displayName"] == "Dedi Saputra"
+    assert body["area"] == "Desa Tohor"
+    assert body["crewName"] == "Crew A"
+    assert body["phoneMasked"] == "•••• 4417"
+    assert body["onboardingComplete"] is True
+    assert "phone" not in body
+    assert profiles.data["volunteers"]["uid_sari"]["phone"] == "+6281234564417"
 
 
 def test_me_keeps_working_when_the_profile_read_fails(client, monkeypatch):
@@ -187,6 +217,8 @@ def test_patch_me_creates_a_missing_profile(client, monkeypatch, profiles):
 
 @pytest.mark.parametrize("body", [{}, [], {"role": "supervisor"}, {"demoMode": True}, {"id": "other"},
     {"phone": "1234"}, {"language": None}, {"language": "xx"}, {"language": ["en"]},
+    {"phone": "+0123456789"}, {"area": " "}, {"crewName": " "},
+    {"onboardingComplete": True}, {"onboardingComplete": "yes"},
     {"shareMyLocationWithCrew": "false"}, {"shareMyLocationWithCrew": 0}])
 def test_patch_me_rejects_invalid_and_readonly_fields(client, monkeypatch, profiles, body):
     monkeypatch.setattr(identity, "verify_id_token", lambda token: _claims())

@@ -27,6 +27,7 @@ interface Props {
   onLocationGranted?: (callback: () => void) => () => void
   /** Pre-select a chip from the task card ("Not a fire" → aman). `n` changes on each request. */
   preset?: { chip: ChipValue | null; n: number }
+  taskId?: string
   /** Sends through the offline outbox (#21). Without it the report goes straight to POST /observations. */
   submit?: (body: ObservationCreate) => Promise<'sent' | 'queued'>
   /** Whose draft this is. Without it nothing is kept between visits. */
@@ -39,7 +40,7 @@ const signatureOf = (chip: ChipValue | null, text: string) => `${chip ?? ''}|${t
 const EMPTY_SIGNATURE = signatureOf(null, '')
 
 /** #17: chip and text report. Works without Live voice. */
-export function ReportPanel({ api, lang, locate, onLocationGranted, preset, submit, volunteerId = null, onDone }: Props) {
+export function ReportPanel({ api, lang, locate, onLocationGranted, preset, taskId, submit, volunteerId = null, onDone }: Props) {
   // A draft left by this volunteer within the last hour comes back after a reload or a closed app (#160).
   const [restored] = useState(() => (volunteerId ? loadDraft(volunteerId) : null))
   const [chip, setChip] = useState<ChipValue | null>(restored?.chip ?? null)
@@ -121,8 +122,8 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, subm
     pending.current ??= { capturedAt }
     const outcome = await sendReport(draft, {
       locate,
-      submit,
-      create: (body) => api.createObservation(body),
+      submit: submit ? (body) => submit(taskId ? { ...body, taskId } : body) : undefined,
+      create: (body) => api.createObservation(taskId ? { ...body, taskId } : body),
       onPhase: (phase) => setStatus({ kind: phase }),
       onPosition: (pos) => {
         accuracy.current = pos.accuracyM

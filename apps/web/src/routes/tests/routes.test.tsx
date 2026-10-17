@@ -8,7 +8,7 @@ import { homeFor } from '../paths'
 
 type Auth = {
   status: 'loading' | 'signed-out' | 'ready' | 'no-access' | 'error' | 'session-expired' | 'device-unverified'
-  me: { id: string; displayName: string; role: 'volunteer' | 'supervisor' } | null
+  me: { id: string; displayName: string; role: 'volunteer' | 'supervisor'; onboardingComplete?: boolean } | null
   message: string | null
   user: { email: string | null } | null
   signIn: () => Promise<void>
@@ -167,6 +167,17 @@ describe('signed-in pages', () => {
   it('renders the volunteer app for a volunteer at /pwa', async () => {
     state.auth = signedOut({ status: 'ready', me: volunteer })
     expect(await renderSettled('/pwa')).toContain('volunteer app screen')
+  })
+
+  it('keeps the volunteer app behind account setup while the profile is incomplete', async () => {
+    state.auth = signedOut({ status: 'ready', me: { ...volunteer, onboardingComplete: false } })
+    const html = await renderSettled('/pwa/task/task_1')
+    expect(html).toContain('Join your village fire crew')
+    expect(html).toContain('name="displayName"')
+    expect(html).toContain('name="phone"')
+    expect(html).toContain('name="area"')
+    expect(html).toContain('name="crewName"')
+    expect(html).not.toContain('volunteer app screen')
   })
 
   it('renders the console for a supervisor at /console', async () => {

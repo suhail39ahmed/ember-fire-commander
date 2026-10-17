@@ -7,6 +7,9 @@ export interface Me {
   id: string
   displayName: string
   role: 'volunteer' | 'supervisor'
+  /** Whether the volunteer has saved the first-run account details. */
+  onboardingComplete?: boolean
+  area?: string | null
   /** The volunteer's crew, from GET /me. Absent or null when no crew is set. */
   crewName?: string | null
   roleLabel?: string | null
@@ -19,7 +22,15 @@ export interface Me {
   demoMode?: boolean
 }
 
-export type MePatch = { language?: 'id' | 'en' | 'jv' | 'su' | 'ms'; shareMyLocationWithCrew?: boolean }
+export type MePatch = {
+  displayName?: string
+  phone?: string
+  area?: string
+  crewName?: string
+  onboardingComplete?: boolean
+  language?: 'id' | 'en' | 'jv' | 'su' | 'ms'
+  shareMyLocationWithCrew?: boolean
+}
 
 export interface MeFailure {
   status: number

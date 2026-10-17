@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from flask import Blueprint, g, jsonify, request
 
 from assist import background as assist_background
+from incidents import store as incident_store
 from observations.notify import notify_observation, resend_pending
 from observations.photo import check_photo_path
 from observations.store import assemble_record, get_store, utc_now_iso
@@ -47,7 +48,23 @@ def create_observation():
     if prepared["source"] == "photo":
         check_photo_path(g.user["id"], prepared["photoPath"])
 
+    task_id = body.get("taskId") if isinstance(body, dict) else None
+    if task_id is not None:
+        if not isinstance(task_id, str) or not task_id.strip():
+            return jsonify({"error": {"code": "validation_error", "message": "taskId must be a task id", "fields": {"taskId": "required task id"}}}), 400
+        task_snapshot = incident_store.db().collection(incident_store.TASKS).document(task_id).get()
+        task = task_snapshot.to_dict() if task_snapshot.exists else None
+        if (
+            not task
+            or task.get("volunteerId") != g.user["id"]
+            or task.get("type") != "verify"
+        ):
+            return jsonify({"error": {"code": "validation_error", "message": "taskId must name your verify task", "fields": {"taskId": "invalid for this report"}}}), 400
+        prepared["taskId"] = task_id
+
     record = assemble_record(prepared, g.user["id"], utc_now_iso(), g.user.get("displayName"))
+    if prepared.get("taskId"):
+        record["checkTaskId"] = prepared["taskId"]
     store = get_store()
     stored, created = store.create(record)
     if not created:
@@ -61,6 +78,7 @@ def create_observation():
 
 def _with_join(store, record):
     """The stored report, plus `join` when agents has already placed it. A failed read only leaves `join` out."""
+    record = {key: value for key, value in record.items() if key != "checkTaskId"}
     try:
         join = store.get_join(record["id"])
     except Exception:

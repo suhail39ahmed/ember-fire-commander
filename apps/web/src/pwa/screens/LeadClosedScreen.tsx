@@ -50,7 +50,7 @@ export function LeadClosedScreen({
           )}
         </ul>
       )}
-      <Link className="btn secondary" to="/pwa" onClick={onDismiss} data-testid="lead-closed-back">
+      <Link className="btn secondary" to="/pwa/incidents" onClick={onDismiss} data-testid="lead-closed-back">
         {t(lang, s.back)}
       </Link>
     </section>
