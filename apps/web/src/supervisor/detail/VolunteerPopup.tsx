@@ -7,12 +7,12 @@ import type { IncidentDetail, PhotoUrl, TaskDecision } from '../contracts'
 import { severityName, taskCopy } from './copy'
 import { DeliveryLine } from './DeliveryLine'
 import { factorName } from './disagreeCopy'
-import { instructionCopy, photoCopy, profileCopy, suggestCopy } from './instructionCopy'
+import { instructionCopy, photoCopy, profileCopy, suggestCopy, visionCopy } from './instructionCopy'
 import { instructionProblem, sendBlock, submitInstruction, type InstructionResult } from './instructionModel'
 import { SnapshotImage } from './SnapshotImage'
 import { INSTRUCTION_MAX } from './withdrawModel'
 import { Modal } from './Modal'
-import { popupFor, type Popup } from './popupModel'
+import { answerLine, batteryText, languageText, networkText, popupFor, visionLine, type Popup } from './popupModel'
 import { popupCopy, popupNeeds } from './popupCopy'
 import './popup.css'
 
@@ -87,10 +87,16 @@ function Snapshots({ lang, popup, incidentId, photoUrl }: { lang: Lang; popup: P
             <li key={o.id} className="pop-snap">
               <SnapshotImage lang={lang} observationId={o.id} load={(observationId) => photoUrl(incidentId, observationId)} />
               <span>{formatTimeZone(o.capturedAt)} · {popup.profile.name}</span>
+              {visionLine(lang, popup.photoReads[o.id]) && (
+                <p className="pop-line-text pop-vision">
+                  <b>{t(lang, visionCopy.title)}</b> · {visionLine(lang, popup.photoReads[o.id])}
+                </p>
+              )}
             </li>
           ))}
         </ul>
       )}
+      {popup.photos.some((o) => visionLine(lang, popup.photoReads[o.id])) && <p className="pop-gap">{t(lang, visionCopy.note)}</p>}
       <p className="pop-gap">{t(lang, photoCopy.note)}</p>
     </Region>
   )
@@ -108,6 +114,7 @@ function Sent({ lang, popup, now, onResend }: { lang: Lang; popup: Popup; now: n
               <p className="pop-line-meta">{t(lang, taskCopy.type[task.type])}{task.sentAt && ` · ${formatTimeZone(task.sentAt)}`}</p>
               <p className="pop-line-text">{task.instruction ?? '—'}</p>
               <DeliveryLine lang={lang} task={task} now={now} onResend={onResend} />
+              {answerLine(lang, task, formatTimeZone) && <p className="pop-line-meta pop-answer">{answerLine(lang, task, formatTimeZone)}</p>}
             </li>
           ))}
         </ul>
@@ -120,16 +127,17 @@ function Profile({ lang, popup }: { lang: Lang; popup: Popup }) {
   const p = popup.profile
   const none = '—'
   const rows: Array<[string, string]> = [
-    [t(lang, popupCopy.role), none],
+    [t(lang, popupCopy.role), p.role ?? none],
+    [t(lang, profileCopy.crew), p.crew ?? none],
     [t(lang, popupCopy.incident), p.incidentName ?? '—'],
     [t(lang, popupCopy.position), p.position ? `${p.position}${p.accuracyM !== null ? ` · ±${p.accuracyM} m` : ''}` : none],
     [t(lang, popupCopy.distance), p.distance ?? none],
     [t(lang, popupCopy.firstReport), p.firstReportAt ? formatTimeZone(p.firstReportAt) : none],
     [t(lang, popupCopy.lastReport), p.lastReportAt ? formatTimeZone(p.lastReportAt) : none],
     [t(lang, popupCopy.reports), String(p.reportCount)],
-    [t(lang, popupCopy.network), none],
-    [t(lang, popupCopy.battery), none],
-    [t(lang, popupCopy.language), none],
+    [t(lang, popupCopy.network), networkText(p) ?? none],
+    [t(lang, popupCopy.battery), batteryText(p.device) ?? none],
+    [t(lang, popupCopy.language), languageText(lang, p.device) ?? none],
     [t(lang, popupCopy.lastHeard), p.lastHeardAt ? formatTimeZone(p.lastHeardAt) : none],
     [t(lang, profileCopy.device), p.pushReady === null ? none : t(lang, p.pushReady ? profileCopy.deviceYes : profileCopy.deviceNo)],
   ]
@@ -138,7 +146,10 @@ function Profile({ lang, popup }: { lang: Lang; popup: Popup }) {
       <dl className="pop-profile">
         {rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
       </dl>
-      <p className="pop-gap">{t(lang, profileCopy.gap)}</p>
+      <p className="pop-gap">
+        {p.device && p.device.at ? `${t(lang, profileCopy.deviceNote)} ${formatTimeZone(p.device.at)}` : t(lang, profileCopy.deviceNone)}
+        {p.role === null && ` ${t(lang, profileCopy.roleNone)}`}
+      </p>
     </Region>
   )
 }

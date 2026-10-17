@@ -10,7 +10,7 @@ import { stateCopy } from './withdrawStateCopy'
 import { popupCopy } from './popupCopy'
 import { liveCopy } from './liveCopy'
 import { DeliveryLine } from './DeliveryLine'
-import { deliveryFacts, distanceLine, placeLine, safeStamp } from './cardModel'
+import { deliveryFacts, distanceLine, placeLine, profileLine, safeStamp } from './cardModel'
 import { helpCopy } from './helpCopy'
 import { HELP_CHIP } from './helpModel'
 import { initialsOf, volunteerLabel, type VolunteerRow } from './model'
@@ -59,6 +59,7 @@ export function VolunteerCard({
   const { latest, task, card } = row
   const away = distanceLine(lang, card)
   const place = placeLine(card)
+  const profile = profileLine(card)
   const needsHelp = latest?.chip === HELP_CHIP
   const stamp = safeStamp(lang, card)
   const facts = deliveryFacts(lang, card)
@@ -85,6 +86,7 @@ export function VolunteerCard({
         <div className="inc-vol-id">
           <p className="inc-vol-name">{name}</p>
           <p className="inc-muted">{reportLine(lang, row)}</p>
+          {profile && <p className="inc-muted inc-vol-profile">{profile}</p>}
           {live && (
             <p className="inc-muted">
               {live.signal.toUpperCase()}

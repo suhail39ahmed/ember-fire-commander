@@ -179,3 +179,4 @@
 .inc-help-line { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .inc-help-text { font-style: italic; }
 .inc-vol.help, .rep.help { border-color: var(--danger); box-shadow: 0 0 0 2px #fde2e2; }
+.inc-meta { margin: 4px 0 0; }

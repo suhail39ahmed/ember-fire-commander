@@ -29,6 +29,7 @@ export const timelineCopy = {
   supervisor: { id: 'Supervisor', en: 'Supervisor' },
   action: {
     'observation.create': { id: 'laporan diterima', en: 'report received' },
+    'conflict.open': { id: 'membuka perbedaan laporan, dispatch ditahan', en: 'opened a disagreement, dispatch held' },
     'task.approve': { id: 'menyetujui instruksi', en: 'approved an instruction' },
     'task.reject': { id: 'menolak instruksi', en: 'rejected an instruction' },
     'task.edit': { id: 'mengubah instruksi', en: 'edited an instruction' },

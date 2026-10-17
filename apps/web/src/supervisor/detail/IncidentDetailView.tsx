@@ -22,6 +22,8 @@ import { LowerSeverityDialog } from './LowerSeverityDialog'
 import { disagreeCopy, factorName } from './disagreeCopy'
 import { AgencyInCharge } from './AgencyInCharge'
 import { ConflictExtras } from './ConflictExtras'
+import { conditionsCopy } from './conditionsCopy'
+import { airNote, airValue, weatherNote, windValue } from './conditionsModel'
 import { helpRequests } from './helpModel'
 import { NeedHelpBanner } from './NeedHelpBanner'
 import { ProposalRow } from './ProposalRow'
@@ -194,6 +196,11 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
   const reporters = detail.volunteers ? detail.volunteers.filter((c) => c.reportCount > 0).length : new Set(detail.observations.map((o) => o.volunteerId)).size
   const summary = summaryText(lang, detail.summary)
   const help = helpRequests(detail, lang)
+  // Conditions are shown only for the parts the API has stored. They are not measured at the incident.
+  const weather = detail.conditions?.weather ?? null
+  const air = detail.conditions?.air ?? null
+  const windText = weather ? windValue(lang, weather) : null
+  const airText = air ? airValue(lang, air) : null
   return (
     <>
       <header className="inc-head">
@@ -207,10 +214,17 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           )}
           {incident.status === 'held' && <span className="inc-pill inc-pill-amber">{t(lang, detailCopy.holdPill)}</span>}
           <span className={offline ? 'inc-pill inc-pill-red' : 'inc-pill inc-pill-quiet'}>
-            {offline ? t(lang, detailCopy.lastKnown) : `${volunteers.length} ${t(lang, detailCopy.onSite)}`}
+            {offline ? t(lang, detailCopy.lastKnown) : `${detail.header?.peopleOnSite ?? volunteers.length} ${t(lang, detailCopy.onSite)}`}
           </span>
         </div>
         <h1 className="inc-title">{incidentLabel(incident, lang)}</h1>
+        {detail.header && (
+          <p className="inc-muted inc-meta">
+            {detail.header.placeName}
+            {detail.header.openedAt && ` · ${t(lang, conditionsCopy.opened)} ${formatTimeZone(detail.header.openedAt)}`}
+            {detail.header.source && ` · ${t(lang, conditionsCopy.via)} ${t(lang, detailCopy.source[detail.header.source])}`}
+          </p>
+        )}
         <ActionBar
           lang={lang}
           incident={incident}
@@ -280,6 +294,12 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           note={`${reporters} ${lang === 'id' ? 'relawan' : reporters === 1 ? 'volunteer' : 'volunteers'}`}
         />
         <Stat label={t(lang, detailCopy.statPosition)} value={formatPosition(incident)} note={incident.area ?? t(lang, detailCopy.statPositionNote)} />
+        {weather && windText && (
+          <Stat label={t(lang, conditionsCopy.windLabel)} value={windText} note={[t(lang, conditionsCopy.stationNote), weatherNote(lang, weather)].filter(Boolean).join(' · ')} />
+        )}
+        {air && airText && (
+          <Stat label={t(lang, conditionsCopy.airLabel)} value={airText} note={[t(lang, conditionsCopy.airNote), airNote(lang, air)].filter(Boolean).join(' · ')} />
+        )}
       </div>
 
       <AgencyInCharge lang={lang} agency={detail.agencyInCharge} yours={view.yourAgency} />

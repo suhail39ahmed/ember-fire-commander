@@ -105,7 +105,7 @@ describe('card lines', () => {
 
   it('word every audit action in both languages', () => {
     const actions = Object.keys(timelineCopy.action) as AuditAction[]
-    expect(actions).toHaveLength(19)
+    expect(actions).toHaveLength(20)
     for (const action of actions) {
       expect(timelineCopy.action[action].en.length).toBeGreaterThan(3)
       expect(timelineCopy.action[action].id.length).toBeGreaterThan(3)
