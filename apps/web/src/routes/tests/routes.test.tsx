@@ -7,13 +7,13 @@ import { LanguageProvider } from '../../pwa/LanguageProvider'
 import { homeFor } from '../paths'
 
 type Auth = {
-  status: 'loading' | 'signed-out' | 'ready' | 'no-access' | 'error'
+  status: 'loading' | 'signed-out' | 'ready' | 'no-access' | 'error' | 'session-expired' | 'device-unverified'
   me: { id: string; displayName: string; role: 'volunteer' | 'supervisor' } | null
   message: string | null
   user: { email: string | null } | null
   signIn: () => Promise<void>
   signOut: () => Promise<void>
-  refreshMe: () => Promise<void>
+  refreshMe: (options?: { quiet?: boolean }) => Promise<void>
 }
 
 const state = vi.hoisted(() => ({ auth: null as unknown as Auth }))
@@ -79,7 +79,7 @@ describe('signed-out sign-in', () => {
   it('shows volunteer wording and branding at /pwa', () => {
     const html = render('/pwa')
     expect(html).toContain('Sign in to EMBER')
-    expect(html).toContain('Volunteer app.')
+    expect(html).toContain('Report fires by voice, camera or one tap.')
     expect(html).toContain('VOLUNTEER APP')
     expect(html).not.toContain('Supervisor Console')
     expect(html).not.toContain('invited BPBD supervisors')
@@ -89,7 +89,7 @@ describe('signed-out sign-in', () => {
     const html = render('/console')
     expect(html).toContain('Sign in to the Supervisor Console')
     expect(html).toContain('invited BPBD supervisors')
-    expect(html).not.toContain('Volunteer app.')
+    expect(html).not.toContain('Spot a fire?')
     expect(html).not.toContain('console screen')
     expect(html).not.toContain('On duty')
   })
@@ -112,9 +112,25 @@ describe('signed-out sign-in', () => {
     expect(render('/console', 'id')).toContain('Masuk ke Konsol Supervisor')
   })
 
-  it('shows a sign-in error when there is one', () => {
+  it('shows a plain sentence when sign-in fails, never the raw message', () => {
     state.auth = signedOut({ message: 'Could not reach ember-api' })
-    expect(render('/pwa')).toContain('Could not reach ember-api')
+    const html = render('/pwa')
+    expect(html).toContain('We couldn&#x27;t sign you in')
+    expect(html).not.toContain('Could not reach ember-api')
+  })
+
+  it('keeps the supervisor sign-in on the console card, not the volunteer photo screen', () => {
+    const html = render('/console')
+    expect(html).toContain('login-card')
+    expect(html).not.toContain('vauth')
+    expect(html).not.toContain('Create a volunteer account')
+  })
+
+  it('shows the signing-in frame, not a blank page, while /me is being checked', () => {
+    state.auth = signedOut({ status: 'loading' })
+    const html = render('/pwa')
+    expect(html).toContain('Signing in…')
+    expect(html).toMatch(/<button[^>]*disabled/)
   })
 })
 
@@ -175,9 +191,10 @@ describe('signed-in pages', () => {
     })
     const html = render('/console')
     expect(html).toContain('This page is for supervisors')
-    expect(html).toContain('Account volunteer@example.com is registered as a volunteer')
-    expect(html).toContain('403 · FORBIDDEN')
-    expect(html).not.toContain('403 · FORBIDDEN · /CONSOLE')
+    expect(html).toContain('Your account is registered as a volunteer. Open the volunteer app to report.')
+    expect(html).toContain('403 · FORBIDDEN · /console')
+    expect(html).toContain('Open the volunteer app')
+    expect(html).toContain('Language')
     expect(html).toContain('href="/pwa"')
     expect(html).toContain('Sign out')
     expect(html).not.toContain('console screen')
@@ -196,7 +213,9 @@ describe('signed-in pages', () => {
     state.auth = signedOut({ status: 'ready', me: supervisor })
     const html = render('/pwa')
     expect(html).toContain('This page is for volunteers')
+    expect(html).toContain('403 · FORBIDDEN · /pwa')
     expect(html).toContain('href="/console"')
+    expect(html).not.toContain('volunteer app screen')
   })
 
   it('follows the stored language on the wrong-role page', () => {
@@ -218,9 +237,66 @@ describe('signed-in pages', () => {
     expect(html).toContain('Sign out')
   })
 
-  it('shows a checking state instead of the sign-in while loading', () => {
-    state.auth = signedOut({ status: 'loading' })
+  it('shows the volunteer no-access frame with the Firebase email', () => {
+    state.auth = signedOut({
+      status: 'no-access',
+      message: 'No role assigned',
+      user: { email: 'new@example.com' },
+    })
     const html = render('/pwa')
+    expect(html).toContain('You&#x27;re signed in, but not added yet')
+    expect(html).toContain('Ask your BPBD supervisor to add new@example.com as a volunteer. Then tap Check again.')
+    expect(html).toContain('403 · ROLE_MISSING')
+    expect(html).toContain('Check again')
+    expect(html).toContain('Sign out')
+    expect(html).not.toContain('No role assigned')
+  })
+
+  it('shows a plain account-check failure to a volunteer, not the no-access frame', () => {
+    state.auth = signedOut({ status: 'error', message: 'HTTP 500' })
+    const html = render('/pwa')
+    expect(html).toContain('We couldn&#x27;t check your account')
+    expect(html).not.toContain('not added yet')
+    expect(html).not.toContain('HTTP 500')
+  })
+
+  it('shows the session-expired frame, and not the app, after a 401', () => {
+    state.auth = signedOut({ status: 'session-expired', user: { email: 'v@example.com' } })
+    const html = render('/pwa/report')
+    expect(html).toContain('Please sign in again')
+    expect(html).toContain('Your session ended. Queued reports stay on this phone and send after you sign in.')
+    expect(html).toContain('401 · UNAUTHORIZED')
+    expect(html).toContain('Sign in with Google')
+    expect(html).not.toContain('volunteer app screen')
+  })
+
+  it('shows the device-not-verified frame with Reload and Sign out', () => {
+    state.auth = signedOut({ status: 'device-unverified', user: { email: 'v@example.com' } })
+    const html = render('/pwa')
+    expect(html).toContain('We couldn&#x27;t verify this device')
+    expect(html).toContain('403 · APP CHECK')
+    expect(html).toContain('Reload')
+    expect(html).toContain('Sign out')
+    expect(html).not.toContain('volunteer app screen')
+  })
+
+  it('follows the stored language on the session and device frames', () => {
+    state.auth = signedOut({ status: 'session-expired', user: null })
+    expect(render('/pwa', 'id')).toContain('Silakan masuk lagi')
+    state.auth = signedOut({ status: 'device-unverified', user: null })
+    expect(render('/pwa', 'id')).toContain('Muat ulang')
+  })
+
+  it('keeps a supervisor with an expired session on the console sign-in', () => {
+    state.auth = signedOut({ status: 'session-expired' })
+    const html = render('/console')
+    expect(html).toContain('Sign in to the Supervisor Console')
+    expect(html).not.toContain('vauth')
+  })
+
+  it('shows a checking state instead of the sign-in on the console while loading', () => {
+    state.auth = signedOut({ status: 'loading' })
+    const html = render('/console')
     expect(html).toContain('Checking sign-in')
     expect(html).not.toContain('Sign in with Google')
   })
@@ -239,11 +315,19 @@ describe('unknown paths', () => {
   it('show a not-found page with the path and a way back', () => {
     const html = render('/nonexistent')
     expect(html).toContain('Page not found')
-    expect(html).toContain("/nonexistent doesn&#x27;t exist.")
-    expect(html).toContain('404 · NOT FOUND')
+    expect(html).toContain('This link doesn&#x27;t go anywhere in EMBER.')
+    expect(html).toContain('404 · /nonexistent')
     expect(html).toContain('href="/pwa"')
     expect(html).toContain('Go to the volunteer app')
     expect(html).not.toContain('Sign in with Google')
+    expect(html).not.toContain('Error')
+  })
+
+  it('show the same volunteer page to a signed-in volunteer', () => {
+    state.auth = signedOut({ status: 'ready', me: volunteer })
+    const html = render('/nope')
+    expect(html).toContain('404 · /nope')
+    expect(html).toContain('href="/pwa"')
   })
 
   it('send a signed-in supervisor back to the console', () => {

@@ -79,9 +79,9 @@ describe('contrast of small text (WCAG AA, 4.5:1)', () => {
 })
 
 describe('focus ring', () => {
-  it('shows a 2px ring on every focusable control, white on dark and red surfaces', () => {
+  it('shows a 2px ring on every focusable control, white on the red WITHDRAW surface', () => {
     expect(volunteerCss).toContain('.vol :focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }')
-    expect(declaration(volunteerCss, '.vol-header :focus-visible, .withdraw :focus-visible', 'outline-color')).toBe('#fff')
+    expect(declaration(volunteerCss, '.withdraw :focus-visible', 'outline-color')).toBe('#fff')
   })
 
   it('does not switch the outline off anywhere in the volunteer styles', () => {

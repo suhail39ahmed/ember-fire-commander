@@ -15,6 +15,7 @@ AUDIT = "audit"
 VOLUNTEERS = "volunteers"
 SITES = "sites"
 LIVE_SEATS = "liveSeats"
+JOIN_REQUESTS = "joinRequests"
 
 _client = None
 

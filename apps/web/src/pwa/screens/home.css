@@ -1,0 +1,234 @@
+/*
+ * Home, the fire-near-you sheet and the "you joined" screen. Sizes, gaps and colours are the values read from the
+ * Figma frames (390 wide): H1 Home, VC Fire near you, VD Joined incident. Tokens come from volunteer.css and
+ * screens.css, so the dark theme follows without a second set of rules.
+ */
+.vol {
+  --fig-report: #ff5a1f;
+  --fig-open: #d6400a;
+  --fig-held: #a66200;
+  --fig-ai: #2559d6;
+  --fig-joined: #15803d;
+  --fig-mono: 'Space Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+
+.vol-main { gap: 16px; padding-top: 16px; }
+
+/* Report fire tile */
+.report-tile {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-sizing: border-box;
+  min-height: 110px;
+  padding: 20px;
+  border-radius: 24px;
+  background: var(--fig-report);
+  color: #0a0908;
+  text-decoration: none;
+}
+.report-scan {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: #faf9f7;
+  color: var(--fig-open);
+}
+.report-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.report-copy strong { font-size: 24px; line-height: 30px; font-weight: 700; letter-spacing: -0.072px; }
+.report-copy span { font-size: 13px; line-height: 18px; }
+
+/* AI suggestion card */
+.ai-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  padding: 16px;
+  border: 1.5px solid var(--fig-ai);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.ai-tag, .near-status, .near-meta, .sheet-tag, .joined-tag {
+  margin: 0;
+  font-family: var(--fig-mono);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.88px;
+  text-transform: uppercase;
+}
+.ai-tag {
+  align-self: flex-start;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(37, 89, 214, 0.12);
+  color: var(--fig-ai);
+  font-weight: 700;
+}
+.ai-title { margin: 0; font-size: 18px; line-height: 24px; font-weight: 700; }
+.ai-body, .ai-foot, .near-note, .sheet-foot, .joined-foot { margin: 0; font-size: 13px; line-height: 18px; color: var(--ink-muted); }
+.ai-actions { display: flex; align-items: center; gap: 8px; }
+.ai-actions .ink { flex: 1; }
+
+/* Pill buttons shared by the card, the sheet and the joined screen */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.pill.ink { background: var(--ink); color: var(--paper); }
+.pill.ghost { background: transparent; color: var(--ink); }
+.pill.big { width: 100%; min-height: 56px; font-size: 16px; }
+.pill:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Section heads */
+.home-head { margin: 0; font-size: 18px; line-height: 24px; font-weight: 700; }
+.list-head { margin: 0 0 12px; }
+.list-head .see-all {
+  min-height: 24px;
+  font-family: var(--fig-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.88px;
+  color: var(--ink-muted);
+}
+.near-list { gap: 16px; }
+
+/* Incidents near you */
+.near-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 16px;
+  border: 1px dashed rgba(128, 120, 110, 0.6);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.near-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.near-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  min-width: 0;
+}
+.near-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.near-status.st-open { background: rgba(214, 64, 10, 0.12); color: var(--fig-open); }
+.near-status.st-held { background: rgba(166, 98, 0, 0.14); color: var(--fig-held); }
+.near-status.st-verified { background: rgba(21, 128, 61, 0.12); color: var(--fig-joined); }
+.near-meta { flex: none; color: var(--ink-muted); }
+.near-title { font-size: 18px; line-height: 24px; font-weight: 700; overflow-wrap: anywhere; }
+.near-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sev-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+.sev-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--haze); }
+.sev-dot.sev-small_flame { background: var(--fig-open); }
+.sev-dot.sev-large_flame { background: var(--danger); }
+.sev-dot.sev-none { background: var(--safe); }
+.near-sub { font-size: 13px; line-height: 18px; color: var(--ink-muted); }
+.near-note[data-state='waiting'] { color: var(--fig-ai); font-weight: 600; }
+
+/* Loading and offline helpers */
+.home-loading { margin: 0; font-size: 13px; color: var(--ink-muted); }
+.sk-near { height: 164px; }
+
+/* Fire-near-you sheet (VC) */
+.sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(10, 9, 8, 0.45);
+}
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 480px;
+  max-height: 92vh;
+  overflow-y: auto;
+  padding: 20px 16px calc(28px + env(safe-area-inset-bottom, 0px));
+  border: 1px solid var(--fig-open);
+  border-bottom: 0;
+  border-radius: 24px 24px 0 0;
+  background: var(--surface);
+  color: var(--ink);
+}
+.sheet-tag { display: flex; align-items: center; gap: 8px; color: var(--fig-open); font-weight: 700; }
+.sheet-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--fig-open); }
+.sheet-title { margin: 0; font-size: 24px; line-height: 30px; font-weight: 700; letter-spacing: -0.072px; overflow-wrap: anywhere; }
+.sheet-facts { margin: 0; font-size: 16px; line-height: 22px; color: var(--ink-muted); }
+.sheet .minimap { border-radius: 16px; background: var(--surface-2); }
+.sheet .minimap svg { aspect-ratio: auto; height: 150px; }
+.sheet-error { margin: 0; color: var(--danger); font-size: 13px; font-weight: 500; }
+.sheet-wait { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 12px 14px; border-radius: 14px; background: rgba(37, 89, 214, 0.1); font-size: 14px; }
+.sheet-wait strong { color: var(--fig-ai); font-size: 15px; }
+
+/* "You joined" (VD) */
+.joined-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  border: 1px solid var(--fig-joined);
+  border-radius: 16px;
+  background: var(--safe-tint);
+}
+.joined-tag { color: var(--fig-joined); font-weight: 700; }
+.joined-title { margin: 0; font-size: 18px; line-height: 24px; font-weight: 700; overflow-wrap: anywhere; }
+.joined-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 14px 16px;
+  list-style: none;
+  border: 1px solid var(--ink);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.joined-steps li { display: flex; align-items: flex-start; gap: 10px; }
+.joined-steps strong { display: block; font-size: 15px; line-height: 22px; font-weight: 600; }
+.joined-icon { flex: none; margin-top: 1px; color: #b83406; }
+.joined-sub { display: block; margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--ink-muted); overflow-wrap: anywhere; }
+
+/* A link styled as a button: centre its label like the real buttons do. */
+.card.task a.btn { display: flex; align-items: center; justify-content: center; text-decoration: none; }

@@ -10,6 +10,7 @@ import { GuideScreen } from '../screens/GuideScreen'
 import { HomeScreen } from '../screens/HomeScreen'
 import { IncidentDetailScreen } from '../screens/IncidentDetailScreen'
 import { IncidentsScreen } from '../screens/IncidentsScreen'
+import { JoinedScreen } from '../screens/JoinedScreen'
 import { ProfileScreen } from '../screens/ProfileScreen'
 import { ReportScreen } from '../screens/ReportScreen'
 import { DeclineScreen } from '../screens/DeclineScreen'
@@ -34,7 +35,7 @@ import { useVolunteer } from './volunteerContext'
 export function PhoneLayout() {
   const { lang } = useLanguage()
   const v = useVolunteer()
-  const { api, me, volunteerId, digest, digestStatus, lastSyncAt, refresh, outbox, mock } = v
+  const { api, me, volunteerId, digest, digestStatus, lastSyncAt, refresh, position, outbox, mock } = v
 
   const task = currentTask(digest)
   usePushNavigation()
@@ -68,12 +69,16 @@ export function PhoneLayout() {
                 online={outbox.online}
                 queuedCount={outbox.items.length}
                 queued={outbox.items}
+                api={api}
+                refresh={refresh}
+                position={position}
               />
             }
           />
           <Route path="report" element={<ReportScreen />} />
           <Route path="incidents" element={<IncidentsScreen />} />
           <Route path="incidents/:id" element={<IncidentDetailScreen />} />
+          <Route path="incidents/:id/joined" element={<JoinedScreen />} />
           <Route path="incidents/:id/flag/:obsId" element={<FlagReportScreen />} />
           <Route path="task/:id" element={<TaskScreen />} />
           <Route path="task/:id/decline" element={<DeclineScreen />} />
@@ -94,6 +99,16 @@ export function PhoneLayout() {
             <button type="button" className="btn small" onClick={() => { mock.clearWithdraw(); refresh() }}>
               Simulate WITHDRAW lifted
             </button>
+            {(digest?.myJoinRequests ?? []).filter((r) => r.status === 'pending').slice(0, 1).map((r) => (
+              <div key={r.incidentId} className="task-actions">
+                <button type="button" className="btn small" onClick={() => { mock.approveJoin(r.incidentId); refresh() }}>
+                  Supervisor approves join
+                </button>
+                <button type="button" className="btn small" onClick={() => { mock.declineJoin(r.incidentId); refresh() }}>
+                  Supervisor declines join
+                </button>
+              </div>
+            ))}
             <button type="button" className="btn small" onClick={() => mock.failNext('network')}>
               Fail next send (network)
             </button>

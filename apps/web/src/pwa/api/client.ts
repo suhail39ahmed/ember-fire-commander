@@ -4,13 +4,16 @@
  * see ../gateway/). No Firestore or Cloud Storage SDK is used in the browser.
  * The one exception is the photo PUT to a signed URL that ember-api issued (see ../photo/).
  */
-import type { DeclineReason, Digest, ErrorBody, FlagRequest, IncidentDetail, Observation, ObservationRequest, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
+import type { DeclineReason, Digest, DigestPosition, ErrorBody, FlagRequest, IncidentDetail, JoinRequestSummary, Observation, ObservationRequest, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
 import type { AuthHeadersProvider } from './authHeaders'
 import { API_BASE_URL } from './config'
 import { ApiError, type EmberApi } from './types'
 
 export const ENDPOINTS = {
   digest: '/digest',
+  // About 1 m of precision is plenty for "how far is that fire", and keeps the URL free of exponent forms.
+  digestAt: (position: DigestPosition) => `/digest?lat=${position.lat.toFixed(5)}&lng=${position.lng.toFixed(5)}`,
+  joinRequest: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}/join-requests`,
   incident: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}`,
   observations: '/observations',
   photoUploadUrl: '/photos/upload-url',
@@ -54,7 +57,12 @@ export function createHttpApi(
   }
 
   return {
-    getDigest: () => request<Digest>(ENDPOINTS.digest),
+    getDigest: (position) => request<Digest>(position ? ENDPOINTS.digestAt(position) : ENDPOINTS.digest),
+    requestJoin: async (incidentId) => {
+      const body = await request<{ joinRequest: JoinRequestSummary }>(ENDPOINTS.joinRequest(incidentId), { method: 'POST' })
+      const { incidentId: id, status, createdAt } = body.joinRequest
+      return { incidentId: id, status, createdAt }
+    },
     getIncident: (incidentId) => request<IncidentDetail>(ENDPOINTS.incident(incidentId)),
     createObservation: (body: ObservationRequest) =>
       request<Observation>(ENDPOINTS.observations, { method: 'POST', body: JSON.stringify(body) }),

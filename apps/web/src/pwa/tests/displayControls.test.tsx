@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
 import { DisplayControls, LanguageDropdown, ThemeSwitch } from '../DisplayControls'
-import { DEFAULT_LANG, LANGUAGES, LANG_KEY, parseLang } from '../i18n'
+import { DEFAULT_LANG, LANGUAGES, LANG_KEY, parseLang, textLang, type LanguageCode } from '../i18n'
 import { createLanguageStore } from '../language'
 import { LanguageProvider } from '../LanguageProvider'
 import { createThemeStore, DEFAULT_THEME, parseTheme, THEME_KEY } from '../theme'
@@ -16,7 +16,7 @@ function memoryStorage(initial: Record<string, string> = {}) {
   }
 }
 
-function withLang(node: React.ReactNode, lang: 'id' | 'en' = 'en') {
+function withLang(node: React.ReactNode, lang: LanguageCode = 'en') {
   const store = createLanguageStore({ storage: memoryStorage({ [LANG_KEY]: lang }), root: { lang: '' } })
   return renderToStaticMarkup(<LanguageProvider store={store}>{node}</LanguageProvider>)
 }
@@ -92,9 +92,26 @@ describe('theme store', () => {
 })
 
 describe('language registry', () => {
-  it('keeps Bahasa Indonesia and English, with Bahasa the default', () => {
-    expect(LANGUAGES.map((language) => language.code)).toEqual(['id', 'en'])
+  it('offers Bahasa Indonesia and English plus three regional languages, with Bahasa the default', () => {
+    expect(LANGUAGES.map((language) => language.code)).toEqual(['id', 'en', 'jv', 'su', 'ms'])
     expect(DEFAULT_LANG).toBe('id')
+  })
+
+  it('shows English copy for a language that has no translation yet', () => {
+    expect(textLang('id')).toBe('id')
+    expect(textLang('en')).toBe('en')
+    for (const code of ['jv', 'su', 'ms'] as const) expect(textLang(code)).toBe('en')
+  })
+
+  it('keeps a chosen regional language and puts the copy language on the page', () => {
+    const storage = memoryStorage()
+    const root = { lang: '' }
+    const store = createLanguageStore({ storage, root })
+    store.set('jv')
+    expect(store.get()).toBe('jv')
+    expect(storage.data.get(LANG_KEY)).toBe('jv')
+    expect(root.lang).toBe('en')
+    expect(createLanguageStore({ storage, root: { lang: '' } }).get()).toBe('jv')
   })
 
   it('ignores an unknown saved language', () => {
@@ -122,6 +139,27 @@ describe('language dropdown', () => {
     expect(html).toContain('English')
     expect(html).toMatch(/role="menuitemradio" aria-checked="true"[^>]*lang="id"/)
     expect(html).toMatch(/role="menuitemradio" aria-checked="false"[^>]*lang="en"/)
+  })
+
+  it('lists the regional languages and marks the chosen one', () => {
+    const html = withLang(<LanguageDropdown defaultOpen />, 'jv')
+    expect(html.match(/role="menuitemradio"/g)).toHaveLength(5)
+    expect(html).toContain('Basa Jawa')
+    expect(html).toContain('Basa Sunda')
+    expect(html).toContain('Bahasa Melayu')
+    expect(html).toMatch(/role="menuitemradio" aria-checked="true"[^>]*lang="jv"/)
+    expect(html).toMatch(/role="menuitemradio" aria-checked="false"[^>]*lang="en"/)
+  })
+
+  it('shows the chosen language on the button and its name in English copy', () => {
+    const html = withLang(<LanguageDropdown />, 'su')
+    expect(html).toContain('aria-label="Language: Basa Sunda"')
+    expect(html).toContain('>SU</span>')
+  })
+
+  it('can open upward, for a control at the bottom of a screen', () => {
+    expect(withLang(<LanguageDropdown placement="up" />)).toContain('class="lang-menu lang-menu-up"')
+    expect(withLang(<LanguageDropdown />)).toContain('class="lang-menu"')
   })
 
   it('names itself in the selected language', () => {

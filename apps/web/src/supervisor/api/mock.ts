@@ -4,7 +4,7 @@
  * is exercised against the real outcomes, including 409 while dispatch is held.
  */
 import { ApiError } from '../../pwa/api/types'
-import type { IncidentDetail, LiveSeat, LiveSeatVolunteer, ProposedTask, Task } from '../contracts'
+import type { IncidentDetail, JoinRequest, LiveSeat, LiveSeatVolunteer, ProposedTask, Task } from '../contracts'
 import { incidentLabel } from '../../pwa/incidentName'
 import { lowerChoices } from '../detail/severityModel'
 import { fixture, type FixtureName } from '../fixtures'
@@ -177,8 +177,14 @@ export function createMockSupervisorApi(
   /** Append-only writes from approve/reject/… — what existing tests assert on. */
   const audit: AuditRow[] = []
 
+  /** Pending join requests (section 6.12). One synthetic volunteer near the first incident. */
+  let joins: { request: JoinRequest; volunteerName: string }[] = []
   const load = (name: MockScenario) => {
     details = name === 'empty' ? [] : name === 'region' ? regionFixtures() : [fixture(name)]
+    joins = details.length === 0 ? [] : [{
+      request: { id: `${details[0].incident.id}__uid_join_01`, incidentId: details[0].incident.id, volunteerId: 'uid_join_01', status: 'pending', createdAt: new Date().toISOString() },
+      volunteerName: 'Sari Wulandari',
+    }]
     audit.length = 0
     seed = seedAudit(details, actorId)
   }
@@ -244,6 +250,44 @@ export function createMockSupervisorApi(
         }
       }
       return items
+    },
+    async listJoinRequests() {
+      await wait()
+      return joins.map(({ request, volunteerName: name }) => {
+        const i = details.find((d) => d.incident.id === request.incidentId)?.incident
+        return {
+          request: structuredClone(request),
+          incident: i ? { id: i.id, name: i.name ?? null, area: i.area ?? null, label: incidentLabel(i), status: i.status, severity: i.severity } : null,
+          volunteerName: name,
+        }
+      })
+    },
+    async approveJoinRequest(id, instruction) {
+      await wait()
+      const row = joins.find((j) => j.request.id === id)
+      if (!row) throw conflictError('This request was already answered')
+      const text = instruction.trim()
+      if (!text || text.length > 500) {
+        throw new ApiError('validation_error', 'instruction is not valid', 400, false, { instruction: 'required, not blank, at most 500 characters' })
+      }
+      const d = details.find((x) => x.incident.id === row.request.incidentId)
+      if (!d) throw notFound()
+      if (d.incident.status === 'extinguished') throw conflictError('An extinguished incident takes no new instruction')
+      const task: Task = { id: `task_mock_instruct_${d.tasks.length + 1}`, incidentId: d.incident.id, volunteerId: row.request.volunteerId, type: 'instruct', status: 'approved', instruction: text }
+      stamp(task, 1)
+      d.tasks.push(task)
+      joins = joins.filter((j) => j !== row)
+      append('task.instruct', task.id)
+      const joinRequest: JoinRequest = { ...row.request, status: 'approved', decidedAt: new Date().toISOString(), decidedBy: actorId, taskId: task.id }
+      return { joinRequest, task: structuredClone(task), auditId: append('join.approve', id) }
+    },
+    async declineJoinRequest(id) {
+      await wait()
+      const row = joins.find((j) => j.request.id === id)
+      if (!row) throw conflictError('This request was already answered')
+      joins = joins.filter((j) => j !== row)
+      const joinRequest: JoinRequest = { ...row.request, status: 'declined', decidedAt: new Date().toISOString(), decidedBy: actorId }
+      return { joinRequest, auditId: append('join.decline', id) }
     },
     async getIncident(id) {
       await wait()

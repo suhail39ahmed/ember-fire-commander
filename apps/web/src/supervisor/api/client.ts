@@ -6,12 +6,15 @@ import type { ErrorBody } from '../../pwa/contracts/types'
 import type { AuthHeadersProvider } from '../../pwa/api/authHeaders'
 import { API_BASE_URL } from '../../pwa/api/config'
 import { ApiError } from '../../pwa/api/types'
-import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, PhotoUrl, ProposedTask, TaskDecision, WithdrawRequest } from '../contracts'
+import type { Incident, IncidentDecision, IncidentDetail, JoinDecision, LowerableSeverity, PendingJoinRequest, PhotoUrl, ProposedTask, TaskDecision, WithdrawRequest } from '../contracts'
 import type { AuditPage, AuditQuery, LiveSeatDecision, SupervisorApi } from './types'
 
 export const SUPERVISOR_ENDPOINTS = {
   incidents: '/incidents',
   proposedTasks: '/tasks?status=proposed',
+  joinRequests: '/join-requests?status=pending',
+  joinApprove: (id: string) => `/join-requests/${encodeURIComponent(id)}/approve`,
+  joinDecline: (id: string) => `/join-requests/${encodeURIComponent(id)}/decline`,
   incident: (id: string) => `/incidents/${encodeURIComponent(id)}`,
   audit: '/audit',
   verify: (id: string) => `/incidents/${encodeURIComponent(id)}/verify`,
@@ -77,6 +80,9 @@ export function createHttpSupervisorApi(
     listIncidents: () => request<Incident[]>(SUPERVISOR_ENDPOINTS.incidents),
     getIncident: (id) => request<IncidentDetail>(SUPERVISOR_ENDPOINTS.incident(id)),
     listProposedTasks: () => request<ProposedTask[]>(SUPERVISOR_ENDPOINTS.proposedTasks),
+    listJoinRequests: () => request<PendingJoinRequest[]>(SUPERVISOR_ENDPOINTS.joinRequests),
+    approveJoinRequest: (id, instruction) => post<JoinDecision>(SUPERVISOR_ENDPOINTS.joinApprove(id), { instruction }),
+    declineJoinRequest: (id) => post<JoinDecision>(SUPERVISOR_ENDPOINTS.joinDecline(id)),
     listAudit: (query) => request<AuditPage>(auditQuery(query)),
     approveTask: (id) => post<TaskDecision>(SUPERVISOR_ENDPOINTS.approve(id)),
     rejectTask: (id) => post<TaskDecision>(SUPERVISOR_ENDPOINTS.reject(id)),

@@ -347,3 +347,39 @@ export interface ProposedTask {
   } | null
   volunteerName: string | null
 }
+
+/** A volunteer's request to join an incident they are near (section 6.12). */
+export interface JoinRequest {
+  id: string
+  incidentId: string
+  volunteerId: string
+  status: 'pending' | 'approved' | 'declined'
+  createdAt: string
+  decidedAt?: string | null
+  decidedBy?: string | null
+  taskId?: string | null
+}
+
+/**
+ * One row of GET /join-requests?status=pending: the request, the incident it is for and the volunteer's
+ * name. `incident` is null when the record is gone. `volunteerName` is null when no name is stored.
+ */
+export interface PendingJoinRequest {
+  request: JoinRequest
+  incident: {
+    id: string
+    name: string | null
+    area: string | null
+    label: string
+    status: IncidentStatus
+    severity: Severity
+  } | null
+  volunteerName: string | null
+}
+
+/** The result of approving or declining one join request. `task` is the first instruction, on approve only. */
+export interface JoinDecision {
+  joinRequest: JoinRequest
+  task?: Task
+  auditId: string
+}

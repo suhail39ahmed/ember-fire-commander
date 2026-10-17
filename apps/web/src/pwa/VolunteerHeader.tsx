@@ -1,11 +1,11 @@
+import { LanguageDropdown } from './DisplayControls'
 import { t, type Lang } from './i18n'
-import { LanguageToggle } from './LanguageProvider'
 import { screenStrings } from './screens/strings'
 
 /**
- * Volunteer app header. Always 64px tall: the name and crew lines each stay on one line
- * (long text is cut with an ellipsis) and the ID | EN toggle never shrinks, so the
- * header looks the same in both languages and on every screen width.
+ * Volunteer app header (Figma "App header"). Always 64px tall: the name and crew lines each stay on one line
+ * (long text is cut with an ellipsis) and the language dropdown, the same one the sign-in screen uses, never
+ * shrinks, so the header looks the same in every language and on every screen width.
  * The crew line is `crewName` from GET /me. With no crew it says so instead of showing a made-up one.
  */
 export function VolunteerHeader({
@@ -19,12 +19,12 @@ export function VolunteerHeader({
 }) {
   return (
     <header className="vol-header">
-      <img src="/brand/ember-emblem.svg" alt="" width={28} height={28} />
+      <img src="/brand/ember-emblem.svg" alt="" width={32} height={32} />
       <div className="vol-title">
         <strong>{name || 'EMBER'}</strong>
         <span className="vol-sub">{crew?.trim() || t(lang, screenStrings.profile.crewUnknown)}</span>
       </div>
-      <LanguageToggle />
+      <LanguageDropdown />
     </header>
   )
 }

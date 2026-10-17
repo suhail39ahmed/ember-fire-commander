@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from flask import Blueprint, g, jsonify, request
 
 from identity import AuthError
-from incidents import detail as incident_detail, live_seat, rules, store
+from incidents import detail as incident_detail, live_seat, nearby, rules, store
 from incidents.errors import ApiError, conflict, error_response, not_found, validation
 from notifications.send import deliver_task
 from photos import paths as photo_paths, signing
@@ -227,14 +227,23 @@ def list_tasks():
 @incidents_bp.route("/digest", methods=["GET"])
 def digest():
     user = g.user
-    incidents = [rules.to_record(s, rules.SUMMARY_FIELDS) for s in _scoped_incidents()]
-    my_tasks = []
-    if user["role"] == "volunteer":
-        my_tasks = sorted(
-            (rules.with_receipt(rules.to_record(s, rules.TASK_FIELDS)) for s in store.where(store.TASKS, "volunteerId", "==", user["id"])),
-            key=lambda t: t["id"],
-        )
-    return jsonify({"updatedAt": rules.now_iso(), "incidents": incidents, "myTasks": my_tasks}), 200
+    if user["role"] == "supervisor":
+        incidents = [rules.to_record(s, rules.SUMMARY_FIELDS) for s in _scoped_incidents()]
+        return jsonify({"updatedAt": rules.now_iso(), "incidents": incidents, "myTasks": []}), 200
+
+    position = nearby.parse_position(request.args)
+    linked = _volunteer_incident_snapshots(user["id"])
+    incidents = [rules.to_record(s, rules.SUMMARY_FIELDS) for s in sorted(linked.values(), key=lambda s: s.id)]
+    my_tasks = sorted(
+        (rules.with_receipt(rules.to_record(s, rules.TASK_FIELDS)) for s in store.where(store.TASKS, "volunteerId", "==", user["id"])),
+        key=lambda t: t["id"],
+    )
+    near = nearby.nearby_incidents(position, set(linked)) if position else []
+    requests_ = nearby.join_request_summaries(store.where(store.JOIN_REQUESTS, "volunteerId", "==", user["id"]))
+    return jsonify({
+        "updatedAt": rules.now_iso(), "incidents": incidents, "myTasks": my_tasks,
+        "nearby": near, "myJoinRequests": requests_,
+    }), 200
 
 
 # Supervisor decisions ------------------------------------------------------

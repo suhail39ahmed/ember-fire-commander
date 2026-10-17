@@ -60,6 +60,11 @@ def _approvals_count():
     return sum(1 for _ in store.where(store.TASKS, "status", "==", "proposed"))
 
 
+def _join_requests_count():
+    """Join requests (contract 6.12) still waiting for a supervisor. Counted apart from `approvalsCount`."""
+    return sum(1 for _ in store.where(store.JOIN_REQUESTS, "status", "==", "pending"))
+
+
 LEADS = "leads"
 WEATHER = "weather"
 LEAD_CHECKED_NO_FIRE = "checked_no_fire"
@@ -463,6 +468,7 @@ def dashboard():
         "agency": _agency(g.user["id"]),
         "serverTime": now,
         "approvalsCount": _approvals_count(),
+        "joinRequestsCount": _join_requests_count(),
         "updatedAt": now,
         "nextSatellitePass": None,
         "liveFires": fires,

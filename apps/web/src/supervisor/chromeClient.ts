@@ -112,6 +112,8 @@ export interface ConsoleChrome {
   agency: string | null
   serverTime: string
   approvalsCount: number
+  /** Pending join requests. The menu badge adds them to `approvalsCount`. Absent on older servers. */
+  joinRequestsCount?: number
   updatedAt?: string
   nextSatellitePass?: string | null
   liveFires?: LiveFire[]

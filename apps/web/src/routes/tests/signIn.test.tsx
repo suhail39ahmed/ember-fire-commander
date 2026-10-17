@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { createLanguageStore } from '../../pwa/language'
 import { LanguageProvider } from '../../pwa/LanguageProvider'
-import { signInErrorText } from '../copy'
+import { signInErrorText, volunteerSignInError } from '../copy'
 
 const state = vi.hoisted(() => ({ status: 'signed-out' as string, message: null as string | null }))
 
@@ -44,26 +44,42 @@ describe('sign-in button', () => {
     const html = render()
     expect(html).toContain('Sign in with Google')
     expect(html).toContain('aria-busy="false"')
-    expect(html).not.toContain('class="spinner"')
+    expect(html).not.toContain('class="vauth-spinner"')
     expect(html).not.toMatch(/<button[^>]*disabled/)
+  })
+
+  it('shows the designed default copy and the create-account link', () => {
+    state.status = 'signed-out'
+    state.message = null
+    const html = render()
+    expect(html).toContain('VOLUNTEER APP · RELAWAN')
+    expect(html).toContain('Report fires by voice, camera or one tap. Your supervisor sees it and sends help.')
+    expect(html).toContain('NEW TO EMBER?')
+    expect(html).toContain('Create a volunteer account')
+    expect(html).toContain('href="/pwa/create-account"')
+    expect(html).toContain('aria-haspopup="menu"')
+    expect(html).toContain('aria-label="Language: English"')
+    expect(html).toContain('>EN</span>')
+    expect(html).not.toContain('>ID</button>')
   })
 
   it('shows a spinner with the label while it works, and is disabled', () => {
     state.status = 'loading'
+    state.message = null
     const html = render()
-    expect(html).toContain('class="spinner"')
+    expect(html).toContain('class="vauth-spinner"')
     expect(html).toContain('Signing in…')
-    expect(html).toContain('Opening Google…')
     expect(html).toContain('Waiting for the Google window…')
     expect(html).toContain('aria-busy="true"')
     expect(html).toMatch(/<button[^>]*disabled/)
+    expect(html).not.toContain('Create a volunteer account')
   })
 
   it('follows the stored language while loading', () => {
     state.status = 'loading'
+    state.message = null
     const html = render('id')
     expect(html).toContain('Sedang masuk…')
-    expect(html).toContain('Membuka Google…')
     expect(html).toContain('Menunggu jendela Google…')
   })
 })
@@ -82,11 +98,42 @@ describe('sign-in errors', () => {
     expect(signInErrorText('Could not reach ember-api', 'en')).toBe('Could not reach ember-api')
   })
 
-  it('shows the plain wording on screen', () => {
+  it('gives the volunteer a titled card for each failure', () => {
+    expect(volunteerSignInError('Firebase: Error (auth/popup-blocked).', 'en')).toEqual({
+      title: 'Sign-in window was blocked',
+      body: 'Allow pop-ups for this site, then try again.',
+    })
+    expect(volunteerSignInError('Firebase: Error (auth/popup-closed-by-user).', 'en').title).toBe('Sign-in was cancelled')
+    expect(volunteerSignInError('Firebase: Error (auth/network-request-failed).', 'en').title).toBe("We couldn't sign you in")
+    expect(volunteerSignInError('Firebase: Error (auth/popup-blocked).', 'id').title).toBe('Jendela masuk diblokir')
+  })
+
+  it('shows the blocked card on screen, with Try again and no create-account section', () => {
+    state.status = 'signed-out'
+    state.message = 'Firebase: Error (auth/popup-blocked).'
+    const html = render()
+    expect(html).toContain('role="alert"')
+    expect(html).toContain('Sign-in window was blocked')
+    expect(html).toContain('Allow pop-ups for this site, then try again.')
+    expect(html).toContain('>Try again</button>')
+    expect(html).not.toContain('NEW TO EMBER?')
+    expect(html).not.toContain('Create a volunteer account')
+    expect(html).not.toContain('auth/popup-blocked')
+  })
+
+  it('shows the cancelled card when the window was closed', () => {
     state.status = 'signed-out'
     state.message = 'Firebase: Error (auth/popup-closed-by-user).'
     const html = render()
-    expect(html).toContain('Sign-in was cancelled. Try again.')
+    expect(html).toContain('Sign-in was cancelled')
     expect(html).not.toContain('auth/popup-closed-by-user')
+  })
+
+  it('never prints a raw failure message to the volunteer', () => {
+    state.status = 'signed-out'
+    state.message = 'HTTP 500'
+    const html = render()
+    expect(html).not.toContain('HTTP 500')
+    expect(html).toContain('We couldn&#x27;t sign you in')
   })
 })

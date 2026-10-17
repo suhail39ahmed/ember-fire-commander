@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 
 import { useAuth } from '../auth/AuthProvider'
@@ -7,8 +6,14 @@ import { t } from '../pwa/i18n'
 import { useLanguage } from '../pwa/language'
 import { AuthShell } from './AuthShell'
 import { copy, fill } from './copy'
-import { homeFor } from './paths'
 import { SignInScreen } from './SignInScreen'
+import {
+  VolunteerAccountCheckFailed,
+  VolunteerDeviceNotVerified,
+  VolunteerNoAccess,
+  VolunteerSessionExpired,
+  VolunteerWrongRole,
+} from './VolunteerStatusScreens'
 import './login.css'
 
 export function CheckingScreen() {
@@ -26,12 +31,26 @@ export function RequireRole({ role, children }: { role: Me['role']; children: Re
   const { lang } = useLanguage()
   const { status, me, user, signOut, refreshMe } = useAuth()
   const email = user?.email || '—'
+  const volunteer = role === 'volunteer'
 
+  // The volunteer's sign-in frame doubles as the "Signing in..." frame while /me is being checked.
   if (status === 'loading') {
-    return <CheckingScreen />
+    return volunteer ? <SignInScreen audience="volunteer" /> : <CheckingScreen />
   }
   if (status === 'signed-out') {
     return <SignInScreen audience={role} />
+  }
+  if (status === 'session-expired') {
+    return volunteer ? <VolunteerSessionExpired /> : <SignInScreen audience={role} />
+  }
+  if (status === 'device-unverified') {
+    return volunteer ? <VolunteerDeviceNotVerified /> : <DeviceNotVerifiedCard />
+  }
+  if (volunteer && status === 'error') {
+    return <VolunteerAccountCheckFailed />
+  }
+  if (volunteer && (status === 'no-access' || !me)) {
+    return <VolunteerNoAccess />
   }
   if (status === 'no-access' || !me) {
     return (
@@ -50,21 +69,27 @@ export function RequireRole({ role, children }: { role: Me['role']; children: Re
     )
   }
   if (me.role !== role) {
-    const text = role === 'supervisor' ? copy.wrongRole.volunteerOnSupervisorPage : copy.wrongRole.supervisorOnVolunteerPage
-    return (
-      <AuthShell audience={role}>
-        <div className="login-card">
-          <h1>{t(lang, text.title)}</h1>
-          <p className="sub">{fill(t(lang, text.body), { email })}</p>
-          <p className="status-code">{t(lang, copy.wrongRole.code)}</p>
-          <Link className="action-button" to={homeFor(me.role)}>{t(lang, text.action)}</Link>
-          <button className="text-button" type="button" onClick={() => { void signOut() }}>{t(lang, copy.signOut)}</button>
-          <p className="note">{t(lang, copy.wrongRole.langNote)}</p>
-        </div>
-      </AuthShell>
-    )
+    return <VolunteerWrongRole me={me} />
   }
   return children
+}
+
+/** The console's version of the device-not-verified screen: same words, the supervisor's card. */
+function DeviceNotVerifiedCard() {
+  const { lang } = useLanguage()
+  const { signOut } = useAuth()
+  const text = copy.volunteer.deviceNotVerified
+  return (
+    <AuthShell audience="supervisor">
+      <div className="login-card">
+        <h1>{t(lang, text.title)}</h1>
+        <p className="sub">{t(lang, text.body)}</p>
+        <p className="status-code">{t(lang, text.code)}</p>
+        <button className="action-button" type="button" onClick={() => window.location.reload()}>{t(lang, text.action)}</button>
+        <button className="text-button" type="button" onClick={() => { void signOut() }}>{t(lang, copy.signOut)}</button>
+      </div>
+    </AuthShell>
+  )
 }
 
 export function RoleHome({ title }: { title: string }) {

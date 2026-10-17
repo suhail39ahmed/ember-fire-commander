@@ -1,4 +1,4 @@
-import type { Incident, IncidentDecision, IncidentDetail, LiveSeat, LowerableSeverity, PhotoUrl, ProposedTask, TaskDecision, WithdrawRequest } from '../contracts'
+import type { Incident, IncidentDecision, IncidentDetail, JoinDecision, LiveSeat, PendingJoinRequest, LowerableSeverity, PhotoUrl, ProposedTask, TaskDecision, WithdrawRequest } from '../contracts'
 
 export interface LiveSeatDecision {
   liveSeat: LiveSeat
@@ -39,6 +39,11 @@ export interface SupervisorApi {
   getIncident(id: string): Promise<IncidentDetail>
   /** Every task waiting for a decision, across all incidents. Supervisor only. */
   listProposedTasks(): Promise<ProposedTask[]>
+  /** Volunteers near a fire who asked to join it and wait for an answer, oldest first. Supervisor only. */
+  listJoinRequests(): Promise<PendingJoinRequest[]>
+  /** Adds the volunteer: sends them a first instruction and links them to the incident. `409` once answered or extinguished. */
+  approveJoinRequest(id: string, instruction: string): Promise<JoinDecision>
+  declineJoinRequest(id: string): Promise<JoinDecision>
   /** Append-only log. Newest first. Optional targetId and cursor for paging. */
   listAudit(query?: AuditQuery): Promise<AuditPage>
   approveTask(id: string): Promise<TaskDecision>

@@ -176,11 +176,42 @@ export interface WithdrawAnswerRequest {
   accuracyM?: number | null
 }
 
-/** GET /digest (section 6.4). */
+/** A live incident near the phone that this volunteer is not on yet (section 5.6). Wind and "supervisor asked for" are not sent. */
+export interface NearbyIncident extends IncidentSummary {
+  /** Straight line from the phone, whole metres. */
+  distanceM: number
+  /** Compass bearing from the phone to the incident, 0 to 359. */
+  bearingDeg: number
+  /** Volunteers with a report or an approved task on it. */
+  crewOnSite: number
+  /** The first name on the first report, or null. */
+  reporterName: string | null
+}
+
+export const JOIN_REQUEST_STATUSES = ['pending', 'approved', 'declined'] as const
+export type JoinRequestStatus = (typeof JOIN_REQUEST_STATUSES)[number]
+
+/** One of the caller's own join requests (section 6.12). */
+export interface JoinRequestSummary {
+  incidentId: string
+  status: JoinRequestStatus
+  createdAt: string
+}
+
+/** GET /digest (section 6.4). `nearby` and `myJoinRequests` are volunteer-only, so they are optional here. */
 export interface Digest {
   updatedAt: string
   incidents: IncidentSummary[]
   myTasks: Task[]
+  /** Filled only when the request carried the phone's position. */
+  nearby?: NearbyIncident[]
+  myJoinRequests?: JoinRequestSummary[]
+}
+
+/** The phone's position as sent on GET /digest. Used for that read only. */
+export interface DigestPosition {
+  lat: number
+  lng: number
 }
 
 /** Error body (section 3). `fields` is present on validation_error only. */

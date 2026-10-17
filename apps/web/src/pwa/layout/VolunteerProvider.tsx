@@ -5,6 +5,7 @@ import { authHeadersFor } from '../api/authHeaders'
 import { createHttpApi } from '../api/client'
 import { GATEWAY_WSS_URL, USE_MOCK_API } from '../api/config'
 import { createMockApi, type MockControls } from '../api/mock'
+import { reportAuthFailures } from '../api/reportAuthFailures'
 import type { EmberApi } from '../api/types'
 import { recordDigestClock } from '../clock'
 import { browserSocketFactory, PttSession, type SessionState } from '../gateway/pttSession'
@@ -15,6 +16,7 @@ import { useOutbox } from '../outbox/useOutbox'
 import { usePermissions } from '../permissions/usePermissions'
 import { createMockUpload, createXhrUpload } from '../photo/upload'
 import { usePushRegistration } from '../push/usePushRegistration'
+import { useDevicePosition } from '../screens/useDevicePosition'
 import { useDigest } from '../useDigest'
 import { VolunteerContext, type VolunteerValue } from './volunteerContext'
 
@@ -24,23 +26,31 @@ import { VolunteerContext, type VolunteerValue } from './volunteerContext'
  * starting its own. Render it inside RequireRole role="volunteer", where `me` is set.
  */
 export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberApi; children: ReactNode }) {
-  const { user, me } = useAuth()
+  const { user, me, reportAuthFailure } = useAuth()
   const [session, setSession] = useState<SessionState>('idle')
   const [pttBlocked, setPttBlocked] = useState<'auth' | 'unavailable' | null>(null)
   const { perms, asking, request } = usePermissions()
   const getAuthHeaders = useMemo(() => authHeadersFor(user), [user])
   const volunteerId = me?.id ?? null
-  const api = useMemo<EmberApi>(
+  const baseApi = useMemo<EmberApi>(
     () => apiOverride ?? (USE_MOCK_API ? createMockApi(volunteerId ?? 'uid_mock') : createHttpApi(getAuthHeaders)),
     [apiOverride, getAuthHeaders, volunteerId],
   )
-  const mock = (api as EmberApi & { mock?: MockControls }).mock
+  // A 401 on any call swaps the page for the sign-in screen (session expired, or device not verified).
+  const api = useMemo<EmberApi>(
+    () => (reportAuthFailure ? reportAuthFailures(baseApi, reportAuthFailure) : baseApi),
+    [baseApi, reportAuthFailure],
+  )
+  const mock = (baseApi as EmberApi & { mock?: MockControls }).mock
   const upload = useMemo(() => (USE_MOCK_API ? createMockUpload() : createXhrUpload()), [])
   const outbox = useOutbox(api, upload)
 
   useEffect(() => registerServiceWorker(), [])
 
-  const { digest, status: digestStatus, lastSyncAt, refresh } = useDigest(api, recordDigestClock)
+  // The fix rides on the digest read so the home screen can list fires near the phone. Only while location is allowed.
+  const position = useDevicePosition(perms.location === 'granted')
+  const digestPosition = useMemo(() => (position.kind === 'ok' ? { lat: position.lat, lng: position.lng } : null), [position])
+  const { digest, status: digestStatus, lastSyncAt, refresh } = useDigest(api, recordDigestClock, digestPosition)
   usePushRegistration(user, perms.notifications, refresh)
 
   const ptt = useMemo(
@@ -75,6 +85,7 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
     digestStatus,
     lastSyncAt,
     refresh,
+    position,
     outbox,
     upload,
     perms,

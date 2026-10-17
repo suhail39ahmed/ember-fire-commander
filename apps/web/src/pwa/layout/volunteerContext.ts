@@ -6,6 +6,7 @@ import type { MockControls } from '../api/mock'
 import type { Digest } from '../contracts/types'
 import type { TalkView } from '../gateway/voiceView'
 import type { OutboxHandle } from '../outbox/useOutbox'
+import type { DevicePosition } from '../screens/arrival'
 import type { UploadFn } from '../photo/upload'
 import type { Asking, PermKey, Perms } from '../permissions/usePermissions'
 import type { DigestStatus } from '../useDigest'
@@ -24,6 +25,8 @@ export interface VolunteerValue {
   /** Phone time of the last successful digest read, or null before the first. */
   lastSyncAt: string | null
   refresh: () => void
+  /** The phone's position while location is allowed. It goes on the digest read and is never stored. */
+  position: DevicePosition
   outbox: OutboxHandle
   upload: UploadFn
   perms: Perms

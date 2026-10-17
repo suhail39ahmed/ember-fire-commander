@@ -118,7 +118,7 @@ export function ConsoleProvider({
       },
       language: lang,
       activeMenu: consoleMenu(pathname) ?? 'incidents',
-      approvalsCount: picture?.approvalsCount ?? null,
+      approvalsCount: picture ? picture.approvalsCount + (picture.joinRequestsCount ?? 0) : null,
       serverTime: picture?.serverTime ?? null,
       clockSkewMs,
       agency: picture?.agency ?? null,
