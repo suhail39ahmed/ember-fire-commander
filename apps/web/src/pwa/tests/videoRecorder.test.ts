@@ -68,10 +68,8 @@ type MockMediaRecorder = ReturnType<typeof fakeMediaRecorder>
 function makeEnv(recorderInstance?: MockMediaRecorder): VideoRecorderEnv {
   const inst = recorderInstance ?? fakeMediaRecorder()
   const MediaRecorderCtor = vi.fn().mockReturnValue(inst) as unknown as VideoRecorderEnv['MediaRecorder']
-  if (MediaRecorderCtor) {
-    // isTypeSupported must be on the constructor.
-    ;(MediaRecorderCtor as unknown as Record<string, unknown>).isTypeSupported = (mime: string) => mime === 'video/mp4'
-  }
+  // isTypeSupported must live on the constructor itself.
+  (MediaRecorderCtor as unknown as Record<string, unknown>).isTypeSupported = (mime: string) => mime === 'video/mp4'
   const ctxInst = fakeAudioContext()
   const AudioContextCtor = vi.fn().mockReturnValue(ctxInst) as unknown as typeof AudioContext
   const MediaStreamCtor = vi.fn((tracks: MediaStreamTrack[]) => ({ getTracks: () => tracks, getVideoTracks: () => tracks.filter((t: MediaStreamTrack) => (t as unknown as { id: string }).id.startsWith('v')) })) as unknown as typeof MediaStream
