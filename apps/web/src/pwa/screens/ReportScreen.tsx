@@ -1,24 +1,66 @@
+import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
-import { TalkCard } from '../gateway/TalkCard'
+import { CoachReply } from '../gateway/CoachReply'
+import { HoldToTalkPanel } from '../gateway/HoldToTalkPanel'
+import { gatewayStrings } from '../gateway/gatewayStrings'
 import { useLanguage } from '../language'
 import { useVolunteer } from '../layout/volunteerContext'
 import { OutboxPanel } from '../outbox/OutboxPanel'
 import { PhotoPanel } from '../photo/PhotoPanel'
 import { ReportPanel } from '../report/ReportPanel'
 import { getPosition, locate, watchLocationGranted } from '../report/location'
+import { stampNow } from '../clock'
 import type { ChipValue } from '../contracts/types'
 import { t } from '../i18n'
 import { incidentLabelById } from '../incidentName'
 import { screenStrings } from './strings'
 
-/** The Report tab (#128): hold to talk, the chip and note form, a photo, and what is waiting to send. */
+/** The Report tab (#128 / #129 / #130): hold to talk, coach reply, chips, photo, outbox. */
 export function ReportScreen() {
   const { lang } = useLanguage()
   const { api, volunteerId, outbox, upload, talk, digest, refresh } = useVolunteer()
   const navigate = useNavigate()
   const state = useLocation().state as { chip?: ChipValue | null; n?: number; incidentId?: string; taskId?: string } | null
   const preset = state && state.chip !== undefined ? { chip: state.chip, n: state.n ?? 1 } : undefined
+  const [voiceNote, setVoiceNote] = useState<string | null>(null)
+
+  async function onRelease() {
+    const text = talk.takeTranscript()
+    talk.onRelease()
+    if (!text) {
+      // No invented words when the gateway sent nothing (browser handshake is still undecided).
+      return
+    }
+    setVoiceNote(null)
+    const pos = await getPosition()
+    if (!pos) {
+      setVoiceNote(t(lang, gatewayStrings.noLocation))
+      return
+    }
+    const body = {
+      source: 'text' as const,
+      capturedAt: stampNow(),
+      lat: pos.lat,
+      lng: pos.lng,
+      accuracyM: pos.accuracyM,
+      chip: null,
+      text,
+    }
+    try {
+      if (outbox.submit) {
+        await outbox.submit(body)
+        // Outbox does not return the stored observation; leave receipt empty until the gateway/API provides it.
+        talk.beginCoach()
+      } else {
+        const stored = await api.createObservation(body)
+        talk.beginCoach({ receivedAt: stored.receivedAt, incidentLabel: null })
+      }
+      refresh()
+    } catch {
+      setVoiceNote(t(lang, gatewayStrings.noTranscript))
+    }
+  }
 
   return (
     <>
@@ -32,7 +74,25 @@ export function ReportScreen() {
           {t(lang, screenStrings.report.forTask)} {digest?.myTasks.find((x) => x.id === state.taskId)?.instruction ?? ''}
         </p>
       )}
-      <TalkCard lang={lang} view={talk.view} onPress={talk.onPress} onRelease={talk.onRelease} />
+      <HoldToTalkPanel
+        lang={lang}
+        view={talk.view}
+        transcript={talk.transcript}
+        onPress={talk.onPress}
+        onRelease={() => void onRelease()}
+      />
+      {voiceNote && (
+        <p className="muted small" role="status" data-testid="voice-note">
+          {voiceNote}
+        </p>
+      )}
+      <CoachReply
+        lang={lang}
+        phase={talk.coach.phase}
+        replyText={talk.coach.replyText}
+        receivedAt={talk.coach.receivedAt}
+        incidentLabel={talk.coach.incidentLabel}
+      />
       <ReportPanel
         api={api}
         lang={lang}
@@ -41,7 +101,6 @@ export function ReportScreen() {
         preset={preset}
         submit={outbox.submit}
         volunteerId={volunteerId}
-        watch={{ digest, refresh }}
         onDone={() => navigate('/pwa')}
       />
       <PhotoPanel api={api} upload={upload} lang={lang} getPosition={getPosition} submit={outbox.submit} queuePhoto={outbox.queuePhoto} />

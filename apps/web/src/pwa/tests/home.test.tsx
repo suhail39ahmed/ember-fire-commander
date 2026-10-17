@@ -2,7 +2,7 @@ import { Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { JoinRequestSummary, NearbyIncident } from '../contracts/types'
-import { JoinedView } from '../screens/JoinedScreen'
+import { ApprovedJoinedView } from '../screens/JoinedScreen'
 import { JoinSheet } from '../screens/JoinSheet'
 import { bearingLabel, crewLine, distanceLabel, nearbyState, pickPrompt, readDismissed, saveDismissed } from '../screens/nearby'
 import { joinTask } from '../screens/incidentsView'
@@ -207,9 +207,9 @@ describe('fire near you sheet', () => {
 
 describe('you joined', () => {
   const sent = task({ id: 'task_join', type: 'instruct', instruction: 'Pompa di parit barat', sentAt: '2026-10-16T14:26:00' })
-  const render = (over: { accepted?: boolean; position?: Parameters<typeof JoinedView>[0]['position']; action?: 'idle' | 'busy' | 'failed' } = {}) =>
+  const render = (over: { accepted?: boolean; position?: Parameters<typeof ApprovedJoinedView>[0]['position']; action?: 'idle' | 'busy' | 'failed' } = {}) =>
     renderVolunteer(
-      <JoinedView
+      <ApprovedJoinedView
         lang="en"
         incident={incident({ id: 'inc_1', name: 'TOHOR-3 · Peat field behind SDN 2', lat: 1.51, lng: 102.1 })}
         task={over.accepted ? { ...sent, acceptedAt: '2026-10-16T14:30:00Z' } : sent}

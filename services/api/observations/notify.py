@@ -110,6 +110,11 @@ def _id_token(audience):
         return token
 
 
+def cloud_run_token(audience):
+    """A Cloud Run ID token for audience (reused until shortly before it expires). Shared with assist/client.py."""
+    return _id_token(audience)
+
+
 def _fetch_id_token(audience):
     import google.auth.transport.requests
     import google.oauth2.id_token

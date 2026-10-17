@@ -16,7 +16,9 @@ export function completedIncidents(digest: Digest | null): IncidentSummary[] {
  * covers the whole phone instead.
  */
 export function assignedTasks(digest: Digest | null): Task[] {
-  return (digest?.myTasks ?? []).filter((task) => task.status === 'approved' && task.type !== 'withdraw')
+  return (digest?.myTasks ?? []).filter(
+    (task) => task.status === 'approved' && task.type !== 'withdraw' && !task.closedAt,
+  )
 }
 
 export function findIncident(digest: Digest | null, id: string): IncidentSummary | null {

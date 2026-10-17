@@ -38,7 +38,7 @@ export interface Incident {
 
 /** One factor behind `evidenceScore`, written by agents fusion (section 5.2). */
 export interface EvidenceFactor {
-  factor: 'severity' | 'corroboration' | 'photo' | 'gps' | 'conflict'
+  factor: 'severity' | 'corroboration' | 'photo' | 'gps' | 'wind' | 'satellite' | 'conflict'
   points: number
   detail: string
 }
@@ -129,6 +129,20 @@ export interface VolunteerCardData {
   /** A device token is stored for them. Only this yes or no is sent, never the token. */
   pushReady: boolean
   withdraw: VolunteerWithdraw | null
+  /** The crew on their profile. Null until one is stored. Absent from an older API. */
+  crewName?: string | null
+  /** The role stored when they joined, such as pump team. Null until one is stored. Absent from an older API. */
+  teamRole?: string | null
+  /** What their phone said with its newest report that carried it (section 5.1). Null when no report did. Absent from an older API. */
+  device?: CardDevice | null
+}
+
+/** Battery, network and language as the phone reported them, with the time of that report. Each part is null when missing. */
+export interface CardDevice {
+  batteryPct: number | null
+  network: LiveSignal | null
+  language: 'id' | 'en' | null
+  at: string | null
 }
 
 /** One line of the incident's history, oldest first (section 6.3). */
@@ -156,14 +170,91 @@ export interface DetailSummary {
 }
 
 /**
- * What a supervisor's read adds for an incident with a conflict (section 6.3). Both lists are `[]` when nothing is stored.
- * No wind or satellite factor, no "conflict opened" audit row and no `investigate` proposal exists to return.
+ * What a supervisor's read adds for an incident with a conflict (section 6.3). Every list is `[]` when nothing is stored.
+ * No `investigate` proposal exists to return. A conflict opened before #95 has no `conflict.open` row in `audit`.
  */
 export interface ConflictContext {
   /** Reports on neither side of the disagreement (smoke or unknown), oldest first. `observations` lists only the two sides. */
   otherObservations: Observation[]
+  /** Every report of the incident and the conflict, the two sides included, oldest first. Absent from an older API. */
+  allObservations?: Observation[]
   /** Recorded decisions on the conflict's verify and investigate tasks and on the incident, oldest first. */
   audit: TimelineEntry[]
+}
+
+/** The top of the detail screen (section 6.3). `openedAt` and `source` are null when no report can be read. */
+export interface DetailHeader {
+  code: string
+  placeName: string
+  openedAt: string | null
+  /** Distinct volunteers with a report or a task. Reporters, not people confirmed at the fire. */
+  peopleOnSite: number
+  source: Observation['source'] | null
+}
+
+/** The latest stored weather read. One fixed monitoring point, not the incident (section 6.3). */
+export interface WeatherCondition {
+  observedAt: string | null
+  windKmh: number | null
+  windDirDeg: number | null
+  /** The compass point the wind blows from, such as SW. */
+  windFrom: string | null
+  gustKmh: number | null
+  tempC: number | null
+  humidityPct: number | null
+  rainMm: number | null
+  source: string | null
+}
+
+/** The latest stored air read from a national feed, not measured at the incident (section 6.3). */
+export interface AirCondition {
+  observedAt: string | null
+  psi24hMax: number | null
+  pm25Max: number | null
+  source: string | null
+}
+
+export interface DetailConditions {
+  weather: WeatherCondition | null
+  air: AirCondition | null
+}
+
+/** What the advisory photo read said about one picture (section 6.3). It states no severity. */
+export interface PhotoRead {
+  smokeVisible: boolean | null
+  flameVisible: string | null
+  burnScarVisible: boolean | null
+  notes: string | null
+  at: string | null
+}
+
+/** One suggestion a model wrote from stored facts (section 6.3). Advisory text only. */
+export interface DetailSuggestion {
+  text: string
+  rationale: string | null
+}
+
+/** The last suggestions stored for an incident (section 6.3). `model`, or `template` when the model was not available. */
+export interface DetailSuggestions {
+  items: DetailSuggestion[]
+  source: 'model' | 'template' | null
+  generatedAt: string | null
+}
+
+/** The stored English translation of one report's text (section 6.3). The original text is never changed. */
+export interface Translation {
+  english: string
+  /** Lowercase language code of the original, `und` when it could not be told. */
+  sourceLanguage: string | null
+  at: string | null
+}
+
+/** Answer of POST /incidents/{id}/ask (section 6.13). Advisory text only. */
+export interface AskAnswer {
+  answer: string
+  /** False when the model said the stored facts do not hold what the question needs. Null when it did not say. */
+  enoughData: boolean | null
+  at: string
 }
 
 /** GET /incidents/{id} (section 6.3). */
@@ -186,8 +277,18 @@ export interface IncidentDetail {
   conflictContext?: ConflictContext | null
   /** Supervisor read only. The agency stored on the incident. Null until one is stored, which nothing does yet. Absent from an older API. */
   agencyInCharge?: string | null
+  /** Supervisor read only. Absent from an older API. */
+  header?: DetailHeader
+  /** Supervisor read only. Each part is null when nothing is stored. Absent from an older API. */
+  conditions?: DetailConditions
+  /** Supervisor read only. Photo reads by observation id, `{}` when none. Absent from an older API. */
+  photoReads?: Record<string, PhotoRead>
   /** Supervisor read only: live camera seat, drop event, and per-volunteer media (#102). */
   liveSeat?: LiveSeat
+  /** Supervisor read only. Null until suggestions were made for the incident. Absent from an older API. */
+  suggestions?: DetailSuggestions | null
+  /** Supervisor read only. English translations by observation id, `{}` when none is stored. Absent from an older API. */
+  translations?: Record<string, Translation>
 }
 
 /** Task decisions (section 6.5). */
@@ -227,6 +328,7 @@ export type LowerableSeverity = Exclude<Severity, 'unknown'>
 /** Audit actions (section 5.5). `site.reinspect` is written by code when the re-ignition watch raises an alert. */
 export type AuditAction =
   | 'observation.create'
+  | 'conflict.open'
   | 'task.approve'
   | 'task.reject'
   | 'task.edit'

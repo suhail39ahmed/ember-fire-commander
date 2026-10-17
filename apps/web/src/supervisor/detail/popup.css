@@ -36,3 +36,5 @@ span.pop-snap-img { display: grid; place-items: center; text-align: center; padd
 .pop-textarea { border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; font: inherit; font-size: 13px; min-height: 64px; resize: vertical; background: #fff; color: var(--ink); }
 .pop-result { margin: 0; font-size: 13px; color: #1f6b3a; }
 .pop-result.pop-error { color: var(--danger); }
+.pop-vision { color: var(--ink-muted); }
+.pop-answer { font-weight: 600; }

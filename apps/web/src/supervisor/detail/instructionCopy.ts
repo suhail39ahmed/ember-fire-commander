@@ -40,6 +40,10 @@ export const suggestCopy = {
     id: 'EMBER hanya mengusulkan tugas periksa saat laporan berbeda. Saran bebas dengan alasan belum dibuat layanan mana pun.',
     en: 'EMBER only proposes a verify task when reports disagree. No service writes free-form advice with a rationale.',
   },
+  limitWithModel: {
+    id: 'Tugas periksa diusulkan saat laporan berbeda. Saran bebas dengan alasan ada di halaman insiden.',
+    en: 'A verify task is proposed when reports disagree. Free suggestions with a reason are on the incident page.',
+  },
 } as const
 
 export const photoCopy = {
@@ -56,8 +60,36 @@ export const profileCopy = {
   device: { id: 'Perangkat', en: 'Device' },
   deviceYes: { id: 'Token notifikasi tersimpan', en: 'Push token stored' },
   deviceNo: { id: 'Belum ada token notifikasi', en: 'No push token stored' },
-  gap: {
-    id: 'Peran di tim, jaringan, baterai, dan bahasa tidak disimpan layanan mana pun.',
-    en: 'Crew role, network, battery and spoken language are not stored by any service.',
+  crew: { id: 'Regu', en: 'Crew' },
+  deviceNote: {
+    id: 'Jaringan, baterai, dan bahasa berasal dari laporan terbaru ponsel yang memuatnya, bukan bacaan langsung.',
+    en: 'Network, battery and language come from the phone’s newest report that carried them, not a live reading.',
+  },
+  deviceNone: {
+    id: 'Belum ada laporan relawan ini yang memuat jaringan, baterai, atau bahasa.',
+    en: 'No report from this volunteer has carried network, battery or language yet.',
+  },
+  roleNone: { id: 'Peran di tim muncul setelah relawan bergabung dengan peran.', en: 'A team role shows once the volunteer has joined with one.' },
+  languageName: { id: { id: 'Bahasa Indonesia', en: 'Indonesian' }, en: { id: 'Bahasa Inggris', en: 'English' } },
+} as const
+
+/** What the instruction history says about the volunteer's answer. Bahasa is DRAFT. */
+export const answerCopy = {
+  accepted: { id: 'Dikerjakan', en: 'Accepted' },
+  declined: { id: 'Ditolak', en: 'Declined' },
+} as const
+
+/** What the advisory photo read says under a snapshot. Bahasa is DRAFT. It describes the picture and states no severity. */
+export const visionCopy = {
+  title: { id: 'Bacaan foto (saran)', en: 'Photo read (advisory)' },
+  note: { id: 'Menggambarkan foto, bukan tingkat insiden.', en: 'Describes the picture, not the incident severity.' },
+  smoke: { id: 'asap terlihat', en: 'smoke visible' },
+  noSmoke: { id: 'tidak ada asap', en: 'no smoke' },
+  burnScar: { id: 'bekas terbakar terlihat', en: 'burn scar visible' },
+  flame: {
+    none: { id: 'tidak ada api', en: 'no flame' },
+    small: { id: 'api kecil', en: 'small flame' },
+    large: { id: 'api besar', en: 'large flame' },
+    unclear: { id: 'api tidak jelas', en: 'flame unclear' },
   },
 } as const

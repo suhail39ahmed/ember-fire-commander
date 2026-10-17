@@ -4,7 +4,7 @@
  * see ../gateway/). No Firestore or Cloud Storage SDK is used in the browser.
  * The one exception is the photo PUT to a signed URL that ember-api issued (see ../photo/).
  */
-import type { DeclineReason, Digest, DigestPosition, ErrorBody, FlagRequest, IncidentDetail, JoinRequestSummary, Observation, ObservationRequest, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
+import type { DeclineReason, Digest, DigestOptions, DigestPosition, ErrorBody, FlagRequest, IncidentDetail, IncidentMembership, JoinRequestSummary, Observation, ObservationRequest, PracticeResponse, TrainingPayload, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
 import type { AuthHeadersProvider } from './authHeaders'
 import { API_BASE_URL } from './config'
 import { ApiError, type EmberApi } from './types'
@@ -15,6 +15,8 @@ export const ENDPOINTS = {
   digestAt: (position: DigestPosition) => `/digest?lat=${position.lat.toFixed(5)}&lng=${position.lng.toFixed(5)}`,
   joinRequest: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}/join-requests`,
   incident: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}`,
+  join: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}/join`,
+  enRoute: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}/en-route`,
   observations: '/observations',
   photoUploadUrl: '/photos/upload-url',
   accept: (taskId: string) => `/tasks/${encodeURIComponent(taskId)}/accept`,
@@ -22,7 +24,22 @@ export const ENDPOINTS = {
   withdrawAnswer: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}/withdraw/answer`,
   flag: (observationId: string) => `/observations/${encodeURIComponent(observationId)}/flag`,
   heard: (taskId: string) => `/tasks/${encodeURIComponent(taskId)}/heard`,
+  training: '/training',
+  trainingProgress: '/training/progress',
+  practice: '/training/practice',
 } as const
+
+function digestPath(position?: DigestPosition | null, options?: DigestOptions): string {
+  const q = new URLSearchParams()
+  if (position) {
+    q.set('lat', position.lat.toFixed(5))
+    q.set('lng', position.lng.toFixed(5))
+  }
+  // URLSearchParams encodes the "+" of a zone offset, so the server reads it back as a plus.
+  if (options?.sentSince) q.set('sentSince', options.sentSince)
+  const query = q.toString()
+  return query ? `${ENDPOINTS.digest}?${query}` : ENDPOINTS.digest
+}
 
 function isErrorBody(body: unknown): body is ErrorBody {
   const error = (body as ErrorBody | null)?.error
@@ -57,7 +74,7 @@ export function createHttpApi(
   }
 
   return {
-    getDigest: (position) => request<Digest>(position ? ENDPOINTS.digestAt(position) : ENDPOINTS.digest),
+    getDigest: (position, options) => request<Digest>(digestPath(position, options)),
     requestJoin: async (incidentId) => {
       const body = await request<{ joinRequest: JoinRequestSummary }>(ENDPOINTS.joinRequest(incidentId), { method: 'POST' })
       const { incidentId: id, status, createdAt } = body.joinRequest
@@ -83,5 +100,18 @@ export function createHttpApi(
     flagObservation: async (observationId: string, flag: FlagRequest) => {
       await request<unknown>(ENDPOINTS.flag(observationId), { method: 'POST', body: JSON.stringify({ reason: flag.reason, photoPath: flag.photoPath ?? null }) })
     },
+    joinIncident: async (incidentId) => {
+      const body = await request<{ membership: IncidentMembership }>(ENDPOINTS.join(incidentId), { method: 'POST' })
+      return body.membership
+    },
+    markEnRoute: async (incidentId) => {
+      const body = await request<{ membership: IncidentMembership }>(ENDPOINTS.enRoute(incidentId), { method: 'POST' })
+      return body.membership
+    },
+    getTraining: () => request<TrainingPayload>(ENDPOINTS.training),
+    saveTrainingProgress: async (body) => {
+      await request<unknown>(ENDPOINTS.trainingProgress, { method: 'POST', body: JSON.stringify(body) })
+    },
+    practiceTurn: (body) => request<PracticeResponse>(ENDPOINTS.practice, { method: 'POST', body: JSON.stringify(body) }),
   }
 }

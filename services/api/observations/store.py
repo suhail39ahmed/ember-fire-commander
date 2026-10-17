@@ -64,7 +64,31 @@ def assemble_record(prepared, volunteer_id, received_at, volunteer_name=None):
     name = clean_volunteer_name(volunteer_name)
     if name:
         record["volunteerName"] = name
+    if prepared.get("device"):
+        record["device"] = dict(prepared["device"])
     return record
+
+
+JOINS_COLLECTION = "observation_joins"
+
+
+def join_view(join, incident):
+    """What a phone is told about where its report went. `join` is the agents record, `incident` the stored incident.
+
+    The incident's name and area are the stored ones, so the phone builds its label with the one naming rule.
+    """
+    if not join or not join.get("incidentId"):
+        return None
+    incident = incident or {}
+    return {
+        "incidentId": join["incidentId"],
+        "incidentName": incident.get("name") if isinstance(incident.get("name"), str) else None,
+        "incidentArea": incident.get("area") if isinstance(incident.get("area"), str) else None,
+        "joined": bool(join.get("joined")),
+        "nearbyCount": join.get("nearbyCount") if isinstance(join.get("nearbyCount"), int) else 0,
+        "nearestM": join.get("nearestM") if isinstance(join.get("nearestM"), (int, float)) else None,
+        "radiusM": join.get("radiusM") if isinstance(join.get("radiusM"), (int, float)) else None,
+    }
 
 
 class MemoryObservationStore:
@@ -74,6 +98,9 @@ class MemoryObservationStore:
         self.observations = {}
         self.audits = []
         self.pending = {}
+        # What agents wrote for each observation, and the incidents they point to. Tests fill these in.
+        self.joins = {}
+        self.incidents = {}
 
     def create(self, record):
         """Return (stored, created). A repeated clientId returns the first record with created False."""
@@ -99,6 +126,10 @@ class MemoryObservationStore:
     def get(self, observation_id):
         found = self.observations.get(observation_id)
         return dict(found) if found else None
+
+    def get_join(self, observation_id):
+        join = self.joins.get(observation_id)
+        return join_view(join, self.incidents.get(join["incidentId"])) if join else None
 
     def pending_intake(self, retry_before, limit):
         due = [p for p in self.pending.values() if p["attemptedAt"] <= retry_before]
@@ -191,6 +222,16 @@ class FirestoreObservationStore:
         if not snapshot.exists:
             return None
         return snapshot.to_dict()
+
+    def get_join(self, observation_id):
+        """Where agents put this observation, or None while agents has not placed it (or for an older report)."""
+        db = self._db()
+        snapshot = db.collection(JOINS_COLLECTION).document(observation_id).get()
+        if not snapshot.exists:
+            return None
+        join = snapshot.to_dict() or {}
+        incident = db.collection("incidents").document(join.get("incidentId") or "-").get()
+        return join_view(join, incident.to_dict() if incident.exists else None)
 
 
 _store = None

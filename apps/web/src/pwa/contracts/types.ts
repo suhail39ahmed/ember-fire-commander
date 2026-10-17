@@ -15,6 +15,43 @@ export type TaskStatus = 'proposed' | 'approved' | 'rejected'
 
 export const CHIP_VALUES: readonly ChipValue[] = ['asap', 'api', 'aman', 'butuh_bantuan']
 
+/** What the phone says about itself with a report (section 5.1). Every part is optional and best effort. */
+export interface ObservationDevice {
+  /** 0 to 100. */
+  batteryPct?: number
+  network?: '2g' | '3g' | '4g' | 'wifi' | 'unknown'
+  /** The language the app is shown in. */
+  language?: 'id' | 'en'
+}
+
+/** Where agents placed a report (section 6.2). Absent or null until they have. */
+export interface ObservationJoin {
+  incidentId: string
+  incidentName: string | null
+  incidentArea: string | null
+  /** True when the report joined an incident another report had opened, false when it started one. */
+  joined: boolean
+  /** Other reports, from other volunteers, within `radiusM` of this one when it arrived. */
+  nearbyCount: number
+  /** Metres to the nearest of them. Null when `nearbyCount` is 0. */
+  nearestM: number | null
+  /** The join radius in metres. */
+  radiusM: number
+}
+
+/** One row of the digest's `sentToday` (section 5.6): a report this volunteer sent. */
+export interface SentReport {
+  id: string
+  capturedAt: string
+  receivedAt: string
+  source: ObservationSource
+  chip: ChipValue | null
+  text: string | null
+  accuracyM: number | null
+  clientId?: string
+  join: ObservationJoin | null
+}
+
 /** Body of POST /observations (section 6.2). The server fills id, volunteerId, receivedAt, severity, photoPath and immutable. */
 export interface ObservationCreate {
   source: 'chip' | 'text'
@@ -26,6 +63,7 @@ export interface ObservationCreate {
   text: string | null
   /** Outbox item id. Sending it again returns the stored report instead of creating another. */
   clientId?: string
+  device?: ObservationDevice
 }
 
 /**
@@ -42,6 +80,7 @@ export interface PhotoObservationCreate {
   text: string | null
   photoPath: string
   clientId?: string
+  device?: ObservationDevice
 }
 
 export type ObservationRequest = ObservationCreate | PhotoObservationCreate
@@ -79,6 +118,10 @@ export interface Observation {
   immutable: true
   /** Present when the report was sent with a clientId. */
   clientId?: string
+  /** Present when the phone sent it. */
+  device?: ObservationDevice
+  /** Only on the create response, and only once agents have placed the report (section 6.2). */
+  join?: ObservationJoin
 }
 
 export interface Withdraw {
@@ -109,12 +152,30 @@ export interface Conflict {
   dispatchHeld: boolean
 }
 
+/** Join row on `incident_members` (section 5.7 / 6.11). Optional fields are null until stored. */
+export interface IncidentMembership {
+  incidentId: string
+  volunteerId: string
+  joinedAt: string
+  addedBy: string
+  addedByName: string | null
+  teamRole: string | null
+  enRouteAt: string | null
+  destination: string | null
+  approach: string | null
+  meetPoint: string | null
+  meetPerson: string | null
+  meetNote: string | null
+}
+
 /** `GET /incidents/{id}` for a volunteer who is on the incident (section 6.3). */
 export interface IncidentDetail {
   incident: IncidentRecord
   observations: Observation[]
   conflict: Conflict | null
   tasks: Task[]
+  /** Present when this volunteer has an `incident_members` row (#135). */
+  membership?: IncidentMembership | null
 }
 
 /** Incident summary as carried in the digest (section 5.6). */
@@ -152,6 +213,50 @@ export interface Task {
   declinedAt?: string | null
   declineReason?: DeclineReason | null
   declineNote?: string | null
+  /** Lead closed thank-you (#140). Set when a supervisor verifies the incident. */
+  closedAt?: string | null
+  closedBy?: string | null
+  closedByName?: string | null
+  closeMessage?: string | null
+}
+
+/** Season counts on a volunteer's digest for the lead-closed screen (#140). */
+export interface SeasonStats {
+  checksDone: number | null
+  falseAlarmsCleared: number | null
+}
+
+export type Localized = { id: string; en: string }
+
+export interface TrainingLesson {
+  id: string
+  title: Localized
+  minutes: number
+  summary: Localized
+  body: Localized
+  status: 'not_started' | 'in_progress' | 'done'
+  score?: number | null
+}
+
+export interface TrainingPayload {
+  video: { id: string; title: Localized; durationSec: number; url: string | null; progressSec: number }
+  lessons: TrainingLesson[]
+  doneCount: number
+  lessonCount: number
+  askChips: { id: string; label: Localized }[]
+  safetyLines: Localized[]
+}
+
+export interface PracticeResponse {
+  practice: true
+  reply: Localized
+  correct: boolean | null
+  check: {
+    question: Localized
+    options: { id: string; label: Localized }[]
+    lessonId: string
+  } | null
+  safetyLines: Localized[]
 }
 
 /** Why a volunteer cannot follow an instruction (contract section 6.11). Labels come from the copy bundle. */
@@ -176,6 +281,13 @@ export interface WithdrawAnswerRequest {
   accuracyM?: number | null
 }
 
+/** Optional phone position for `GET /digest?lat=&lng=` so nearby can be computed. */
+export interface DigestPosition {
+  lat: number
+  lng: number
+}
+
+/** GET /digest (section 6.4). */
 /** A live incident near the phone that this volunteer is not on yet (section 5.6). Wind and "supervisor asked for" are not sent. */
 export interface NearbyIncident extends IncidentSummary {
   /** Straight line from the phone, whole metres. */
@@ -203,15 +315,19 @@ export interface Digest {
   updatedAt: string
   incidents: IncidentSummary[]
   myTasks: Task[]
-  /** Filled only when the request carried the phone's position. */
+  /** Volunteer only. Empty without a usable position. Omitted for a supervisor. */
   nearby?: NearbyIncident[]
+  /** Volunteer season counts for #140. Omitted when nothing is stored. */
+  seasonStats?: SeasonStats | null
+  /** Volunteer only, and only when the request carried `sentSince` (section 6.4). Oldest first, at most 50. */
+  sentToday?: SentReport[]
   myJoinRequests?: JoinRequestSummary[]
 }
 
-/** The phone's position as sent on GET /digest. Used for that read only. */
-export interface DigestPosition {
-  lat: number
-  lng: number
+/** Optional parts of the digest request. */
+export interface DigestOptions {
+  /** ISO time with a zone: the start of the volunteer's day. Asks for `sentToday`. */
+  sentSince?: string
 }
 
 /** Error body (section 3). `fields` is present on validation_error only. */

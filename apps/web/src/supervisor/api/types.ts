@@ -1,4 +1,4 @@
-import type { Incident, IncidentDecision, IncidentDetail, JoinDecision, LiveSeat, PendingJoinRequest, LowerableSeverity, PhotoUrl, ProposedTask, TaskDecision, WithdrawRequest } from '../contracts'
+import type { AskAnswer, DetailSuggestions, Incident, IncidentDecision, IncidentDetail, JoinDecision, LiveSeat, PendingJoinRequest, LowerableSeverity, PhotoUrl, ProposedTask, TaskDecision, Translation, WithdrawRequest } from '../contracts'
 
 export interface LiveSeatDecision {
   liveSeat: LiveSeat
@@ -67,6 +67,12 @@ export interface SupervisorApi {
   lowerSeverity(id: string, severity: LowerableSeverity): Promise<IncidentDecision>
   /** Human only, and the console cannot undo it. `409` when the incident is already extinguished. */
   extinguishIncident(id: string): Promise<IncidentDecision>
+  /** Makes fresh suggestions from the stored facts and stores them for the incident. `502` or `503` when agents or the model is not available. */
+  suggestIncident(id: string): Promise<DetailSuggestions>
+  /** Answers a question from the stored facts, optionally about one volunteer. Advisory text. `502` or `503` when not available. */
+  askIncident(id: string, question: string, volunteerId?: string): Promise<AskAnswer>
+  /** Translates one report's text into English and stores it. `502` or `503` when not available. */
+  translateObservation(id: string, observationId: string): Promise<Translation>
   /** Hold the free live seat for a volunteer with 3G or better (#102). */
   makeLive(incidentId: string, volunteerId: string): Promise<LiveSeatDecision>
   /** Retry live for a dropped volunteer when signal is 3G or better (#102). */

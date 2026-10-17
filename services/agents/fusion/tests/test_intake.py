@@ -226,3 +226,71 @@ def test_later_report_keeps_the_area(client, store):
     _intake(client, "obs_02")
     [incident] = store.collections["incidents"].values()
     assert incident["area"] == "Bengkalis, Riau"
+
+
+def test_intake_stores_a_join_record_for_each_new_observation(client, store):
+    _seed(store, "obs_01", "uid_sari", "smoke")
+    _seed(store, "obs_02", "uid_rizal", "smoke", lat=1.4829)
+    _intake(client, "obs_01")
+    _intake(client, "obs_02")
+    [incident] = store.collections["incidents"].values()
+    first, second = store.collections["observation_joins"]["obs_01"], store.collections["observation_joins"]["obs_02"]
+    assert (first["incidentId"], first["joined"], first["nearbyCount"]) == (incident["id"], False, 0)
+    assert (second["incidentId"], second["joined"], second["nearbyCount"], second["radiusM"]) == (incident["id"], True, 1, 300.0)
+    assert second["nearestM"] == 100
+
+
+def test_a_repeat_intake_keeps_the_first_join_record(client, store):
+    _seed(store, "obs_01", "uid_sari", "smoke")
+    _intake(client, "obs_01")
+    first = dict(store.collections["observation_joins"]["obs_01"])
+    _intake(client, "obs_01")
+    assert store.collections["observation_joins"]["obs_01"] == first
+
+
+def test_the_radius_in_the_join_record_is_the_one_agents_used(client, store, monkeypatch):
+    monkeypatch.setenv("EMBER_CLUSTER_RADIUS_M", "150")
+    _seed(store, "obs_01", "uid_sari", "smoke")
+    _intake(client, "obs_01")
+    assert store.collections["observation_joins"]["obs_01"]["radiusM"] == 150
+
+
+def test_opening_a_conflict_writes_the_audit_row(client, store):
+    _seed(store, "obs_01", "uid_sari", "small_flame")
+    _seed(store, "obs_02", "uid_rizal", "none")
+    _intake(client, "obs_01")
+    _intake(client, "obs_02")
+    opened = [a for a in store.collections["audit"].values() if a["action"] == "conflict.open"]
+    assert len(opened) == 1 and opened[0]["actorId"] == "code"
+
+
+def test_a_stored_lead_and_the_wind_reading_become_zero_point_factors(client, store):
+    from clock import now_iso
+
+    store.collections["weather"]["current"] = {"windKmh": 12.4}
+    store.collections["leads"]["lead_1"] = {
+        "id": "lead_1", "kind": "firms_hotspot", "lat": 1.482, "lng": 102.125, "acqAt": now_iso(),
+        "confidence": "high", "status": "to_verify",
+    }
+    store.collections["leads"]["lead_old"] = {
+        "id": "lead_old", "kind": "firms_hotspot", "lat": 1.482, "lng": 102.116, "acqAt": "2020-01-01T00:00:00.000Z",
+        "confidence": "high", "status": "to_verify",
+    }
+    _seed(store, "obs_01", "uid_sari", "smoke")
+    _intake(client, "obs_01")
+    [incident] = store.collections["incidents"].values()
+    factors = {f["factor"]: f for f in incident["evidenceFactors"]}
+    assert factors["wind"]["points"] == 0 and factors["satellite"]["points"] == 0
+    assert "1.1 km" in factors["satellite"]["detail"]
+    # Smoke (20) and a precise position (10). Neither factor moves the score.
+    assert incident["evidenceScore"] == 30
+
+
+def test_a_failed_lead_lookup_does_not_fail_intake(client, store, monkeypatch):
+    def broken(since):
+        raise RuntimeError("leads unavailable")
+    monkeypatch.setattr(store, "recent_leads", broken)
+    _seed(store, "obs_01", "uid_sari", "smoke")
+    assert _intake(client, "obs_01").status_code == 202
+    [incident] = store.collections["incidents"].values()
+    assert "satellite" not in {f["factor"] for f in incident["evidenceFactors"]}

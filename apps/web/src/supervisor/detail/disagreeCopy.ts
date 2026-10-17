@@ -22,6 +22,8 @@ export const disagreeCopy = {
   decisionsNote: { id: 'dari catatan audit', en: 'from the audit records' },
   decisionsEmpty: { id: 'Belum ada keputusan yang tercatat.', en: 'No decision has been recorded yet.' },
   openedGap: { id: 'Tidak ada catatan kapan perbedaan ini muncul.', en: 'No record shows when the disagreement opened.' },
+  allTitle: { id: 'Semua laporan di insiden ini', en: 'All reports at this incident' },
+  allNote: { id: 'kedua pihak termasuk, dari yang terlama', en: 'both sides included, oldest first' },
   noInvestigate: {
     id: 'Agen belum mencatat usulan dispatch (investigasi) untuk insiden ini.',
     en: 'The agents have not recorded a dispatch (investigate) proposal for this incident.',
@@ -44,5 +46,7 @@ export const factorName = {
   corroboration: { id: 'Dukungan', en: 'Corroboration' },
   photo: { id: 'Foto', en: 'Photo' },
   gps: { id: 'GPS', en: 'GPS' },
+  wind: { id: 'Angin', en: 'Wind' },
+  satellite: { id: 'Satelit', en: 'Satellite' },
   conflict: { id: 'Konflik', en: 'Conflict' },
 } as const

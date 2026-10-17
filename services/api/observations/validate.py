@@ -13,6 +13,9 @@ CHIP_SEVERITY = {
     "butuh_bantuan": "unknown",
 }
 MAX_NOTE_LENGTH = 280
+# What a phone may say about itself with a report. Each part is optional and best effort.
+NETWORKS = ("2g", "3g", "4g", "wifi", "unknown")
+LANGUAGES = ("id", "en")
 # The outbox item id. Letters, digits, dot, dash and underscore, so it is safe to hash and log.
 CLIENT_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 # A phone clock can be a little fast and the outbox can hold a report offline
@@ -66,6 +69,7 @@ def prepare_observation(body):
     chip, text = _chip_and_text(source, body, fields)
     photo_path = _photo_path(source, body, fields)
     client_id = _client_id(body, fields)
+    device = _device(body.get("device"))
 
     if fields:
         raise ValidationError(next(iter(fields.values())), fields)
@@ -82,7 +86,27 @@ def prepare_observation(body):
         "severity": severity,
         "photoPath": photo_path,
         "clientId": client_id,
+        "device": device,
     }
+
+
+def _device(value):
+    """The battery, network and language a phone sent with a report, or None when it sent none that are usable.
+
+    This is context for the supervisor, so it never fails a report: a part that is missing, the wrong type or
+    out of range is left out, and so is any key that is not one of the three.
+    """
+    if not isinstance(value, dict):
+        return None
+    device = {}
+    battery = value.get("batteryPct")
+    if _finite_number(battery) is not None and 0 <= battery <= 100:
+        device["batteryPct"] = int(round(battery))
+    if value.get("network") in NETWORKS:
+        device["network"] = value["network"]
+    if value.get("language") in LANGUAGES:
+        device["language"] = value["language"]
+    return device or None
 
 
 def _client_id(body, fields):

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ChipValue, ObservationCreate } from '../contracts/types'
+import type { ChipValue, ObservationCreate, SentReport } from '../contracts/types'
 import type { EmberApi } from '../api/types'
 import { clockMessage, stampNow } from '../clock'
 import { strings, t, type Lang } from '../i18n'
@@ -8,9 +8,11 @@ import { ChipRow } from './ChipRow'
 import { SentCard } from './SentCard'
 import { SentToday } from './SentToday'
 import { addSent, loadSentToday, updateSent, type SentEntry } from './sentLog'
-import { useJoinWatch } from './useJoinWatch'
-import type { JoinResult } from './joinResult'
-import type { Digest } from '../contracts/types'
+import { sentRows } from './sentRows'
+import { startOfLocalDay } from './dayStart'
+import { useDeviceFacts } from './deviceInfo'
+import { useJoinWatch, type WatchedReport } from './useJoinWatch'
+import { joinResultOf, type JoinResult } from './joinResult'
 import type { LocationResult } from './location'
 import { clearDraft, loadDraft, saveDraft } from './draft'
 import { sendReport } from './sendReport'
@@ -29,8 +31,6 @@ interface Props {
   submit?: (body: ObservationCreate) => Promise<'sent' | 'queued'>
   /** Whose draft this is. Without it nothing is kept between visits. */
   volunteerId?: string | null
-  /** The digest and a way to re-read it, so a sent report can find the incident it joined (#131). */
-  watch?: { digest: Digest | null; refresh: () => void }
   /** Done on the success card. Without it there is no Done button. */
   onDone?: () => void
 }
@@ -39,7 +39,7 @@ const signatureOf = (chip: ChipValue | null, text: string) => `${chip ?? ''}|${t
 const EMPTY_SIGNATURE = signatureOf(null, '')
 
 /** #17: chip and text report. Works without Live voice. */
-export function ReportPanel({ api, lang, locate, onLocationGranted, preset, submit, volunteerId = null, watch, onDone }: Props) {
+export function ReportPanel({ api, lang, locate, onLocationGranted, preset, submit, volunteerId = null, onDone }: Props) {
   // A draft left by this volunteer within the last hour comes back after a reload or a closed app (#160).
   const [restored] = useState(() => (volunteerId ? loadDraft(volunteerId) : null))
   const [chip, setChip] = useState<ChipValue | null>(restored?.chip ?? null)
@@ -53,16 +53,34 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, subm
   const accuracy = useRef<number | null>(null)
   const [today, setToday] = useState<SentEntry[]>(() => (volunteerId ? loadSentToday(volunteerId) : []))
   const [join, setJoin] = useState<JoinResult | null>(null)
+  // What ember-api lists for today, once it has answered. Null until then and when it cannot be read.
+  const [remote, setRemote] = useState<SentReport[] | null>(null)
+  const deviceFacts = useDeviceFacts(lang)
 
-  const sentNow = status.kind === 'sent' && volunteerId && watch ? { volunteerId, at: status.at, chip: status.chip, text: status.text } : null
+  // The phone's own record is shown at once; ember-api's list replaces each row it has (#131).
+  useEffect(() => {
+    if (!volunteerId) return
+    let live = true
+    api
+      .getDigest(null, { sentSince: startOfLocalDay() })
+      .then((digest) => live && setRemote(digest.sentToday ?? null))
+      .catch(() => undefined)
+    return () => {
+      live = false
+    }
+  }, [api, volunteerId])
+
+  const watched: WatchedReport | null =
+    status.kind === 'sent' && volunteerId ? { volunteerId, capturedAt: status.capturedAt, sentSince: startOfLocalDay(new Date(status.at)) } : null
   useJoinWatch({
     api,
-    digest: watch?.digest ?? null,
-    refresh: watch?.refresh ?? (() => undefined),
-    sent: sentNow,
-    onFound: (found) => {
+    report: watched,
+    onFound: (row, all) => {
+      setRemote(all)
+      if (!row.join) return
+      const found = joinResultOf(row.join, lang)
       setJoin(found)
-      if (sentNow) setToday(updateSent(sentNow.volunteerId, sentNow.at, { incidentLabel: found.label, startedIncident: found.others === 0, otherReports: found.others }))
+      if (status.kind === 'sent' && volunteerId) setToday(updateSent(volunteerId, status.at, { join: found }))
     },
   })
 
@@ -99,7 +117,7 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, subm
   async function send() {
     if (busy) return
     const capturedAt = pending.current?.capturedAt ?? stampNow()
-    const draft = { chip, text, capturedAt }
+    const draft = { chip, text, capturedAt, device: deviceFacts() }
     pending.current ??= { capturedAt }
     const outcome = await sendReport(draft, {
       locate,
@@ -130,10 +148,10 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, subm
         // The success card takes the form's place and shows what was sent; the form starts empty again.
         {
           const at = new Date().toISOString()
-          setStatus({ kind: outcome.kind, at, chip, text })
+          setStatus({ kind: outcome.kind, at, capturedAt, chip, text })
           setJoin(null)
           if (volunteerId) {
-            setToday(addSent(volunteerId, { at, kind: outcome.kind, chip, text, accuracyM: accuracy.current, incidentLabel: null, startedIncident: null, otherReports: null }))
+            setToday(addSent(volunteerId, { at, capturedAt, kind: outcome.kind, chip, text, accuracyM: accuracy.current, join: null }))
           }
         }
         pending.current = null
@@ -197,10 +215,10 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, subm
             text={status.text}
             onNew={reset}
             onDone={onDone}
-            incident={join ? { label: join.label, others: join.others } : null}
+            join={join}
           />
         </section>
-        <SentToday lang={lang} entries={today} />
+        <SentToday lang={lang} rows={sentRows(today, remote, lang)} />
       </>
     )
   }

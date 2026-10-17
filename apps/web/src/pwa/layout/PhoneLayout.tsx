@@ -8,9 +8,10 @@ import { useLanguage } from '../language'
 import { FlagReportScreen } from '../screens/FlagReportScreen'
 import { GuideScreen } from '../screens/GuideScreen'
 import { HomeScreen } from '../screens/HomeScreen'
+import { ApprovedJoinedScreen, DirectJoinedScreen } from '../screens/JoinedScreen'
+import { PracticeScreen } from '../screens/PracticeScreen'
 import { IncidentDetailScreen } from '../screens/IncidentDetailScreen'
 import { IncidentsScreen } from '../screens/IncidentsScreen'
-import { JoinedScreen } from '../screens/JoinedScreen'
 import { ProfileScreen } from '../screens/ProfileScreen'
 import { ReportScreen } from '../screens/ReportScreen'
 import { DeclineScreen } from '../screens/DeclineScreen'
@@ -70,21 +71,24 @@ export function PhoneLayout() {
                 queuedCount={outbox.items.length}
                 queued={outbox.items}
                 api={api}
-                refresh={refresh}
+                volunteerId={volunteerId}
+                onRefresh={refresh}
                 position={position}
               />
             }
           />
           <Route path="report" element={<ReportScreen />} />
+          <Route path="joined/:id" element={<DirectJoinedScreen />} />
           <Route path="incidents" element={<IncidentsScreen />} />
           <Route path="incidents/:id" element={<IncidentDetailScreen />} />
-          <Route path="incidents/:id/joined" element={<JoinedScreen />} />
+          <Route path="incidents/:id/joined" element={<ApprovedJoinedScreen />} />
           <Route path="incidents/:id/flag/:obsId" element={<FlagReportScreen />} />
           <Route path="task/:id" element={<TaskScreen />} />
           <Route path="task/:id/decline" element={<DeclineScreen />} />
           <Route path="task/:id/not-a-fire" element={<NotAFireScreen />} />
           <Route path="sms" element={<SmsScreen />} />
           <Route path="guide" element={<GuideScreen />} />
+          <Route path="guide/practice" element={<PracticeScreen />} />
           <Route path="profile" element={<ProfileScreen />} />
           <Route path="*" element={<Navigate to="/pwa" replace />} />
         </Routes>
@@ -98,6 +102,9 @@ export function PhoneLayout() {
             </button>
             <button type="button" className="btn small" onClick={() => { mock.clearWithdraw(); refresh() }}>
               Simulate WITHDRAW lifted
+            </button>
+            <button type="button" className="btn small" onClick={() => { mock.closeLead(); refresh() }}>
+              Simulate lead closed
             </button>
             {(digest?.myJoinRequests ?? []).filter((r) => r.status === 'pending').slice(0, 1).map((r) => (
               <div key={r.incidentId} className="task-actions">

@@ -2,12 +2,14 @@
 
 fusion/   POST /internal/observations/<id>/intake: cluster, score and plan tasks.
 spotter/  advisory photo triage and incident summaries.
+assist/   advisory suggestions, Ask EMBER answers and English translations.
 sites/    POST /internal/sites/scan: the re-ignition watch, run by Cloud Scheduler.
 GET /healthz stays public.
 """
 import os
 from flask import Flask, jsonify
 
+from assist.routes import bp as assist_bp
 from fusion.intake import bp as fusion_bp
 from sites.routes import bp as sites_bp
 from spotter.routes import bp as spotter_bp
@@ -15,6 +17,7 @@ from spotter.routes import bp as spotter_bp
 app = Flask(__name__)
 app.register_blueprint(fusion_bp)
 app.register_blueprint(spotter_bp)
+app.register_blueprint(assist_bp)
 app.register_blueprint(sites_bp)
 
 @app.route('/healthz')

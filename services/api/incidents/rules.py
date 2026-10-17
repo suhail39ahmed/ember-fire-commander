@@ -19,6 +19,8 @@ SUMMARY_FIELDS = ("id", "name", "area", "status", "severity", "withdraw", "lat",
 TASK_FIELDS = (
     "id", "incidentId", "volunteerId", "type", "status", "instruction", "sentAt", "heardAt", "sendCount", "resendAt",
     "acceptedAt", "declinedAt", "declineReason", "declineNote",
+    # Lead closed thank-you (#140). Absent until a supervisor closes the check.
+    "closedAt", "closedBy", "closedByName", "closeMessage",
 )
 # A task that was sent and not heard can be sent again after this long.
 RESEND_AFTER_SECONDS = 60
@@ -67,6 +69,35 @@ def incident_label(data):
     area = data.get("area")
     place = area.strip() if isinstance(area, str) and area.strip() else coordinate_label(data.get("lat"), data.get("lng"))
     return f"Incident \u00b7 {place}" if place else "Incident"
+
+
+def incident_number(data):
+    """The `#<n>` at the end of the stored name, such as `#3`, or None."""
+    name = data.get("name")
+    name = name.strip() if isinstance(name, str) and name.strip() else None
+    if name and " \u00b7 " in name:
+        last = name.rsplit(" \u00b7 ", 1)[1].strip()
+    else:
+        last = name or ""
+    return last if last.startswith("#") and last[1:].isdigit() else None
+
+
+def incident_code(data, incident_id):
+    """The short code a screen shows: `#3`, or `INC-` and the last 4 characters of the id when no number is stored."""
+    return incident_number(data) or f"INC-{str(incident_id)[-4:].upper()}"
+
+
+def place_name(data):
+    """The stored area, else the place part of the stored name, else the position as a label. None when none exists."""
+    area = data.get("area")
+    if isinstance(area, str) and area.strip():
+        return area.strip()
+    name = data.get("name")
+    if isinstance(name, str) and name.strip():
+        head = name.split(" \u00b7 ")[0].strip()
+        if head and not (head.startswith("#") and head[1:].isdigit()):
+            return head
+    return coordinate_label(data.get("lat"), data.get("lng"))
 
 
 def phone_of(data):

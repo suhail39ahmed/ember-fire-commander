@@ -83,7 +83,7 @@ describe('volunteer pop-up: every region of the frame is there', () => {
     expect(html).toContain(`<dt>First report</dt><dd>${formatTimeZone('2026-10-17T03:05:00Z')}</dd>`)
     expect(html).toContain('<dt>Incident</dt><dd>Ketapang, Kalimantan Barat · Pak Dedi · #1</dd>')
     for (const label of ['Role', 'Network', 'Battery', 'Language', 'Last heard']) expect(html).toContain(`<dt>${label}</dt><dd>—</dd>`)
-    expect(html).toContain('Crew role, network, battery and spoken language are not stored by any service.')
+    expect(html).toContain('No report from this volunteer has carried network, battery or language yet.')
   })
 
   it('lists the volunteer’s reports in their own words and their instructions with their status', () => {

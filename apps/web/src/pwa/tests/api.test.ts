@@ -31,6 +31,24 @@ describe('http api client', () => {
     expect((fetchImpl.mock.calls[0] as unknown as [string])[0]).toBe('https://api.example/digest')
   })
 
+  it('calls training and practice endpoints', async () => {
+    const training = { video: { id: 'v', title: { id: 'a', en: 'a' }, durationSec: 1, url: null, progressSec: 0 }, lessons: [], doneCount: 0, lessonCount: 0, askChips: [], safetyLines: [] }
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (String(url).endsWith('/training')) return json(training, 200)
+      if (String(url).endsWith('/training/progress')) return json({ ok: true }, 200)
+      return json({ practice: true, reply: { id: 'r', en: 'r' }, correct: null, check: null, safetyLines: [] }, 200)
+    })
+    const api = createHttpApi(headers, 'https://api.example', fetchImpl as unknown as typeof fetch)
+    await expect(api.getTraining()).resolves.toEqual(training)
+    await api.saveTrainingProgress({ videoProgressSec: 10 })
+    await api.practiceTurn({ message: 'wind' })
+    expect(fetchImpl.mock.calls.map((c) => String(c[0]))).toEqual([
+      'https://api.example/training',
+      'https://api.example/training/progress',
+      'https://api.example/training/practice',
+    ])
+  })
+
   it('sends the phone position on GET /digest, rounded, and only when there is one', async () => {
     const digest = { updatedAt: '2026-10-17T03:00:00Z', incidents: [], myTasks: [], nearby: [], myJoinRequests: [] }
     const fetchImpl = vi.fn(async () => json(digest, 200))

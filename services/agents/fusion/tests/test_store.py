@@ -99,3 +99,55 @@ def test_volunteer_name_is_read_from_the_volunteer_record():
     assert store.volunteer_name("uid_unknown") is None
     client.docs["volunteers/uid_x"] = {"fcmTokens": []}
     assert store.volunteer_name("uid_x") is None
+
+
+def test_recent_leads_asks_for_one_range_on_acq_at():
+    asked = []
+
+    class Doc:
+        id = "lead_1"
+
+        def to_dict(self):
+            return {"kind": "firms_hotspot", "acqAt": "2026-10-13T07:10:00.000Z"}
+
+    class Query:
+        def stream(self):
+            return iter([Doc()])
+
+    class Leads:
+        def where(self, field, op, value):
+            asked.append((field, op, value))
+            return Query()
+
+    class Db:
+        def collection(self, name):
+            assert name == "leads"
+            return Leads()
+
+    leads = FirestoreFusionStore(client=Db()).recent_leads("2026-10-12T00:00:00.000Z")
+    assert asked == [("acqAt", ">=", "2026-10-12T00:00:00.000Z")]
+    assert leads == [{"kind": "firms_hotspot", "acqAt": "2026-10-13T07:10:00.000Z", "id": "lead_1"}]
+
+
+def test_apply_writes_the_join_record_with_the_incident():
+    from fusion.rules import Plan
+
+    writes = []
+
+    class Batch:
+        def set(self, ref, doc):
+            writes.append((ref, doc["id"]))
+
+        def commit(self):
+            writes.append("commit")
+
+    class Db:
+        def batch(self):
+            return Batch()
+
+        def collection(self, name):
+            return type("C", (), {"document": lambda self, doc_id: (name, doc_id)})()
+
+    plan = Plan(incident={"id": "inc_1"}, join={"id": "obs_1", "incidentId": "inc_1"})
+    FirestoreFusionStore(client=Db()).apply(plan)
+    assert writes == [(("incidents", "inc_1"), "inc_1"), (("observation_joins", "obs_1"), "obs_1"), "commit"]

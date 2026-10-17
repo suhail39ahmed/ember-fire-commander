@@ -1,4 +1,4 @@
-import type { DeclineReason, Digest, DigestPosition, FlagRequest, IncidentDetail, JoinRequestSummary, Observation, ObservationRequest, PhotoContentType, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
+import type { DeclineReason, Digest, DigestOptions, DigestPosition, FlagRequest, IncidentDetail, IncidentMembership, JoinRequestSummary, Observation, ObservationRequest, PhotoContentType, PracticeResponse, TrainingPayload, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
 
 /** Error surfaced to the UI. `retryable` is true for network failures, 429 and 5xx. */
 export class ApiError extends Error {
@@ -17,7 +17,7 @@ export class ApiError extends Error {
 /** The ember-api operations the volunteer PWA uses. */
 export interface EmberApi {
   /** GET /digest. With the phone's position the answer also lists live incidents near it (`nearby`). The position is not stored. */
-  getDigest(position?: DigestPosition | null): Promise<Digest>
+  getDigest(position?: DigestPosition | null, options?: DigestOptions): Promise<Digest>
   /** POST /incidents/{id}/join-requests: ask a supervisor to add this volunteer to a fire. A repeat returns the first request. */
   requestJoin(incidentId: string): Promise<JoinRequestSummary>
   /** GET /incidents/{id}: one incident this volunteer is on. A volunteer who is not on it gets `not_found` (404). */
@@ -35,4 +35,14 @@ export interface EmberApi {
   answerWithdraw(incidentId: string, answer: WithdrawAnswerRequest): Promise<void>
   /** POST /observations/{id}/flag: someone else's report looks wrong. The report is not changed. */
   flagObservation(observationId: string, flag: FlagRequest): Promise<void>
+  /** POST /incidents/{id}/join: Join now with no approval (#134). */
+  joinIncident(incidentId: string): Promise<IncidentMembership>
+  /** POST /incidents/{id}/en-route: I'm on my way (#135). Persists across reload. */
+  markEnRoute(incidentId: string): Promise<IncidentMembership>
+  /** GET /training: Guide lessons and progress (#153). */
+  getTraining(): Promise<TrainingPayload>
+  /** POST /training/progress: save video/lesson progress (#153). */
+  saveTrainingProgress(body: { videoProgressSec?: number; lessonId?: string; status?: string; score?: number }): Promise<void>
+  /** POST /training/practice: practice chat that cannot create observations (#154). */
+  practiceTurn(body: { message: string; lessonId?: string; optionId?: string }): Promise<PracticeResponse>
 }

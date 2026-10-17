@@ -1,56 +1,68 @@
 import { useEffect, useRef } from 'react'
 
 import type { EmberApi } from '../api/types'
-import type { Digest, IncidentDetail } from '../contracts/types'
-import { findJoin, type JoinResult, type SentReport } from './joinResult'
+import type { SentReport } from '../contracts/types'
+import { findSent } from './joinResult'
 
-const EVERY_MS = 5000
-const MAX_TRIES = 12
-const MAX_INCIDENTS = 10
+export const WATCH_EVERY_MS = 5000
+export const WATCH_FIRST_MS = 1500
+export const WATCH_MAX_TRIES = 12
+
+export interface WatchedReport {
+  volunteerId: string
+  /** The `capturedAt` the phone stamped on the report. */
+  capturedAt: string
+  /** The start of the volunteer's day, with its zone. */
+  sentSince: string
+}
+
+export interface WatchTimers {
+  set(fn: () => void, ms: number): unknown
+  clear(handle: unknown): void
+}
+
+const realTimers: WatchTimers = { set: (fn, ms) => setTimeout(fn, ms), clear: (h) => clearTimeout(h as ReturnType<typeof setTimeout>) }
 
 /**
- * After a report is sent, ask ember-api which incident it went into, until it is found or about a minute has
- * passed. Each try re-reads the digest and then the first few incidents in it. A try that fails is
- * quietly tried again; the success card never depends on this.
+ * Ask ember-api for today's sent list until the report is in it with its join, or about a minute has passed. Agents
+ * place a report a moment after it is stored, so the first reads may have no join yet. A read that fails is quietly
+ * tried again. Returns a function that stops the watch.
  */
-export function useJoinWatch(args: { api: EmberApi; digest: Digest | null; refresh: () => void; sent: SentReport | null; onFound: (join: JoinResult) => void }): void {
-  const { api, sent, refresh, onFound } = args
-  const digestRef = useRef(args.digest)
-  digestRef.current = args.digest
-  const foundRef = useRef(onFound)
-  foundRef.current = onFound
-  const refreshRef = useRef(refresh)
-  refreshRef.current = refresh
-  const key = sent ? `${sent.volunteerId}@${sent.at}` : null
+export function watchJoin(args: { api: Pick<EmberApi, 'getDigest'>; report: WatchedReport; onFound: (row: SentReport, all: SentReport[]) => void; timers?: WatchTimers }): () => void {
+  const { api, report, onFound, timers = realTimers } = args
+  let live = true
+  let tries = 0
+  let handle: unknown
+  const run = async () => {
+    tries += 1
+    try {
+      const digest = await api.getDigest(null, { sentSince: report.sentSince })
+      if (!live) return
+      const row = findSent(digest.sentToday, report.capturedAt)
+      if (row?.join) return onFound(row, digest.sentToday ?? [])
+    } catch {
+      // Not readable yet, or no signal. The next try asks again.
+    }
+    if (live && tries < WATCH_MAX_TRIES) handle = timers.set(() => void run(), WATCH_EVERY_MS)
+  }
+  handle = timers.set(() => void run(), WATCH_FIRST_MS)
+  return () => {
+    live = false
+    timers.clear(handle)
+  }
+}
+
+/** After a report is sent, watch for where it was placed. The success card never depends on this. */
+export function useJoinWatch(args: { api: EmberApi; report: WatchedReport | null; onFound: (row: SentReport, all: SentReport[]) => void }): void {
+  const { api, report } = args
+  const foundRef = useRef(args.onFound)
+  foundRef.current = args.onFound
+  const key = report ? `${report.volunteerId}@${report.capturedAt}` : null
 
   useEffect(() => {
-    if (!sent) return
-    let live = true
-    let tries = 0
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const run = async () => {
-      tries += 1
-      refreshRef.current()
-      const ids = (digestRef.current?.incidents ?? []).slice(0, MAX_INCIDENTS).map((i) => i.id)
-      const details: IncidentDetail[] = []
-      for (const id of ids) {
-        try {
-          details.push(await api.getIncident(id))
-        } catch {
-          // Not readable yet, or no signal. The next try asks again.
-        }
-      }
-      if (!live) return
-      const join = findJoin(sent, details)
-      if (join) return foundRef.current(join)
-      if (tries < MAX_TRIES) timer = setTimeout(() => void run(), EVERY_MS)
-    }
-    timer = setTimeout(() => void run(), 1500)
-    return () => {
-      live = false
-      if (timer) clearTimeout(timer)
-    }
-    // `sent` is identified by its key; a re-render with the same report must not restart the watch.
+    if (!report) return
+    return watchJoin({ api, report, onFound: (row, all) => foundRef.current(row, all) })
+    // The report is identified by its key; a re-render with the same report must not restart the watch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, key])
 }

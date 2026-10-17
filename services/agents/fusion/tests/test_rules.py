@@ -29,8 +29,8 @@ class World:
         self.new_id = ids()
         self.audits = []
 
-    def intake(self, observation, wind_kmh=None, settings=None):
-        plan = fuse(observation, self.state, self.new_id, NOW, wind_kmh=wind_kmh, settings=settings)
+    def intake(self, observation, wind_kmh=None, settings=None, leads=None):
+        plan = fuse(observation, self.state, self.new_id, NOW, wind_kmh=wind_kmh, settings=settings, leads=leads)
         if plan.skipped:
             return plan
         self.state.observations[observation["id"]] = observation

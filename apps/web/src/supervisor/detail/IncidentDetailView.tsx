@@ -21,7 +21,11 @@ import { extinguishCopy } from './extinguishCopy'
 import { LowerSeverityDialog } from './LowerSeverityDialog'
 import { disagreeCopy, factorName } from './disagreeCopy'
 import { AgencyInCharge } from './AgencyInCharge'
+import { IncidentSuggestions } from './AssistBlocks'
+import type { AssistActions } from './assistModel'
 import { ConflictExtras } from './ConflictExtras'
+import { conditionsCopy } from './conditionsCopy'
+import { airNote, airValue, weatherNote, windValue } from './conditionsModel'
 import { helpRequests } from './helpModel'
 import { NeedHelpBanner } from './NeedHelpBanner'
 import { ProposalRow } from './ProposalRow'
@@ -80,6 +84,8 @@ export interface IncidentDetailViewProps {
   makeLive?(volunteerId: string): Promise<void>
   /** POST /incidents/{id}/live/retry, then a fresh read (#102). */
   retryLive?(volunteerId: string): Promise<void>
+  /** Suggestions, Ask EMBER and English translations from ember-api. Left out, those parts are not shown. */
+  assist?: AssistActions
   mapsKey?: string
 }
 
@@ -154,9 +160,9 @@ function Stat({ label, value, note, tone }: { label: string; value: string; note
   )
 }
 
-function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask' | 'sendInstruction' | 'photoUrl' | 'yourAgency' | 'makeLive' | 'retryLive'> }) {
+function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask' | 'sendInstruction' | 'photoUrl' | 'yourAgency' | 'makeLive' | 'retryLive' | 'assist'> }) {
   const { incident, conflict } = detail
-  const { actorName, sendWithdraw, lowerSeverity, markSafe, resendTask, serverNow, sendInstruction, photoUrl, makeLive, retryLive } = view
+  const { actorName, sendWithdraw, lowerSeverity, markSafe, resendTask, serverNow, sendInstruction, photoUrl, makeLive, retryLive, assist } = view
   const [dialog, setDialog] = useState<'withdraw' | 'severity' | 'extinguish' | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [popupId, setPopupId] = useState<string | null>(null)
@@ -194,6 +200,11 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
   const reporters = detail.volunteers ? detail.volunteers.filter((c) => c.reportCount > 0).length : new Set(detail.observations.map((o) => o.volunteerId)).size
   const summary = summaryText(lang, detail.summary)
   const help = helpRequests(detail, lang)
+  // Conditions are shown only for the parts the API has stored. They are not measured at the incident.
+  const weather = detail.conditions?.weather ?? null
+  const air = detail.conditions?.air ?? null
+  const windText = weather ? windValue(lang, weather) : null
+  const airText = air ? airValue(lang, air) : null
   return (
     <>
       <header className="inc-head">
@@ -207,10 +218,17 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           )}
           {incident.status === 'held' && <span className="inc-pill inc-pill-amber">{t(lang, detailCopy.holdPill)}</span>}
           <span className={offline ? 'inc-pill inc-pill-red' : 'inc-pill inc-pill-quiet'}>
-            {offline ? t(lang, detailCopy.lastKnown) : `${volunteers.length} ${t(lang, detailCopy.onSite)}`}
+            {offline ? t(lang, detailCopy.lastKnown) : `${detail.header?.peopleOnSite ?? volunteers.length} ${t(lang, detailCopy.onSite)}`}
           </span>
         </div>
         <h1 className="inc-title">{incidentLabel(incident, lang)}</h1>
+        {detail.header && (
+          <p className="inc-muted inc-meta">
+            {detail.header.placeName}
+            {detail.header.openedAt && ` · ${t(lang, conditionsCopy.opened)} ${formatTimeZone(detail.header.openedAt)}`}
+            {detail.header.source && ` · ${t(lang, conditionsCopy.via)} ${t(lang, detailCopy.source[detail.header.source])}`}
+          </p>
+        )}
         <ActionBar
           lang={lang}
           incident={incident}
@@ -280,6 +298,12 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           note={`${reporters} ${lang === 'id' ? 'relawan' : reporters === 1 ? 'volunteer' : 'volunteers'}`}
         />
         <Stat label={t(lang, detailCopy.statPosition)} value={formatPosition(incident)} note={incident.area ?? t(lang, detailCopy.statPositionNote)} />
+        {weather && windText && (
+          <Stat label={t(lang, conditionsCopy.windLabel)} value={windText} note={[t(lang, conditionsCopy.stationNote), weatherNote(lang, weather)].filter(Boolean).join(' · ')} />
+        )}
+        {air && airText && (
+          <Stat label={t(lang, conditionsCopy.airLabel)} value={airText} note={[t(lang, conditionsCopy.airNote), airNote(lang, air)].filter(Boolean).join(' · ')} />
+        )}
       </div>
 
       <AgencyInCharge lang={lang} agency={detail.agencyInCharge} yours={view.yourAgency} />
@@ -293,6 +317,8 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           <p>{summary}</p>
         </section>
       )}
+
+      {assist && <IncidentSuggestions lang={lang} suggestions={detail.suggestions} assist={assist} offline={offline} />}
 
       <section aria-labelledby="inc-field-title">
         <h2 className="inc-h2" id="inc-field-title">
@@ -338,7 +364,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         {paused && <p className="wd-paused">{t(lang, stateCopy.paused)}</p>}
         <p className="inc-callout">{t(lang, detailCopy.withdrawRule)}</p>
       </section>
-      {popupId !== null && <VolunteerPopup lang={lang} detail={detail} volunteerId={popupId} onClose={() => setPopupId(null)} offline={offline} now={clock} onResend={resendTask} sendInstruction={sendInstruction} photoUrl={photoUrl} />}
+      {popupId !== null && <VolunteerPopup lang={lang} detail={detail} volunteerId={popupId} onClose={() => setPopupId(null)} offline={offline} now={clock} onResend={resendTask} sendInstruction={sendInstruction} photoUrl={photoUrl} assist={assist} />}
       {toasts[0] && <HeardToast lang={lang} event={toasts[0]} name={nameOf(detail, toasts[0].volunteerId, lang)} onClose={dismiss} />}
       {dialog === 'withdraw' && (
         <SendWithdrawDialog

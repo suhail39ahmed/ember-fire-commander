@@ -5,7 +5,19 @@
  * Task and WITHDRAW state is produced here, standing in for backend code.
  * The UI only displays what the API returns.
  */
-import { CHIP_VALUES, type Digest, type IncidentDetail, type JoinRequestSummary, type NearbyIncident, type Observation, type ObservationRequest } from '../contracts/types'
+import {
+  CHIP_VALUES,
+  type Digest,
+  type IncidentDetail,
+  type IncidentMembership,
+  type JoinRequestSummary,
+  type NearbyIncident,
+  type Observation,
+  type ObservationJoin,
+  type ObservationRequest,
+  type PracticeResponse,
+  type TrainingPayload,
+} from '../contracts/types'
 import { bearingDeg, distanceM } from '../screens/geo'
 import { ApiError, type EmberApi } from './types'
 
@@ -14,6 +26,8 @@ export interface MockControls {
   triggerWithdraw(): void
   /** Simulate the withdraw leaving the digest (nothing in the real API does this yet). */
   clearWithdraw(): void
+  /** Simulate supervisor verify closing open verify tasks (#140). */
+  closeLead(): void
   /** Simulate a supervisor approving or declining this volunteer's join request for a nearby fire. */
   approveJoin(incidentId: string): void
   declineJoin(incidentId: string): void
@@ -32,6 +46,61 @@ function validationError(field: string, hint: string): ApiError {
 }
 
 const MOCK_PHOTO_PREFIX = 'photos/'
+
+const mockTraining: TrainingPayload = {
+  video: {
+    id: 'how_ember_works',
+    title: { id: 'Cara EMBER bekerja', en: 'How EMBER works: report, stay upwind, withdraw' },
+    durationSec: 180,
+    url: null,
+    progressSec: 80,
+  },
+  lessons: [
+    {
+      id: 'report_30s',
+      title: { id: 'Lapor dalam 30 detik', en: 'Report a fire in 30 seconds' },
+      minutes: 4,
+      summary: { id: 'Chip atau mic', en: 'Chip or mic' },
+      body: { id: 'Latihan lapor.', en: 'Practice reporting.' },
+      status: 'done',
+      score: 3,
+    },
+    {
+      id: 'wind_upwind',
+      title: { id: 'Baca angin', en: 'Read the wind, stay upwind' },
+      minutes: 4,
+      summary: { id: 'Dari sisi angin', en: 'From upwind' },
+      body: { id: 'Latihan angin.', en: 'Practice wind.' },
+      status: 'done',
+      score: 3,
+    },
+    {
+      id: 'withdraw',
+      title: { id: 'Kapan WITHDRAW', en: 'When to WITHDRAW' },
+      minutes: 4,
+      summary: { id: 'Mundur jika tidak aman', en: 'Leave when unsafe' },
+      body: { id: 'Latihan mundur.', en: 'Practice withdraw.' },
+      status: 'not_started',
+      score: null,
+    },
+    {
+      id: 'peat_return',
+      title: { id: 'Api gambut kembali', en: 'Peat fires come back' },
+      minutes: 4,
+      summary: { id: 'Situs lama', en: 'Old site' },
+      body: { id: 'Latihan gambut.', en: 'Practice peat.' },
+      status: 'not_started',
+      score: null,
+    },
+  ],
+  doneCount: 2,
+  lessonCount: 4,
+  askChips: [
+    { id: 'thick_smoke', label: { id: 'Asap semakin tebal', en: 'Smoke is getting thick' } },
+    { id: 'wind_changed', label: { id: 'Angin berubah', en: 'The wind changed' } },
+  ],
+  safetyLines: [{ id: 'Jaga jarak aman.', en: 'Keep a safe distance.' }],
+}
 
 /** Two fires a few hundred metres from wherever the phone is, so the nearby list shows on any desktop or phone. */
 const NEARBY_FIXTURES = [
@@ -59,6 +128,8 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
   let digest: Digest
   let failure: 'network' | 'validation' | null = null
   const observations: Observation[] = []
+  const joins = new Map<string, ObservationJoin>()
+  const memberships = new Map<string, IncidentMembership>()
   const joinRequests: JoinRequestSummary[] = []
   /** The last phone position sent with a digest read. Nearby fires sit relative to it, so an approved one must too. */
   let lastPosition: { lat: number; lng: number } | null = null
@@ -77,9 +148,20 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
           instruction: 'Foto lebih lebar ke arah tanah. Jaga jarak aman. Katakan apakah api terlihat.',
         },
       ],
+      nearby: [],
+      seasonStats: { checksDone: 1, falseAlarmsCleared: 0 },
     }
     failure = null
     observations.length = 0
+    joins.clear()
+    memberships.clear()
+    lastPosition = null
+    mockTraining.video.progressSec = 80
+    mockTraining.lessons.forEach((lesson, i) => {
+      lesson.status = i < 2 ? 'done' : 'not_started'
+      lesson.score = i < 2 ? 3 : null
+    })
+    mockTraining.doneCount = 2
     joinRequests.length = 0
   }
   reset()
@@ -109,10 +191,29 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
       .sort((a, b) => a.distanceM - b.distanceM)
 
   return {
-    async getDigest(position) {
+    async getDigest(position, options) {
       await wait()
       if (position) lastPosition = position
-      return { ...structuredClone(digest), nearby: position ? nearbyFor(position) : [], myJoinRequests: structuredClone(joinRequests) }
+      const next = structuredClone(digest)
+      if (options?.sentSince) {
+        const since = Date.parse(options.sentSince)
+        next.sentToday = observations
+          .filter((o) => !Number.isFinite(since) || Date.parse(o.receivedAt) >= since)
+          .map((o) => ({
+            id: o.id,
+            capturedAt: o.capturedAt,
+            receivedAt: o.receivedAt,
+            source: o.source,
+            chip: o.chip,
+            text: o.text,
+            accuracyM: o.accuracyM,
+            ...(o.clientId ? { clientId: o.clientId } : {}),
+            join: joins.get(o.id) ?? null,
+          }))
+      }
+      next.nearby = position ? nearbyFor(position) : []
+      next.myJoinRequests = joinRequests.map((row) => ({ ...row }))
+      return next
     },
     async requestJoin(incidentId) {
       await wait()
@@ -131,6 +232,7 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
         observations: structuredClone(observations),
         conflict: null,
         tasks: structuredClone(digest.myTasks.filter((t) => t.incidentId === incidentId)),
+        membership: memberships.get(incidentId) ?? null,
       }
       return detail
     },
@@ -153,7 +255,9 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
         immutable: true,
       }
       observations.push(stored)
-      return stored
+      // The demo incident already holds Pak Dedi's report, so a mock report always joins it.
+      joins.set(stored.id, { incidentId: INCIDENT_ID, incidentName: INCIDENT_NAME, incidentArea: 'Ketapang, Kalimantan Barat', joined: true, nearbyCount: 1, nearestM: 140, radiusM: 300 })
+      return { ...stored, join: joins.get(stored.id) }
     },
     async markTaskHeard(taskId) {
       await wait()
@@ -184,6 +288,74 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
       if (!mine) throw new ApiError('not_found', 'observation id is unknown', 404, false)
       if (mine.volunteerId === volunteerId) throw new ApiError('conflict', 'You cannot flag your own report', 409, false)
     },
+    async joinIncident(incidentId) {
+      await wait()
+      const existing = memberships.get(incidentId)
+      if (existing) return structuredClone(existing)
+      const fixture = NEARBY_FIXTURES.find((row) => row.id === incidentId)
+      if (!fixture && !digest.incidents.some((i) => i.id === incidentId)) {
+        throw new ApiError('not_found', 'incident id is unknown', 404, false)
+      }
+      const membership: IncidentMembership = {
+        incidentId,
+        volunteerId,
+        joinedAt: new Date().toISOString(),
+        addedBy: volunteerId,
+        addedByName: 'Pak Dedi',
+        teamRole: null,
+        enRouteAt: null,
+        destination: null,
+        approach: null,
+        meetPoint: null,
+        meetPerson: null,
+        meetNote: null,
+      }
+      memberships.set(incidentId, membership)
+      if (!digest.incidents.some((i) => i.id === incidentId)) {
+        if (!fixture) throw new ApiError('not_found', 'incident id is unknown', 404, false)
+        const position = lastPosition ?? { lat: -1.849, lng: 110.051 }
+        digest = {
+          ...digest,
+          updatedAt: new Date().toISOString(),
+          incidents: [...digest.incidents, {
+            id: incidentId,
+            name: fixture.name,
+            area: fixture.area,
+            status: 'open',
+            severity: fixture.severity,
+            withdraw: null,
+            lat: position.lat + fixture.north,
+            lng: position.lng + fixture.east,
+          }],
+          nearby: [],
+        }
+      }
+      return structuredClone(membership)
+    },
+    async markEnRoute(incidentId) {
+      await wait()
+      let membership = memberships.get(incidentId)
+      if (!membership) {
+        if (!digest.incidents.some((i) => i.id === incidentId)) throw new ApiError('not_found', 'incident id is unknown', 404, false)
+        membership = {
+          incidentId,
+          volunteerId,
+          joinedAt: new Date().toISOString(),
+          addedBy: volunteerId,
+          addedByName: 'Pak Dedi',
+          teamRole: null,
+          enRouteAt: null,
+          destination: null,
+          approach: null,
+          meetPoint: null,
+          meetPerson: null,
+          meetNote: null,
+        }
+      }
+      membership.enRouteAt ??= new Date().toISOString()
+      memberships.set(incidentId, membership)
+      return structuredClone(membership)
+    },
     async createUploadUrl(contentType) {
       await wait()
       const id = Math.random().toString(16).slice(2).padEnd(12, '0')
@@ -195,6 +367,49 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
         photoPath: `${MOCK_PHOTO_PREFIX}${volunteerId}/mock/${id}.${ext}`,
         expiresAt: new Date(Date.now() + 300_000).toISOString(),
       }
+    },
+    async getTraining() {
+      await wait()
+      return structuredClone(mockTraining)
+    },
+    async saveTrainingProgress(body) {
+      await wait()
+      if (typeof body.videoProgressSec === 'number') mockTraining.video.progressSec = body.videoProgressSec
+      if (body.lessonId) {
+        const lesson = mockTraining.lessons.find((row) => row.id === body.lessonId)
+        if (lesson && body.status) {
+          lesson.status = body.status as typeof lesson.status
+          if (body.score != null) lesson.score = body.score
+        }
+      }
+      mockTraining.doneCount = mockTraining.lessons.filter((row) => row.status === 'done').length
+    },
+    async practiceTurn(body) {
+      await wait()
+      const reply = {
+        id: 'Laporkan dari jarak aman dan tunggu instruksi.',
+        en: 'Report from a safe distance and wait for an instruction.',
+      }
+      const response: PracticeResponse = {
+        practice: true,
+        reply,
+        correct: body.optionId ? body.optionId === 'report' || body.optionId === 'upwind' || body.optionId === 'withdraw' : null,
+        check: body.optionId
+          ? null
+          : {
+              question: { id: 'Apa yang Anda lakukan dulu?', en: 'What do you do first?' },
+              options: [
+                { id: 'report', label: { id: 'Laporkan dari jarak aman', en: 'Report from a safe distance' } },
+                { id: 'run_in', label: { id: 'Masuk ke api', en: 'Run into the fire' } },
+              ],
+              lessonId: body.lessonId || 'report_30s',
+            },
+        safetyLines: [
+          { id: 'Jangan masuk ke api besar sendirian.', en: 'Do not walk into a large fire alone.' },
+          { id: 'Datang dari sisi datang angin.', en: 'Approach from upwind.' },
+        ],
+      }
+      return response
     },
     mock: {
       triggerWithdraw() {
@@ -208,6 +423,8 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
             ...digest.myTasks,
             { id: 'task_demo_withdraw', incidentId: INCIDENT_ID, volunteerId, type: 'withdraw', status: 'approved', instruction: WITHDRAW_TEXT },
           ],
+          nearby: digest.nearby ?? [],
+          seasonStats: digest.seasonStats,
         }
       },
       clearWithdraw() {
@@ -215,6 +432,32 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
           updatedAt: new Date().toISOString(),
           incidents: digest.incidents.map((i) => ({ ...i, withdraw: null })),
           myTasks: digest.myTasks.filter((x) => x.type !== 'withdraw'),
+          nearby: digest.nearby ?? [],
+          seasonStats: digest.seasonStats,
+        }
+      },
+      /** Close open verify tasks so Home shows the thank-you (#140). */
+      closeLead() {
+        const closedAt = new Date().toISOString()
+        digest = {
+          updatedAt: closedAt,
+          incidents: digest.incidents.map((i) => (i.id === INCIDENT_ID ? { ...i, status: 'verified' } : i)),
+          myTasks: digest.myTasks.map((row) =>
+            row.type === 'verify' && !row.closedAt
+              ? {
+                  ...row,
+                  closedAt,
+                  closedBy: 'uid_supervisor',
+                  closedByName: 'Bu Maya',
+                  closeMessage: 'False alarm cleared. Nobody else has to walk out there.',
+                }
+              : row,
+          ),
+          nearby: digest.nearby ?? [],
+          seasonStats: {
+            checksDone: digest.myTasks.filter((row) => row.type === 'verify').length,
+            falseAlarmsCleared: digest.myTasks.filter((row) => row.type === 'verify').length,
+          },
         }
       },
       approveJoin(incidentId) {

@@ -57,7 +57,15 @@ export function volunteerValue(over: Partial<VolunteerValue> = {}): VolunteerVal
     perms: { microphone: 'granted', camera: 'prompt', location: 'granted', notifications: 'denied' },
     asking: {},
     requestPermission: () => undefined,
-    talk: { view: talkView, onPress: () => undefined, onRelease: () => undefined },
+    talk: {
+      view: talkView,
+      onPress: () => undefined,
+      onRelease: () => undefined,
+      transcript: null,
+      takeTranscript: () => null,
+      coach: { phase: 'idle', replyText: null, receivedAt: null, incidentLabel: null },
+      beginCoach: () => undefined,
+    },
     mock: undefined,
     ...over,
   } as VolunteerValue

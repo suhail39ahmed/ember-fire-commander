@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import type { EmberApi } from '../api/types'
+import { closedThankYouTask, currentTask } from '../digest'
 import type { Digest, NearbyIncident } from '../contracts/types'
-import { currentTask } from '../digest'
 import { formatTime } from '../formatTime'
 import { strings, t, type Lang } from '../i18n'
 import { incidentLabelById } from '../incidentName'
@@ -13,6 +13,10 @@ import { useBattery, useNow, useOfflineSince } from '../useDeviceStatus'
 import type { DevicePosition } from './arrival'
 import { liveIncidents } from './incidentsView'
 import { IncidentRow } from './IncidentRow'
+import { NearbyPrompt } from './NearbyPrompt'
+import { isNearbyDismissed } from './nearbyDismiss'
+import { LeadClosedScreen } from './LeadClosedScreen'
+import { loadSeenClosed, markSeenClosed } from './seenClosed'
 import { JoinSheet } from './JoinSheet'
 import { AiSuggestCard, NearbyCard } from './NearbyCards'
 import { nearbyIncidents, nearbyState, pickPrompt, readDismissed, saveDismissed } from './nearby'
@@ -33,13 +37,14 @@ export interface HomeProps {
   queuedCount: number
   /** What is waiting in the outbox, for the no-signal card. Without it the card says no report is saved. */
   queued?: OutboxItem[]
-  /** Asking to join a nearby fire. Without them the nearby cards still show and the sheet cannot send. */
-  api?: EmberApi
-  refresh?: () => void
+  /** ember-api client. Required so Join now on the nearby prompt can call it. */
+  api: EmberApi
+  volunteerId?: string | null
+  /** Re-read the digest after Join now. */
+  onRefresh: () => void
   /** The phone's position, for the sheet map and for the "allow location" hint. */
   position?: DevicePosition
 }
-
 /** Placeholder card shapes while `/digest` has not returned. Same heights as the real cards, so nothing jumps. */
 function HomeSkeleton({ lang }: { lang: Lang }) {
   return (
@@ -91,13 +96,32 @@ function useJoinApproved(digest: Digest | null) {
  * Home (Figma H1 to H4, and the fire-near-you sheet). One Report tile, the AI card for the nearest fire the volunteer
  * can ask to join, their own incidents, and the fires near them. Wind is not shown: no service stores an observed wind.
  */
-export function HomeScreen({ lang, digest, status, lastSyncAt, online, queuedCount, queued = [], api, refresh = () => undefined, position }: HomeProps) {
+export function HomeScreen({
+  lang,
+  digest,
+  status,
+  lastSyncAt,
+  online,
+  queuedCount,
+  queued = [],
+  api,
+  volunteerId = null,
+  onRefresh,
+  position,
+}: HomeProps) {
   const offlineSince = useOfflineSince(online)
   const battery = useBattery()
   const nowMs = useNow()
+  const [dismissTick, setDismissTick] = useState(0)
+  const [seenClosed, setSeenClosed] = useState(() => loadSeenClosed())
+  const nearby = useMemo(() => {
+    void dismissTick
+    const list = digest?.nearby ?? []
+    return list.find((row) => !isNearbyDismissed(volunteerId, row.id)) ?? null
+  }, [digest?.nearby, volunteerId, dismissTick])
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => readDismissed())
   const [openId, setOpenId] = useState<string | null>(null)
-  const join = useJoin(api ?? NO_API, refresh)
+  const join = useJoin(api, onRefresh)
   useJoinApproved(digest)
 
   const dismiss = useCallback((id: string) => {
@@ -117,9 +141,25 @@ export function HomeScreen({ lang, digest, status, lastSyncAt, online, queuedCou
     )
   }
 
+  const thankYou = closedThankYouTask(digest, seenClosed)
+  if (thankYou) {
+    return (
+      <LeadClosedScreen
+        lang={lang}
+        task={thankYou}
+        seasonStats={digest?.seasonStats}
+        onDismiss={() => {
+          markSeenClosed(thankYou.id)
+          setSeenClosed(loadSeenClosed())
+        }}
+      />
+    )
+  }
+
   const task = currentTask(digest)
   const live = liveIncidents(digest)
   const offline = !online
+  const you = position?.kind === 'ok' ? { lat: position.lat, lng: position.lng } : null
   const near = offline ? [] : nearbyIncidents(digest)
   const prompt = offline ? null : pickPrompt(digest, dismissed)
   const open: NearbyIncident | null = openId ? (near.find((i) => i.id === openId) ?? null) : null
@@ -136,17 +176,35 @@ export function HomeScreen({ lang, digest, status, lastSyncAt, online, queuedCou
       )}
       {offline && !lastSyncAt && <p className="muted small">{t(lang, screenStrings.common.notAvailable)}</p>}
 
-      {digest && !offline && task && task.type !== 'withdraw' && (
-        <section className="card task" aria-labelledby="home-task-title">
-          <p className="section-label">{t(lang, screenStrings.home.taskWaiting)}</p>
-          <h2 id="home-task-title">
-            {t(lang, strings.taskType[task.type])} · {incidentLabelById(task.incidentId, digest.incidents)}
-          </h2>
-          {task.instruction && <p className="instruction">{task.instruction}</p>}
-          <Link className="btn primary" to={`/pwa/task/${encodeURIComponent(task.id)}`}>
-            {t(lang, screenStrings.home.openTask)}
-          </Link>
-        </section>
+      {digest && nearby && !offline && (
+        <NearbyPrompt
+          lang={lang}
+          api={api}
+          volunteerId={volunteerId}
+          nearby={nearby}
+          you={you}
+          onDismissed={() => setDismissTick((n) => n + 1)}
+          onJoined={onRefresh}
+        />
+      )}
+
+      {digest && !offline && (
+        task && task.type !== 'withdraw' ? (
+            <section className="card task" aria-labelledby="home-task-title">
+              <p className="section-label">{t(lang, screenStrings.home.taskWaiting)}</p>
+              <h2 id="home-task-title">
+                {t(lang, strings.taskType[task.type])} · {incidentLabelById(task.incidentId, digest.incidents)}
+              </h2>
+              {task.instruction && <p className="instruction">{task.instruction}</p>}
+              <Link className="btn primary" to={`/pwa/task/${encodeURIComponent(task.id)}`}>
+                {t(lang, screenStrings.home.openTask)}
+              </Link>
+            </section>
+          ) : (
+            <section className="card">
+              <h2>{t(lang, strings.noTask)}</h2>
+            </section>
+          )
       )}
 
       <ReportTile lang={lang} />
@@ -196,9 +254,7 @@ export function HomeScreen({ lang, digest, status, lastSyncAt, online, queuedCou
           state={stateOf(open.id)}
           sending={join.sending === open.id}
           failure={join.failure}
-          onJoin={() => {
-            if (api) void join.ask(open.id)
-          }}
+          onJoin={() => void join.ask(open.id)}
           onClose={() => {
             join.clearFailure()
             setOpenId(null)
@@ -209,5 +265,3 @@ export function HomeScreen({ lang, digest, status, lastSyncAt, online, queuedCou
   )
 }
 
-/** Stands in when Home is rendered without an API (static tests). Asking is never reachable then. */
-const NO_API = { requestJoin: () => Promise.reject(new Error('no api')) } as unknown as EmberApi

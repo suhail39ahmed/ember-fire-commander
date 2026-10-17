@@ -22,6 +22,25 @@ export function placeLine(card: VolunteerCardData | null): string | null {
   return card.lastAccuracyM === null ? place : `${place} · ±${card.lastAccuracyM} m`
 }
 
+const NETWORKS = { '2g': '2G', '3g': '3G', '4g': '4G', wifi: 'Wi-Fi', unknown: '' } as const
+
+/**
+ * "Tim Pompa A · pump team · 41% · 3G · ID": the crew, the team role and what the phone said with its newest report that
+ * carried it. Parts the API sent as null are left out. Null when none is stored.
+ */
+export function profileLine(card: VolunteerCardData | null): string | null {
+  if (!card) return null
+  const device = card.device
+  const parts = [
+    card.crewName ?? null,
+    card.teamRole ?? null,
+    device && device.batteryPct !== null ? `${device.batteryPct}%` : null,
+    device?.network && NETWORKS[device.network] ? NETWORKS[device.network] : null,
+    device?.language ? device.language.toUpperCase() : null,
+  ].filter((part): part is string => Boolean(part))
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
 /** What is known about the withdraw reaching this volunteer. Empty when the card has no withdraw. */
 export function deliveryFacts(lang: Lang, card: VolunteerCardData | null): string[] {
   const w = card?.withdraw
