@@ -1,11 +1,18 @@
 """Authenticate a voice-gateway WebSocket upgrade.
 
-The role is the `role` custom claim already on the Firebase ID token. This
-module reads that claim. It does not set custom claims and it does not read a
-role from the request body.
+Two paths are supported:
 
-APP_CHECK_ENFORCE defaults to false (log only), matching the Cloud Run
-setting. Production enforcement is a later change.
+Native clients (non-browser) — send the two identity headers from §2:
+  Authorization: Bearer <Firebase ID token>
+  X-Firebase-AppCheck: <App Check token>
+
+Browser clients (PWA) — use a short-lived voice ticket issued by ember-api:
+  Sec-WebSocket-Protocol: <ticket>
+  The gateway verifies and atomically consumes the ticket from Firestore.
+
+APP_CHECK_ENFORCE defaults to false (log only), matching the Cloud Run setting.
+Production enforcement is a later change (native path only; tickets already
+carry the App Check check done by ember-api at issue time).
 """
 import json
 import logging
@@ -13,6 +20,8 @@ import os
 
 import firebase_admin
 from firebase_admin import app_check, auth
+
+from auth.ticket import TicketError, verify_and_consume
 
 logger = logging.getLogger(__name__)
 
@@ -87,13 +96,37 @@ def app_check_enforced():
     return os.getenv("APP_CHECK_ENFORCE", "false").strip().lower() == "true"
 
 
-def authenticate_upgrade(headers):
-    """Verify the upgrade headers and return the signed-in user.
+def _sec_ws_protocol(headers):
+    """Return the first non-empty Sec-WebSocket-Protocol value, or None."""
+    header = headers.get("Sec-WebSocket-Protocol", "").strip()
+    for proto in header.split(","):
+        token = proto.strip()
+        if token:
+            return token
+    return None
 
-    A missing or invalid ID token, or a token without an allowed role, raises
-    AuthError. App Check is always checked. When APP_CHECK_ENFORCE is false,
-    an App Check failure is logged and the upgrade continues.
+
+def authenticate_upgrade(headers, db_client=None):
+    """Verify the upgrade credentials and return the signed-in user.
+
+    Browser path: a voice ticket in Sec-WebSocket-Protocol is verified and
+    consumed atomically from Firestore. No App Check check here — ember-api
+    already enforced it when it issued the ticket.
+
+    Native path: Authorization: Bearer <ID token> + X-Firebase-AppCheck. App
+    Check is always checked; when APP_CHECK_ENFORCE is false a failure is logged
+    and the upgrade continues.
+
+    A missing or invalid ticket or ID token, or a token without an allowed role,
+    raises AuthError.
     """
+    ticket = _sec_ws_protocol(headers)
+    if ticket:
+        try:
+            return verify_and_consume(ticket, db_client=db_client)
+        except TicketError as exc:
+            raise AuthError(401, "unauthorized", exc.message)
+
     user = user_from_token(_bearer_token(headers))
     app_check_token = headers.get("X-Firebase-AppCheck", "").strip()
     try:

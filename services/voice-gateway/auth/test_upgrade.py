@@ -6,6 +6,8 @@ import pytest
 from firebase_admin import auth as firebase_auth
 
 import auth.upgrade as upgrade
+import auth.ticket as ticket_module
+from auth.ticket import TicketError
 from app import app
 
 
@@ -300,3 +302,81 @@ def test_log_only_allows_invalid_app_check(monkeypatch, caplog):
     assert user["role"] == "volunteer"
     assert "App Check token is invalid" in caplog.text
     assert len(factory.calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# Browser ticket path
+# ---------------------------------------------------------------------------
+
+def _ticket_headers(ticket="ticket_abc"):
+    return {"Sec-WebSocket-Protocol": ticket}
+
+
+def _allow_ticket(monkeypatch, role="volunteer", uid="uid_sari", name="Sari"):
+    user = {"id": uid, "displayName": name, "role": role}
+    monkeypatch.setattr(upgrade, "verify_and_consume", lambda tok, db_client=None: user)
+
+
+def test_browser_ticket_accepted_and_hands_off_socket(monkeypatch):
+    _allow_ticket(monkeypatch)
+    factory = _recording_factory()
+    ws = FakeSocket(messages=['{"type":"session.start"}', None])
+    user = upgrade.handle_upgrade(ws, _ticket_headers(), factory)
+    assert user["id"] == "uid_sari"
+    assert user["role"] == "volunteer"
+    assert ws.sent == []
+    assert factory.calls[0][0]["role"] == "volunteer"
+
+
+def test_browser_ticket_supervisor_accepted(monkeypatch):
+    _allow_ticket(monkeypatch, role="supervisor", uid="uid_bpbd", name="Dewi")
+    factory = _recording_factory()
+    ws = FakeSocket(messages=[None])
+    user = upgrade.handle_upgrade(ws, _ticket_headers(), factory)
+    assert user["role"] == "supervisor"
+    assert factory.calls[0][0]["id"] == "uid_bpbd"
+
+
+def test_invalid_ticket_closes_before_gemini(monkeypatch):
+    monkeypatch.setattr(upgrade, "verify_and_consume", lambda tok, db_client=None: (_ for _ in ()).throw(TicketError("expired")))
+    _reject(monkeypatch, _ticket_headers())
+
+
+def test_unknown_ticket_closes_before_gemini(monkeypatch):
+    monkeypatch.setattr(upgrade, "verify_and_consume", lambda tok, db_client=None: (_ for _ in ()).throw(TicketError("not found")))
+    _reject(monkeypatch, _ticket_headers())
+
+
+def test_browser_path_does_not_check_app_check_headers(monkeypatch):
+    """A browser ticket upgrade succeeds even when no App Check header is sent."""
+    _allow_ticket(monkeypatch)
+    monkeypatch.setenv("APP_CHECK_ENFORCE", "true")
+    app_check_called = []
+    monkeypatch.setattr(upgrade, "verify_app_check_token", lambda tok: app_check_called.append(tok))
+    factory = _recording_factory()
+    upgrade.handle_upgrade(FakeSocket(messages=[None]), _ticket_headers(), factory)
+    assert not app_check_called
+
+
+def test_sec_ws_protocol_takes_first_non_empty_value(monkeypatch):
+    tokens = []
+    monkeypatch.setattr(upgrade, "verify_and_consume", lambda tok, db_client=None: tokens.append(tok) or {"id": "u", "displayName": "", "role": "volunteer"})
+    factory = _recording_factory()
+    headers = {"Sec-WebSocket-Protocol": " , tok_first , tok_second"}
+    upgrade.handle_upgrade(FakeSocket(messages=[None]), headers, factory)
+    assert tokens == ["tok_first"]
+
+
+def test_route_accepts_browser_ticket(monkeypatch):
+    _allow_ticket(monkeypatch)
+    _patch_route_socket(monkeypatch)
+    _run_gateway(_ticket_headers())
+    assert _RouteSocket.last.sent == []
+
+
+def test_route_rejects_invalid_browser_ticket(monkeypatch):
+    monkeypatch.setattr(upgrade, "verify_and_consume", lambda tok, db_client=None: (_ for _ in ()).throw(TicketError("bad")))
+    _patch_route_socket(monkeypatch, fail_on_receive=True)
+    _run_gateway(_ticket_headers())
+    assert _RouteSocket.last.closed is True
+    assert json.loads(_RouteSocket.last.sent[0]) == {"type": "session.closed", "reason": "unauthorized"}

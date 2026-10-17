@@ -1,18 +1,19 @@
 """voice-gateway: WebSocket relay to Gemini Live for EMBER fire commander.
 
-The upgrade at / requires a Firebase ID token. App Check follows
-APP_CHECK_ENFORCE. An accepted socket runs one push-to-talk Live relay.
-GET /healthz stays public.
+The upgrade at / accepts two authentication paths (§7):
+  - Browser (PWA): a voice ticket in Sec-WebSocket-Protocol, issued by ember-api.
+  - Native: Authorization: Bearer <Firebase ID token> + X-Firebase-AppCheck.
+
+App Check follows APP_CHECK_ENFORCE for the native path. An accepted socket runs
+one push-to-talk Live relay. GET /healthz stays public.
 """
 import os
 
 from flask import Flask, jsonify, request
-from flask_sock import Sock
 
 from auth.upgrade import handle_upgrade
 
 app = Flask(__name__)
-sock = Sock(app)
 
 
 @app.route("/healthz")
@@ -31,9 +32,23 @@ def start_gemini_session(user, ws):
     run_session(user, ws)
 
 
-@sock.route("/")
-def gateway(ws):
+@app.route("/")
+def gateway():
+    """WebSocket upgrade endpoint.
+
+    Creates the flask_sock Server directly so we can echo back the
+    Sec-WebSocket-Protocol the browser sent — required for browsers to accept
+    the upgrade when a subprotocol was proposed.
+    """
+    from flask_sock import Server as WsServer
+
+    protocol_header = request.headers.get("Sec-WebSocket-Protocol", "")
+    proposed = [p.strip() for p in protocol_header.split(",") if p.strip()]
+    subprotocols = proposed if proposed else None
+
+    ws = WsServer(request.environ, subprotocols=subprotocols)
     handle_upgrade(ws, request.headers, start_gemini_session)
+    return ""
 
 
 if __name__ == "__main__":
