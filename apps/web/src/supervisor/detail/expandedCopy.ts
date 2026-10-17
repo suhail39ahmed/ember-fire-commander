@@ -1,0 +1,98 @@
+/** Expanded volunteer view copy (issue #190). Bahasa is DRAFT and needs native-speaker review. */
+export const expandedCopy = {
+  close: { id: 'Tutup tampilan perbesar', en: 'Close expanded view' },
+  closeShort: { id: 'Tutup', en: 'Close' },
+
+  // Left pane — media & field reports
+  leftTitle: { id: 'Langsung dari lapangan', en: 'Live from the field' },
+  liveBadge: { id: 'LANGSUNG', en: 'LIVE' },
+  videoPlaceholder: {
+    id: 'Video langsung belum tersedia. Sinyal video dari relawan belum sampai ke konsol.',
+    en: 'Live video not available yet. Video signal from the volunteer does not reach the console.',
+  },
+  mic: { id: 'Mik', en: 'Mic' },
+  video: { id: 'Video', en: 'Video' },
+  snapshot: { id: 'Foto', en: 'Snapshot' },
+  flip: { id: 'Balik kamera', en: 'Flip camera' },
+  endLive: { id: 'Akhiri live', en: 'End live' },
+  captionTitle: { id: 'Apa yang terlihat', en: 'What the frame shows' },
+  captionPlaceholder: {
+    id: 'Keterangan bingkai belum tersedia — periksa sendiri di video saat sudah langsung.',
+    en: 'Frame caption not available yet — check it yourself once live video is connected.',
+  },
+  windChip: { id: 'Arah angin', en: 'Wind' },
+  windNotYet: { id: 'Kondisi angin belum tersedia', en: 'Wind conditions not available yet' },
+  upwindBadge: { id: 'DI ATAS ANGIN', en: 'UPWIND' },
+  downwindBadge: { id: 'DI BAWAH ANGIN', en: 'DOWNWIND' },
+
+  latestMsg: { id: 'Pesan terbaru', en: 'Latest message' },
+  noMsg: { id: 'Relawan ini belum mengirim laporan.', en: 'No report from this volunteer yet.' },
+  english: { id: 'Inggris', en: 'English' },
+  translatedFrom: { id: 'dari', en: 'from' },
+
+  snapshots: { id: 'Foto tersimpan', en: 'Saved snapshots' },
+  noSnapshots: { id: 'Belum ada foto dari relawan ini.', en: 'No photos from this volunteer yet.' },
+
+  sentTitle: { id: 'Dikirim ke', en: 'Sent to' },
+  noSent: { id: 'Belum ada instruksi untuk relawan ini.', en: 'No instructions for this volunteer yet.' },
+  heard: { id: 'Terdengar', en: 'Heard' },
+  done: { id: 'Selesai', en: 'Done' },
+  heardAt: { id: 'pukul', en: 'at' },
+
+  notYet: { id: 'Belum tersedia', en: 'Not available yet' },
+
+  // Right pane — Ask EMBER header stats
+  distance: { id: 'dari api', en: 'from flame' },
+  upwind: { id: 'di atas angin', en: 'upwind' },
+  signal: { id: 'sinyal', en: 'signal' },
+  battery: { id: 'baterai', en: 'battery' },
+
+  // Chat thread
+  chatTitle: { id: 'Tanya EMBER', en: 'Ask EMBER' },
+  chatNote: { id: 'dijawab dari data tersimpan · tidak ada yang dikirim dari sini', en: 'answered from stored data · nothing is sent from here' },
+  earlierCount: { id: 'pesan sebelumnya', en: 'earlier messages' },
+  showEarlier: { id: 'Tampilkan', en: 'Show' },
+  hideEarlier: { id: 'Sembunyikan', en: 'Hide' },
+  you: { id: 'Anda', en: 'You' },
+  ember: { id: 'EMBER', en: 'EMBER' },
+  notEnough: { id: 'Data tersimpan tidak cukup untuk menjawab penuh.', en: 'Stored data is not enough for a full answer.' },
+
+  // Quick prompts
+  promptNext: { id: 'Apa selanjutnya?', en: 'What next?' },
+  promptRecap: { id: 'Ringkas 5 menit terakhir', en: 'Summarise last 5 min' },
+  promptAll: { id: 'Buat draf untuk semua', en: 'Draft for everyone' },
+
+  // Input
+  inputPlaceholder: { id: 'Tanya EMBER tentang relawan ini…', en: 'Ask EMBER about this volunteer…' },
+  inputMic: { id: 'Mulai rekam suara', en: 'Start voice input' },
+  sendBtn: { id: 'Kirim pertanyaan', en: 'Ask' },
+  asking: { id: 'Menjawab…', en: 'Answering…' },
+
+  // Proposal card
+  proposalTitle: { id: 'Sebelum saya kirim sesuatu, periksa dulu ini', en: 'Before I send anything, check these' },
+  proposalEmpty: {
+    id: 'Tanya EMBER dulu untuk membuat draf — gunakan pertanyaan cepat atau tulis di bawah.',
+    en: 'Ask EMBER first to build a draft — use a quick prompt or type below.',
+  },
+  sendBoth: { id: 'Kirim keduanya sekarang', en: 'Send both now' },
+  sendBothNote: { id: 'Kirim ke semua memerlukan rute terpisah — belum tersedia.', en: 'Send to everyone needs a separate route — not available yet.' },
+  sendOnly: { id: 'Hanya ke', en: 'Only to' },
+  sending: { id: 'Mengirim…', en: 'Sending…' },
+  sent: { id: 'Terkirim', en: 'Sent' },
+  sendError: { id: 'Tidak bisa mengirim. Coba lagi.', en: 'Could not send. Try again.' },
+  proposalNote: {
+    id: 'Instruksi dikirim ke relawan ini saja. MUNDUR tidak menunggu obrolan ini.',
+    en: 'Instruction sends to this volunteer only. WITHDRAW never waits on this chat.',
+  },
+  withdrawRule: {
+    id: 'MUNDUR tidak pernah menunggu obrolan ini dan tidak bisa ditahan dari sini.',
+    en: 'WITHDRAW never waits on this chat and cannot be blocked here.',
+  },
+
+  // Offline / error states
+  offline: { id: 'Offline · tidak bisa bertanya', en: 'Offline · cannot ask' },
+  errUnavailable: { id: 'Layanan agents tidak tersedia. Tidak ada yang tersimpan. Coba lagi.', en: 'The agents service is not available. Nothing was stored. Try again.' },
+  errSession: { id: 'Sesi ini bukan supervisor. Masuk lagi.', en: 'This session is not a supervisor. Sign in again.' },
+  errGone: { id: 'Insiden atau relawan ini sudah tidak ada.', en: 'This incident or volunteer no longer exists.' },
+  errNetwork: { id: 'Tidak bisa menghubungi ember-api. Periksa koneksi.', en: 'Could not reach ember-api. Check the connection.' },
+} as const
