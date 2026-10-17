@@ -251,7 +251,6 @@ def digest():
     scoped = _scoped_incidents()
     incidents = [rules.to_record(s, rules.SUMMARY_FIELDS) for s in scoped]
     my_tasks = []
-    nearby = []
     season_stats = None
     if user["role"] == "volunteer":
         my_tasks = sorted(

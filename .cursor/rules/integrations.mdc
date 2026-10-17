@@ -1,0 +1,18 @@
+---
+description: Figma and GitHub access already available for this repo
+alwaysApply: true
+---
+
+# Integrations
+
+Figma and GitHub are already set up. Do not ask the user to reconnect them or to paste credentials.
+
+## Figma
+
+- Design: https://www.figma.com/design/WacSWJ9eGsdJ4vG9Q1nbyk/Google-Hackathon-2026?node-id=204-3&p=f
+- File key: `WacSWJ9eGsdJ4vG9Q1nbyk`
+- Token: read `FIGMA_TOKEN` from the repo-root `.env.local`. It is gitignored. Never copy the token into rules, commits, logs, or chat.
+
+## GitHub
+
+- Use the `gh` CLI. It is signed in as `MdNaushad` on github.com over HTTPS.

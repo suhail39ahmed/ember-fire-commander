@@ -71,7 +71,8 @@ def test_nearby_closest_live_not_already_joined(client, db, monkeypatch):
     assert near["distanceM"] > 0
     assert isinstance(near["bearingDeg"], int)
     assert near["crewOnSite"] == 1  # obs_other's volunteer
-    assert near["ask"] is None
+    assert near["reporterName"] is None
+    assert "ask" not in near
     assert near["severity"] == "small_flame"
 
 
