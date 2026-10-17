@@ -32,6 +32,7 @@ import volunteer_routes
 from training_routes import training_bp
 import join_routes
 from withdraw_events import events_bp
+from voice_ticket import voice_ticket_bp
 
 app = Flask(__name__)
 
@@ -59,6 +60,7 @@ app.register_blueprint(volunteer_routes.volunteer_bp)
 app.register_blueprint(training_bp)
 app.register_blueprint(join_routes.join_bp)
 app.register_blueprint(events_bp)
+app.register_blueprint(voice_ticket_bp)
 
 
 def error_body(code, message):

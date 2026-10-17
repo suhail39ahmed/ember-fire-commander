@@ -35,6 +35,18 @@ Protected routes also read `X-Firebase-AppCheck`. `APP_CHECK_ENFORCE` defaults t
 
 Token verification uses the Firebase Admin SDK and `GOOGLE_CLOUD_PROJECT` (default `ember-fire-commander`). No service-account JSON is stored in this repo.
 
+## Voice ticket
+
+`POST /voice/ticket` issues a short-lived (60-second), single-use voice ticket that the PWA uses to open the voice gateway WebSocket from a browser (§7 browser handshake).
+
+- Requires a valid Firebase ID token with an allowed role (`volunteer` or `supervisor`).
+- Verifies App Check following the same `APP_CHECK_ENFORCE` policy as all other protected routes.
+- Returns `201 { "ticket": "<random>", "expiresAt": "<ISO>" }`.
+- Writes `voiceTickets/{ticket}` in `ember-db` with `uid`, `displayName`, `role`, `expiresAt`, and `consumed: false`.
+- The voice gateway reads and atomically consumes the ticket at upgrade time (`auth/ticket.py`).
+
+Implemented in `voice_ticket.py`.
+
 ## Photo uploads
 
 `POST /photos/upload-url` gives a signed-in volunteer a V4 signed `PUT` URL for one still in the private bucket `PHOTO_BUCKET` (default `ember-fire-commander-ember-photos`).
