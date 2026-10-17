@@ -20,7 +20,6 @@ import { doneText } from './extinguishModel'
 import { extinguishCopy } from './extinguishCopy'
 import { LowerSeverityDialog } from './LowerSeverityDialog'
 import { disagreeCopy, factorName } from './disagreeCopy'
-import { AgencyInCharge } from './AgencyInCharge'
 import { IncidentSuggestions } from './AssistBlocks'
 import type { AssistActions } from './assistModel'
 import { ConflictExtras } from './ConflictExtras'
@@ -78,8 +77,6 @@ export interface IncidentDetailViewProps {
   sendInstruction(volunteerId: string, instruction: string): Promise<TaskDecision>
   /** GET /incidents/{id}/photos/{observationId}: a short-lived signed read link for a photo report. */
   photoUrl(incidentId: string, observationId: string): Promise<PhotoUrl>
-  /** The signed-in supervisor's own agency from their profile (GET /dashboard). Shown apart from the agency in charge. */
-  yourAgency?: string | null
   /** POST /incidents/{id}/live/make-live, then a fresh read (#102). */
   makeLive?(volunteerId: string): Promise<void>
   /** POST /incidents/{id}/live/retry, then a fresh read (#102). */
@@ -160,7 +157,7 @@ function Stat({ label, value, note, tone }: { label: string; value: string; note
   )
 }
 
-function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask' | 'sendInstruction' | 'photoUrl' | 'yourAgency' | 'makeLive' | 'retryLive' | 'assist'> }) {
+function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask' | 'sendInstruction' | 'photoUrl' | 'makeLive' | 'retryLive' | 'assist'> }) {
   const { incident, conflict } = detail
   const { actorName, sendWithdraw, lowerSeverity, markSafe, resendTask, serverNow, sendInstruction, photoUrl, makeLive, retryLive, assist } = view
   const [dialog, setDialog] = useState<'withdraw' | 'severity' | 'extinguish' | null>(null)
@@ -305,8 +302,6 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           <Stat label={t(lang, conditionsCopy.airLabel)} value={airText} note={[t(lang, conditionsCopy.airNote), airNote(lang, air)].filter(Boolean).join(' · ')} />
         )}
       </div>
-
-      <AgencyInCharge lang={lang} agency={detail.agencyInCharge} yours={view.yourAgency} />
 
       {summary && detail.summary && (
         <section className="inc-card" aria-labelledby="inc-summary-title">

@@ -130,6 +130,18 @@ describe('suggestions on the incident detail', () => {
     expect(html).toContain('A suggestion sends nothing.')
   })
 
+  it('keeps the AI SUGGESTED heading without the side note, in both languages', () => {
+    const en = renderToStaticMarkup(<IncidentSuggestions lang="en" suggestions={stored} assist={assist} offline={false} />)
+    expect(en).toContain('AI SUGGESTED')
+    expect(en).not.toContain('advice only, people decide')
+    expect(en).not.toContain('written by AI from stored data')
+    expect(en).not.toContain('inc-h2-note')
+    const id = renderToStaticMarkup(<IncidentSuggestions lang="id" suggestions={stored} assist={assist} offline={false} />)
+    expect(id).toContain('SARAN AI')
+    expect(id).not.toContain('hanya saran, orang yang memutuskan')
+    expect(id).not.toContain('inc-h2-note')
+  })
+
   it('says when they come from the plain rule list', () => {
     const html = renderToStaticMarkup(<IncidentSuggestions lang="en" suggestions={{ ...stored, source: 'template' }} assist={assist} offline={false} />)
     expect(html).toContain('simple rule list, the model was not available')

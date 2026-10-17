@@ -101,6 +101,15 @@ describe('console chrome', () => {
     expect(html).toContain('class="theme-switch"')
   })
 
+  it('shows no "no agency" note in the top bar when none is on file', () => {
+    for (const lang of ['en', 'id'] as const) {
+      const html = renderAt('/console', lang, { chrome: { ...chrome, agency: null } })
+      expect(html).not.toContain('No agency on file')
+      expect(html).not.toContain('Instansi belum tercatat')
+      expect(html).toContain('<p class="console-who">Bu Maya</p>')
+    }
+  })
+
   it('highlights the menu item for the open slot and leaves the others empty', () => {
     const audit = renderAt('/console/audit')
     const auditLink = anchor(audit, '/console/audit')

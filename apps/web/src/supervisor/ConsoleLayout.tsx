@@ -74,9 +74,6 @@ function ConsoleFrame({ fallback }: { fallback: ReactNode }) {
           {who}
           {agency ? ` · ${agency}` : ''}
         </p>
-        {!chromeError && serverTime && !agency && (
-          <p className="console-note">{t(language, chromeCopy.noAgency)}</p>
-        )}
         {USE_MOCK_API && <p className="console-note">{t(language, strings.simulated)}</p>}
         <span className="console-spacer" />
         {chromeError && <p className="console-alert" role="alert">{chromeError}</p>}
