@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { formatTime, formatTimeZone } from '../../pwa/formatTime'
 import { chipText } from '../../pwa/report/chips'
@@ -11,6 +11,7 @@ import { batteryText, networkText, popupFor, visionLine, type Popup } from './po
 import { instructionCopy, photoCopy } from './instructionCopy'
 import { instructionFailure, sendBlock, type SendBlock } from './instructionModel'
 import { initialsOf } from './model'
+import { createHoldToTalk } from './holdToTalk'
 import { worthShowing, ASK_MAX } from './assistModel'
 import type { AssistActions } from './assistModel'
 import { SnapshotImage } from './SnapshotImage'
@@ -75,8 +76,78 @@ function WindChip({ lang, detail }: { lang: Lang; detail: IncidentDetail }) {
   )
 }
 
+/**
+ * A two-way channel from the console to one volunteer. Nothing provides one yet: the voice gateway relays the
+ * volunteer's audio and frames to the model and never carries console audio or video (shared contract §7, §10).
+ * When a service does, it passes this in and the controls below start working; until then they stay disabled.
+ */
+export interface LiveChannel {
+  talking: boolean
+  videoOn: boolean
+  /** 0 to 1, the supervisor's own input level while talking. */
+  level?: number
+  startTalk(): void
+  stopTalk(): void
+  setVideo(on: boolean): void
+}
+
+/** Hold to talk, a start/stop video toggle, and the controls that need a live feed. All disabled, with the reason, without a channel. */
+function LiveControls({ lang, name, channel }: { lang: Lang; name: string; channel?: LiveChannel }) {
+  const channelRef = useRef(channel)
+  channelRef.current = channel
+  const hold = useMemo(() => createHoldToTalk(() => channelRef.current?.startTalk(), () => channelRef.current?.stopTalk()), [])
+  useEffect(() => () => hold.up(), [hold])
+  const reason = t(lang, expandedCopy.controlsOff)
+  const connected = channel !== undefined
+  const talking = connected && channel.talking
+  const videoOn = connected && channel.videoOn
+  const off = (label: string, why = reason) => ({ disabled: true, title: why, 'aria-label': label })
+  return (
+    <>
+      <div className="exp-controls" aria-label="live controls">
+        <button
+          type="button"
+          className={talking ? 'exp-ctrl-btn exp-ctrl-on' : 'exp-ctrl-btn'}
+          {...(connected ? { title: t(lang, expandedCopy.mic), 'aria-label': `${t(lang, expandedCopy.mic)} · ${name}` } : off(t(lang, expandedCopy.mic)))}
+          aria-pressed={talking}
+          onPointerDown={(e) => { e.currentTarget.setPointerCapture?.(e.pointerId); hold.down() }}
+          onPointerUp={() => hold.up()}
+          onPointerCancel={() => hold.up()}
+          onLostPointerCapture={() => hold.up()}
+          onBlur={() => hold.up()}
+          onContextMenu={(e) => e.preventDefault()}
+          onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); hold.down() } }}
+          onKeyUp={(e) => { if (e.key === ' ' || e.key === 'Enter') hold.up() }}
+        >
+          {talking ? t(lang, expandedCopy.micOn) : t(lang, expandedCopy.mic)}
+        </button>
+        {talking && channel.level !== undefined && (
+          <span className="exp-level" role="meter" aria-valuemin={0} aria-valuemax={1} aria-valuenow={channel.level} aria-label="input level">
+            <span style={{ width: `${Math.round(Math.max(0, Math.min(1, channel.level)) * 100)}%` }} />
+          </span>
+        )}
+        <button
+          type="button"
+          className={videoOn ? 'exp-ctrl-btn exp-ctrl-on' : 'exp-ctrl-btn'}
+          {...(connected ? { 'aria-label': t(lang, videoOn ? expandedCopy.videoOn : expandedCopy.video) } : off(t(lang, expandedCopy.video)))}
+          aria-pressed={videoOn}
+          onClick={() => channel?.setVideo(!videoOn)}
+        >
+          {t(lang, videoOn ? expandedCopy.videoOn : expandedCopy.video)}
+        </button>
+        {([expandedCopy.snapshot, expandedCopy.flip, expandedCopy.endLive] as const).map((label, i, all) => (
+          <button key={label.en} type="button" className={i === all.length - 1 ? 'exp-ctrl-btn exp-ctrl-end' : 'exp-ctrl-btn'} {...off(t(lang, label), connected ? t(lang, expandedCopy.needsFeed) : reason)}>
+            {t(lang, label)}
+          </button>
+        ))}
+      </div>
+      {!connected && <p className="exp-controls-note" role="note">{reason}</p>}
+    </>
+  )
+}
+
 /** Live video placeholder — out of scope until the live seat media path is wired (#102). */
-function VideoArea({ lang, detail }: { lang: Lang; detail: IncidentDetail }) {
+function VideoArea({ lang, detail, name, channel }: { lang: Lang; detail: IncidentDetail; name: string; channel?: LiveChannel }) {
   return (
     <div className="exp-section exp-video-section" aria-label={t(lang, expandedCopy.leftTitle)}>
       <div className="exp-video-stage">
@@ -91,13 +162,7 @@ function VideoArea({ lang, detail }: { lang: Lang; detail: IncidentDetail }) {
           <p className="exp-caption-body">{t(lang, expandedCopy.captionPlaceholder)}</p>
         </div>
       </div>
-      <div className="exp-controls" aria-label="live controls">
-        {([expandedCopy.mic, expandedCopy.video, expandedCopy.snapshot, expandedCopy.flip, expandedCopy.endLive] as const).map((label, i, all) => (
-          <button key={label.en} type="button" className={i === all.length - 1 ? 'exp-ctrl-btn exp-ctrl-end' : 'exp-ctrl-btn'} disabled aria-label={t(lang, label)}>
-            {t(lang, label)}
-          </button>
-        ))}
-      </div>
+      <LiveControls lang={lang} name={name} channel={channel} />
     </div>
   )
 }
@@ -173,11 +238,19 @@ function SnapshotsArea({ lang, popup, incidentId, photoUrl }: {
         <ul className="exp-snaps">
           {popup.photos.map((o) => {
             const read = visionLine(lang, popup.photoReads[o.id])
+            const tipId = `exp-snap-tip-${o.id}`
             return (
-              <li key={o.id} className="exp-snap">
+              <li key={o.id} className="exp-snap" tabIndex={read ? 0 : undefined} aria-describedby={read ? tipId : undefined}>
                 <SnapshotImage lang={lang} observationId={o.id} className="exp-snap-thumb" onOpen={setOpen} load={(id) => photoUrl(incidentId, id)} />
                 <span className="exp-snap-cap">{formatTime(o.capturedAt)} · {popup.profile.name}</span>
                 {read && <span className="exp-snap-ai"><b>{t(lang, expandedCopy.photoCheck)}</b> · {read}</span>}
+                {read && (
+                  <span id={tipId} role="tooltip" className="exp-snap-tip">
+                    <b>{t(lang, expandedCopy.photoCheck)}</b>
+                    <span className="exp-snap-tip-meta">{formatTime(o.capturedAt)} · {popup.profile.name}</span>
+                    {read}
+                  </span>
+                )}
               </li>
             )
           })}
@@ -511,6 +584,8 @@ export interface ExpandedVolunteerViewProps {
   photoUrl(incidentId: string, observationId: string): Promise<PhotoUrl>
   /** Ask EMBER and English translations. Without it, the right pane shows the chat is not connected. */
   assist?: AssistActions
+  /** Talk and video to this volunteer. Nothing supplies one yet, so the controls stay disabled. */
+  liveChannel?: LiveChannel
 }
 
 /**
@@ -518,7 +593,7 @@ export interface ExpandedVolunteerViewProps {
  * behind the backdrop. Left: live video placeholder and field reports. Right: full Ask EMBER chat.
  * Nothing is sent without an explicit supervisor choice. WITHDRAW is never delayed or blocked here.
  */
-export function ExpandedVolunteerView({ lang, detail, volunteerId, onClose, offline, sendInstruction, photoUrl, assist }: ExpandedVolunteerViewProps) {
+export function ExpandedVolunteerView({ lang, detail, volunteerId, onClose, offline, sendInstruction, photoUrl, assist, liveChannel }: ExpandedVolunteerViewProps) {
   const panel = useRef<HTMLDivElement>(null)
   const closeRef = useRef(onClose)
   closeRef.current = onClose
@@ -584,7 +659,7 @@ export function ExpandedVolunteerView({ lang, detail, volunteerId, onClose, offl
         <div className="exp-grid">
           {/* Left pane */}
           <div className="exp-left" aria-label="Field view">
-            <VideoArea lang={lang} detail={detail} />
+            <VideoArea lang={lang} detail={detail} name={profile.name} channel={liveChannel} />
             <LatestMessage lang={lang} popup={popup} />
             <SnapshotsArea lang={lang} popup={popup} incidentId={detail.incident.id} photoUrl={photoUrl} />
             <SentArea lang={lang} popup={popup} />

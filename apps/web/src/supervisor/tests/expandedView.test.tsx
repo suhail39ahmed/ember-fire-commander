@@ -7,7 +7,8 @@ import { describe, expect, it } from 'vitest'
 import type { IncidentDetail, Observation } from '../contracts'
 import { fixture } from '../fixtures'
 import type { IncidentActions } from '../IncidentView'
-import { AskThread, ExpandedVolunteerView, ProposalCard, type ChatEntry } from '../detail/ExpandedVolunteerView'
+import { AskThread, ExpandedVolunteerView, ProposalCard, type ChatEntry, type LiveChannel } from '../detail/ExpandedVolunteerView'
+import { createHoldToTalk } from '../detail/holdToTalk'
 import { IncidentDetailView } from '../detail/IncidentDetailView'
 import { expandedCopy } from '../detail/expandedCopy'
 import { instructionCopy } from '../detail/instructionCopy'
@@ -98,12 +99,75 @@ describe('expanded view: left pane — field regions', () => {
     expect(html).toContain(`aria-label="${expandedCopy.sentTitle.en} Sari"`)
   })
 
-  it('shows live video placeholder and all disabled controls', () => {
+  it('shows live video placeholder and all controls disabled, with the reason, while no channel exists', () => {
     const html = expanded(fixture('conflict'), 'uid_sari')
     expect(html).toContain(expandedCopy.videoPlaceholder.en)
     for (const label of [expandedCopy.mic.en, expandedCopy.video.en, expandedCopy.snapshot.en, expandedCopy.flip.en, expandedCopy.endLive.en]) {
       expect(html).toMatch(new RegExp(`<button[^>]*disabled=""[^>]*>${label}</button>`))
     }
+    expect(html).toContain(expandedCopy.controlsOff.en)
+    expect(html).toMatch(new RegExp(`<button[^>]*title="${expandedCopy.controlsOff.en}"[^>]*>${expandedCopy.mic.en}</button>`))
+  })
+
+  describe('talk and video controls', () => {
+    const channel = (over: Partial<LiveChannel> = {}): LiveChannel => ({ talking: false, videoOn: false, startTalk: () => undefined, stopTalk: () => undefined, setVideo: () => undefined, ...over })
+    const withChannel = (live: LiveChannel) => renderToStaticMarkup(
+      <StaticRouter location="/"><ExpandedVolunteerView lang="en" detail={fixture('conflict')} volunteerId="uid_sari" onClose={() => undefined} liveChannel={live} {...wiring} assist={assist} /></StaticRouter>,
+    )
+
+    it('enables Hold to talk and Start video once a channel exists, and hides the not-connected note', () => {
+      const html = withChannel(channel())
+      expect(html.match(new RegExp(`<button[^>]*>${expandedCopy.mic.en}</button>`))?.[0]).not.toMatch(/disabled=""/)
+      expect(html.match(new RegExp(`<button[^>]*>${expandedCopy.video.en}</button>`))?.[0]).not.toMatch(/disabled=""/)
+      expect(html).not.toContain(expandedCopy.controlsOff.en)
+    })
+
+    it('shows the pressed state and a level meter while talking, and Stop video while video is on', () => {
+      const html = withChannel(channel({ talking: true, videoOn: true, level: 0.5 }))
+      expect(html).toMatch(new RegExp(`<button[^>]*aria-pressed="true"[^>]*>${expandedCopy.micOn.en}</button>`))
+      expect(html).toContain('role="meter"')
+      expect(html).toMatch(new RegExp(`<button[^>]*aria-pressed="true"[^>]*>${expandedCopy.videoOn.en}</button>`))
+    })
+
+    it('starts once on press and stops once on release, ignoring repeats', () => {
+      const calls: string[] = []
+      const hold = createHoldToTalk(() => calls.push('start'), () => calls.push('stop'))
+      hold.up()
+      hold.down(); hold.down(); hold.down()
+      expect(hold.held()).toBe(true)
+      hold.up(); hold.up()
+      expect(hold.held()).toBe(false)
+      expect(calls).toEqual(['start', 'stop'])
+    })
+  })
+
+  describe('snapshot photo read tooltip', () => {
+    const read = { smokeVisible: true, flameVisible: 'small', burnScarVisible: false, notes: 'A person holds a clear bottle near a wooden fence with grey smoke rising behind it.', at: null }
+    const html = (reads: Record<string, typeof read>) => {
+      const detail = { ...withPhoto(fixture('conflict')), photoReads: reads }
+      return expanded(detail, 'uid_sari')
+    }
+
+    it('carries the complete read in a tooltip linked to the thumbnail card', () => {
+      const out = html({ obs_photo: read })
+      expect(out).toMatch(/<li class="exp-snap" tabindex="0" aria-describedby="exp-snap-tip-obs_photo">/)
+      expect(out).toMatch(/<span id="exp-snap-tip-obs_photo" role="tooltip" class="exp-snap-tip">/)
+      const tip = out.match(/<span id="exp-snap-tip-obs_photo"[\s\S]*?<\/span><\/span>/)?.[0] ?? ''
+      expect(tip).toContain('AI photo check')
+      expect(tip).toContain('grey smoke rising behind it')
+    })
+
+    it('shows the tooltip on hover and keyboard focus, above the row', () => {
+      const css = readFileSync(resolve(__dirname, '../detail/expanded.css'), 'utf8')
+      expect(css).toMatch(/\.exp-snap:hover \.exp-snap-tip,[^{]*\.exp-snap:focus-within \.exp-snap-tip \{ display: block; \}/)
+      expect(css).toMatch(/\.exp-snap-tip \{[^}]*bottom: calc\(100% \+ 6px\)/)
+    })
+
+    it('has no tooltip or focus stop for a photo with no read', () => {
+      const out = html({})
+      expect(out).not.toContain('role="tooltip"')
+      expect(out).toContain('<li class="exp-snap">')
+    })
   })
 
   it('shows "not available yet" for video — never invents a live feed', () => {
