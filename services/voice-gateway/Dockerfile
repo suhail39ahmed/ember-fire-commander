@@ -12,4 +12,6 @@ COPY live ./live
 ENV PORT=8080
 EXPOSE 8080
 
-CMD exec gunicorn --bind :$PORT --workers 1 --worker-class gevent --timeout 0 app:app
+# Native threads keep Firestore gRPC and Gemini's asyncio thread unpatched.
+# Each active WebSocket occupies one thread (Cloud Run's default concurrency is 80).
+CMD exec gunicorn --bind :$PORT --workers 1 --worker-class gthread --threads 100 --timeout 0 app:app

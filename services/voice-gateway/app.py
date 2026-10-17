@@ -16,6 +16,7 @@ from auth.upgrade import handle_upgrade
 app = Flask(__name__)
 
 
+@app.route("/health")
 @app.route("/healthz")
 def healthz():
     """Health check endpoint for Cloud Run."""
