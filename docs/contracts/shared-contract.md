@@ -209,29 +209,42 @@ Points:
 
 | Field | Type | Meaning |
 |---|---|---|
-| `active` | `true` | The instruction is in effect |
+| `active` | boolean | `true` while the instruction is in effect; `false` once a supervisor clears it (§6.5) |
+| `id` | string, optional | A random hex session id written when the withdraw first becomes active. Absent on a withdraw written before #203 |
 | `instruction` | string | The sentence shown and spoken to the volunteer |
 | `reasons` | string[] | Why the instruction was sent |
 | `volunteerIds` | string[] | The volunteers who must follow it |
 | `source` | `code` or `supervisor` | Who first sent it. Optional: absent on a withdraw written before #101 |
 | `sentAt` | string | When it was first sent (server time). Optional, same rule |
 | `safeVolunteerIds` | string[] | Volunteers a supervisor marked found safe (§6.5). A subset of `volunteerIds`. Optional, same rule: absent means nobody is marked |
+| `answers` | object, optional | Per-volunteer answers from `POST /incidents/{id}/withdraw/answer`. Keys are volunteer ids; each value is `{ state: 'safe' \| 'stuck' \| null, at: string }` with optional `answeredAt`, `lat`, `lng`, `accuracyM`. Volunteer scope: a volunteer's read includes only their own answer. Absent when nobody has answered |
+| `helpers` | object, optional | Peer-assist assignments written by `POST /incidents/{id}/withdraw/help`. Keys are the volunteer needing help; values are the helper volunteer ids. Absent when no assignments exist |
+| `weather` | object, optional | Wind reading added by the API on read (not stored on the incident): `windKmh`, `windDirDeg`, `windFrom`, `source`, `observedAt`, each possibly `null` |
+| `selfSafeVolunteerIds` | string[], supervisor-only on read | Volunteer ids who answered `safe` via the answer route for this session. Assembled from `withdraw_answers` on demand; never stored on the incident |
+| `clearedAt` | string, optional | When a supervisor cleared it. Present once `active` is `false` |
+| `clearedBy` | string, optional | Supervisor uid who cleared it |
+| `clearedByName` | string, optional | Display name of the clearing supervisor |
+| `clearReason` | string, optional | The reason entered in the console clear dialog |
 
 ```json
 {
   "active": true,
+  "id": "a3f9bc12d4e5f678",
   "instruction": "Withdraw upwind. Do not engage.",
   "reasons": ["large flame reported"],
   "volunteerIds": ["uid_sari", "uid_rizal"],
   "source": "code",
   "sentAt": "2026-10-13T08:20:00.000Z",
-  "safeVolunteerIds": ["uid_sari"]
+  "safeVolunteerIds": ["uid_sari"],
+  "answers": { "uid_sari": { "state": "safe", "at": "2026-10-13T08:21:00.000Z" } }
 }
 ```
 
-Clearing `withdraw`, or lowering severity in order to dismiss it, is not a client action.
+Clearing `withdraw`, or lowering severity in order to dismiss it, is not a volunteer client action.
 
-How `withdraw` is written. Code sets `instruction` to `Withdraw upwind. Do not engage.` (setting is in §8) and adds the reasons `large flame reported` and `wind <n> km/h at or above <t> km/h`. Once active, it stays active. Later code intakes only add volunteers and reasons and keep the instruction. The supervisor route (§6.5) replaces `instruction` and `reasons`, and keeps the volunteers already listed. `source` and `sentAt` are written once, when the withdraw first becomes active (`code` from agents, `supervisor` from the route), and later writes keep them. Both writers keep `safeVolunteerIds`. **Open decision:** nothing clears `withdraw`, including when every volunteer is marked safe. The console shows the plain banner then. Whether all-safe should end the withdraw is for the team to decide; until the contract says so, no code does it.
+How `withdraw` is written. Code sets `instruction` to `Withdraw upwind. Do not engage.` (setting is in §8) and adds the reasons `large flame reported` and `wind <n> km/h at or above <t> km/h`. Once active, it stays active until a supervisor clears it. Later code intakes only add volunteers and reasons and keep the instruction. The supervisor route (§6.5) replaces `instruction` and `reasons`, and keeps the volunteers already listed. `source`, `sentAt`, and `id` are written once, when the withdraw first becomes active (`code` from agents, `supervisor` from the route), and later writes keep them. Both writers keep `safeVolunteerIds`.
+
+How `withdraw` is cleared. A supervisor uses `POST /incidents/{id}/withdraw/clear` (§6.5). The route requires every volunteer to be confirmed safe — either in `safeVolunteerIds` or in `withdraw_answers` with `state: 'safe'` for this session. Once cleared, `active` becomes `false`, `clearedAt`, `clearedBy`, `clearedByName`, and `clearReason` are stamped, and all `withdraw` tasks on the incident are closed to `rejected`. The PWA then exits to a "Withdraw cleared — stand by" screen. The extinguish route (§6.5) is `409` while a withdraw is active; the supervisor must clear it first.
 
 ### 5.3 Task
 
@@ -298,6 +311,8 @@ The display fields never carry a raw id. `actorName` is the stored `actorName`, 
 | `task.reject` | A supervisor rejected a proposed task |
 | `task.edit` | A supervisor replaced a task instruction |
 | `withdraw.safe` | A supervisor marked one withdrawn volunteer found safe. `targetId` is the incident id. The volunteer is in `incident.withdraw.safeVolunteerIds` and, on rows written since #92, in the row's `subjectId` |
+| `withdraw.clear` | A supervisor cleared an active withdraw after every volunteer was confirmed safe. `targetId` is the incident id. `reason` is the clearing reason; `sessionId` is `incident.withdraw.id` (or `sentAt` on sessions written before `id` was added) |
+| `withdraw.help` | A supervisor assigned one confirmed-safe volunteer to physically assist a stuck one. `targetId` is the incident id; `subjectId` is the volunteer needing help |
 | `task.resend` | A supervisor sent a sent, unheard task again. `targetId` is the task id |
 | `task.instruct` | A supervisor sent a free-text instruction to one volunteer. `targetId` is the new `instruct` task id |
 | `task.heard` | A volunteer's app confirmed it showed or spoke a task. `actorId` is the volunteer, `targetId` the task id |
@@ -935,11 +950,13 @@ Incident actions return `incident` instead of `task`.
 | `POST /tasks/{id}/heard` | none | **Volunteer, and only for their own task** (a supervisor is `403`, another volunteer's task is `404`). Sets `heardAt` once and appends a `task.heard` audit with the volunteer as `actorId`. A repeat returns the task with `auditId: null` and writes nothing. `409` unless the task is `approved`. The volunteer app calls it once when a sent task or WITHDRAW is on screen |
 | `POST /tasks/{id}/edit` | `{ "instruction": "Check the east bank again" }` | Replaces `instruction` only. Type, status, volunteer, and incident stay the same. `instruction` is required, not blank, at most 500 characters. A `withdraw` task is `409`. The route does not check the task's status, so a task that is already `approved` or `rejected` can be edited |
 | `POST /incidents/{id}/verify` | none | `status` becomes `verified`. Also stamps open `verify` tasks on the incident with `closedAt`, `closedBy`, `closedByName`, and `closeMessage` so the volunteer digest can show the thank-you (§5.3). For each task owner with a task-linked report, creates one internal `leadChecks` credit when the incident has a matched satellite lead; a no-fire credit requires their no-fire photo report (§5.7). `409` unless the status is `open` or `held` |
-| `POST /incidents/{id}/extinguish` | none | `status` becomes `extinguished`. `409` when it already is |
+| `POST /incidents/{id}/extinguish` | none | `status` becomes `extinguished`. `409` when it already is, or when `incident.withdraw.active` is `true` (clear the withdraw first) |
 | `POST /incidents/{id}/severity` | `{ "severity": "smoke" }` | Stores the new severity only when it is strictly lower on the scale in §1, otherwise `409`. `severity` must be `none`, `smoke`, `small_flame`, or `large_flame`; `unknown` and anything else is `400`. A stored `unknown` severity is never lowered (`409`) |
 | `POST /incidents/{id}/volunteers/{volunteerId}/instruct` | `{ "instruction": "Move to the east road and report" }` | Sends one free-text instruction to one volunteer. Creates an `instruct` task with `status: approved`, `sentAt` now and `sendCount` 1, pushes it (§6.6) and appends a `task.instruct` audit row. `201` with the task and `auditId`. `instruction` is required, not blank, at most 500 characters (`400`). The volunteer needs a report, a task or a withdraw entry on the incident (`400` on `fields.volunteerId`). `409` when the incident is `extinguished`, or when the volunteer is on an active withdraw and not in `safeVolunteerIds`: an instruction can never hold or replace a WITHDRAW. An open conflict does not block it. It changes nothing on the incident |
 | `POST /incidents/{id}/withdraw` | see below | Issues a withdraw instruction. This is not an approval |
 | `POST /incidents/{id}/withdraw/safe` | `{ "volunteerId": "uid_sari" }` | Adds the volunteer to `incident.withdraw.safeVolunteerIds` and appends a `withdraw.safe` audit. It never changes `active`. `400` when `volunteerId` is missing or not in `withdraw.volunteerIds`. `409` when there is no active withdraw or the volunteer is already marked. Returns the incident and `auditId` |
+| `POST /incidents/{id}/withdraw/clear` | `{ "reason": "...", "sessionId": "..." }` | Clears an active withdraw. Supervisor only. `reason` is required, not blank, at most 500 characters. `sessionId` must match `incident.withdraw.id` (or `sentAt` on sessions written before `id` was added); a stale value is `409`. Every volunteer must be confirmed safe (in `safeVolunteerIds` or in `withdraw_answers` with `state: 'safe'` for this session); otherwise `409`. Sets `active: false`, stamps `clearedAt`, `clearedBy`, `clearedByName`, and `clearReason`, and closes all `withdraw` tasks to `rejected`. Appends `withdraw.clear`. Returns the incident and `auditId` |
+| `POST /incidents/{id}/withdraw/help` | `{ "volunteerId": "uid_rizal", "helperId": "uid_sari", "sessionId": "...", "instruction": "..." }` | Assigns one confirmed-safe volunteer to physically help a stuck one. `helperId` must be in `safeVolunteerIds` or have `state: 'safe'` in `withdraw_answers` for this session. Creates an `instruct` task for the helper, writes `helpers[volunteerId] = helperId` on the withdraw, and appends `withdraw.help`. `sessionId` must match the current session. `409` when the withdraw is no longer active, the session is stale, or the helper is not confirmed safe |
 | `POST /incidents/{id}/live/make-live` | `{ "volunteerId": "uid_rizal" }` | Holds the live seat for that volunteer when their stored signal is `3g`, `4g`, or `wifi`. Sets `media: live`. Writes `live.make`. `409` when the seat is held by someone else or the signal is below 3G. Returns `{ liveSeat, auditId }`. Does not change incident status |
 | `POST /incidents/{id}/live/retry` | `{ "volunteerId": "uid_sari" }` | Same seat write as make-live, only when that volunteer's `media` is `photo_60s`. Writes `live.retry`. `409` when signal is below 3G (seat stays free) or retry does not apply |
 
@@ -964,6 +981,8 @@ Code uses the same writes when it fires WITHDRAW. Its `actorId` is `code`, and i
 ### 6.6 Update channels
 
 Clients refresh by polling `GET /incidents` and `GET /digest`. The gateway sends one `digest` message on the socket when a Live session starts (§7). It sends no later ones.
+
+The volunteer PWA also subscribes to `GET /withdraw/events`, a Server-Sent Events stream. The stream carries no document content: when any incident the caller is named in changes, it sends `data: changed\n\n`. The PWA uses this to immediately re-read the digest when a supervisor clears the withdraw, rather than waiting for the next poll. The stream is scoped to incidents where the caller is in `withdraw.volunteerIds`; supervisors receive all active-withdraw incidents. It times out after 50 seconds; the client reconnects after 2 seconds. A missing or expired auth token is `401`.
 
 FCM is the third channel, used when the app is not in a Live session. `ember-api` sends a push in four cases: a supervisor approves a task, the supervisor `instruct` route creates a task, the supervisor withdraw route creates withdraw tasks, and agents report a code WITHDRAW (`POST /internal/notifications/withdraw`, §8). **No code sends a supervisor alert.** Earlier versions of this contract listed one.
 
@@ -1631,6 +1650,7 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · #129, #130, #140, #153, #154: hold-to-talk and coach reply previously stayed UI-only because no browser WebSocket handshake existed (§7); spoken reports POST `/observations` only with a real gateway transcript. Tasks gain optional lead-closed fields and digest may include `seasonStats` (§5.3, §5.6); `POST /incidents/{id}/verify` closes open verify tasks. New volunteer routes `GET /training`, `POST /training/progress`, `POST /training/practice` (§6.12) for Guide and practice (never live voice or observations).
 - 2026-10-17 · #129, #130: browser WebSocket handshake is now decided and implemented (§7). New `POST /voice/ticket` (§6.14) issues a 60-second single-use voice ticket after verifying the ID token, role and App Check token. The PWA passes the ticket via `Sec-WebSocket-Protocol`; the gateway verifies and consumes it atomically from `voiceTickets` in `ember-db`. The existing two-header path is kept for native clients. The PWA now captures mic audio (16 kHz PCM, base64 frames per §7) and plays back Gemini's reply audio. Related: issues #129 (hold-to-talk) and #130 (coach reply).
 - 2026-10-17 · #140: task-originated PWA reports carry `taskId`; the API validates it belongs to the caller and stores it internally. Incident verification creates idempotent `leadChecks` records linked to the matched satellite lead, credits task owners, and derives no-fire credit from their own no-fire photo report. Volunteer digest stats are all-time counts; the thank-you returns to the assigned-task list and its body explains the satellite lead link (§5.1, §5.6, §5.7, §6.2, §6.5).
+- 2026-10-17 · #203: WITHDRAW clearing. `incident.withdraw` gains `id` (random hex session id), `answers` (per-volunteer safe/stuck answers from the PWA), `helpers` (peer-assist assignments), `weather` (wind reading added on read), `clearedAt`, `clearedBy`, `clearedByName`, and `clearReason`. `active` is now a `boolean` (was always `true`; can now be `false` after clearing). New supervisor routes `POST /incidents/{id}/withdraw/clear` (audit `withdraw.clear`; requires every volunteer confirmed safe) and `POST /incidents/{id}/withdraw/help` (audit `withdraw.help`; assigns a confirmed-safe volunteer to assist a stuck one). New SSE stream `GET /withdraw/events` for immediate digest refresh when a withdraw changes (§6.6). New volunteer route `POST /incidents/{id}/withdraw/location` stores a position update for this session without changing the answer. `POST /incidents/{id}/extinguish` is now `409` while `withdraw.active` is `true`. The open decision from #101 is resolved: a supervisor explicitly ends a WITHDRAW once all volunteers are confirmed safe (§5.2, §5.5, §6.5, §6.6).
 - 2026-10-16 · #131, #132: `POST /observations` (`201` and the `200` replay) adds `join` (`incidentId`, `incidentName`, `incidentArea`, `joined`, `nearbyCount`, `nearestM`, `radiusM`), read from the new `observation_joins` collection that agents write when they place a report. A volunteer's `GET /digest` adds `sentToday` when the request carries the new `sentSince` query, each row with the same `join` (§5.6, §5.7, §6.2, §6.4). The phone shows how many reports are near its own and the join radius.
 - 2026-10-16 · #92, #93: `POST /observations` accepts an optional `device` (`batteryPct`, `network`, `language`), stored best effort and never failing a report (§5.1). A supervisor's `GET /incidents/{id}` adds `header`, `conditions` and `photoReads`, and each volunteer card adds `crewName`, `teamRole` and `device` (§6.3). The video, Ask EMBER and English translation parts of #93 are not built (§6.3, §12.4).
 - 2026-10-16 · #95: evidence factors `wind` and `satellite`, each worth 0 points so no score or rule changes (§5.2), audit action `conflict.open` written by code when a conflict is created (§5.5), `conflictContext.allObservations` (§6.3). Settings `EMBER_SATELLITE_RADIUS_M` and `EMBER_SATELLITE_WINDOW_H` (§11.3). No `investigate` proposal is added (§12.5).

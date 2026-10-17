@@ -90,10 +90,14 @@ Routes follow `docs/contracts/shared-contract.md` §6.3 to §6.5, and `GET /dash
 | `POST /sites/{id}/alerts/{id}/dismiss` | supervisor | Body `{ reason }`. Marks the alert dismissed and writes `site.dismiss`. Incident stays extinguished |
 | `POST /sites/{id}/alerts/{id}/recheck` | supervisor | Creates a proposed `verify` task, writes `site.recheck`. Incident stays extinguished |
 | `POST /tasks/{id}/approve`, `/reject`, `/edit` | supervisor | Proposed task decided. `investigate` approval is `409` while the incident has an open conflict. Withdraw tasks are never approved, rejected or edited |
-| `POST /incidents/{id}/verify`, `/extinguish`, `/severity` | supervisor | Human-only actions. `/severity` stores the value only when it is strictly lower and never touches `withdraw` |
+| `POST /incidents/{id}/verify`, `/extinguish`, `/severity` | supervisor | Human-only actions. `/severity` stores the value only when it is strictly lower and never touches `withdraw`. `/extinguish` is `409` while `withdraw.active` is `true` |
 | `POST /incidents/{id}/withdraw` | supervisor | Sets `withdraw`, creates approved `withdraw` tasks, no approval step |
+| `POST /incidents/{id}/withdraw/safe` | supervisor | Marks one volunteer found safe. Never changes `active` |
+| `POST /incidents/{id}/withdraw/clear` | supervisor | Clears the withdraw once every volunteer is confirmed safe: sets `active: false`, closes `withdraw` tasks, appends `withdraw.clear` |
+| `POST /incidents/{id}/withdraw/help` | supervisor | Assigns a confirmed-safe volunteer to assist a stuck one. Creates an `instruct` task and appends `withdraw.help` |
+| `GET /withdraw/events` | any role | SSE stream (`withdraw_events.py`): `data: changed` when any incident the caller is named in changes. No Firestore document content |
 
-A volunteer gets `403 forbidden` on every write route. Each decision writes the record and its audit entry (`actorId`, `action`, `targetId`, `at`) in one Firestore transaction. No route clears `withdraw`, raises severity, or sets `open` or `held`.
+A volunteer gets `403 forbidden` on every write route. Each decision writes the record and its audit entry (`actorId`, `action`, `targetId`, `at`) in one Firestore transaction. No route raises severity or sets `open` or `held`.
 
 ## Phase 1 (current)
 

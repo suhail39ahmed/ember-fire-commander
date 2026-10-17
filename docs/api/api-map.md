@@ -96,16 +96,20 @@ Incident list and detail responses use `INCIDENT_FIELDS`: `id`, `name`, `area`, 
 | POST | `/tasks/{id}/reject` | supervisor | console | none | `200` `{ task, auditId }`. `proposed` → `rejected`. `withdraw` is `409` |
 | POST | `/tasks/{id}/edit` | supervisor | console | `{ "instruction": string }` max 500 characters | `200` `{ task, auditId }`. Replaces `instruction` only. A withdraw instruction is `409` |
 | POST | `/incidents/{id}/verify` | supervisor | console | none | `200` `{ incident, auditId }`. Status must be `open` or `held` |
-| POST | `/incidents/{id}/extinguish` | supervisor | **not called by the console** | none | `200` `{ incident, auditId }`. `409` if already extinguished |
+| POST | `/incidents/{id}/extinguish` | supervisor | **not called by the console** | none | `200` `{ incident, auditId }`. `409` if already extinguished or if `withdraw.active` is `true` |
 | POST | `/incidents/{id}/severity` | supervisor | **not called by the console** | `{ "severity": "none" \| "smoke" \| "small_flame" \| "large_flame" }` | `200` `{ incident, auditId }` only when the new value is strictly lower. `unknown` is rejected |
 | POST | `/incidents/{id}/withdraw` | supervisor | **not called by the console** | `{ volunteerIds, instruction, reasons? }` | `200` `{ incident, auditId }`. Sets `withdraw`, creates one approved `withdraw` task per id, pushes after commit. Each id must already have an observation or a task on the incident |
+| POST | `/incidents/{id}/withdraw/safe` | supervisor | console | `{ "volunteerId": string, "sessionId"?: string }` | `200` `{ incident, auditId }`. Marks one volunteer found safe. Never changes `active` |
+| POST | `/incidents/{id}/withdraw/clear` | supervisor | console | `{ "reason": string, "sessionId": string }` | `200` `{ incident, auditId }`. Sets `active: false`; requires every volunteer confirmed safe. `409` when unsatisfied or session is stale |
+| POST | `/incidents/{id}/withdraw/help` | supervisor | console | `{ "volunteerId", "helperId", "sessionId", "instruction"? }` | `200` `{ task, auditId }`. Assigns a safe volunteer to assist a stuck one |
+| GET | `/withdraw/events` | any role (volunteer-scoped) | PWA | — | SSE stream. Sends `data: changed\n\n` when any incident the caller is named in changes. No document content |
 | POST | `/notifications/token` | volunteer | PWA | `{ "token": string, "volunteerId"?: own uid }` | `200` `{ stored: boolean }` |
 | DELETE | `/notifications/token` | volunteer | PWA | same body | `200` `{ removed: boolean }` |
 | POST | `/internal/notifications/withdraw` | `ember-agents` service account | agents, after a code WITHDRAW | `{ incidentId, tasks: [{ id, volunteerId }] }` | `202` `{ results }`. Reads the stored task text. Does not undo the incident write |
 
 `POST /observations` rejects `source: "live"`. The gateway writes live observations. `source: "photo"` is accepted here after `POST /photos/upload-url` and a successful `PUT` of the bytes. The contract text in §6.2 still says photo is rejected on this route; the code accepts it. See the differences section.
 
-There is no route that clears `withdraw`, raises severity, sets incident status to `open` or `held`, or sets a conflict to `resolved`.
+There is no route that raises severity, sets incident status to `open` or `held`, or sets a conflict to `resolved`.
 
 ### Photo bytes
 
@@ -114,6 +118,8 @@ There is no route that clears `withdraw`, raises severity, sets incident status 
 ### Polling
 
 The PWA polls `GET /digest` and the console polls `GET /incidents` (and reloads the open incident) every 5 seconds (`POLL_MS` in `VolunteerApp.tsx` and `SupervisorConsole.tsx`). The console chrome polls `GET /dashboard` every 15 seconds (`CHROME_POLL_MS` in `ConsoleProvider.tsx`). During a Live session the gateway also sends `digest` messages. FCM is the channel when the app is backgrounded: new tasks and withdraw instructions. Payload fields are outside the shared contract.
+
+The PWA also subscribes to the `GET /withdraw/events` SSE stream. When any incident the caller is named in changes, it re-reads the digest immediately. Client: `apps/web/src/pwa/withdraw/useWithdrawUpdates.ts`.
 
 ## voice-gateway
 
