@@ -1,7 +1,8 @@
+import type { Withdraw } from '../contracts/types'
 import { TalkCard } from '../gateway/TalkCard'
 import type { TalkView } from '../gateway/voiceView'
 import { formatTime } from '../formatTime'
-import { strings, t, type Lang } from '../i18n'
+import { t, type Lang } from '../i18n'
 import type { ActionState } from './actionState'
 import { screenStrings } from './strings'
 import type { DevicePosition } from './arrival'
@@ -36,6 +37,7 @@ export function WithdrawCover({
   others,
   note,
   talk,
+  weather,
 }: {
   lang: Lang
   instruction: string | null
@@ -45,6 +47,7 @@ export function WithdrawCover({
   others: number
   /** Said once the volunteer, or a supervisor, has marked them safe. */
   note: string | null
+  weather?: Withdraw['weather']
   talk: Talk
 }) {
   const head = [t(lang, s.safetyRule), sentAt ? formatTime(sentAt) : null, source ? `${t(lang, s.sentBy)} ${t(lang, source === 'code' ? s.code : s.supervisor)}` : null].filter(Boolean).join(' · ')
@@ -52,8 +55,10 @@ export function WithdrawCover({
     <div className="withdraw" role="alertdialog" aria-modal="true" aria-labelledby="withdraw-title" aria-describedby="withdraw-instruction" data-testid="withdraw-cover">
       <Shield />
       <p className="withdraw-label" data-testid="withdraw-head">{head}</p>
-      <h1 id="withdraw-title">{t(lang, strings.withdrawTitle)}</h1>
+      <h1 id="withdraw-title" className="withdraw-order-title">{lang === 'en' ? <>Withdraw<br />upwind.</> : <>Mundur<br />ke atas angin.</>}</h1>
+      <h2 className="withdraw-command">{lang === 'en' ? 'Do not engage.' : 'Jangan mendekat.'}</h2>
       {instruction && <p id="withdraw-instruction" className="withdraw-instruction">{instruction}</p>}
+      {weather?.windFrom && <section className="withdraw-card withdraw-wind"><strong>{lang === 'en' ? 'Upwind is' : 'Arah atas angin'} {weather.windFrom}</strong><span>{weather.windKmh !== null && `${weather.windKmh} km/h · `}{weather.source}{weather.observedAt && ` · ${formatTime(weather.observedAt)}`}</span></section>}
       {note && <p className="withdraw-note" role="status" data-testid="withdraw-note">{note}</p>}
       <section className="withdraw-card" aria-label={t(lang, s.why)}>
         <p className="withdraw-label">{t(lang, s.why)}</p>
@@ -66,9 +71,9 @@ export function WithdrawCover({
           </li>
         </ul>
       </section>
-      <TalkCard lang={lang} view={talk.view} onPress={talk.onPress} onRelease={talk.onRelease} />
+      <div className="withdraw-actions"><TalkCard lang={lang} view={talk.view} onPress={talk.onPress} onRelease={talk.onRelease} />
       <p className="withdraw-why">{t(lang, s.stays)}</p>
-      <p className="badge-simulated on-dark">{t(lang, strings.simulated)}</p>
+      </div>
     </div>
   )
 }
@@ -81,6 +86,7 @@ export function ConfirmSafe({
   action,
   onSafe,
   onStuck,
+  weather,
 }: {
   lang: Lang
   instruction: string | null
@@ -88,6 +94,7 @@ export function ConfirmSafe({
   action: ActionState
   onSafe: () => void
   onStuck: () => void
+  weather?: Withdraw['weather']
 }) {
   const busy = action.kind === 'busy'
   const head = ['WITHDRAW', sentAt ? formatTime(sentAt) : null, t(lang, s.stillInForce)].filter(Boolean).join(' · ')
@@ -96,6 +103,7 @@ export function ConfirmSafe({
       <Shield />
       <p className="withdraw-label">{head}</p>
       <h1 id="withdraw-title">{t(lang, s.confirmTitle)}</h1>
+      {weather?.windFrom && <p>{lang === 'en' ? 'Upwind is' : 'Arah atas angin'} {weather.windFrom}{weather.observedAt && ` · ${formatTime(weather.observedAt)}`}</p>}
       {instruction && <p className="withdraw-instruction">{instruction}</p>}
       <p className="withdraw-card" role="status">{t(lang, s.repeats)}</p>
       <div className="withdraw-actions">
@@ -168,18 +176,22 @@ export function WithdrawCleared({
   sentAt,
   reasons,
   clearedAtMs,
+  clearedByName,
+  clearReason,
   onDismiss,
 }: {
   lang: Lang
   sentAt: string | null
   reasons: string[]
   clearedAtMs: number
+  clearedByName?: string
+  clearReason?: string
   onDismiss: () => void
 }) {
   return (
     <section className="cleared" data-testid="withdraw-cleared">
       <div className="cleared-card">
-        <p className="section-label">✓ {t(lang, s.clearedLabel)} · {formatTime(clearedAtMs)}</p>
+        <p className="section-label">✓ {t(lang, s.clearedLabel)} · {formatTime(clearedAtMs)}{clearedByName && ` · ${clearedByName}`}</p>
         <h2>{t(lang, s.clearedTitle)}</h2>
         <p>{t(lang, s.clearedBody)}</p>
       </div>
@@ -195,7 +207,7 @@ export function WithdrawCleared({
             <li key={r}>{r}</li>
           ))}
           <li>
-            {formatTime(clearedAtMs)} {t(lang, s.seenGone)}
+            {formatTime(clearedAtMs)} {clearReason ?? t(lang, s.seenGone)}
           </li>
         </ul>
       </div>
@@ -204,4 +216,21 @@ export function WithdrawCleared({
       </button>
     </section>
   )
+}
+
+/** A safety confirmation stops the alarm, but only the supervisor ends the order. */
+export function SafeWaiting({ lang, supervisorSafe, answeredAt, confirmed, total, talk, helpInstruction }: {
+  lang: Lang; supervisorSafe: boolean; answeredAt: string | null; confirmed: number; total: number; talk: Talk; helpInstruction?: string | null
+}) {
+  const en = lang === 'en'
+  return <div className="withdraw withdraw-waiting" role="alertdialog" aria-modal="true" aria-labelledby="withdraw-title" tabIndex={-1}>
+    <Shield />
+    <p className="withdraw-label">WITHDRAW · {en ? 'STILL IN FORCE' : 'MASIH BERLAKU'} · {supervisorSafe ? (en ? 'MARKED SAFE' : 'DITANDAI AMAN') : (en ? "YOU’RE SAFE" : 'ANDA AMAN')}{answeredAt && ` ${formatTime(answeredAt)}`}</p>
+    <h1 id="withdraw-title">{en ? 'Stay upwind.' : 'Tetap di atas angin.'}</h1><h2 className="withdraw-command">{en ? 'Don’t go back in.' : 'Jangan kembali.'}</h2>
+    <p className="withdraw-translation">TETAP DI ATAS ANGIN. JANGAN KEMBALI.</p>
+    <section className="withdraw-card"><strong>{en ? "You’re marked safe" : 'Anda ditandai aman'}</strong><p>{supervisorSafe ? t(lang, s.notedBySupervisor) : t(lang, s.noted)}</p></section>
+    <section className="withdraw-card"><p className="withdraw-label">{en ? 'WAITING FOR YOUR SUPERVISOR' : 'MENUNGGU SUPERVISOR'}</p><ul><li>{confirmed} / {total} {en ? 'safe' : 'aman'}</li><li>{en ? 'Only your supervisor can end it' : 'Hanya supervisor yang dapat mencabutnya'}</li></ul></section>
+    {helpInstruction && <section className="withdraw-card" role="status"><strong>{en ? 'Your supervisor asks' : 'Permintaan supervisor'}</strong><p>{helpInstruction}</p></section>}
+    <div className="withdraw-actions"><TalkCard lang={lang} view={talk.view} onPress={talk.onPress} onRelease={talk.onRelease} /><p>{en ? 'Your alarm is off. This screen stays until your supervisor clears the withdraw.' : 'Alarm berhenti. Layar ini tetap tampil sampai supervisor mencabut withdraw.'}</p></div>
+  </div>
 }

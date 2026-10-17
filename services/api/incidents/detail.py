@@ -8,7 +8,7 @@ and a part with nothing to show is an empty list, never a made-up default.
 import logging
 import math
 
-from incidents import rules, store
+from incidents import withdrawal, rules, store
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ TIMELINE_LIMIT = 100
 # Audit rows that belong on an incident's timeline. `observation.create` is left out because the report itself is listed.
 TIMELINE_ACTIONS = (
     "conflict.open", "task.approve", "task.reject", "task.edit", "task.instruct", "task.resend", "task.heard", "task.withdraw",
-    "withdraw.safe", "incident.verify", "incident.extinguish", "incident.severity.lower",
+    "withdraw.safe", "withdraw.clear", "withdraw.help", "incident.verify", "incident.extinguish", "incident.severity.lower",
     "incident.severity.raise", "site.reinspect",
 )
 SUMMARY_FIELDS = ("english", "bahasa", "source", "at")
@@ -359,7 +359,7 @@ def _self_safe_ids(incident_id, withdraw):
     for snap in store.where(WITHDRAW_ANSWERS, "incidentId", "==", incident_id):
         row = snap.to_dict() or {}
         uid = row.get("volunteerId")
-        if row.get("state") == "safe" and uid in named:
+        if row.get("state") == "safe" and uid in named and withdrawal.belongs(row, withdraw):
             result.add(uid)
     return result
 
@@ -382,7 +382,7 @@ def build(incident_id, data, observations, conflict_body, tasks):
     withdraw_task_ids = {t["id"] for t in tasks if t.get("type") == "withdraw"}
     safe_marks = {}
     for row in audit:
-        if row.get("action") == "withdraw.safe" and row.get("subjectId"):
+        if row.get("action") == "withdraw.safe" and row.get("subjectId") and withdrawal.belongs(row, withdraw):
             current = safe_marks.get(row["subjectId"])
             if current is None or _when(row.get("at")) >= _when(current.get("at")):
                 safe_marks[row["subjectId"]] = row
@@ -398,6 +398,13 @@ def build(incident_id, data, observations, conflict_body, tasks):
         people |= set(withdraw.get("volunteerIds") or [])
     people.discard(None)
     cards = [_card(uid, observations, tasks, withdraw, names, push, centre, delivery, safe_marks, crews, roles, self_safe) for uid in sorted(people)]
+    for card in cards:
+        answer = (withdraw.get("answers") or {}).get(card["volunteerId"]) or {}
+        if answer.get("lat") is not None and answer.get("lng") is not None:
+            card.update(lastLat=answer["lat"], lastLng=answer["lng"], lastAccuracyM=answer.get("accuracyM"), locationAt=answer.get("at"))
+        if answer and card.get("withdraw") is not None:
+            card["withdraw"]["answer"] = answer.get("state")
+            card["withdraw"]["answeredAt"] = answer.get("answeredAt")
     cards.sort(key=lambda c: (-_when(c["lastReportAt"]), c["volunteerId"]))
 
     task_by_id = {t["id"]: t for t in tasks}

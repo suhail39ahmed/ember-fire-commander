@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { initializeApp, type FirebaseApp } from 'firebase/app'
-import { getAuth, GoogleAuthProvider } from 'firebase/auth'
+import { getAuth, GoogleAuthProvider, initializeAuth, browserSessionPersistence, browserPopupRedirectResolver } from 'firebase/auth'
 import { initializeAppCheck, ReCaptchaEnterpriseProvider, type AppCheck } from 'firebase/app-check'
 
 declare global {
@@ -16,7 +16,11 @@ const firebaseConfig = {
 }
 
 export const firebaseApp: FirebaseApp = initializeApp(firebaseConfig)
-export const auth = getAuth(firebaseApp)
+// Opt-in for local multi-role demos: each tab keeps its own authenticated user.
+// Production retains Firebase's normal persistent sign-in behavior.
+export const auth = import.meta.env.DEV && import.meta.env.VITE_AUTH_SESSION_ONLY === 'true'
+  ? initializeAuth(firebaseApp, { persistence: browserSessionPersistence, popupRedirectResolver: browserPopupRedirectResolver })
+  : getAuth(firebaseApp)
 export const googleProvider = new GoogleAuthProvider()
 
 let appCheck: AppCheck | null = null

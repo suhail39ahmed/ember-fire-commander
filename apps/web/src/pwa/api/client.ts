@@ -97,6 +97,9 @@ export function createHttpApi(
     declineTask: async (taskId: string, reason: DeclineReason, note?: string) => {
       await request<unknown>(ENDPOINTS.decline(taskId), { method: 'POST', body: JSON.stringify({ reason, note: note?.trim() ? note.trim() : null }) })
     },
+    shareWithdrawLocation: async (incidentId, location) => {
+      await request<unknown>(`${ENDPOINTS.withdrawAnswer(incidentId).replace('/answer', '/location')}`, { method: 'POST', body: JSON.stringify(location) })
+    },
     answerWithdraw: async (incidentId: string, answer: WithdrawAnswerRequest) => {
       await request<unknown>(ENDPOINTS.withdrawAnswer(incidentId), { method: 'POST', body: JSON.stringify(answer) })
     },

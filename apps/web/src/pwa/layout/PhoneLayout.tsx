@@ -49,6 +49,7 @@ export function PhoneLayout() {
 
   return (
     <div className="vol">
+      <div className="vol-background" aria-hidden={withdraw || undefined} ref={(element) => { if (element) element.inert = withdraw }}>
       {!profileRoute && <VolunteerHeader name={me?.displayName} crew={me?.crewName} lang={lang} />}
 
       <main className="vol-main">
@@ -57,7 +58,7 @@ export function PhoneLayout() {
         <DigestNotice status={digestStatus} hasDigest={digest !== null} lang={lang} onRetry={refresh} />
 
         {flow.cleared && !withdraw ? (
-          <WithdrawCleared lang={lang} sentAt={flow.cleared.sentAt} reasons={flow.cleared.reasons} clearedAtMs={flow.cleared.clearedAtMs} onDismiss={flow.dismissCleared} />
+          <WithdrawCleared lang={lang} sentAt={flow.cleared.sentAt} reasons={flow.cleared.reasons} clearedAtMs={flow.cleared.clearedAtMs} clearedByName={flow.cleared.clearedByName} clearReason={flow.cleared.clearReason} onDismiss={flow.dismissCleared} />
         ) : (
         <Routes>
           <Route
@@ -131,6 +132,7 @@ export function PhoneLayout() {
       </main>
 
       <TabBar lang={lang} />
+      </div>
       {withdraw && <WithdrawScreen lang={lang} flow={flow} />}
     </div>
   )

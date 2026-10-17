@@ -31,8 +31,7 @@ export interface AuditQuery {
 
 /**
  * The ember-api operations the supervisor console uses.
- * There is deliberately no call that clears a withdraw: withdraw is issued by code or by
- * the supervisor, and only ever added to.
+ * Withdrawal clearing is supervisor-only, with a required reason and an all-safe check.
  */
 export interface SupervisorApi {
   listIncidents(): Promise<Incident[]>
@@ -55,7 +54,9 @@ export interface SupervisorApi {
   /** Immediate. No approval step: the route sets the incident withdraw and one approved task per volunteer. */
   withdrawIncident(id: string, request: WithdrawRequest): Promise<IncidentDecision>
   /** Records that a supervisor found a withdrawn volunteer safe. Audited. It never clears the withdraw. */
-  markWithdrawSafe(id: string, volunteerId: string): Promise<IncidentDecision>
+  markWithdrawSafe(id: string, volunteerId: string, sessionId?: string): Promise<IncidentDecision>
+  clearWithdraw(id: string, reason: string, sessionId?: string): Promise<IncidentDecision>
+  requestWithdrawHelp(id: string, volunteerId: string, helperId: string, instruction: string, sessionId?: string): Promise<TaskDecision>
   /**
    * Sends one free-text instruction to one volunteer, now. Creates an `instruct` task, pushes it and writes an audit row.
    * `409` for an extinguished incident, or a volunteer under an active withdraw who is not marked safe.

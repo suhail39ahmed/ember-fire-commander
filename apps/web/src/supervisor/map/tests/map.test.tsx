@@ -152,10 +152,10 @@ describe('IncidentMap', () => {
     expect(projectWithCrews([], [], 640, 300)).toEqual({ incidents: [], crews: [] })
   })
 
-  it('draws no crew dot until the Crews layer is on, and never invents one', () => {
+  it('draws known crew positions on the incident map and respects the dashboard toggle', () => {
     const crews = crewDots([card('uid_a', -1.85, 110.05)])
     expect(render({ showLayers: true, crews })).not.toContain('map-crew')
-    expect(render({ crews })).not.toContain('map-crew')
+    expect(render({ crews })).toContain('map-crew')
   })
 })
 
@@ -232,10 +232,10 @@ describe('layer toggles', () => {
     expect(layerView({ ...on, windOn: true }, [a], [], null).wind).toBeNull()
   })
 
-  it('without the toggles every incident is drawn and the extra layers are not', () => {
+  it('without the toggles incidents and known crew positions are drawn', () => {
     const v = layerView({ ...on, showLayers: false, firesOn: false, crewsOn: true, windOn: true }, [a, b], crews, wind)
     expect(v.incidents).toHaveLength(2)
-    expect(v.crews).toEqual([])
+    expect(v.crews).toEqual(crews)
     expect(v.wind).toBeNull()
   })
 

@@ -69,9 +69,21 @@ export function IncidentDetailPage() {
           throw error
         }
       }}
+      clearWithdraw={async (reason) => {
+        const w = open?.incident.withdraw
+        const result = await api.clearWithdraw(incidentId, reason, w?.id ?? w?.sentAt)
+        await refresh()
+        return result
+      }}
+      requestHelp={async (volunteerId, helperId, instruction) => {
+        const w = open?.incident.withdraw
+        const result = await api.requestWithdrawHelp(incidentId, volunteerId, helperId, instruction, w?.id ?? w?.sentAt)
+        await refresh()
+        return result
+      }}
       markSafe={async (volunteerId) => {
         try {
-          const result = await api.markWithdrawSafe(incidentId, volunteerId)
+          const result = await api.markWithdrawSafe(incidentId, volunteerId, open?.incident.withdraw?.id)
           await refresh()
           return result
         } catch (error) {

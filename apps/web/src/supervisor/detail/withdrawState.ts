@@ -9,6 +9,8 @@ import type { IncidentDetail, VolunteerCardData } from '../contracts'
 export interface WithdrawPerson {
   id: string
   safe: boolean
+  markedSafe: boolean
+  answer: 'safe' | 'stuck' | null
   /** From the API only, `volunteers/{uid}.phone`. Null when none is stored. */
   phone: string | null
   /** The supervisor read's card for them: last report, last position, heard, push result, who marked them safe. Null from an older API. */
@@ -34,7 +36,7 @@ export function withdrawState(detail: IncidentDetail): WithdrawState | null {
   const safe = new Set([...(w.safeVolunteerIds ?? []), ...(w.selfSafeVolunteerIds ?? [])])
   const phones = detail.volunteerPhones ?? {}
   const cards = new Map((detail.volunteers ?? []).map((c) => [c.volunteerId, c] as const))
-  const people = w.volunteerIds.map<WithdrawPerson>((id) => ({ id, safe: safe.has(id), phone: phones[id]?.trim() || null, card: cards.get(id) ?? null }))
+  const people = w.volunteerIds.map<WithdrawPerson>((id) => ({ id, safe: safe.has(id), markedSafe: (w.safeVolunteerIds ?? []).includes(id), answer: w.answers?.[id]?.state ?? cards.get(id)?.withdraw?.answer ?? null, phone: phones[id]?.trim() || null, card: cards.get(id) ?? null }))
   const confirmed = people.filter((p) => p.safe).length
   return {
     source: w.source === 'code' || w.source === 'supervisor' ? w.source : null,

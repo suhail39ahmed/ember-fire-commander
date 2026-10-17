@@ -131,7 +131,17 @@ export interface Observation {
 }
 
 export interface Withdraw {
-  active: true
+  id?: string
+  createdBy?: string
+  createdByName?: string
+  weather?: { windKmh: number | null; windDirDeg: number | null; windFrom: string | null; source: string | null; observedAt: string | null }
+  answers?: Record<string, { state: 'safe' | 'stuck' | null; at: string; answeredAt?: string; lat?: number | null; lng?: number | null; accuracyM?: number | null }>
+  helpers?: Record<string, string>
+  clearedAt?: string
+  clearedBy?: string
+  clearedByName?: string
+  clearReason?: string
+  active: boolean
   instruction: string
   reasons: string[]
   volunteerIds: string[]
@@ -317,6 +327,8 @@ export interface FlagRequest {
 
 /** Body of POST /incidents/{id}/withdraw/answer (section 6.11). */
 export interface WithdrawAnswerRequest {
+  sessionId?: string
+
   state: 'safe' | 'stuck'
   lat?: number
   lng?: number

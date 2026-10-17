@@ -6,12 +6,13 @@ A task or WITHDRAW push runs only after that commit, and a failed push
 does not undo it.
 """
 import logging
+from uuid import uuid4
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, g, jsonify, request
 
 from identity import AuthError
-from incidents import detail as incident_detail, live_seat, members, nearby, rules, sent, store, volunteer_view
+from incidents import detail as incident_detail, live_seat, members, nearby, rules, sent, store, volunteer_view, withdrawal
 from incidents.errors import ApiError, conflict, error_response, not_found, validation
 from notifications.send import deliver_task
 from photos import paths as photo_paths, signing
@@ -148,6 +149,7 @@ def list_incidents():
         extras = incident_detail.list_extras(snapshots)
         for record in records:
             record.update(extras[record["id"]])
+    withdrawal.present(records, g.user)
     return jsonify(records), 200
 
 
@@ -194,6 +196,7 @@ def get_incident(incident_id):
         "conflict": conflict_body,
         "tasks": tasks,
     }
+    withdrawal.present([body["incident"]], user)
     if user["role"] != "supervisor":
         metadata, contexts, task_metadata, _ = volunteer_view.load([snapshot], user["id"], known_reports=found, known_tasks=all_tasks)
         body["incident"].update(metadata[incident_id])
@@ -230,7 +233,7 @@ def get_incident(incident_id):
             for snap in store.where("withdraw_answers", "incidentId", "==", incident_id):
                 row = snap.to_dict() or {}
                 uid = row.get("volunteerId")
-                if row.get("state") == "safe" and uid in named:
+                if row.get("state") == "safe" and uid in named and withdrawal.belongs(row, withdraw):
                     self_safe.append(uid)
             if self_safe and body.get("incident", {}).get("withdraw"):
                 body["incident"]["withdraw"]["selfSafeVolunteerIds"] = self_safe
@@ -306,6 +309,7 @@ def digest():
             "checksDone": len(checked_lead_ids),
             "falseAlarmsCleared": len(false_alarm_lead_ids),
         }
+    withdrawal.present(incidents, user)
     body = {"updatedAt": rules.now_iso(), "incidents": incidents, "myTasks": my_tasks}
     if user["role"] == "volunteer":
         body["nearby"] = nearby_rows
@@ -427,10 +431,13 @@ def _commit_with_audit(transaction, target_ref, changes, action, target_id, subj
     audit_ref = store.db().collection(store.AUDIT).document()
     if changes:
         transaction.update(target_ref, changes)
-    transaction.set(
-        audit_ref,
-        rules.audit_record(audit_ref.id, g.user["id"], action, target_id, subject_id, g.user.get("displayName")),
-    )
+    record = rules.audit_record(audit_ref.id, g.user["id"], action, target_id, subject_id, g.user.get("displayName"))
+    withdraw = (changes or {}).get("withdraw") or {}
+    if withdrawal.key(withdraw):
+        record["sessionId"] = withdrawal.key(withdraw)
+    if action == "withdraw.clear":
+        record["reason"] = withdraw.get("clearReason")
+    transaction.set(audit_ref, record)
     return audit_ref.id
 
 
@@ -453,6 +460,10 @@ def _decide_task(task_id, action, apply):
         if not snapshot.exists:
             raise not_found("task")
         task = snapshot.to_dict() or {}
+        if action == "task.approve":
+            incident_snap = _ref(store.INCIDENTS, task.get("incidentId") or "").get(transaction=transaction)
+            if ((incident_snap.to_dict() or {}).get("withdraw") or {}).get("active"):
+                raise conflict("Instructions stay paused until the withdraw is cleared")
         held = False
         for conflict_id in open_conflicts:
             con = _ref(store.CONFLICTS, conflict_id).get(transaction=transaction)
@@ -725,6 +736,8 @@ def extinguish_incident(incident_id):
     def apply(incident):
         if incident.get("status") == "extinguished":
             raise conflict("The incident is already extinguished")
+        if (incident.get("withdraw") or {}).get("active"):
+            raise conflict("Clear the withdraw before closing this incident")
         return {"status": "extinguished"}
 
     return _decide_incident(incident_id, "incident.extinguish", apply)
@@ -770,7 +783,8 @@ def _withdraw_body():
 def mark_safe(incident_id):
     """Record that a supervisor found a withdrawn volunteer safe. It never clears the withdraw."""
     _require_supervisor()
-    volunteer_id = _body().get("volunteerId")
+    mark_body = _body()
+    volunteer_id = mark_body.get("volunteerId")
     if not isinstance(volunteer_id, str) or not volunteer_id.strip():
         raise validation("volunteerId", "required, a volunteer id")
 
@@ -778,6 +792,8 @@ def mark_safe(incident_id):
         current = incident.get("withdraw") or {}
         if not current.get("active"):
             raise conflict("This incident has no active withdraw")
+        if current.get("id") and mark_body.get("sessionId") != current["id"]:
+            raise conflict("This withdrawal has changed")
         if volunteer_id not in (current.get("volunteerIds") or []):
             raise validation("volunteerId", "not part of this withdraw")
         safe = list(current.get("safeVolunteerIds") or [])
@@ -786,6 +802,85 @@ def mark_safe(incident_id):
         return {"withdraw": dict(current, safeVolunteerIds=safe + [volunteer_id])}
 
     return _decide_incident(incident_id, "withdraw.safe", apply, subject_id=volunteer_id)
+
+
+@incidents_bp.route("/incidents/<incident_id>/withdraw/clear", methods=["POST"])
+def clear_withdraw(incident_id):
+    _require_supervisor()
+    body = _body()
+    reason = body.get("reason")
+    if not isinstance(reason, str) or not reason.strip() or len(reason) > 500:
+        raise validation("reason", "required, at most 500 characters")
+
+    def run(transaction):
+        ref = _ref(store.INCIDENTS, incident_id)
+        snapshot = ref.get(transaction=transaction)
+        if not snapshot.exists:
+            raise not_found("incident")
+        incident = snapshot.to_dict() or {}
+        current = incident.get("withdraw") or {}
+        if not current.get("active"):
+            raise conflict("There is no active withdraw")
+        if body.get("sessionId") != withdrawal.key(current):
+            raise conflict("This withdrawal has changed; refresh before clearing")
+        safe = withdrawal.safe_ids(current)
+        # Legacy sessions stored answers separately. Read those inside the same
+        # transaction, so a changing answer cannot race the all-safe check.
+        for uid in current.get("volunteerIds") or []:
+            answer = _ref("withdraw_answers", f"{incident_id}__{uid}").get(transaction=transaction)
+            row = answer.to_dict() or {}
+            if row.get("state") == "safe" and withdrawal.belongs(row, current):
+                safe.add(uid)
+        if not current.get("volunteerIds") or not set(current["volunteerIds"]).issubset(safe):
+            raise conflict("Every volunteer must be safe before clearing")
+        task_refs = [_ref(store.TASKS, snap.id) for snap in store.where(store.TASKS, "incidentId", "==", incident_id)
+                     if (snap.to_dict() or {}).get("type") == "withdraw"]
+        closed = dict(current, active=False, clearedAt=rules.now_iso(), clearedBy=g.user["id"],
+                      clearedByName=g.user.get("displayName"), clearReason=reason.strip())
+        audit_id = _commit_with_audit(transaction, ref, {"withdraw": closed}, "withdraw.clear", incident_id)
+        for task_ref in task_refs:
+            transaction.update(task_ref, {"status": "rejected", "closedAt": closed["clearedAt"]})
+        incident.update(withdraw=closed, id=incident_id)
+        return rules.pick(incident, rules.INCIDENT_FIELDS), audit_id
+
+    incident, audit_id = store.run_transaction(run)
+    return jsonify({"incident": incident, "auditId": audit_id}), 200
+
+
+@incidents_bp.route("/incidents/<incident_id>/withdraw/help", methods=["POST"])
+def request_withdraw_help(incident_id):
+    _require_supervisor()
+    body = _body()
+    target, helper = body.get("volunteerId"), body.get("helperId")
+
+    def run(transaction):
+        ref = _ref(store.INCIDENTS, incident_id)
+        snap = ref.get(transaction=transaction)
+        if not snap.exists:
+            raise not_found("incident")
+        current = (snap.to_dict() or {}).get("withdraw") or {}
+        named = current.get("volunteerIds") or []
+        if not current.get("active") or body.get("sessionId") != withdrawal.key(current):
+            raise conflict("This withdrawal is no longer active")
+        if target not in named or helper not in named or target == helper:
+            raise validation("helperId", "choose another volunteer on this withdrawal")
+        if helper not in withdrawal.safe_ids(current):
+            raise conflict("Choose a volunteer already confirmed safe")
+        assignments = dict(current.get("helpers") or {})
+        if assignments.get(target) == helper:
+            raise conflict("This volunteer has already been asked to help")
+        assignments[target] = helper
+        task_ref = store.db().collection(store.TASKS).document()
+        task = {"incidentId": incident_id, "volunteerId": helper, "type": "instruct", "status": "approved",
+                "instruction": body.get("instruction") if isinstance(body.get("instruction"), str) else "Contact your supervisor to help a withdrawn volunteer. Stay upwind; do not re-enter danger.",
+                "sentAt": rules.now_iso(), "sendCount": 1}
+        task["instruction"] = task["instruction"][:500]
+        transaction.set(task_ref, task)
+        audit_id = _commit_with_audit(transaction, ref, {"withdraw": dict(current, helpers=assignments)}, "withdraw.help", incident_id, target)
+        return dict(task, id=task_ref.id), audit_id
+
+    task, audit_id = store.run_transaction(run)
+    return jsonify({"task": task, "auditId": audit_id}), 200
 
 
 def _volunteers_on(incident_id, data):
@@ -798,6 +893,7 @@ def _volunteers_on(incident_id, data):
             obs_ids.update((con.to_dict() or {}).get("observationIds") or [])
     for obs in store.get_many(store.OBSERVATIONS, obs_ids).values():
         volunteers.add((obs.to_dict() or {}).get("volunteerId"))
+    volunteers.update((s.to_dict() or {}).get("volunteerId") for s in store.where("incident_members", "incidentId", "==", incident_id))
     volunteers.discard(None)
     return volunteers
 
@@ -912,11 +1008,19 @@ def withdraw(incident_id):
             raise not_found("incident")
         incident = snapshot.to_dict() or {}
         current = incident.get("withdraw") or {}
-        # Volunteers already withdrawn stay withdrawn.
+        if current.get("active"):
+            raise conflict("This incident already has an active withdraw")
+        if incident.get("status") == "extinguished":
+            raise conflict("An extinguished incident cannot receive a withdraw")
+        # Each send creates one distinct session; transaction retries cannot duplicate it.
         targets = list(dict.fromkeys(list(current.get("volunteerIds") or []) + volunteer_ids)) if current.get("active") else volunteer_ids
         active = bool(current.get("active"))
         changes = {"withdraw": {
             "active": True,
+            "id": uuid4().hex,
+            "createdBy": g.user["id"],
+            "createdByName": g.user.get("displayName"),
+            "answers": {},
             "instruction": instruction,
             "reasons": reasons,
             "volunteerIds": targets,

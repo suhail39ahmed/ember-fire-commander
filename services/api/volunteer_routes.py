@@ -254,13 +254,15 @@ def _number(body, field, low, high, required):
     return value
 
 
+@volunteer_bp.route("/incidents/<incident_id>/withdraw/location", methods=["POST"])
 @volunteer_bp.route("/incidents/<incident_id>/withdraw/answer", methods=["POST"])
 def answer_withdraw(incident_id):
     """A volunteer on an active withdraw says they are safe upwind, or that they cannot get out. Latest answer wins."""
     _require_volunteer()
     body = _body()
     state = body.get("state")
-    if state not in ANSWER_STATES:
+    location_only = request.path.endswith("/location")
+    if state not in ANSWER_STATES and not location_only:
         raise validation("state", "use safe or stuck")
     lat = _number(body, "lat", -90, 90, required=False)
     lng = _number(body, "lng", -180, 180, required=False)
@@ -277,17 +279,32 @@ def answer_withdraw(incident_id):
             raise not_found("incident")
         if not withdraw.get("active"):
             raise conflict("There is no active withdraw on this incident")
+        from incidents import withdrawal
+        session_id = withdrawal.key(withdraw)
+        if session_id and body.get("sessionId") != session_id:
+            raise conflict("This answer belongs to a different withdrawal")
+        previous = (withdraw.get("answers") or {}).get(uid) or {}
+        answer_state = previous.get("state") if location_only else state
+        if location_only and lat is None:
+            raise validation("lat", "location update needs coordinates")
+        if uid in (withdraw.get("safeVolunteerIds") or []) and answer_state == "stuck" and not location_only:
+            raise conflict("A supervisor has already confirmed you safe")
         answer = {
+            "sessionId": session_id,
             "incidentId": incident_id,
             "volunteerId": uid,
-            "state": state,
+            "state": answer_state,
             "lat": lat,
             "lng": lng,
             "accuracyM": accuracy,
             "at": rules.now_iso(),
         }
+        answers = dict(withdraw.get("answers") or {})
+        answer["answeredAt"] = previous.get("answeredAt") if location_only else previous.get("answeredAt", answer["at"]) if previous.get("state") == state else answer["at"]
+        answers[uid] = answer
+        transaction.update(_ref(store.INCIDENTS, incident_id), {"withdraw": dict(withdraw, answers=answers)})
         transaction.set(_ref(WITHDRAW_ANSWERS, f"{incident_id}__{uid}"), answer)
-        audit_id = _audit(transaction, "withdraw.answer", incident_id, uid)
+        audit_id = _audit(transaction, "withdraw.answer", incident_id, uid) if not location_only and previous.get("state") != state else None
         return answer, audit_id
 
     answer, audit_id = store.run_transaction(run)

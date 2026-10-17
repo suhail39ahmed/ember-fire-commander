@@ -402,7 +402,9 @@ def test_withdraw_is_immediate_and_audited(client, monkeypatch, db):
     })
     body = response.get_json()
     assert response.status_code == 200
-    assert body["incident"]["withdraw"] == {
+    assert body["incident"]["withdraw"]["id"]
+    assert body["incident"]["withdraw"]["createdBy"] == "uid_maya"
+    assert {k: v for k, v in body["incident"]["withdraw"].items() if k not in ("id", "createdBy", "createdByName", "answers")} == {
         "active": True,
         "instruction": "Withdraw upwind. Do not engage.",
         "reasons": ["supervisor instruction"],
@@ -457,15 +459,15 @@ def test_lowering_severity_does_not_clear_withdraw(client, monkeypatch, db):
     assert db.data["incidents"]["inc_01"]["withdraw"] == active
 
 
-def test_withdraw_keeps_volunteers_already_withdrawn(client, monkeypatch, db):
+def test_second_withdraw_is_rejected_without_duplicate_tasks(client, monkeypatch, db):
     _as(monkeypatch)
-    db.data["incidents"]["inc_01"]["withdraw"] = {
-        "active": True, "instruction": "Withdraw.", "reasons": ["large flame reported"], "volunteerIds": ["uid_sari"],
-    }
-    body = client.post("/incidents/inc_01/withdraw", headers=AUTH, json={
-        "volunteerIds": ["uid_rizal"], "instruction": "Withdraw upwind.", "reasons": ["wind shift"],
-    }).get_json()
-    assert body["incident"]["withdraw"]["volunteerIds"] == ["uid_sari", "uid_rizal"]
+    db.data["incidents"]["inc_01"]["withdraw"] = dict(ACTIVE_WITHDRAW)
+    before = len(db.data["tasks"])
+    response = client.post("/incidents/inc_01/withdraw", headers=AUTH, json={
+        "volunteerIds": ["uid_rizal"], "instruction": "Withdraw upwind.",
+    })
+    assert response.status_code == 409
+    assert len(db.data["tasks"]) == before
 
 
 def test_withdraw_rejects_volunteer_not_on_incident(client, monkeypatch, db):
@@ -634,17 +636,15 @@ ACTIVE_WITHDRAW = {
 }
 
 
-def test_resending_keeps_the_first_source_time_and_safe_list(client, monkeypatch, db):
+def test_second_withdraw_preserves_the_current_order(client, monkeypatch, db):
     _as(monkeypatch)
-    db.data["incidents"]["inc_01"]["withdraw"] = dict(ACTIVE_WITHDRAW, safeVolunteerIds=["uid_sari"])
-    body = client.post("/incidents/inc_01/withdraw", headers=AUTH, json={
-        "volunteerIds": ["uid_rizal"], "instruction": "Withdraw now.", "reasons": ["wind shift"],
-    }).get_json()
-    withdraw = body["incident"]["withdraw"]
-    assert withdraw["source"] == "code"
-    assert withdraw["sentAt"] == "2026-10-13T08:20:00Z"
-    assert withdraw["safeVolunteerIds"] == ["uid_sari"]
-    assert withdraw["instruction"] == "Withdraw now."
+    current = dict(ACTIVE_WITHDRAW, safeVolunteerIds=["uid_sari"])
+    db.data["incidents"]["inc_01"]["withdraw"] = dict(current)
+    response = client.post("/incidents/inc_01/withdraw", headers=AUTH, json={
+        "volunteerIds": ["uid_rizal"], "instruction": "Withdraw now.",
+    })
+    assert response.status_code == 409
+    assert db.data["incidents"]["inc_01"]["withdraw"] == current
 
 
 def test_mark_safe_is_audited_and_never_clears_the_withdraw(client, monkeypatch, db):

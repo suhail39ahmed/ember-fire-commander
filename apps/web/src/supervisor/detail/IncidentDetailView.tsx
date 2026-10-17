@@ -7,6 +7,8 @@ import { t, type Lang } from '../../pwa/i18n'
 import { incidentLabel } from '../../pwa/incidentName'
 import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, PhotoUrl, TaskDecision, WithdrawRequest } from '../contracts'
 import { conflictPair, taskControls } from '../view'
+import { crewDots } from '../map/markers'
+import { windReading } from '../map/wind'
 import { IncidentMap } from '../map/IncidentMap'
 import { OutcomeLine, TaskRow, type IncidentActions } from '../IncidentView'
 import type { DetailFailure } from '../incidentsContext'
@@ -73,6 +75,8 @@ export interface IncidentDetailViewProps {
   extinguish(): Promise<IncidentDecision>
   /** POST /incidents/{id}/withdraw/safe, then a fresh read. Resolves with the route's answer. */
   markSafe(volunteerId: string): Promise<IncidentDecision>
+  clearWithdraw?(reason: string): Promise<IncidentDecision>
+  requestHelp?(volunteerId: string, helperId: string, instruction: string): Promise<unknown>
   /** POST /incidents/{id}/volunteers/{volunteerId}/instruct, then a fresh read. Resolves with the route's answer and throws its refusal. */
   sendInstruction(volunteerId: string, instruction: string): Promise<TaskDecision>
   /** GET /incidents/{id}/photos/{observationId}: a short-lived signed read link for a photo report. */
@@ -157,7 +161,7 @@ function Stat({ label, value, note, tone }: { label: string; value: string; note
   )
 }
 
-function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask' | 'sendInstruction' | 'photoUrl' | 'makeLive' | 'retryLive' | 'assist'> }) {
+function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask' | 'sendInstruction' | 'photoUrl' | 'makeLive' | 'retryLive' | 'assist' | 'clearWithdraw' | 'requestHelp'> }) {
   const { incident, conflict } = detail
   const { actorName, sendWithdraw, lowerSeverity, markSafe, resendTask, serverNow, sendInstruction, photoUrl, makeLive, retryLive, assist } = view
   const [dialog, setDialog] = useState<'withdraw' | 'severity' | 'extinguish' | null>(null)
@@ -183,7 +187,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
   const volunteers = volunteersOf(detail)
   const wd = withdrawState(detail)
   // The frame pauses instructions while someone is still unconfirmed.
-  const paused = wd !== null && !wd.allSafe
+  const paused = wd !== null
   const waiting = new Map(wd ? unconfirmed(wd).map((p) => [p.id, elapsedSince(wd.sentAt, serverNow())] as const) : [])
   const pair = conflictPair(detail)
   const top = highestReport(detail)
@@ -242,7 +246,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
 
       <NeedHelpBanner lang={lang} requests={help} offline={offline} onReply={(id) => setPopupId(id)} />
 
-      {wd && <WithdrawPanel lang={lang} state={wd} now={serverNow} offline={offline} markSafe={markSafe} nameOf={(id) => nameOf(detail, id, lang)} />}
+      {wd && <WithdrawPanel lang={lang} state={wd} now={serverNow} offline={offline} markSafe={markSafe} clearWithdraw={view.clearWithdraw} requestHelp={view.requestHelp} nameOf={(id) => nameOf(detail, id, lang)} />}
 
       <LiveDropBanner lang={lang} seat={detail.liveSeat} />
 
@@ -422,7 +426,7 @@ function Rail({ lang, detail, queue, onSelect, mapsKey }: Pick<IncidentDetailVie
   const history = detail?.timeline
   return (
     <aside className="inc-rail">
-      <IncidentMap incidents={incidents} selectedId={detail?.incident.id ?? null} onSelect={onSelect} mapsKey={mapsKey} />
+      <IncidentMap incidents={incidents} selectedId={detail?.incident.id ?? null} onSelect={onSelect} mapsKey={mapsKey} crews={crewDots(detail?.volunteers)} wind={windReading(detail?.conditions?.weather?.windKmh, detail?.conditions?.weather?.windDirDeg)} lang={lang} />
       {detail && (
         <section className="inc-card" aria-labelledby="inc-why-title">
           <h2 className="inc-h2" id="inc-why-title">{t(lang, disagreeCopy.factorsTitle)} {detail.incident.evidenceScore}</h2>
