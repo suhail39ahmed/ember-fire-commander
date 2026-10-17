@@ -13,6 +13,14 @@ export const cameraStrings = {
   /** Only shown when frames really go to the coach. */
   captionToCoach: { id: 'KAMERA LANGSUNG · ~1 FPS KE COACH', en: 'LIVE CAMERA · ~1 FPS TO COACH' },
   captionProblem: { id: 'KAMERA TIDAK AKTIF', en: 'CAMERA NOT AVAILABLE' },
+  /** Shown in the recording indicator while the camera is on. */
+  recLabel: { id: 'REC', en: 'REC' },
+  /** Screen-reader label for the recording indicator. */
+  recAriaLabel: { id: 'Merekam video laporan', en: 'Recording report video' },
+  /** Elapsed recording time label for screen readers. */
+  recElapsed: { id: 'Waktu rekaman', en: 'Recording time' },
+  /** Shown when the clip is ready and waiting to be sent. */
+  recReady: { id: 'VIDEO SIAP · TEKAN KIRIM', en: 'VIDEO READY · TAP SEND' },
   denied: {
     id: 'Kamera diblokir. Buka Pengaturan situs → Kamera → Izinkan, lalu ketuk tombol kamera.',
     en: 'Camera is blocked. Open Site settings → Camera → Allow, then tap the camera button.',
