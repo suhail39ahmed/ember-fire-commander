@@ -19,9 +19,9 @@ variable "live_location" {
 }
 
 variable "live_model" {
-  description = "Gemini Live model ID passed to voice-gateway as LIVE_MODEL (confirm the exact ID in Agent Platform Model Garden)."
+  description = "Gemini Live model ID passed to voice-gateway as LIVE_MODEL. GA model: gemini-live-2.5-flash-native-audio (retires 2026-12-13)."
   type        = string
-  default     = "gemini-3.8-live"
+  default     = "gemini-live-2.5-flash-native-audio"
 }
 
 # ---------------------------------------------------------------------------
