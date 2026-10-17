@@ -25,8 +25,9 @@ The voice gateway is a WebSocket server that relays push-to-talk audio and ~1 fp
 
 The WebSocket is served at `/`, the URL in `VITE_VOICE_GATEWAY_WSS_URL` with no extra path. `GET /healthz` stays public.
 
-The upgrade reads the same two headers as the shared contract:
+Two authentication paths are supported (§7):
 
+**Native clients** send the two identity headers:
 - `Authorization: Bearer <Firebase ID token>`
 - `X-Firebase-AppCheck: <App Check token>`
 
@@ -34,9 +35,14 @@ A missing, invalid, expired, or revoked ID token closes the socket before a Gemi
 
 `APP_CHECK_ENFORCE` defaults to `false`, matching ember-api and the Cloud Run setting. The App Check token is still verified. When the flag is false, a missing or invalid App Check token is logged and a valid ID token is enough. Set `APP_CHECK_ENFORCE=true` to close the socket on that failure.
 
-An accepted upgrade waits for `session.start`, then relays audio and about one camera frame per second to Gemini Live. The caller's digest is injected into that session. `submit_observation` stores one immutable `live` observation from the phone's latest location, then notifies `ember-agents`. The socket closes about 30 seconds after the reply, on `session.stop`, or with `cap_reached` when `LIVE_MINUTE_CAP_USER` (default 10) or `LIVE_MINUTE_CAP_OP` (default 60) is used up. Minute usage is counted per instance, so a reconnect does not reset it. Wind and engine noise do not open a turn: activity detection is manual.
+**Browser clients (PWA)** send a short-lived voice ticket in `Sec-WebSocket-Protocol`:
+1. The PWA calls `POST /voice/ticket` on ember-api to get a 60-second single-use ticket.
+2. The PWA opens `new WebSocket(url, [ticket])` — the browser sends the ticket in `Sec-WebSocket-Protocol`.
+3. The gateway reads the ticket from `Sec-WebSocket-Protocol`, verifies and atomically consumes it from `voiceTickets/{ticket}` in `ember-db`, and echoes the subprotocol in the 101 response (browsers require this). App Check is not re-checked here: ember-api already enforced it when it issued the ticket.
 
-The browser `WebSocket` API cannot set these headers. The PWA keeps voice unavailable until the contract defines a browser handshake. This service does not accept the tokens on the query string.
+The service does not accept tokens on the query string.
+
+An accepted upgrade waits for `session.start`, then relays audio and about one camera frame per second to Gemini Live. The caller's digest is injected into that session. `submit_observation` stores one immutable `live` observation from the phone's latest location, then notifies `ember-agents`. The socket closes about 30 seconds after the reply, on `session.stop`, or with `cap_reached` when `LIVE_MINUTE_CAP_USER` (default 10) or `LIVE_MINUTE_CAP_OP` (default 60) is used up. Minute usage is counted per instance, so a reconnect does not reset it. Wind and engine noise do not open a turn: activity detection is manual.
 
 ## Local development
 

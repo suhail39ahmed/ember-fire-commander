@@ -462,6 +462,11 @@ export function createMockApi(volunteerId: string, latencyMs = 300, initialProfi
       }
       return structuredClone(turn.answer)
     },
+    async requestVoiceTicket() {
+      await wait()
+      const expires = new Date(Date.now() + 60_000).toISOString()
+      return { ticket: 'mock-ticket-' + Math.random().toString(36).slice(2), expiresAt: expires }
+    },
     mock: {
       triggerWithdraw() {
         digest = {

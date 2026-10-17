@@ -28,14 +28,37 @@ describe('PttSession', () => {
     expect(createSocket).not.toHaveBeenCalled()
   })
 
-  it('passes both identity headers to the socket factory and never puts a token in the URL', async () => {
+  it('passes both identity headers and ticket to the socket factory', async () => {
+    const createSocket = vi.fn(() => fakeSocket())
+    const getTicket = async () => 'tok_abc'
+    const p = new PttSession({ url: 'wss://gw', getAuthHeaders: auth, createSocket, getTicket, onState: () => {} })
+    await p.press()
+    expect(createSocket).toHaveBeenCalledWith(
+      'wss://gw',
+      { Authorization: 'Bearer id-token', 'X-Firebase-AppCheck': 'app-check' },
+      'tok_abc',
+    )
+  })
+
+  it('passes headers without a ticket when no getTicket is provided', async () => {
     const createSocket = vi.fn(() => fakeSocket())
     const p = new PttSession({ url: 'wss://gw', getAuthHeaders: auth, createSocket, onState: () => {} })
     await p.press()
-    expect(createSocket).toHaveBeenCalledWith('wss://gw', { Authorization: 'Bearer id-token', 'X-Firebase-AppCheck': 'app-check' })
+    expect(createSocket).toHaveBeenCalledWith(
+      'wss://gw',
+      { Authorization: 'Bearer id-token', 'X-Firebase-AppCheck': 'app-check' },
+      undefined,
+    )
   })
 
-  it('reports unsupported when the runtime cannot send upgrade headers', async () => {
+  it('returns no_gateway when getTicket returns null', async () => {
+    const createSocket = vi.fn(() => fakeSocket())
+    const p = new PttSession({ url: 'wss://gw', getAuthHeaders: auth, createSocket, getTicket: async () => null, onState: () => {} })
+    expect(await p.press()).toBe('no_gateway')
+    expect(createSocket).not.toHaveBeenCalled()
+  })
+
+  it('reports unsupported when the factory returns null (no ticket provided in browser)', async () => {
     const p = new PttSession({ url: 'wss://gw', getAuthHeaders: auth, createSocket: browserSocketFactory, onState: () => {} })
     expect(await p.press()).toBe('unsupported')
     expect(p.isOpen).toBe(false)
@@ -67,5 +90,44 @@ describe('PttSession', () => {
     expect(sock.sent.map((d) => JSON.parse(d).type)).toContain('session.stop')
     expect(sock.closed).toBe(true)
     vi.useRealTimers()
+  })
+
+  it('sendAudio sends an audio message while live', async () => {
+    const sock = fakeSocket()
+    const p = new PttSession({ url: 'wss://gw', getAuthHeaders: auth, createSocket: () => sock, onState: () => {} })
+    await p.press()
+    sock.onopen?.(new Event('open'))
+    sock.onmessage?.(msg({ type: 'session.ready' }))
+    p.sendAudio('base64pcm')
+    const parsed = sock.sent.map((d) => JSON.parse(d))
+    expect(parsed.find((m) => m.type === 'audio')).toEqual({ type: 'audio', data: 'base64pcm' })
+  })
+
+  it('sendAudio is a no-op when not live', async () => {
+    const sock = fakeSocket()
+    const p = new PttSession({ url: 'wss://gw', getAuthHeaders: auth, createSocket: () => sock, onState: () => {} })
+    p.sendAudio('should-not-send')
+    expect(sock.sent).toHaveLength(0)
+  })
+
+  it('sendFrame sends a frame message while live', async () => {
+    const sock = fakeSocket()
+    const p = new PttSession({ url: 'wss://gw', getAuthHeaders: auth, createSocket: () => sock, onState: () => {} })
+    await p.press()
+    sock.onopen?.(new Event('open'))
+    sock.onmessage?.(msg({ type: 'session.ready' }))
+    p.sendFrame('base64jpeg', '2026-10-17T08:00:00Z')
+    const parsed = sock.sent.map((d) => JSON.parse(d))
+    expect(parsed.find((m) => m.type === 'frame')).toEqual({ type: 'frame', data: 'base64jpeg', capturedAt: '2026-10-17T08:00:00Z' })
+  })
+})
+
+describe('browserSocketFactory', () => {
+  it('returns null when no ticket is provided', () => {
+    expect(browserSocketFactory('wss://gw', { Authorization: 'Bearer t' })).toBeNull()
+  })
+
+  it('returns null when ticket is empty string', () => {
+    expect(browserSocketFactory('wss://gw', { Authorization: 'Bearer t' }, '')).toBeNull()
   })
 })
