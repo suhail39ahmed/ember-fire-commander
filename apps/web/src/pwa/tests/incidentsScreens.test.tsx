@@ -5,7 +5,8 @@ import { ApiError } from '../api/types'
 import { createHttpApi, ENDPOINTS } from '../api/client'
 import { IncidentDetailView } from '../screens/IncidentDetailScreen'
 import { IncidentsList } from '../screens/IncidentsScreen'
-import { completedIncidents, assignedTasks, liveIncidents, parseTab } from '../screens/incidentsView'
+import { completedIncidents, completedGroups, assignedTasks, liveIncidents, parseTab } from '../screens/incidentsView'
+import { incidentFlowFixture } from '../api/incidentFlowFixture'
 import { reportTitle } from '../screens/reportTitle'
 import { detailFailure } from '../screens/useIncidentDetail'
 import { digest, fakeBrowser, incident, renderVolunteer, task } from './volunteerKit'
@@ -30,8 +31,8 @@ describe('incident lists (#142, #143)', () => {
 
   it('Live shows assigned tasks and my incidents, and a task opens task detail', () => {
     const html = list(mixed)
-    expect(html).toContain('ASSIGNED TO ME')
-    expect(html).toContain('MY REPORTS')
+    expect(html).toContain('Assigned to me')
+    expect(html).toContain('Live now')
     expect(html).toContain('href="/pwa/task/task_1"')
     expect(html).toContain('href="/pwa/incidents/inc_1"')
     expect(html).not.toContain('inc_done')
@@ -52,8 +53,9 @@ describe('incident lists (#142, #143)', () => {
     expect(html).toContain('href="/pwa/report"')
   })
 
-  it('shows the empty state while the digest has not loaded, instead of crashing', () => {
-    expect(list(null)).toContain('data-testid="incidents-empty"')
+  it('shows a loading skeleton until the digest arrives, without a false empty state', () => {
+    expect(list(null)).toContain('data-testid="incidents-skeleton"')
+    expect(list(null)).not.toContain('data-testid="incidents-empty"')
   })
 
   it('an empty Completed list has no Report fire button', () => {
@@ -70,7 +72,7 @@ describe('incident lists (#142, #143)', () => {
 
   it('speaks Bahasa first', () => {
     const html = list(mixed, 'live', 'id')
-    expect(html).toContain('DITUGASKAN KE SAYA')
+    expect(html).toContain('Ditugaskan ke saya')
     expect(html).toContain('Berjalan')
   })
 })
@@ -101,7 +103,13 @@ describe('incident detail (#144)', () => {
     expect(html).toContain('±18 m')
   })
 
-  it('never labels another volunteer with a name', () => {
+  it('does not revive an old conflict block on open or verified incidents', () => {
+    for (const status of ['open', 'verified'] as const) {
+      expect(view({ kind: 'ready', detail: detailOf({ incident: { ...incident({ status }), evidenceScore: 64 } }) })).not.toContain('detail-conflict')
+    }
+  })
+
+  it('uses generic labels when the API provides no reporter names', () => {
     const html = view({ kind: 'ready', detail: detailOf() })
     expect(html).not.toMatch(/Rizal|Sari|Ani/)
   })
@@ -114,6 +122,7 @@ describe('incident detail (#144)', () => {
 
   it('a resolved conflict does not show the disagree block', () => {
     const detail = detailOf()
+    detail.incident.status = 'held'
     detail.conflict = { ...detail.conflict!, status: 'resolved' }
     expect(view({ kind: 'ready', detail })).not.toContain('detail-conflict')
   })
@@ -172,5 +181,79 @@ describe('GET /incidents/{id} client', () => {
     await expect(api.getIncident('inc 1')).resolves.toEqual(detail)
     expect(calls).toEqual([`https://api.example${ENDPOINTS.incident('inc 1')}`])
     expect(calls[0]).toContain('/incidents/inc%201')
+  })
+})
+
+describe('Incidents flow design and metadata (#195)', () => {
+  it('shows reference card metadata and only real API timestamps', () => {
+    const fixture = incidentFlowFixture('vol_1')
+    const html = list(fixture.digest)
+    expect(html).toContain('Fires you reported, joined or were sent to.')
+    expect(html).toContain('REPORTS DISAGREE')
+    expect(html).toContain('HELD · DISPATCH ON HOLD')
+    expect(html).toContain('TOHOR-3 · Peat field behind SDN 2')
+    expect(html).toContain('Go back to the canal edge and check: is there flame?')
+    expect(html).toContain('You + 3 volunteers')
+    expect(html).toContain('1 TASK')
+    expect(html).toContain('2 INCIDENTS')
+    expect(html).toContain('href="/pwa/task/task_demo_verify"')
+    const legacy = list(digest({ incidents: [incident()] }))
+    expect(legacy).not.toContain('UPDATED')
+    expect(legacy).not.toContain('You +')
+  })
+
+  it('preserves recent, older and undated completed incidents without using the device clock', () => {
+    const d = digest({ updatedAt: '2026-10-17T12:00:00Z', incidents: [
+      incident({ id: 'recent', status: 'extinguished', closedAt: '2026-10-16T12:00:00Z', reportCount: 3 }),
+      incident({ id: 'boundary', status: 'extinguished', closedAt: '2026-09-17T12:00:00Z' }),
+      incident({ id: 'old', status: 'extinguished', closedAt: '2026-09-01T12:00:00Z' }),
+      incident({ id: 'undated', status: 'extinguished' }),
+      incident({ id: 'invalid', status: 'extinguished', closedAt: 'not-a-date' }),
+    ] })
+    expect(completedGroups(d).recent.map((row) => row.id)).toEqual(['recent', 'boundary'])
+    expect(completedGroups(d).older.map((row) => row.id)).toEqual(['old', 'undated', 'invalid'])
+    const html = list(d, 'completed')
+    expect(html).toContain('Last 30 days')
+    expect(html).toContain('Earlier or undated')
+    expect(html).toContain('Extinguished · 3 reports attached')
+    for (const row of d.incidents) expect(html).toContain(`href="/pwa/incidents/${row.id}"`)
+    expect(html).not.toContain('Invalid Date')
+  })
+
+  it('opens a completed incident in the same detail view without changing its status', () => {
+    const fixture = incidentFlowFixture('vol_1')
+    const html = list(fixture.digest, 'completed')
+    expect(html).toContain('href="/pwa/incidents/inc_completed_1"')
+    expect(html).toContain('6 reports attached')
+    const detail = fixture.details.get('inc_completed_1')!
+    const rendered = view({ kind: 'ready', detail })
+    expect(rendered).toContain('Extinguished')
+    expect(rendered).not.toContain('detail-conflict')
+    expect(rendered).toContain('data-testid="report-from-here"')
+  })
+
+  it('renders the supplied conflict context, reporter names and compact map', () => {
+    const fixture = incidentFlowFixture('vol_1')
+    const detail = fixture.details.get('inc_demo_01')!
+    const html = view({ kind: 'ready', detail })
+    expect(html).toContain('Rizal: No fire')
+    expect(html).toContain('You: Small flame')
+    expect(html).toContain('Bu Maya: Go back to the canal edge and check: is there flame?')
+    expect(html).toContain('Reports on this incident · 4')
+    expect(html).toContain('minimap-compact')
+    expect(html).toContain('viewBox="0 0 200 100"')
+    expect(html.match(/data-testid="map-other"/g)).toHaveLength(2)
+    expect(html).toContain('data-testid="flag-fixture_02"')
+    expect(html).not.toContain('data-testid="flag-fixture_03"')
+    expect(html.indexOf('report-fixture_01')).toBeLessThan(html.indexOf('report-fixture_04'))
+  })
+
+  it('keeps localized labels on completed cards and detail states', () => {
+    const fixture = incidentFlowFixture('vol_1')
+    const html = list(fixture.digest, 'completed', 'id')
+    expect(html).toContain('30 hari terakhir')
+    expect(html).toContain('Padam')
+    expect(html).toContain('laporan terlampir')
+    expect(view({ kind: 'ready', detail: fixture.details.get('inc_demo_01')! }, 'id')).toContain('Laporan tidak sama')
   })
 })

@@ -105,6 +105,8 @@ export interface UploadUrl {
 export interface Observation {
   id: string
   volunteerId: string
+  /** Display name stored on an authorized incident report; never a phone or device identifier. */
+  volunteerName?: string | null
   capturedAt: string
   receivedAt: string
   source: ObservationSource
@@ -175,6 +177,12 @@ export interface IncidentDetail {
   incident: IncidentRecord
   observations: Observation[]
   conflict: Conflict | null
+  conflictSummary?: {
+    dispatchHeld: boolean
+    reports: { observationId: string; volunteerId: string | null; volunteerName: string | null; severity: Severity }[]
+    instruction: string | null
+    supervisorName: string | null
+  } | null
   tasks: Task[]
   /** Present when this volunteer has an `incident_members` row (#135). */
   membership?: IncidentMembership | null
@@ -185,6 +193,14 @@ export interface IncidentSummary {
   id: string
   /** Readable label from agents, such as "Bengkalis, Riau · Sari · #3". Absent or null on older incidents. */
   name?: string | null
+  code?: string | null
+  placeName?: string | null
+  updatedAt?: string | null
+  closedAt?: string | null
+  reportCount?: number
+  myReportCount?: number
+  participantCount?: number
+  includesMe?: boolean
   /** Place part of the name, such as "Bengkalis, Riau". Absent or null on older incidents. */
   area?: string | null
   status: IncidentStatus
@@ -201,6 +217,8 @@ export interface Task {
   type: TaskType
   status: TaskStatus
   instruction: string | null
+  createdAt?: string | null
+  reasonCode?: 'reports_disagree' | null
   /** When it was last sent (ISO). Absent or null on a task never sent, and on one sent before receipts. */
   sentAt?: string | null
   /** When the volunteer's app showed or spoke it. Absent or null until then. */

@@ -1,15 +1,18 @@
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import type { IncidentDetail } from '../contracts/types'
 import { formatTime } from '../formatTime'
 import { t, type Lang } from '../i18n'
-import { incidentLabel } from '../incidentName'
+import { incidentTitle } from './incidentPresentation'
 import { useLanguage } from '../language'
 import { useVolunteer } from '../layout/volunteerContext'
 import { reportTitle } from './reportTitle'
 import { MiniMap, type MapMarker } from './MiniMap'
 import { screenStrings } from './strings'
 import { useIncidentDetail, type DetailState } from './useIncidentDetail'
+import { SeverityBadge, StatusBadge } from './IncidentBadges'
+import './incidents.css'
 
 function mapMarkers(detail: IncidentDetail, volunteerId: string | null, lang: Lang): MapMarker[] {
   const markers: MapMarker[] = [
@@ -18,15 +21,17 @@ function mapMarkers(detail: IncidentDetail, volunteerId: string | null, lang: La
   const mine = detail.observations.filter((o) => o.volunteerId === volunteerId)
   const latestMine = [...mine].sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))[0]
   if (latestMine) markers.push({ id: `you-${latestMine.id}`, kind: 'you', lat: latestMine.lat, lng: latestMine.lng, label: t(lang, screenStrings.detail.you) })
-  for (const o of detail.observations) {
+  const latestOthers = new Map<string, typeof detail.observations[number]>()
+  for (const o of [...detail.observations].sort((a, b) => a.capturedAt.localeCompare(b.capturedAt))) {
     if (o.volunteerId === volunteerId) continue
-    markers.push({ id: `other-${o.id}`, kind: 'other', lat: o.lat, lng: o.lng, label: t(lang, screenStrings.detail.other) })
+    latestOthers.set(o.volunteerId, o)
   }
+  for (const o of latestOthers.values()) markers.push({ id: `other-${o.id}`, kind: 'other', lat: o.lat, lng: o.lng, label: o.volunteerName || t(lang, screenStrings.detail.other) })
   return markers
 }
 
 /** The incident from the volunteer's side (#144): status, the conflict when reports disagree, a position sketch and the reports. */
-export function IncidentDetailView({
+function IncidentDetailContent({
   state,
   lang,
   volunteerId,
@@ -91,8 +96,7 @@ export function IncidentDetailView({
 
   const { detail } = state
   const { incident } = detail
-  const held = incident.status === 'held'
-  const disagree = detail.conflict !== null && detail.conflict.status === 'open'
+  const disagree = incident.status === 'held' && detail.conflict !== null && detail.conflict.status === 'open'
   const reports = [...detail.observations].sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))
   const score = incident.evidenceScore
 
@@ -100,26 +104,29 @@ export function IncidentDetailView({
     <>
       {header}
       <div className="chips">
-        <span className={`chip-status st-${incident.status}`}>
-          {held ? t(lang, screenStrings.detail.heldChip) : t(lang, screenStrings.status[incident.status])}
-        </span>
-        <span className="chip-status">{t(lang, screenStrings.severity[incident.severity])}</span>
+        <StatusBadge incident={incident} lang={lang} />
+        <SeverityBadge severity={incident.severity} lang={lang} />
       </div>
-      <h3 className="incident-title">{incidentLabel(incident)}</h3>
+      <h3 className="incident-title">{incidentTitle(incident)}</h3>
       {typeof score === 'number' && (
         <p className="muted small mono" data-testid="detail-evidence">
           {t(lang, screenStrings.detail.evidence)} {score} · {t(lang, screenStrings.detail.notProbability)}
+          {incident.updatedAt && Number.isFinite(Date.parse(incident.updatedAt)) && ` · ${t(lang, screenStrings.incidents.updated)} ${formatTime(incident.updatedAt)}`}
         </p>
       )}
 
       {disagree && (
         <section className="card conflict" data-testid="detail-conflict" role="status">
           <h3>{t(lang, screenStrings.detail.conflictTitle)}</h3>
-          <p>{t(lang, screenStrings.detail.conflictBody)}</p>
+          {detail.conflictSummary ? <>
+            <p>{detail.conflictSummary.reports.map((report) => `${report.volunteerId === volunteerId ? t(lang, screenStrings.detail.you) : report.volunteerName || t(lang, screenStrings.detail.other)}: ${t(lang, screenStrings.severity[report.severity] || screenStrings.severity.unknown)}`).join(' · ')}</p>
+            {detail.conflictSummary.instruction && <p>{detail.conflictSummary.supervisorName && `${detail.conflictSummary.supervisorName}: `}{detail.conflictSummary.instruction}</p>}
+            {detail.conflictSummary.dispatchHeld && <p>{t(lang, screenStrings.detail.dispatchHeld)}</p>}
+          </> : <p>{t(lang, screenStrings.detail.conflictBody)}</p>}
         </section>
       )}
 
-      <MiniMap markers={mapMarkers(detail, volunteerId, lang)} lang={lang} caption={t(lang, screenStrings.detail.mapCaption)} />
+      <MiniMap markers={mapMarkers(detail, volunteerId, lang)} lang={lang} caption={t(lang, screenStrings.detail.mapCaption)} compact />
 
       <section aria-labelledby="reports-title">
         <h3 id="reports-title" className="reports-head">
@@ -136,7 +143,7 @@ export function IncidentDetailView({
                 <span className="row-text">
                   <strong>{reportTitle(o, lang)}</strong>
                   <span className="muted small mono">
-                    {o.volunteerId === volunteerId ? t(lang, screenStrings.detail.youTag) : t(lang, screenStrings.detail.otherTag)} ·{' '}
+                    {o.volunteerId === volunteerId ? t(lang, screenStrings.detail.youTag) : o.volunteerName || t(lang, screenStrings.detail.otherTag)} ·{' '}
                     {t(lang, screenStrings.detail.source[o.source])}
                     {typeof o.accuracyM === 'number' ? ` · ±${o.accuracyM} m` : ''}
                   </span>
@@ -164,6 +171,12 @@ export function IncidentDetailScreen() {
   const { api, volunteerId } = useVolunteer()
   const { id = '' } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  useEffect(() => { window.scrollTo(0, 0) }, [id])
   const { state, reload } = useIncidentDetail(api, id)
-  return <IncidentDetailView state={state} lang={lang} volunteerId={volunteerId} incidentId={id} onRetry={reload} onBack={() => navigate(-1)} />
+  return <IncidentDetailView state={state} lang={lang} volunteerId={volunteerId} incidentId={id} onRetry={reload} onBack={() => { if (location.key === 'default') navigate('/pwa/incidents'); else navigate(-1) }} />
+}
+
+export function IncidentDetailView(props: Parameters<typeof IncidentDetailContent>[0]) {
+  return <section className="incident-detail" data-testid="incident-detail"><IncidentDetailContent {...props} /></section>
 }

@@ -23,6 +23,7 @@ import { ApiError, type EmberApi } from './types'
 import type { Me } from '../../auth/api'
 import type { PracticeAnswer } from '../contracts/types'
 import { practiceFixture } from './practiceFixture'
+import { incidentFlowFixture } from './incidentFlowFixture'
 
 export interface MockControls {
   /** Simulate the backend safety rule firing (code WITHDRAW). */
@@ -129,7 +130,8 @@ function validate(body: ObservationRequest, volunteerId: string): void {
 
 const SEVERITY = { asap: 'smoke', api: 'small_flame', aman: 'none', butuh_bantuan: 'unknown' } as const
 
-export function createMockApi(volunteerId: string, latencyMs = 300, initialProfile?: Me): EmberApi & { mock: MockControls } {
+export function createMockApi(volunteerId: string, latencyMs = 300, initialProfile?: Me, options: { incidentFlow?: boolean } = {}): EmberApi & { mock: MockControls } {
+  const flowDetails = new Map<string, IncidentDetail>()
   const training = structuredClone(mockTraining)
   const turns = new Map<string, { response: PracticeResponse; correctId: string; feedback: { en: string; id: string }; count: number; answer?: PracticeAnswer; nextTurnId?: string }>()
   const trainingKey = `ember:mock:training:${volunteerId}`
@@ -174,6 +176,12 @@ export function createMockApi(volunteerId: string, latencyMs = 300, initialProfi
     training.doneCount = 2
     turns.clear()
     joinRequests.length = 0
+    flowDetails.clear()
+    if (options.incidentFlow) {
+      const fixture = incidentFlowFixture(volunteerId)
+      digest = fixture.digest
+      for (const [id, detail] of fixture.details) flowDetails.set(id, detail)
+    }
   }
   reset()
   try {
@@ -255,6 +263,8 @@ export function createMockApi(volunteerId: string, latencyMs = 300, initialProfi
       await wait()
       const incident = digest.incidents.find((i) => i.id === incidentId)
       if (!incident) throw new ApiError('not_found', 'incident id is unknown', 404, false)
+      const fixture = flowDetails.get(incidentId)
+      if (fixture) return structuredClone({ ...fixture, incident: { ...fixture.incident, ...incident }, observations: [...fixture.observations, ...(incidentId === INCIDENT_ID ? observations : [])], tasks: digest.myTasks.filter((task) => task.incidentId === incidentId), membership: memberships.get(incidentId) ?? null })
       const detail: IncidentDetail = {
         incident: { ...incident, evidenceScore: null, conflictId: null },
         observations: structuredClone(observations),
@@ -283,6 +293,10 @@ export function createMockApi(volunteerId: string, latencyMs = 300, initialProfi
         immutable: true,
       }
       observations.push(stored)
+      if (options.incidentFlow) {
+        const incident = digest.incidents.find((row) => row.id === INCIDENT_ID)
+        if (incident) { incident.reportCount = (incident.reportCount || 0) + 1; incident.myReportCount = (incident.myReportCount || 0) + 1; incident.updatedAt = stored.receivedAt }
+      }
       // The demo incident already holds Pak Dedi's report, so a mock report always joins it.
       joins.set(stored.id, { incidentId: INCIDENT_ID, incidentName: INCIDENT_NAME, incidentArea: 'Ketapang, Kalimantan Barat', joined: true, nearbyCount: 1, nearestM: 140, radiusM: 300 })
       return { ...stored, join: joins.get(stored.id) }
