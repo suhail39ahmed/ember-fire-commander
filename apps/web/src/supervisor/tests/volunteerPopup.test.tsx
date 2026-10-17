@@ -63,7 +63,7 @@ describe('volunteer pop-up: the data', () => {
 })
 
 describe('volunteer pop-up: every region of the frame is there', () => {
-  const regions = ['Live video', 'Transcript', 'Snapshots saved to the incident', 'Sent to Sari', 'Profile', 'EMBER suggests', 'Ask EMBER about Sari', 'Send to this volunteer']
+  const regions = ['Live video', 'Transcript', 'Snapshots saved to the incident', 'Sent to Sari', 'Profile', 'AI suggested', 'Ask EMBER AI about Sari', 'Send to this volunteer']
 
   it.each(regions)('has the %s region', (label) => {
     expect(popup(withPhoto(fixture('conflict')), 'uid_sari')).toContain(`aria-label="${label}"`)
@@ -71,7 +71,7 @@ describe('volunteer pop-up: every region of the frame is there', () => {
 
   it('speaks Bahasa in every region', () => {
     const html = popup(fixture('conflict'), 'uid_sari', 'id')
-    for (const label of ['Video langsung', 'Transkrip', 'Foto tersimpan di insiden', 'Dikirim ke Sari', 'Profil', 'Saran EMBER', 'Tanya EMBER tentang Sari', 'Kirim ke relawan ini']) {
+    for (const label of ['Video langsung', 'Transkrip', 'Foto tersimpan di insiden', 'Dikirim ke Sari', 'Profil', 'Saran AI', 'Tanya EMBER AI tentang Sari', 'Kirim ke relawan ini']) {
       expect(html).toContain(`aria-label="${label}"`)
     }
     expect(html).toContain('>Tutup<')
@@ -119,7 +119,7 @@ describe('volunteer pop-up: every region of the frame is there', () => {
     expect(html).not.toMatch(/<textarea[^>]*disabled/)
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Send<\/button>/) // empty text: nothing to send
     expect(html).toContain('One volunteer per send.')
-    expect(html).toMatch(/<input[^>]*disabled=""[^>]*placeholder="Ask EMBER, or tell it what to send…"/)
+    expect(html).toMatch(/<input[^>]*disabled=""[^>]*placeholder="Ask EMBER AI, or tell it what to send…"/)
     expect(html).toMatch(/<input[^>]*type="checkbox"[^>]*disabled=""/)
     for (const label of ['Mic', 'Video', 'Snapshot', 'Flip camera', 'End live']) expect(html).toMatch(new RegExp(`<button[^>]*disabled=""[^>]*>${label}</button>`))
   })

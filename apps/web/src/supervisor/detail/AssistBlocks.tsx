@@ -30,7 +30,7 @@ export function IncidentSuggestions({ lang, suggestions, assist, offline }: { la
   return (
     <section className="inc-card" aria-labelledby="inc-suggest-title">
       <h2 className="inc-h2" id="inc-suggest-title">
-        {t(lang, assistCopy.title)}
+        {t(lang, suggestions?.source === 'template' ? assistCopy.titleRules : assistCopy.title)}
         <span className="inc-h2-note">{t(lang, assistCopy.note)}</span>
       </h2>
       {!suggestions ? (

@@ -7,7 +7,9 @@ import { ApiError } from '../../pwa/api/types'
 import type { AskAnswer, IncidentDetail, PhotoUrl, TaskDecision } from '../contracts'
 import { severityName, taskCopy } from './copy'
 import { expandedCopy } from './expandedCopy'
-import { batteryText, networkText, popupFor, type Popup } from './popupModel'
+import { batteryText, networkText, popupFor, visionLine, type Popup } from './popupModel'
+import { photoCopy } from './instructionCopy'
+import { initialsOf } from './model'
 import { worthShowing, ASK_MAX } from './assistModel'
 import type { AssistActions } from './assistModel'
 import { SnapshotImage } from './SnapshotImage'
@@ -51,25 +53,46 @@ function HeaderStats({ lang, popup }: { lang: Lang; popup: Popup }) {
   )
 }
 
-/** Live video placeholder — out of scope until the live seat media path is wired (#102). */
-function VideoArea({ lang }: { lang: Lang }) {
+/** Wind chip over the video: stored conditions or a "not available yet" note. Whether the volunteer is upwind needs a position the API does not give. */
+function WindChip({ lang, detail }: { lang: Lang; detail: IncidentDetail }) {
+  const weather = detail.conditions?.weather ?? null
+  const has = weather && (weather.windFrom || weather.windKmh !== null)
   return (
-    <div className="exp-section" aria-label={t(lang, expandedCopy.leftTitle)}>
-      <p className="exp-eyebrow">
-        {t(lang, expandedCopy.leftTitle)}
+    <div className={has ? 'exp-wind-chip' : 'exp-wind-chip exp-wind-off'} aria-label={t(lang, expandedCopy.windChip)}>
+      {has ? (
+        <>
+          <span className="exp-wind-label">{t(lang, expandedCopy.windChip)}</span>{' '}
+          {[weather.windFrom, weather.windKmh !== null ? `${Math.round(weather.windKmh)} km/h` : null].filter(Boolean).join(' · ')}
+        </>
+      ) : (
+        <>
+          <span className="exp-wind-label">{t(lang, expandedCopy.windChip)}</span>{' '}
+          {t(lang, expandedCopy.windNotYet)}
+        </>
+      )}
+    </div>
+  )
+}
+
+/** Live video placeholder — out of scope until the live seat media path is wired (#102). */
+function VideoArea({ lang, detail }: { lang: Lang; detail: IncidentDetail }) {
+  return (
+    <div className="exp-section exp-video-section" aria-label={t(lang, expandedCopy.leftTitle)}>
+      <div className="exp-video-stage">
+        <div className="exp-video-box" role="img" aria-label={t(lang, expandedCopy.videoPlaceholder)}>
+          <span className="exp-video-off">{t(lang, expandedCopy.notYet).toUpperCase()}</span>
+          <p className="exp-video-body">{t(lang, expandedCopy.videoPlaceholder)}</p>
+        </div>
         <span className="exp-live-badge" aria-label="LIVE">LIVE</span>
-      </p>
-      <div className="exp-video-box" role="img" aria-label={t(lang, expandedCopy.videoPlaceholder)}>
-        <span className="exp-video-off">{t(lang, expandedCopy.notYet).toUpperCase()}</span>
-        <p className="exp-video-body">{t(lang, expandedCopy.videoPlaceholder)}</p>
+        <WindChip lang={lang} detail={detail} />
+        <div className="exp-caption-card">
+          <p className="exp-caption-title">{t(lang, expandedCopy.captionTitle)}</p>
+          <p className="exp-caption-body">{t(lang, expandedCopy.captionPlaceholder)}</p>
+        </div>
       </div>
-      <p className="exp-not-yet">
-        <b>{t(lang, expandedCopy.captionTitle)}:</b>{' '}
-        {t(lang, expandedCopy.captionPlaceholder)}
-      </p>
       <div className="exp-controls" aria-label="live controls">
-        {([expandedCopy.mic, expandedCopy.video, expandedCopy.snapshot, expandedCopy.flip, expandedCopy.endLive] as const).map((label) => (
-          <button key={label.en} type="button" className="exp-ctrl-btn" disabled aria-label={t(lang, label)}>
+        {([expandedCopy.mic, expandedCopy.video, expandedCopy.snapshot, expandedCopy.flip, expandedCopy.endLive] as const).map((label, i, all) => (
+          <button key={label.en} type="button" className={i === all.length - 1 ? 'exp-ctrl-btn exp-ctrl-end' : 'exp-ctrl-btn'} disabled aria-label={t(lang, label)}>
             {t(lang, label)}
           </button>
         ))}
@@ -78,47 +101,30 @@ function VideoArea({ lang }: { lang: Lang }) {
   )
 }
 
-/** Wind chip — shows stored conditions or a "not available yet" note. */
-function WindArea({ lang, detail }: { lang: Lang; detail: IncidentDetail }) {
-  const weather = detail.conditions?.weather ?? null
-  return (
-    <div className="exp-section" aria-label={t(lang, expandedCopy.windChip)}>
-      <p className="exp-eyebrow">{t(lang, expandedCopy.windChip)}</p>
-      {weather && (weather.windFrom || weather.windKmh !== null) ? (
-        <span className="exp-wind-chip">
-          {[weather.windFrom, weather.windKmh !== null ? `${Math.round(weather.windKmh)} km/h` : null].filter(Boolean).join(' · ')}
-        </span>
-      ) : (
-        <p className="exp-not-yet"><b>{t(lang, expandedCopy.notYet)}</b> · {t(lang, expandedCopy.windNotYet)}</p>
-      )}
-    </div>
-  )
-}
-
-/** Latest message: volunteer's own words plus stored English translation. */
+/** Latest message: volunteer's own words plus the stored English translation, labelled as AI. */
 function LatestMessage({ lang, popup }: { lang: Lang; popup: Popup }) {
   const latest = popup.reports[0] ?? null
+  const translation = latest ? popup.translations[latest.id] : undefined
   return (
-    <div className="exp-section" aria-label={t(lang, expandedCopy.latestMsg)}>
-      <p className="exp-eyebrow">{t(lang, expandedCopy.latestMsg)}</p>
+    <div className="exp-section exp-msg-section" aria-label={t(lang, expandedCopy.latestMsg)}>
       {latest ? (
-        <>
+        <div className="exp-msg-card">
           <p className="exp-msg-meta">
-            {formatTimeZone(latest.capturedAt)} · {t(lang, severityName[latest.severity])}
+            {popup.profile.name} · {formatTimeZone(latest.capturedAt)} · {t(lang, severityName[latest.severity])}
             {latest.chip && ` · ${chipText(latest.chip, lang)}`}
             {latest.source === 'photo' && ` · ${t(lang, expandedCopy.snapshot)}`}
           </p>
           <p className="exp-msg-text">{latest.text ? `"${latest.text}"` : t(lang, expandedCopy.notYet)}</p>
-          {worthShowing(popup.translations[latest.id]) && (
+          {worthShowing(translation) && (
             <p className="exp-msg-en">
               <span>
                 {t(lang, expandedCopy.english)}
-                {popup.translations[latest.id].sourceLanguage && ` · ${t(lang, expandedCopy.translatedFrom)} ${popup.translations[latest.id].sourceLanguage}`}
+                {translation.sourceLanguage && ` · ${t(lang, expandedCopy.translatedFrom)} ${translation.sourceLanguage}`}
               </span>
-              &ldquo;{popup.translations[latest.id].english}&rdquo;
+              &ldquo;{translation.english}&rdquo;
             </p>
           )}
-        </>
+        </div>
       ) : (
         <p className="exp-muted">{t(lang, expandedCopy.noMsg)}</p>
       )}
@@ -126,13 +132,37 @@ function LatestMessage({ lang, popup }: { lang: Lang; popup: Popup }) {
   )
 }
 
-/** Saved snapshots list. */
+/** One photo, larger, over the panel. Escape closes the photo first and not the whole view. */
+function PhotoLightbox({ lang, url, onClose }: { lang: Lang; url: string; onClose(): void }) {
+  const closeRef = useRef<HTMLButtonElement>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  useEffect(() => {
+    closeRef.current?.focus()
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.stopPropagation()
+      onCloseRef.current()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [])
+  return (
+    <div className="exp-lightbox" role="dialog" aria-modal="true" aria-label={t(lang, expandedCopy.photoLarge)} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <img src={url} alt={t(lang, photoCopy.alt)} />
+      <button ref={closeRef} type="button" className="exp-lightbox-close" onClick={onClose}>{t(lang, expandedCopy.photoLargeClose)}</button>
+    </div>
+  )
+}
+
+/** Saved snapshots: a row of small thumbnails, four across, with time and name under each. A click opens one larger. */
 function SnapshotsArea({ lang, popup, incidentId, photoUrl }: {
   lang: Lang
   popup: Popup
   incidentId: string
   photoUrl(incidentId: string, observationId: string): Promise<PhotoUrl>
 }) {
+  const [open, setOpen] = useState<string | null>(null)
   return (
     <div className="exp-section" aria-label={t(lang, expandedCopy.snapshots)}>
       <p className="exp-eyebrow">{t(lang, expandedCopy.snapshots)}</p>
@@ -140,19 +170,24 @@ function SnapshotsArea({ lang, popup, incidentId, photoUrl }: {
         <p className="exp-muted">{t(lang, expandedCopy.noSnapshots)}</p>
       ) : (
         <ul className="exp-snaps">
-          {popup.photos.map((o) => (
-            <li key={o.id} className="exp-snap">
-              <SnapshotImage lang={lang} observationId={o.id} load={(id) => photoUrl(incidentId, id)} />
-              <span>{formatTime(o.capturedAt)} · {popup.profile.name.toUpperCase()}</span>
-            </li>
-          ))}
+          {popup.photos.map((o) => {
+            const read = visionLine(lang, popup.photoReads[o.id])
+            return (
+              <li key={o.id} className="exp-snap">
+                <SnapshotImage lang={lang} observationId={o.id} className="exp-snap-thumb" onOpen={setOpen} load={(id) => photoUrl(incidentId, id)} />
+                <span className="exp-snap-cap">{formatTime(o.capturedAt)} · {popup.profile.name}</span>
+                {read && <span className="exp-snap-ai"><b>{t(lang, expandedCopy.photoCheck)}</b> · {read}</span>}
+              </li>
+            )
+          })}
         </ul>
       )}
+      {open && <PhotoLightbox lang={lang} url={open} onClose={() => setOpen(null)} />}
     </div>
   )
 }
 
-/** "Sent to <name>" list with heard/accepted status per task. */
+/** "Sent to <name>": one line per instruction with a green dot and a tick once it is heard or done. */
 function SentArea({ lang, popup }: { lang: Lang; popup: Popup }) {
   return (
     <div className="exp-section" aria-label={`${t(lang, expandedCopy.sentTitle)} ${popup.profile.name}`}>
@@ -161,25 +196,28 @@ function SentArea({ lang, popup }: { lang: Lang; popup: Popup }) {
         <p className="exp-muted">{t(lang, expandedCopy.noSent)}</p>
       ) : (
         <ul className="exp-sent-list">
-          {popup.tasks.map((task) => (
-            <li key={task.id} className="exp-sent-item">
-              <p className="exp-sent-meta">
-                {t(lang, taskCopy.type[task.type])}
-                {task.sentAt && ` · ${formatTimeZone(task.sentAt)}`}
-              </p>
-              <p className="exp-sent-text">{task.instruction ?? '—'}</p>
-              {task.acceptedAt && (
-                <p className="exp-sent-status exp-sent-done">
-                  {t(lang, expandedCopy.done)} {t(lang, expandedCopy.heardAt)} {formatTimeZone(task.acceptedAt)}
-                </p>
-              )}
-              {!task.acceptedAt && task.heardAt && (
-                <p className="exp-sent-status exp-sent-heard">
-                  {t(lang, expandedCopy.heard)} {t(lang, expandedCopy.heardAt)} {formatTimeZone(task.heardAt)}
-                </p>
-              )}
-            </li>
-          ))}
+          {popup.tasks.map((task) => {
+            const status = task.acceptedAt
+              ? { text: expandedCopy.done, tick: true }
+              : task.declinedAt
+                ? { text: expandedCopy.declined, tick: false }
+                : task.heardAt
+                  ? { text: expandedCopy.heard, tick: true }
+                  : { text: expandedCopy.sentNoAnswer, tick: false }
+            return (
+              <li key={task.id} className="exp-sent-item">
+                <span className="exp-sent-dot" aria-hidden="true" />
+                <span className="exp-sent-line">
+                  {task.sentAt && `${formatTime(task.sentAt)} · `}
+                  {task.instruction ?? t(lang, taskCopy.type[task.type])}
+                  {' · '}
+                  <span className={`exp-sent-status${status.tick ? ' exp-sent-done' : ''}`}>
+                    {t(lang, status.text)}{status.tick && ' ✓'}
+                  </span>
+                </span>
+              </li>
+            )
+          })}
         </ul>
       )}
     </div>
@@ -219,9 +257,16 @@ function ProposalCard({
 
   return (
     <div className="exp-proposal" aria-label={t(lang, expandedCopy.proposalTitle)} role="region">
-      <p className="exp-proposal-title">{t(lang, expandedCopy.proposalTitle)}</p>
+      <p className="exp-proposal-title">
+        <span className="exp-ai-tag">{t(lang, expandedCopy.aiDraft)}</span>
+        {t(lang, expandedCopy.proposalTitle)}
+      </p>
       {draft ? (
-        <p className="exp-proposal-draft">{draft}</p>
+        <>
+          <p className="exp-proposal-to">{t(lang, expandedCopy.toName)} {name}</p>
+          <p className="exp-proposal-draft">{draft}</p>
+          <p className="exp-proposal-q">{t(lang, expandedCopy.sendThis)}</p>
+        </>
       ) : (
         <p className="exp-proposal-empty">{t(lang, expandedCopy.proposalEmpty)}</p>
       )}
@@ -257,6 +302,29 @@ function ProposalCard({
   )
 }
 
+/** One question and the model's answer. The question is a plain bubble; the answer carries an "AI" chip. */
+function ChatPair({ lang, entry }: { lang: Lang; entry: ChatEntry }) {
+  return (
+    <>
+      <div className="exp-msg-row you" aria-label={t(lang, expandedCopy.you)}>
+        <div className="exp-bubble">{entry.question}</div>
+      </div>
+      <div className="exp-msg-row ember" aria-label={t(lang, expandedCopy.ember)}>
+        <span className="exp-ai-chip">{t(lang, expandedCopy.ember)}</span>
+        <div className="exp-ai-reply">
+          <div className="exp-bubble">
+            {entry.answer.answer}
+            {entry.answer.enoughData === false && (
+              <p className="exp-not-enough">{t(lang, expandedCopy.notEnough)}</p>
+            )}
+          </div>
+          <span className="exp-bubble-meta">{formatTimeZone(entry.answer.at)}</span>
+        </div>
+      </div>
+    </>
+  )
+}
+
 /** Earlier messages in the thread, collapsed by default. */
 function EarlierMessages({ lang, entries }: { lang: Lang; entries: ChatEntry[] }) {
   const [open, setOpen] = useState(false)
@@ -271,26 +339,13 @@ function EarlierMessages({ lang, entries }: { lang: Lang; entries: ChatEntry[] }
       >
         {open
           ? `${t(lang, expandedCopy.hideEarlier)} ${entries.length} ${t(lang, expandedCopy.earlierCount)}`
-          : `${t(lang, expandedCopy.showEarlier)} ${entries.length} ${t(lang, expandedCopy.earlierCount)}`}
+          : `↑ ${t(lang, expandedCopy.showEarlier)} ${entries.length} ${t(lang, expandedCopy.earlierCount)}`}
       </button>
       {open && (
         <ol className="exp-earlier-list" aria-label={`${entries.length} ${t(lang, expandedCopy.earlierCount)}`}>
           {entries.map((entry) => (
             <li key={entry.id}>
-              <div className="exp-msg-row you">
-                <span className="exp-bubble-label">{t(lang, expandedCopy.you)}</span>
-                <div className="exp-bubble">{entry.question}</div>
-              </div>
-              <div className="exp-msg-row ember">
-                <span className="exp-bubble-label">{t(lang, expandedCopy.ember)}</span>
-                <div className="exp-bubble">
-                  {entry.answer.answer}
-                  {entry.answer.enoughData === false && (
-                    <p className="exp-not-enough">{t(lang, expandedCopy.notEnough)}</p>
-                  )}
-                </div>
-                <span className="exp-bubble-meta">{formatTimeZone(entry.answer.at)}</span>
-              </div>
+              <ChatPair lang={lang} entry={entry} />
             </li>
           ))}
         </ol>
@@ -353,6 +408,10 @@ function AskEmberPane({
 
   return (
     <div className="exp-right" aria-label={t(lang, expandedCopy.chatTitle)}>
+      <div className="exp-ask-head">
+        <h3 className="exp-ask-title">{t(lang, expandedCopy.chatTitle)} {t(lang, expandedCopy.chatAbout)} {name}</h3>
+        <span className="exp-tag">{t(lang, expandedCopy.asksBeforeSend)}</span>
+      </div>
       {/* Thread */}
       <div className="exp-thread" ref={threadRef} aria-live="polite" aria-label={t(lang, expandedCopy.chatTitle)}>
         {entries.length === 0 ? (
@@ -362,20 +421,7 @@ function AskEmberPane({
             <EarlierMessages lang={lang} entries={earlier} />
             {latest && (
               <>
-                <div className="exp-msg-row you" aria-label={t(lang, expandedCopy.you)}>
-                  <span className="exp-bubble-label">{t(lang, expandedCopy.you)}</span>
-                  <div className="exp-bubble">{latest.question}</div>
-                </div>
-                <div className="exp-msg-row ember" aria-label={t(lang, expandedCopy.ember)}>
-                  <span className="exp-bubble-label">{t(lang, expandedCopy.ember)}</span>
-                  <div className="exp-bubble">
-                    {latest.answer.answer}
-                    {latest.answer.enoughData === false && (
-                      <p className="exp-not-enough">{t(lang, expandedCopy.notEnough)}</p>
-                    )}
-                  </div>
-                  <span className="exp-bubble-meta">{formatTimeZone(latest.answer.at)}</span>
-                </div>
+                <ChatPair lang={lang} entry={latest} />
               </>
             )}
           </>
@@ -433,7 +479,7 @@ function AskEmberPane({
             onClick={() => void submit()}
             aria-label={t(lang, expandedCopy.sendBtn)}
           >
-            {busy ? t(lang, expandedCopy.asking) : t(lang, expandedCopy.sendBtn)}
+            <span aria-hidden="true">{busy ? '…' : '↑'}</span>
           </button>
         </div>
         <p className="exp-withdraw-rule">{t(lang, expandedCopy.withdrawRule)}</p>
@@ -515,10 +561,13 @@ export function ExpandedVolunteerView({ lang, detail, volunteerId, onClose, offl
       <div ref={panel} className="exp-panel" role="dialog" aria-modal="true" aria-labelledby="exp-title">
         {/* Panel header */}
         <header className="exp-header">
-          <h2 className="exp-header-name" id="exp-title">{title}</h2>
-          <HeaderStats lang={lang} popup={popup} />
-          <button type="button" className="exp-close" onClick={onClose} aria-label={t(lang, expandedCopy.close)}>
-            {t(lang, expandedCopy.closeShort)}
+          <span className="exp-avatar" aria-hidden="true">{initialsOf(profile.name)}</span>
+          <div className="exp-header-id">
+            <h2 className="exp-header-name" id="exp-title">{title}</h2>
+            <HeaderStats lang={lang} popup={popup} />
+          </div>
+          <button type="button" className="exp-close" onClick={onClose} aria-label={t(lang, expandedCopy.close)} title={t(lang, expandedCopy.closeShort)}>
+            <span aria-hidden="true">✕</span>
           </button>
         </header>
 
@@ -526,8 +575,7 @@ export function ExpandedVolunteerView({ lang, detail, volunteerId, onClose, offl
         <div className="exp-grid">
           {/* Left pane */}
           <div className="exp-left" aria-label="Field view">
-            <VideoArea lang={lang} />
-            <WindArea lang={lang} detail={detail} />
+            <VideoArea lang={lang} detail={detail} />
             <LatestMessage lang={lang} popup={popup} />
             <SnapshotsArea lang={lang} popup={popup} incidentId={detail.incident.id} photoUrl={photoUrl} />
             <SentArea lang={lang} popup={popup} />

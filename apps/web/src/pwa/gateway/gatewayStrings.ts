@@ -18,8 +18,8 @@ export const gatewayStrings = {
     id: 'Lokasi diperlukan untuk mengirim laporan suara. Izinkan lokasi, lalu coba lagi.',
     en: 'Location is needed to send a voice report. Allow location, then try again.',
   },
-  replying: { id: 'EMBER MENJAWAB…', en: 'EMBER REPLYING…' },
-  replyDone: { id: 'JAWABAN COACH', en: 'COACH REPLY' },
+  replying: { id: 'AI MENJAWAB…', en: 'AI REPLYING…' },
+  replyDone: { id: 'JAWABAN COACH AI', en: 'AI COACH REPLY' },
   replyWaiting: { id: 'Menunggu jawaban…', en: 'Waiting for the reply…' },
   replyHint: {
     id: 'Anda masih bisa menambah chip atau catatan di bawah.',

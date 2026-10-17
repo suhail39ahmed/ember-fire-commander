@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { StaticRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
@@ -152,9 +154,13 @@ describe('expanded view: left pane — field regions', () => {
     expect(html).toContain(expandedCopy.noSnapshots.en)
   })
 
-  it('lists sent instructions with heard/done status', () => {
-    const html = expanded(fixture('conflict'), 'uid_sari')
-    expect(html).toContain('Verify')
+  it('lists sent instructions on one line each with a status', () => {
+    const d = fixture('conflict')
+    const mine = d.tasks.find((task) => task.volunteerId === 'uid_sari')!
+    const html = expanded({ ...d, tasks: d.tasks.map((task) => (task.id === mine.id ? { ...task, sentAt: '2026-10-17T03:05:00Z', heardAt: '2026-10-17T03:06:00Z' } : task)) }, 'uid_sari')
+    expect(html).toContain('exp-sent-line')
+    expect(html).toContain(mine.instruction as string)
+    expect(html).toContain(`${expandedCopy.heard.en} ✓`)
   })
 
   it('says no instructions when none are stored', () => {
@@ -175,6 +181,38 @@ describe('expanded view: left pane — field regions', () => {
   })
 })
 
+describe('expanded view: AI labels', () => {
+  it('names the model on every place its output shows', () => {
+    const detail = { ...withPhoto(fixture('conflict')), photoReads: { obs_photo: { smokeVisible: true, flameVisible: 'small', burnScarVisible: false, notes: null, at: null } } }
+    const html = expanded(detail, 'uid_sari', 'en', true)
+    expect(html).toContain('AI read the frame · check it yourself')
+    expect(html).toContain('AI photo check')
+    expect(expanded(withTranslation(fixture('conflict')), 'uid_sari')).toContain('AI translation')
+    expect(html).toContain('Ask EMBER AI about Sari')
+    expect(html).toContain('Asks before it sends')
+    expect(html).toContain('AI draft')
+  })
+
+  it('labels a model reply with an AI chip and the supervisor question with none', () => {
+    expect(expandedCopy.ember.en).toBe('AI')
+    expect(expandedCopy.you.en).toBe('You')
+  })
+})
+
+describe('expanded view: snapshots are a row of small thumbnails', () => {
+  it('lays the saved snapshots out four across, each with a time and the volunteer name under it', () => {
+    const d = withPhoto(fixture('conflict'))
+    const html = expanded(d, 'uid_sari')
+    expect(html).toContain('class="exp-snaps"')
+    expect(html).toContain('class="exp-snap-thumb"')
+    expect(html).not.toContain('pop-snap-img')
+    expect(html).toMatch(/<span class="exp-snap-cap">[^<]*· Sari<\/span>/)
+    const css = readFileSync(resolve(__dirname, '../detail/expanded.css'), 'utf8')
+    expect(css).toMatch(/\.exp-snaps \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/)
+    expect(css).toMatch(/\.exp-snap \.exp-snap-thumb \{[^}]*aspect-ratio: 16 \/ 9[^}]*object-fit: cover/)
+  })
+})
+
 describe('expanded view: right pane — Ask EMBER', () => {
   it('shows the chat thread region', () => {
     const html = expanded(fixture('conflict'), 'uid_sari')
@@ -190,7 +228,7 @@ describe('expanded view: right pane — Ask EMBER', () => {
 
   it('shows the Ask input when assist is provided', () => {
     const html = expanded(fixture('conflict'), 'uid_sari', 'en', true)
-    expect(html).toMatch(/<input[^>]*aria-label="Ask EMBER about this volunteer…"/)
+    expect(html).toMatch(/<input[^>]*aria-label="Ask EMBER AI about this volunteer…"/)
   })
 
   it('shows the proposal card with placeholder when no answer yet', () => {

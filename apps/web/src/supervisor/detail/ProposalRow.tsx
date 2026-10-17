@@ -48,7 +48,7 @@ export function ProposalRow({ lang, task, detail, actions, offline, editor = '',
       {heading}
       <div className="prop-row">
         <div className="prop-main">
-          <p className="prop-eyebrow">{t(lang, taskCopy.type[task.type]).toUpperCase()} · {t(lang, disagreeCopy.proposedWord)} · {who}</p>
+          <p className="prop-eyebrow">{t(lang, taskCopy.type[task.type]).toUpperCase()} · {t(lang, task.type === 'verify' ? disagreeCopy.proposedWord : disagreeCopy.aiProposedWord)} · {who}</p>
           <p className="prop-text">{task.instruction ?? '—'}</p>
         </div>
         {canDecide && (
