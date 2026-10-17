@@ -1,9 +1,11 @@
 import { CHIP_VALUES, type ChipValue } from '../contracts/types'
+import type { JoinResult } from './joinResult'
 
 /**
- * What this phone sent today, kept on the phone so the success card can list "Sent today" (#131). ember-api has no
- * list of a volunteer's reports for the day, so this is the phone's own record: it holds what was sent from this
- * phone and nothing sent from another one. Only the volunteer who sent them sees them.
+ * What this phone sent today, kept on the phone so the success card can list "Sent today" (#131). It is the phone's own
+ * record, and it is what a report waiting in the outbox shows before ember-api has it. Once ember-api lists the report
+ * (the digest's `sentToday`, matched by `capturedAt`), the list shows ember-api's row instead (see sentRows.ts). Only
+ * the volunteer who sent them sees them.
  */
 export const SENT_KEY = 'ember.report.sentToday'
 const MAX_ENTRIES = 20
@@ -11,16 +13,14 @@ const MAX_ENTRIES = 20
 export interface SentEntry {
   /** When it was sent (ISO). Also the entry's identity. */
   at: string
+  /** The `capturedAt` stamped on the report, which is how ember-api's list is matched to it. Null on an entry saved before #131. */
+  capturedAt: string | null
   kind: 'sent' | 'queued'
   chip: ChipValue | null
   text: string
   accuracyM: number | null
-  /** Set once the incident it joined is known. */
-  incidentLabel: string | null
-  /** True when it started the incident, false when it joined one, null while unknown. */
-  startedIncident: boolean | null
-  /** How many other reports the incident has, from ember-api. */
-  otherReports: number | null
+  /** Where agents placed it, once known. */
+  join: JoinResult | null
 }
 
 type Store = Pick<Storage, 'getItem' | 'setItem'>
@@ -35,6 +35,14 @@ function defaultStore(): Store | null {
 
 const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 
+function parseJoin(raw: unknown): JoinResult | null {
+  if (!raw || typeof raw !== 'object') return null
+  const j = raw as Record<string, unknown>
+  if (typeof j.incidentId !== 'string' || typeof j.label !== 'string' || typeof j.joined !== 'boolean') return null
+  if (typeof j.nearbyCount !== 'number' || typeof j.radiusM !== 'number') return null
+  return { incidentId: j.incidentId, label: j.label, joined: j.joined, nearbyCount: j.nearbyCount, nearestM: typeof j.nearestM === 'number' ? j.nearestM : null, radiusM: j.radiusM }
+}
+
 function parse(raw: unknown): SentEntry | null {
   if (!raw || typeof raw !== 'object') return null
   const r = raw as Record<string, unknown>
@@ -45,9 +53,8 @@ function parse(raw: unknown): SentEntry | null {
     chip: CHIP_VALUES.find((c) => c === r.chip) ?? null,
     text: typeof r.text === 'string' ? r.text : '',
     accuracyM: typeof r.accuracyM === 'number' ? r.accuracyM : null,
-    incidentLabel: typeof r.incidentLabel === 'string' ? r.incidentLabel : null,
-    startedIncident: typeof r.startedIncident === 'boolean' ? r.startedIncident : null,
-    otherReports: typeof r.otherReports === 'number' ? r.otherReports : null,
+    capturedAt: typeof r.capturedAt === 'string' && Number.isFinite(Date.parse(r.capturedAt)) ? r.capturedAt : null,
+    join: parseJoin(r.join),
   }
 }
 

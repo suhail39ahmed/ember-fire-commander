@@ -1,4 +1,4 @@
-import type { ChipValue, ObservationCreate } from '../contracts/types'
+import type { ChipValue, ObservationCreate, ObservationDevice } from '../contracts/types'
 
 export interface Position {
   lat: number
@@ -10,6 +10,8 @@ export interface ReportDraft {
   chip: ChipValue | null
   text: string
   capturedAt: string
+  /** Battery, network and language, when the phone can say. Best effort: a report never waits on it. */
+  device?: ObservationDevice
 }
 
 export type DraftError = 'empty' | 'too_long'
@@ -39,5 +41,6 @@ export function buildObservation(d: ReportDraft, pos: Position): ObservationCrea
     accuracyM: pos.accuracyM,
     chip: d.chip,
     text: text ? text : null,
+    ...(d.device ? { device: d.device } : {}),
   }
 }

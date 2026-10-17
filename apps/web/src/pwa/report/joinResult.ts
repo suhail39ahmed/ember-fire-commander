@@ -1,52 +1,42 @@
-import type { ChipValue, IncidentDetail } from '../contracts/types'
+import type { ObservationJoin, SentReport } from '../contracts/types'
 import { incidentLabel } from '../incidentName'
 
-export interface SentReport {
-  volunteerId: string
-  /** When the phone sent it (ISO). */
-  at: string
-  chip: ChipValue | null
-  text: string
-}
-
+/** Where a report went, as the phone shows it (#131, #132). The numbers are ember-api's, from the join agents recorded. */
 export interface JoinResult {
   incidentId: string
   label: string
-  /** The incident's other reports, counted from ember-api's list. 0 means this report started it. */
-  others: number
+  /** True when it joined an incident another report had opened, false when it started one. */
+  joined: boolean
+  /** Other reports, from other volunteers, within `radiusM` when this one arrived. 0 means it started the incident. */
+  nearbyCount: number
+  /** Metres to the nearest of them, or null when there were none. */
+  nearestM: number | null
+  /** The join radius in metres. */
+  radiusM: number
 }
 
-/** A report counts as this one when it arrived within this long of the send. */
-const WINDOW_BEFORE_MS = 60_000
-const WINDOW_AFTER_MS = 15 * 60_000
+/** The join agents recorded, worded for the phone. The label never carries an id. */
+export function joinResultOf(join: ObservationJoin, lang: 'id' | 'en'): JoinResult {
+  return {
+    incidentId: join.incidentId,
+    label: incidentLabel({ id: join.incidentId, name: join.incidentName, area: join.incidentArea }, lang),
+    joined: join.joined,
+    nearbyCount: join.nearbyCount,
+    nearestM: join.nearestM,
+    radiusM: join.radiusM,
+  }
+}
+
+const sameInstant = (a: string, b: string) => {
+  const x = Date.parse(a)
+  return Number.isFinite(x) && x === Date.parse(b)
+}
 
 /**
- * Which incident did this report end up in? ember-api does not say in the create response (fusion places it a
- * moment later), so the phone looks for its own report, by sender, chip, note and arrival time, in the incidents
- * it can read. The numbers are the incident's own report list. Nothing here guesses a distance or a radius.
+ * This phone's own report in the digest's `sentToday`, by the `capturedAt` it stamped. The outbox keeps no create
+ * response, so the stamp is the only thing the phone and ember-api share. Two reports in the same millisecond cannot
+ * happen from one phone.
  */
-export function findJoin(sent: SentReport, details: IncidentDetail[]): JoinResult | null {
-  const at = Date.parse(sent.at)
-  if (!Number.isFinite(at)) return null
-  let best: { result: JoinResult; receivedAt: number } | null = null
-  for (const detail of details) {
-    const mine = detail.observations.filter((o) => {
-      const received = Date.parse(o.receivedAt)
-      return (
-        o.volunteerId === sent.volunteerId &&
-        o.chip === sent.chip &&
-        (o.text ?? '').trim() === sent.text.trim() &&
-        Number.isFinite(received) &&
-        received >= at - WINDOW_BEFORE_MS &&
-        received <= at + WINDOW_AFTER_MS
-      )
-    })
-    for (const o of mine) {
-      const received = Date.parse(o.receivedAt)
-      if (!best || received > best.receivedAt) {
-        best = { receivedAt: received, result: { incidentId: detail.incident.id, label: incidentLabel(detail.incident), others: detail.observations.length - 1 } }
-      }
-    }
-  }
-  return best?.result ?? null
+export function findSent(list: SentReport[] | undefined, capturedAt: string): SentReport | null {
+  return list?.find((row) => sameInstant(row.capturedAt, capturedAt)) ?? null
 }

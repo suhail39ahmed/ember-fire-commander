@@ -15,6 +15,43 @@ export type TaskStatus = 'proposed' | 'approved' | 'rejected'
 
 export const CHIP_VALUES: readonly ChipValue[] = ['asap', 'api', 'aman', 'butuh_bantuan']
 
+/** What the phone says about itself with a report (section 5.1). Every part is optional and best effort. */
+export interface ObservationDevice {
+  /** 0 to 100. */
+  batteryPct?: number
+  network?: '2g' | '3g' | '4g' | 'wifi' | 'unknown'
+  /** The language the app is shown in. */
+  language?: 'id' | 'en'
+}
+
+/** Where agents placed a report (section 6.2). Absent or null until they have. */
+export interface ObservationJoin {
+  incidentId: string
+  incidentName: string | null
+  incidentArea: string | null
+  /** True when the report joined an incident another report had opened, false when it started one. */
+  joined: boolean
+  /** Other reports, from other volunteers, within `radiusM` of this one when it arrived. */
+  nearbyCount: number
+  /** Metres to the nearest of them. Null when `nearbyCount` is 0. */
+  nearestM: number | null
+  /** The join radius in metres. */
+  radiusM: number
+}
+
+/** One row of the digest's `sentToday` (section 5.6): a report this volunteer sent. */
+export interface SentReport {
+  id: string
+  capturedAt: string
+  receivedAt: string
+  source: ObservationSource
+  chip: ChipValue | null
+  text: string | null
+  accuracyM: number | null
+  clientId?: string
+  join: ObservationJoin | null
+}
+
 /** Body of POST /observations (section 6.2). The server fills id, volunteerId, receivedAt, severity, photoPath and immutable. */
 export interface ObservationCreate {
   source: 'chip' | 'text'
@@ -26,6 +63,7 @@ export interface ObservationCreate {
   text: string | null
   /** Outbox item id. Sending it again returns the stored report instead of creating another. */
   clientId?: string
+  device?: ObservationDevice
 }
 
 /**
@@ -42,6 +80,7 @@ export interface PhotoObservationCreate {
   text: string | null
   photoPath: string
   clientId?: string
+  device?: ObservationDevice
 }
 
 export type ObservationRequest = ObservationCreate | PhotoObservationCreate
@@ -79,6 +118,10 @@ export interface Observation {
   immutable: true
   /** Present when the report was sent with a clientId. */
   clientId?: string
+  /** Present when the phone sent it. */
+  device?: ObservationDevice
+  /** Only on the create response, and only once agents have placed the report (section 6.2). */
+  join?: ObservationJoin
 }
 
 export interface Withdraw {
@@ -262,6 +305,14 @@ export interface Digest {
   nearby?: NearbyIncident[]
   /** Volunteer season counts for #140. Omitted when nothing is stored. */
   seasonStats?: SeasonStats | null
+  /** Volunteer only, and only when the request carried `sentSince` (section 6.4). Oldest first, at most 50. */
+  sentToday?: SentReport[]
+}
+
+/** Optional parts of the digest request. */
+export interface DigestOptions {
+  /** ISO time with a zone: the start of the volunteer's day. Asks for `sentToday`. */
+  sentSince?: string
 }
 
 /** Error body (section 3). `fields` is present on validation_error only. */

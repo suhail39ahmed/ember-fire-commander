@@ -101,7 +101,6 @@ export function ReportScreen() {
         preset={preset}
         submit={outbox.submit}
         volunteerId={volunteerId}
-        watch={{ digest, refresh }}
         onDone={() => navigate('/pwa')}
       />
       <PhotoPanel api={api} upload={upload} lang={lang} getPosition={getPosition} submit={outbox.submit} queuePhoto={outbox.queuePhoto} />

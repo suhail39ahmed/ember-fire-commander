@@ -7,6 +7,7 @@
 import type {
   DeclineReason,
   Digest,
+  DigestOptions,
   DigestPosition,
   ErrorBody,
   FlagRequest,
@@ -40,10 +41,16 @@ export const ENDPOINTS = {
   practice: '/training/practice',
 } as const
 
-function digestPath(position?: DigestPosition | null): string {
-  if (!position) return ENDPOINTS.digest
-  const q = new URLSearchParams({ lat: String(position.lat), lng: String(position.lng) })
-  return `${ENDPOINTS.digest}?${q}`
+function digestPath(position?: DigestPosition | null, options?: DigestOptions): string {
+  const q = new URLSearchParams()
+  if (position) {
+    q.set('lat', String(position.lat))
+    q.set('lng', String(position.lng))
+  }
+  // URLSearchParams encodes the "+" of a zone offset, so the server reads it back as a plus.
+  if (options?.sentSince) q.set('sentSince', options.sentSince)
+  const query = q.toString()
+  return query ? `${ENDPOINTS.digest}?${query}` : ENDPOINTS.digest
 }
 
 function isErrorBody(body: unknown): body is ErrorBody {
@@ -79,7 +86,7 @@ export function createHttpApi(
   }
 
   return {
-    getDigest: (position) => request<Digest>(digestPath(position)),
+    getDigest: (position, options) => request<Digest>(digestPath(position, options)),
     getIncident: (incidentId) => request<IncidentDetail>(ENDPOINTS.incident(incidentId)),
     createObservation: (body: ObservationRequest) =>
       request<Observation>(ENDPOINTS.observations, { method: 'POST', body: JSON.stringify(body) }),

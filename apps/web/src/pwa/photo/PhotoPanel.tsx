@@ -9,6 +9,7 @@ import type { Position } from '../report/buildObservation'
 import { isAcceptedImage, preparePhoto } from './preparePhoto'
 import { photoStrings as s } from './strings'
 import { UploadError, type UploadFn } from './upload'
+import { useDeviceFacts } from '../report/deviceInfo'
 import { buildPhotoObservation, uploadPhoto } from './uploadPhoto'
 import './photo.css'
 
@@ -55,6 +56,7 @@ function describe(e: unknown, lang: Lang): { message: string; retryable: boolean
 /** #20: take one still, upload it to a signed URL, then send `source: photo`. */
 export function PhotoPanel({ api, upload, lang, getPosition, submit, queuePhoto }: Props) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
+  const deviceFacts = useDeviceFacts(lang)
   const [shot, setShot] = useState<Shot | null>(null)
   const input = useRef<HTMLInputElement>(null)
   const abort = useRef<AbortController | null>(null)
@@ -84,7 +86,7 @@ export function PhotoPanel({ api, upload, lang, getPosition, submit, queuePhoto 
       }
       // source: photo is sent only after the upload succeeded.
       setStatus({ kind: 'submitting' })
-      const body = buildPhotoObservation(photoPath, current.capturedAt, current.pos)
+      const body = buildPhotoObservation(photoPath, current.capturedAt, current.pos, '', deviceFacts())
       const result = submit ? await submit(body) : (await api.createObservation(body), 'sent')
       setStatus(result === 'queued' ? { kind: 'queued', uploaded: true } : { kind: 'done' })
     } catch (e) {
