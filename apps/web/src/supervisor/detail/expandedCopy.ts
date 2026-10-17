@@ -50,6 +50,9 @@ export const expandedCopy = {
   declined: { id: 'ditolak', en: 'declined' },
   sentNoAnswer: { id: 'terkirim', en: 'sent' },
 
+  declinedTitle: { id: 'Penolakan', en: 'Declined' },
+  declinedNoReason: { id: 'Alasan tidak disimpan', en: 'No reason recorded' },
+
   notYet: { id: 'Belum tersedia', en: 'Not available yet' },
 
   // Right pane — Ask EMBER header stats

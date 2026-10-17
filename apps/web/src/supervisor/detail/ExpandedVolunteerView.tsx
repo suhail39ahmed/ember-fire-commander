@@ -5,6 +5,7 @@ import { chipText } from '../../pwa/report/chips'
 import { t, type Lang } from '../../pwa/i18n'
 import { ApiError } from '../../pwa/api/types'
 import type { AskAnswer, IncidentDetail, PhotoUrl, TaskDecision } from '../contracts'
+import { screenStrings } from '../../pwa/screens/strings'
 import { severityName, taskCopy } from './copy'
 import { expandedCopy } from './expandedCopy'
 import { batteryText, networkText, popupFor, visionLine, type Popup } from './popupModel'
@@ -257,6 +258,37 @@ function SnapshotsArea({ lang, popup, incidentId, photoUrl }: {
         </ul>
       )}
       {open && <PhotoLightbox lang={lang} url={open} onClose={() => setOpen(null)} />}
+    </div>
+  )
+}
+
+/** One block per declined task: reason label, optional note, and when they declined. Absent when no task is declined. */
+function DeclinedArea({ lang, popup }: { lang: Lang; popup: Popup }) {
+  const declined = popup.tasks.filter((task) => task.declinedAt)
+  if (declined.length === 0) return null
+  return (
+    <div className="exp-section exp-declined-section" aria-label={t(lang, expandedCopy.declinedTitle)}>
+      <p className="exp-eyebrow">{t(lang, expandedCopy.declinedTitle)}</p>
+      <ul className="exp-declined-list">
+        {declined.map((task) => {
+          const reasonLabel = task.declineReason
+            ? (screenStrings.decline.reasons[task.declineReason]?.[lang] ?? t(lang, expandedCopy.declinedNoReason))
+            : t(lang, expandedCopy.declinedNoReason)
+          const summary = task.instruction ?? t(lang, taskCopy.type[task.type])
+          const note = task.declineNote?.trim() || null
+          return (
+            <li key={task.id} className="exp-declined-item">
+              <p className="exp-declined-meta">
+                {popup.profile.name}
+                {task.declinedAt && <> · <time dateTime={task.declinedAt}>{formatTime(task.declinedAt)}</time></>}
+              </p>
+              <p className="exp-declined-summary">{summary}</p>
+              <p className="exp-declined-reason">{reasonLabel}</p>
+              {note && <p className="exp-declined-note">&ldquo;{note}&rdquo;</p>}
+            </li>
+          )
+        })}
+      </ul>
     </div>
   )
 }
@@ -661,6 +693,7 @@ export function ExpandedVolunteerView({ lang, detail, volunteerId, onClose, offl
           <div className="exp-left" aria-label="Field view">
             <VideoArea lang={lang} detail={detail} name={profile.name} channel={liveChannel} />
             <LatestMessage lang={lang} popup={popup} />
+            <DeclinedArea lang={lang} popup={popup} />
             <SnapshotsArea lang={lang} popup={popup} incidentId={detail.incident.id} photoUrl={photoUrl} />
             <SentArea lang={lang} popup={popup} />
           </div>

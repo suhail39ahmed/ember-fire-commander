@@ -400,6 +400,68 @@ describe('expanded view: right pane — Ask EMBER', () => {
   })
 })
 
+describe('expanded view: declined block', () => {
+  it('is absent when no task is declined', () => {
+    const html = expanded(fixture('conflict'), 'uid_sari')
+    expect(html).not.toContain(expandedCopy.declinedTitle.en)
+    expect(html).not.toContain('exp-declined-section')
+  })
+
+  it('shows the section with reason label and time when a task is declined', () => {
+    const html = expanded(fixture('declined'), 'uid_sari')
+    expect(html).toContain(expandedCopy.declinedTitle.en)
+    expect(html).toContain('exp-declined-section')
+    expect(html).toContain('Too far / cannot get there')
+    expect(html).toContain('Road to the ditch is flooded')
+  })
+
+  it('shows the volunteer name and instruction summary in the declined block', () => {
+    const html = expanded(fixture('declined'), 'uid_sari')
+    expect(html).toContain('exp-declined-meta')
+    expect(html).toContain('Sari')
+    expect(html).toContain('Basahi tanah di sekeliling api')
+    expect(html).toContain('exp-declined-summary')
+  })
+
+  it('appears above the Photos section in the left pane', () => {
+    const html = expanded(fixture('declined'), 'uid_sari')
+    const declinedPos = html.indexOf('exp-declined-section')
+    const snapshotsPos = html.indexOf(`aria-label="${expandedCopy.snapshots.en}"`)
+    expect(declinedPos).toBeGreaterThan(0)
+    expect(declinedPos).toBeLessThan(snapshotsPos)
+  })
+
+  it('omits the note paragraph when the note is blank or absent', () => {
+    const d = fixture('conflict')
+    d.tasks = d.tasks.map((t) =>
+      t.volunteerId === 'uid_sari'
+        ? { ...t, declinedAt: '2026-10-17T03:09:00Z', declineReason: 'unsafe' as const, declineNote: null }
+        : t,
+    )
+    const html = expanded(d, 'uid_sari')
+    expect(html).toContain('exp-declined-section')
+    expect(html).toContain('Not safe here')
+    expect(html).not.toContain('exp-declined-note')
+  })
+
+  it('shows "no reason recorded" when the reason field is absent', () => {
+    const d = fixture('conflict')
+    d.tasks = d.tasks.map((t) =>
+      t.volunteerId === 'uid_sari'
+        ? { ...t, declinedAt: '2026-10-17T03:09:00Z', declineReason: null, declineNote: null }
+        : t,
+    )
+    const html = expanded(d, 'uid_sari')
+    expect(html).toContain(expandedCopy.declinedNoReason.en)
+  })
+
+  it('speaks Bahasa for the declined section when lang is "id"', () => {
+    const html = expanded(fixture('declined'), 'uid_sari', 'id')
+    expect(html).toContain(expandedCopy.declinedTitle.id)
+    expect(html).toContain('Terlalu jauh / tidak bisa sampai')
+  })
+})
+
 describe('expanded view: language', () => {
   it('speaks Bahasa throughout when lang is "id"', () => {
     const html = expanded(fixture('conflict'), 'uid_sari', 'id')

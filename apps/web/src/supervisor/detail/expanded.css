@@ -424,6 +424,50 @@
   cursor: pointer;
 }
 
+/* Declined block */
+.exp-declined-section { background: #fff8f0; border-left: 3px solid #b45309; }
+
+.exp-declined-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.exp-declined-item { display: flex; flex-direction: column; gap: 2px; }
+
+.exp-declined-meta {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.exp-declined-summary {
+  margin: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.exp-declined-reason {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #b45309;
+}
+
+.exp-declined-note {
+  margin: 0;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
 /* Sent list */
 .exp-sent-list {
   list-style: none;
