@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
+import { CREATE_ACCOUNT_PATH } from './paths'
 
 import { useAuth } from '../auth/AuthProvider'
 import type { Me } from '../auth/api'
@@ -7,6 +9,7 @@ import { useLanguage } from '../pwa/language'
 import { AuthShell } from './AuthShell'
 import { copy, fill } from './copy'
 import { SignInScreen } from './SignInScreen'
+import { VolunteerCreateAccountScreen } from './VolunteerCreateAccountScreen'
 import {
   VolunteerAccountCheckFailed,
   VolunteerDeviceNotVerified,
@@ -32,6 +35,11 @@ export function RequireRole({ role, children }: { role: Me['role']; children: Re
   const { status, me, user, signOut, refreshMe } = useAuth()
   const email = user?.email || '—'
   const volunteer = role === 'volunteer'
+  const registering = useLocation().pathname === CREATE_ACCOUNT_PATH
+
+  if (volunteer && registering && ['loading', 'signed-out', 'no-access', 'error'].includes(status)) {
+    return <VolunteerCreateAccountScreen />
+  }
 
   // The volunteer's sign-in frame doubles as the "Signing in..." frame while /me is being checked.
   if (status === 'loading') {
@@ -70,6 +78,9 @@ export function RequireRole({ role, children }: { role: Me['role']; children: Re
   }
   if (me.role !== role) {
     return <VolunteerWrongRole me={me} />
+  }
+  if (volunteer && me.onboardingComplete === false) {
+    return <VolunteerCreateAccountScreen />
   }
   return children
 }

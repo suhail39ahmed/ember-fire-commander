@@ -108,7 +108,10 @@ describe('lead closed (#140)', () => {
   })
 
   it('skips closed tasks in currentTask and dismisses via local storage', () => {
-    const closed = task({ id: 'task_closed', closedAt: '2026-10-16T09:00:00Z' })
+    const closed = task({
+      id: 'task_closed', closedAt: '2026-10-16T09:00:00Z',
+      closedByName: 'Bu Maya', closeMessage: 'Thanks for checking the canal edge.',
+    })
     const open = task({ id: 'task_open' })
     const d = digest({ myTasks: [closed, open] })
     expect(currentTask(d)?.id).toBe('task_open')
@@ -123,6 +126,11 @@ describe('lead closed (#140)', () => {
     markSeenClosed('task_closed', storage)
     expect(loadSeenClosed(storage).has('task_closed')).toBe(true)
     expect(closedThankYouTask(d, loadSeenClosed(storage))).toBeNull()
+  })
+
+  it.each([undefined, '', '   '])('requires a personalized message for a thank-you (%s)', (closeMessage) => {
+    const closed = task({ id: 'task_closed', closedAt: '2026-10-16T09:00:00Z', closeMessage })
+    expect(closedThankYouTask(digest({ myTasks: [closed] }), new Set())).toBeNull()
   })
 
   it('renders season stats only when the API sent them', () => {

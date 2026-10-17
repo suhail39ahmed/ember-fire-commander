@@ -64,6 +64,8 @@ export interface ObservationCreate {
   /** Outbox item id. Sending it again returns the stored report instead of creating another. */
   clientId?: string
   device?: ObservationDevice
+  /** Verify task answered by this report (used to credit a checked satellite lead). */
+  taskId?: string
 }
 
 /**
@@ -81,6 +83,8 @@ export interface PhotoObservationCreate {
   photoPath: string
   clientId?: string
   device?: ObservationDevice
+  /** Verify task answered by this photo (used to credit a checked satellite lead). */
+  taskId?: string
 }
 
 export type ObservationRequest = ObservationCreate | PhotoObservationCreate

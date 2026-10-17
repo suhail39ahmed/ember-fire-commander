@@ -48,7 +48,11 @@ def protect_request():
     if request.path == "/internal/notifications/withdraw":
         return None
     # Requests that change data also check that the token was not revoked.
-    g.user = user_from_token(_bearer_token(), check_revoked=request.method not in SAFE_METHODS)
+    registration = request.path == "/volunteers/register" and request.method == "POST"
+    if registration:
+        g.user = user_from_token(_bearer_token(), check_revoked=True, allow_registration=True)
+    else:
+        g.user = user_from_token(_bearer_token(), check_revoked=request.method not in SAFE_METHODS)
     app_check_token = request.headers.get("X-Firebase-AppCheck", "").strip()
     try:
         verify_app_check_token(app_check_token)

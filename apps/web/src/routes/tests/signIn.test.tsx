@@ -48,12 +48,12 @@ describe('sign-in button', () => {
     expect(html).not.toMatch(/<button[^>]*disabled/)
   })
 
-  it('shows the designed default copy and the create-account link', () => {
+  it('offers account registration alongside Google sign-in and the language dropdown', () => {
     state.status = 'signed-out'
     state.message = null
     const html = render()
     expect(html).toContain('VOLUNTEER APP · RELAWAN')
-    expect(html).toContain('Report fires by voice, camera or one tap. Your supervisor sees it and sends help.')
+    expect(html).toContain('Spot a fire? Send a photo or voice report. Your supervisor can coordinate help.')
     expect(html).toContain('NEW TO EMBER?')
     expect(html).toContain('Create a volunteer account')
     expect(html).toContain('href="/pwa/create-account"')

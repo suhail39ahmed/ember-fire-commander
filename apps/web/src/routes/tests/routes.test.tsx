@@ -8,7 +8,7 @@ import { homeFor } from '../paths'
 
 type Auth = {
   status: 'loading' | 'signed-out' | 'ready' | 'no-access' | 'error' | 'session-expired' | 'device-unverified'
-  me: { id: string; displayName: string; role: 'volunteer' | 'supervisor' } | null
+  me: { id: string; displayName: string; role: 'volunteer' | 'supervisor'; onboardingComplete?: boolean } | null
   message: string | null
   user: { email: string | null } | null
   signIn: () => Promise<void>
@@ -19,6 +19,8 @@ type Auth = {
 const state = vi.hoisted(() => ({ auth: null as unknown as Auth }))
 
 vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => state.auth }))
+// Account setup imports auth headers. Route rendering must not initialize Firebase or require CI credentials.
+vi.mock('../../auth/firebase', () => ({ getAppCheck: () => null }))
 vi.mock('../../auth/config', () => ({
   fetchConfig: async () => ({ demoMode: false }),
 }))
@@ -79,7 +81,7 @@ describe('signed-out sign-in', () => {
   it('shows volunteer wording and branding at /pwa', () => {
     const html = render('/pwa')
     expect(html).toContain('Sign in to EMBER')
-    expect(html).toContain('Report fires by voice, camera or one tap.')
+    expect(html).toContain('Spot a fire? Send a photo or voice report.')
     expect(html).toContain('VOLUNTEER APP')
     expect(html).not.toContain('Supervisor Console')
     expect(html).not.toContain('invited BPBD supervisors')
@@ -102,8 +104,8 @@ describe('signed-out sign-in', () => {
   })
 
   it('stays on the page that was opened instead of redirecting to /', () => {
-    expect(render('/pwa')).not.toContain('Who are you signing in as?')
-    expect(render('/console')).not.toContain('Who are you signing in as?')
+    expect(render('/pwa')).not.toContain('How will you help today?')
+    expect(render('/console')).not.toContain('How will you help today?')
   })
 
   it('follows the stored language', () => {
@@ -135,9 +137,15 @@ describe('signed-out sign-in', () => {
 })
 
 describe('role choice at /', () => {
+  it('opens account setup directly from its registration URL while signed out', () => {
+    const html = render('/pwa/create-account')
+    expect(html).toContain('Join your village fire crew')
+    expect(html).toContain('Sign up with Google')
+    expect(html).not.toContain('class="vauth vauth-welcome"')
+  })
   it('offers both roles when signed out', () => {
     const html = render('/')
-    expect(html).toContain('Who are you signing in as?')
+    expect(html).toContain('How will you help today?')
     expect(html).toContain('href="/pwa"')
     expect(html).toContain('href="/console"')
     expect(html).toContain("I&#x27;m a volunteer")
@@ -145,14 +153,14 @@ describe('role choice at /', () => {
   })
 
   it('follows the stored language', () => {
-    expect(render('/', 'id')).toContain('Masuk sebagai siapa?')
+    expect(render('/', 'id')).toContain('Bagaimana Anda akan membantu hari ini?')
   })
 
   it('waits while the account is being checked', () => {
     state.auth = signedOut({ status: 'loading' })
     const html = render('/')
     expect(html).toContain('Checking sign-in')
-    expect(html).not.toContain('Who are you signing in as?')
+    expect(html).not.toContain('How will you help today?')
   })
 })
 
@@ -167,6 +175,17 @@ describe('signed-in pages', () => {
   it('renders the volunteer app for a volunteer at /pwa', async () => {
     state.auth = signedOut({ status: 'ready', me: volunteer })
     expect(await renderSettled('/pwa')).toContain('volunteer app screen')
+  })
+
+  it('keeps the volunteer app behind account setup while the profile is incomplete', async () => {
+    state.auth = signedOut({ status: 'ready', me: { ...volunteer, onboardingComplete: false } })
+    const html = await renderSettled('/pwa/task/task_1')
+    expect(html).toContain('Join your village fire crew')
+    expect(html).toContain('name="displayName"')
+    expect(html).toContain('name="phone"')
+    expect(html).toContain('name="area"')
+    expect(html).toContain('name="crewName"')
+    expect(html).not.toContain('volunteer app screen')
   })
 
   it('renders the console for a supervisor at /console', async () => {

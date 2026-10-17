@@ -443,8 +443,8 @@ export const screenStrings = {
       en: 'False alarm cleared. Nobody else has to walk out there.',
     },
     body: {
-      id: 'Foto dan catatan Anda tersimpan dengan cek ini.',
-      en: 'Your photo and note are saved with this check.',
+      id: 'Foto dan catatan Anda tersimpan dengan titik satelit ini, agar lintasan berikutnya di lokasi ini bisa diperiksa dengannya.',
+      en: 'Your photo and note are saved with the satellite lead, so the next pass over this spot is checked against it.',
     },
     checks: { id: 'cek musim ini', en: 'checks this season' },
     falseAlarms: { id: 'alarm palsu yang Anda bersihkan', en: 'false alarms you cleared' },

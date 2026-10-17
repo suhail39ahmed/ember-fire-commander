@@ -46,6 +46,7 @@ export function ReportScreen() {
       accuracyM: pos.accuracyM,
       chip: null,
       text,
+      ...(state?.taskId ? { taskId: state.taskId } : {}),
     }
     try {
       if (outbox.submit) {
@@ -99,11 +100,12 @@ export function ReportScreen() {
         locate={locate}
         onLocationGranted={watchLocationGranted}
         preset={preset}
+        taskId={state?.taskId}
         submit={outbox.submit}
         volunteerId={volunteerId}
         onDone={() => navigate('/pwa')}
       />
-      <PhotoPanel api={api} upload={upload} lang={lang} getPosition={getPosition} submit={outbox.submit} queuePhoto={outbox.queuePhoto} />
+      <PhotoPanel api={api} upload={upload} lang={lang} getPosition={getPosition} submit={outbox.submit} queuePhoto={outbox.queuePhoto} taskId={state?.taskId} />
       <OutboxPanel
         items={outbox.items}
         online={outbox.online}

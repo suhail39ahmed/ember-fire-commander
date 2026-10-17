@@ -13,10 +13,12 @@ export function currentTask(digest: Digest | null): Task | null {
   return withdraw[withdraw.length - 1] ?? approved[approved.length - 1] ?? null
 }
 
-/** Newest closed verify task the volunteer has not dismissed yet (#140). */
+/** Newest personalized task closure the volunteer has not dismissed yet (#140). */
 export function closedThankYouTask(digest: Digest | null, seenIds: ReadonlySet<string>): Task | null {
   if (!digest) return null
-  const closed = digest.myTasks.filter((t) => t.type === 'verify' && t.closedAt && !seenIds.has(t.id))
+  const closed = digest.myTasks
+    .filter((t) => t.closedAt && t.closeMessage?.trim() && !seenIds.has(t.id))
+    .sort((a, b) => Date.parse(a.closedAt ?? '') - Date.parse(b.closedAt ?? ''))
   return closed[closed.length - 1] ?? null
 }
 

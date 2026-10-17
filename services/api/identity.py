@@ -83,7 +83,7 @@ def user_from_claims(claims):
     }
 
 
-def user_from_token(token, check_revoked=False):
+def user_from_token(token, check_revoked=False, allow_registration=False):
     """Verify the token and map it to a user.
 
     check_revoked adds the Firebase Auth lookup. The middleware turns it on
@@ -99,4 +99,9 @@ def user_from_token(token, check_revoked=False):
         raise AuthError(401, "unauthorized", "Firebase ID token is invalid")
     if check_revoked:
         check_not_revoked(claims)
+    if allow_registration:
+        if claims.get("firebase", {}).get("sign_in_provider") != "google.com":
+            raise AuthError(403, "forbidden", "Volunteer registration requires Google sign-in")
+        if not claims.get("role"):
+            return {"id": claims["uid"], "displayName": claims.get("name") or "", "role": None}
     return user_from_claims(claims)

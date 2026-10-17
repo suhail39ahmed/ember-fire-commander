@@ -8,6 +8,7 @@ import logging
 import re
 
 from flask import Blueprint, g, jsonify, request
+from firebase_admin import auth as firebase_auth
 
 from identity import AuthError
 from photos.paths import owner_of
@@ -61,17 +62,27 @@ def profile_fields(profile):
         return value if type(value) is int and value >= 0 else None
 
     phone = re.sub(r"\D", "", text("phone") or "")
-    return {
+    onboarding_complete = profile.get("onboardingComplete")
+    if type(onboarding_complete) is not bool:
+        # Older profiles with a phone and crew predate onboarding tracking.
+        onboarding_complete = bool(text("phone") and text("crewName"))
+    fields = {
         "crewName": text("crewName"),
+        "area": text("area"),
         "roleLabel": text("roleLabel"),
         "supervisorName": text("supervisorName"),
         "phoneMasked": ("•••• " + phone[-4:]) if len(phone) > 4 else None,
+        "onboardingComplete": onboarding_complete,
         "trainingDone": count("trainingDone"),
         "trainingTotal": count("trainingTotal"),
         "language": profile.get("language") if profile.get("language") in ("id", "en", "jv", "su", "ms") else None,
         "shareMyLocationWithCrew": profile.get("shareMyLocationWithCrew") if type(profile.get("shareMyLocationWithCrew")) is bool else True,
         "demoMode": read_demo_mode(),
     }
+    display_name = text("displayName")
+    if display_name:
+        fields["displayName"] = display_name
+    return fields
 
 
 def profile_of(uid):
@@ -83,14 +94,48 @@ def profile_of(uid):
     return profile_fields(profile)
 
 
+@volunteer_bp.route("/volunteers/register", methods=["POST"])
+def register_volunteer():
+    """Opt-in Google registration. The only role this endpoint can assign is volunteer."""
+    record = firebase_auth.get_user(g.user["id"])
+    claims = dict(record.custom_claims or {})
+    # Read the current server claims as well as the token, so a stale token can never replace a supervisor role.
+    if g.user.get("role") not in (None, "volunteer") or claims.get("role") not in (None, "", "volunteer"):
+        raise AuthError(403, "forbidden", "This account already has another role")
+    if request.get_data():
+        raise validation("body", "registration does not accept profile or role fields")
+    if claims.get("role") != "volunteer":
+        firebase_auth.set_custom_user_claims(record.uid, claims | {"role": "volunteer"})
+    body = dict(g.user) | {"role": "volunteer"}
+    body.update(profile_of(g.user["id"]))
+    return jsonify(body), 200
+
+
 @volunteer_bp.route("/me", methods=["PATCH"])
 def patch_me():
-    """Only the caller's language and crew-sharing preference may be changed."""
+    """Update the caller's volunteer profile and onboarding details."""
     _require_volunteer()
     body = _body()
-    allowed = {"language", "shareMyLocationWithCrew"}
+    allowed = {"displayName", "phone", "area", "crewName", "onboardingComplete", "language", "shareMyLocationWithCrew"}
     if not body or body.keys() - allowed:
-        raise validation("body", "send language and/or shareMyLocationWithCrew only")
+        raise validation("body", "send volunteer profile fields only")
+    body = dict(body)
+    for field, maximum in (("displayName", 80), ("area", 100), ("crewName", 100)):
+        if field in body:
+            value = body[field]
+            if not isinstance(value, str) or not value.strip() or len(value.strip()) > maximum:
+                raise validation(field, f"enter 1 to {maximum} characters")
+            body[field] = value.strip()
+    if "phone" in body:
+        phone = body["phone"]
+        if not isinstance(phone, str) or not re.fullmatch(r"\+[1-9]\d{7,14}", phone):
+            raise validation("phone", "use an E.164 phone number")
+    if "onboardingComplete" in body and type(body["onboardingComplete"]) is not bool:
+        raise validation("onboardingComplete", "a boolean")
+    if body.get("onboardingComplete") is True:
+        required = {"displayName", "phone", "area", "crewName", "language"}
+        if required - body.keys():
+            raise validation("onboardingComplete", "complete the required account fields first")
     if "language" in body and body["language"] not in ("id", "en", "jv", "su", "ms"):
         raise validation("language", "use id, en, jv, su or ms")
     if "shareMyLocationWithCrew" in body and type(body["shareMyLocationWithCrew"]) is not bool:

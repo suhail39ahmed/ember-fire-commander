@@ -42,6 +42,8 @@ The ID token is checked first, then the role, then App Check. A token with no ro
 
 The role is the Firebase custom claim `role`: `volunteer` or `supervisor`. `ember-api` sets that claim. Clients cannot send a role in a body, and a missing claim does not default to `volunteer`.
 
+PWA Google sign-in and Create Account explicitly register roleless users with `POST /volunteers/register` (no body). This endpoint verifies the Google provider and revocation, applies the normal App Check policy, and assigns only the `volunteer` custom claim through Firebase Admin. It preserves unrelated claims and rejects existing non-volunteer roles using both token claims and the current Firebase user record. Repeated volunteer registration is idempotent. The response is the volunteer `/me` shape; clients must force-refresh the Firebase ID token before accessing protected volunteer routes. Ordinary `/me` requests still reject a missing role. The PWA registration client reads `/me` first, preserving existing accounts and registering only on `role_missing`. Accounts with incomplete onboarding continue to the existing profile and permissions setup.
+
 `GET /me` returns the signed-in user.
 
 For volunteers it also returns profile labels and preferences from `volunteers/{uid}`: `crewName`, `roleLabel`, `supervisorName`, `phoneMasked`, `trainingDone`, `trainingTotal`, `language`, and `shareMyLocationWithCrew`. Labels and counts are `null` when missing or invalid; blank strings are `null`. `phoneMasked` exposes only the last four digits, prefixed with `••••`; a missing number or one with four or fewer digits returns `null`. The raw `phone` is never returned. `language` is `id`, `en`, `jv`, `su`, `ms`, or `null`; `shareMyLocationWithCrew` defaults to `true`. `demoMode` is a boolean from server configuration (`ops/config`, with `DEMO_MODE` fallback), never the volunteer document. Supervisors keep the identity-only response.
@@ -107,9 +109,9 @@ Timestamps are ISO-8601 UTC strings. Ids are server-generated strings.
 
 ## 5. Entities
 
-Collections used by this contract: `observations`, `incidents`, `conflicts`, `tasks`, `audit`. The digest (§5.6) is not a collection. `ember-api` and `voice-gateway` each build it from `incidents` and `tasks` when asked, and nothing stores it.
+Collections used by this contract: `observations`, `incidents`, `conflicts`, `tasks`, `audit`. The digest (§5.6) is not a collection. `ember-api` and `voice-gateway` each build it from `incidents` and `tasks` when asked; `ember-api` also reads volunteer `leadChecks` for its satellite check stats. Nothing stores the digest.
 
-Services also keep collections that no REST route returns (or that only return a safe subset). They are listed in §5.7 with the field types and the service that writes them: `liveSeats`, `photo_triage`, `incident_summaries`, `incident_suggestions`, `observation_translations`, `sites`, `sites_meta`, `notificationAttempts`, `photoUploads`, `intakePending`, `volunteers`, `counters`, `leads`, `weather`, `psi`, and `ingestRuns`.
+Services also keep collections that no REST route returns (or that only return a safe subset). They are listed in §5.7 with the field types and the service that writes them: `liveSeats`, `photo_triage`, `incident_summaries`, `incident_suggestions`, `observation_translations`, `sites`, `sites_meta`, `notificationAttempts`, `photoUploads`, `intakePending`, `volunteers`, `counters`, `leads`, `leadChecks`, `weather`, `psi`, and `ingestRuns`.
 
 ### 5.1 Observation
 
@@ -132,6 +134,7 @@ Immutable. The stored record always has `"immutable": true`. There is no update 
 | `severity` | severity enum | Server. See the mapping below |
 | `photoPath` | string or null | Client, for `source: photo` only: the path from `POST /photos/upload-url` (§6.7). `null` for every other source. A private object path, never a public URL |
 | `device` | object, optional | Client, best effort. What the phone says about itself: `batteryPct` (a number from 0 to 100, rounded), `network` (`2g`, `3g`, `4g`, `wifi` or `unknown`) and `language` (`id` or `en`, the language the volunteer's app is shown in, not a detected spoken language), each present only when the phone sent a valid value. Any other key, or a value that is not valid, is dropped without an error, so a fire report never fails on telemetry. The key is absent when nothing valid was sent, and on every report stored before #92. Never in an observation from `GET /incidents/{id}`; a supervisor's card carries the newest one (§6.3) |
+| `checkTaskId` | string, internal optional | Set by `ember-api` when a client submits optional `taskId` for their own `verify` task. Used to link the report to a satellite lead when the incident is verified. Never returned to clients. |
 | `immutable` | `true` | Server |
 
 Chip to severity, applied by `ember-api` even if the client sends a severity:
@@ -149,7 +152,7 @@ A `text` or `photo` observation is stored as `unknown`. A `live` observation sto
 
 Which fields a response carries:
 
-- `POST /observations` returns the full stored record, including `volunteerName`, `clientId` and `device` when they exist, and a `join` (§6.2) once agents have placed the report.
+- `POST /observations` returns the stored record, including `volunteerName`, `clientId` and `device` when they exist, and a `join` (§6.2) once agents have placed the report. It omits internal `checkTaskId`.
 - The `observations` in `GET /incidents/{id}` carry `id`, `volunteerId`, `capturedAt`, `receivedAt`, `source`, `lat`, `lng`, `accuracyM`, `chip`, `text`, `severity`, `photoPath`, and `immutable`, plus the stored `volunteerName` when present. They never carry device telemetry or `clientId`.
 
 ### 5.2 Incident
@@ -330,7 +333,7 @@ One current picture for Live context, REST polling, and the `digest` WebSocket m
 | `myTasks` | task[] | Every task whose `volunteerId` is the caller, in any status (`proposed`, `approved`, `rejected`). Empty for a supervisor |
 | `nearby` | nearby incident[] | Volunteer only. Live incidents (`open`, `held`, `verified`) within `EMBER_NEARBY_RADIUS_M` (default 5000 m) that the caller is not already linked to by a task, report, withdraw, or membership. Empty when the request has no position, and omitted on a supervisor digest. Sorted by `distanceM`, then `id` |
 | `sentToday` | sent report[], optional | Volunteer only, and only when the request carries `sentSince` (§6.4). The caller's own reports since that time, oldest first, at most 50 |
-| `seasonStats` | object, optional | Volunteer only. `{ checksDone, falseAlarmsCleared }` counts of this volunteer's `verify` tasks and those with `closedAt`. Omitted when the volunteer has no `verify` task |
+| `seasonStats` | object, optional | Volunteer only. `{ checksDone, falseAlarmsCleared }` all-time counts of distinct satellite leads credited to this volunteer through `leadChecks`; `falseAlarmsCleared` counts distinct leads with at least one `outcome: checked_no_fire`. Returned as zeroes when the volunteer has no credited leads. The UI label remains “this season” until season boundaries are defined. |
 | `myJoinRequests` | join request summary[] | **Volunteer only, REST only.** The caller's own join requests (§6.12): `incidentId`, `status`, `createdAt`. Absent for a supervisor |
 
 Each nearby row is an incident summary plus `distanceM` (straight-line metres from the phone), `bearingDeg` (0 to 359, compass bearing from the phone to the incident), `crewOnSite` (distinct volunteers with a report or an approved task on it) and `reporterName` (the first reporter's display name, or `null`). It is listed when its status is `open`, `held` or `verified`, the caller is not linked to it, and it is within `EMBER_NEARBY_RADIUS_M` (default 5000 m). The list is nearest first and holds at most 5. **Not returned, because no service stores a source:** wind at the incident and what a supervisor asked for. The phone's position comes from the request (§6.4) and is never stored.
@@ -612,8 +615,10 @@ Written by the hourly ingest job and nowhere else. It never writes incidents, ob
 | `firstSeenAt` | string | Kept from the first run |
 | `lastSeenAt` | string | The latest run that saw it |
 | `ingestRunId` | string | |
-| `verifiedBy`, `verifiedAt`, `incidentId` | string | Optional. Set by a person or a later service, and ingest never overwrites them |
+| `verifiedBy`, `verifiedAt`, `incidentId` | string | Optional compatibility summary for the first volunteer no-fire check linked to this lead. Ingest never overwrites them. Per-volunteer counts come from `leadChecks`. |
 | `seeded` | `true` | Only on hand-seeded demo leads (`source` is `seed`) |
+
+`leadChecks`, one document per satellite lead and verify task, is written by `ember-api` when a supervisor verifies an incident that contains a task-linked report from the task's owner and the incident has an internal matched `satelliteLeadId`. Document id is `{leadId}__{taskId}`. Fields are `id`, `leadId`, `taskId`, `incidentId`, `observationId`, `volunteerId`, `outcome` (`verified_fire` or `checked_no_fire`), and `checkedAt`. The collection is internal; no REST route returns it or the internal lead id. A volunteer's counts deduplicate by lead id. A no-fire outcome requires that task owner's photo report with the `Bukan kebakaran:` reason prefix. Replays do not add another check for the same lead and task.
 
 `weather/current`: `id`, `source` (`open-meteo`), `lat`, `lng`, `observedAt`, `windKmh`, `windDirDeg`, `gustKmh`, `tempC`, `humidityPct`, `precipMm` (numbers may be null), `fetchedAt`, `ingestRunId`. Wind reaches a WITHDRAW only through the agents rule in §8.
 
@@ -647,7 +652,7 @@ What each `source` needs:
 | `text` | `null` or omitted | Required, not blank | Not used |
 | `photo` | `null` or omitted | Optional | Required, see below |
 
-`source: live` is `400`. `clientId` is optional on every source. `accuracyM` may be omitted or `null`. Fields the server owns (`id`, `volunteerId`, `severity`, and the rest) are ignored when sent.
+`source: live` is `400`. `clientId` is optional on every source. `accuracyM` may be omitted or `null`. A task-originated report may include `taskId`; it must identify the caller's `verify` task or the request is rejected. The server stores it as internal `checkTaskId` and omits that field from every REST response. Fields the server owns (`id`, `volunteerId`, `severity`, and the rest) are ignored when sent.
 
 Request, chip:
 
@@ -715,7 +720,7 @@ The server fills `id`, `volunteerId`, `receivedAt`, `severity`, `volunteerName` 
 }
 ```
 
-`source: live` is rejected on this route (`400`, `fields.source`). Live observations are created by the gateway in §7.
+`source: live` is rejected on this route (`400`, `fields.source`). Live observations are created by the gateway in §7. A task-linked observation is eligible for a satellite check credit only when its task belongs to the report author, the incident is matched to a satellite lead internally, and a supervisor verifies that incident. A no-fire credit additionally requires the owner's photo report with the no-fire reason prefix.
 
 A `photo` observation uses the `photoPath` that `POST /photos/upload-url` returned (§6.7). The path must be well formed and under the caller's own uid, and `ember-api` must have issued it to that caller. A missing or malformed path is `400`. Another volunteer's path, or one that was never issued to the caller, is `403 forbidden`. The photo is not read at this point. A `photo` observation is stored with severity `unknown`.
 
@@ -929,7 +934,7 @@ Incident actions return `incident` instead of `task`.
 | `POST /tasks/{id}/resend` | none | Supervisor. Sends a sent, unheard task again: `sentAt` becomes now, `sendCount` goes up by one, a `task.resend` audit is appended, and the task is pushed again (§6.6). `409` unless the task is `approved` and not heard. Allowed for `withdraw` tasks. The answer is the task and the `auditId` |
 | `POST /tasks/{id}/heard` | none | **Volunteer, and only for their own task** (a supervisor is `403`, another volunteer's task is `404`). Sets `heardAt` once and appends a `task.heard` audit with the volunteer as `actorId`. A repeat returns the task with `auditId: null` and writes nothing. `409` unless the task is `approved`. The volunteer app calls it once when a sent task or WITHDRAW is on screen |
 | `POST /tasks/{id}/edit` | `{ "instruction": "Check the east bank again" }` | Replaces `instruction` only. Type, status, volunteer, and incident stay the same. `instruction` is required, not blank, at most 500 characters. A `withdraw` task is `409`. The route does not check the task's status, so a task that is already `approved` or `rejected` can be edited |
-| `POST /incidents/{id}/verify` | none | `status` becomes `verified`. Also stamps open `verify` tasks on the incident with `closedAt`, `closedBy`, `closedByName`, and `closeMessage` so the volunteer digest can show the thank-you (§5.3). `409` unless the status is `open` or `held` |
+| `POST /incidents/{id}/verify` | none | `status` becomes `verified`. Also stamps open `verify` tasks on the incident with `closedAt`, `closedBy`, `closedByName`, and `closeMessage` so the volunteer digest can show the thank-you (§5.3). For each task owner with a task-linked report, creates one internal `leadChecks` credit when the incident has a matched satellite lead; a no-fire credit requires their no-fire photo report (§5.7). `409` unless the status is `open` or `held` |
 | `POST /incidents/{id}/extinguish` | none | `status` becomes `extinguished`. `409` when it already is |
 | `POST /incidents/{id}/severity` | `{ "severity": "smoke" }` | Stores the new severity only when it is strictly lower on the scale in §1, otherwise `409`. `severity` must be `none`, `smoke`, `small_flame`, or `large_flame`; `unknown` and anything else is `400`. A stored `unknown` severity is never lowered (`409`) |
 | `POST /incidents/{id}/volunteers/{volunteerId}/instruct` | `{ "instruction": "Move to the east road and report" }` | Sends one free-text instruction to one volunteer. Creates an `instruct` task with `status: approved`, `sentAt` now and `sendCount` 1, pushes it (§6.6) and appends a `task.instruct` audit row. `201` with the task and `auditId`. `instruction` is required, not blank, at most 500 characters (`400`). The volunteer needs a report, a task or a withdraw entry on the incident (`400` on `fields.volunteerId`). `409` when the incident is `extinguished`, or when the volunteer is on an active withdraw and not in `safeVolunteerIds`: an instruction can never hold or replace a WITHDRAW. An open conflict does not block it. It changes nothing on the incident |
@@ -1604,6 +1609,7 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · #141: new volunteer route `POST /observations/{id}/flag` (§6.11), audit `observation.flag`, stored in the new `observation_flags` collection. Observations stay immutable. The audit table (§5.5) also lists `task.accept`, `task.decline` and `withdraw.answer`, which #136, #137 and #146 to #148 already wrote.
 - 2026-10-16 · #134, #135: `GET /digest` gains volunteer-only `nearby` (optional `lat`/`lng` query), new `incident_members` collection, `POST /incidents/{id}/join` and `POST /incidents/{id}/en-route`, audits `incident.join` and `incident.en_route`. A volunteer's `GET /incidents/{id}` may include `membership`. Wind/ask stay null until stored (§5.5, §5.6, §5.7, §6.11).
 - 2026-10-16 · #129, #130, #140, #153, #154: hold-to-talk and coach reply stay UI-only until a browser WebSocket handshake exists (§7); spoken reports POST `/observations` only with a real gateway transcript. Tasks gain optional lead-closed fields and digest may include `seasonStats` (§5.3, §5.6); `POST /incidents/{id}/verify` closes open verify tasks. New volunteer routes `GET /training`, `POST /training/progress`, `POST /training/practice` (§6.12) for Guide and practice (never live voice or observations).
+- 2026-10-17 · #140: task-originated PWA reports carry `taskId`; the API validates it belongs to the caller and stores it internally. Incident verification creates idempotent `leadChecks` records linked to the matched satellite lead, credits task owners, and derives no-fire credit from their own no-fire photo report. Volunteer digest stats are all-time counts; the thank-you returns to the assigned-task list and its body explains the satellite lead link (§5.1, §5.6, §5.7, §6.2, §6.5).
 - 2026-10-16 · #131, #132: `POST /observations` (`201` and the `200` replay) adds `join` (`incidentId`, `incidentName`, `incidentArea`, `joined`, `nearbyCount`, `nearestM`, `radiusM`), read from the new `observation_joins` collection that agents write when they place a report. A volunteer's `GET /digest` adds `sentToday` when the request carries the new `sentSince` query, each row with the same `join` (§5.6, §5.7, §6.2, §6.4). The phone shows how many reports are near its own and the join radius.
 - 2026-10-16 · #92, #93: `POST /observations` accepts an optional `device` (`batteryPct`, `network`, `language`), stored best effort and never failing a report (§5.1). A supervisor's `GET /incidents/{id}` adds `header`, `conditions` and `photoReads`, and each volunteer card adds `crewName`, `teamRole` and `device` (§6.3). The video, Ask EMBER and English translation parts of #93 are not built (§6.3, §12.4).
 - 2026-10-16 · #95: evidence factors `wind` and `satellite`, each worth 0 points so no score or rule changes (§5.2), audit action `conflict.open` written by code when a conflict is created (§5.5), `conflictContext.allObservations` (§6.3). Settings `EMBER_SATELLITE_RADIUS_M` and `EMBER_SATELLITE_WINDOW_H` (§11.3). No `investigate` proposal is added (§12.5).

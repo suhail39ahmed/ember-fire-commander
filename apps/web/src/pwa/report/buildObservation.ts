@@ -31,7 +31,7 @@ export function validateDraft(d: ReportDraft): DraftError | null {
  * - `capturedAt` comes from the draft and is not re-stamped on retry.
  * - The client never sends id or severity; ember-api sets both.
  */
-export function buildObservation(d: ReportDraft, pos: Position): ObservationCreate {
+export function buildObservation(d: ReportDraft, pos: Position, taskId?: string): ObservationCreate {
   const text = d.text.trim()
   return {
     source: d.chip ? 'chip' : 'text',
@@ -42,5 +42,6 @@ export function buildObservation(d: ReportDraft, pos: Position): ObservationCrea
     chip: d.chip,
     text: text ? text : null,
     ...(d.device ? { device: d.device } : {}),
+    ...(taskId ? { taskId } : {}),
   }
 }

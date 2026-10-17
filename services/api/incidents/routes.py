@@ -295,17 +295,24 @@ def digest():
             nearby_rows = nearby.nearby_incidents(position, {s.id for s in scoped})
         else:
             nearby_rows = []
-        # Season counts for the lead-closed thank-you (#140). Omitted until there is a verify task.
-        checks = [t for t in my_tasks if t.get("type") == "verify"]
-        cleared = [t for t in checks if t.get("closedAt")]
-        season_stats = {"checksDone": len(checks), "falseAlarmsCleared": len(cleared)} if checks else None
+        # All-time credit for this volunteer's task-linked satellite checks (#140).
+        checked_leads = [snap.to_dict() or {} for snap in store.where("leadChecks", "volunteerId", "==", user["id"])]
+        checked_lead_ids = {check.get("leadId") for check in checked_leads if check.get("leadId")}
+        false_alarm_lead_ids = {
+            check.get("leadId") for check in checked_leads
+            if check.get("leadId") and check.get("outcome") == "checked_no_fire"
+        }
+        season_stats = {
+            "checksDone": len(checked_lead_ids),
+            "falseAlarmsCleared": len(false_alarm_lead_ids),
+        }
     body = {"updatedAt": rules.now_iso(), "incidents": incidents, "myTasks": my_tasks}
     if user["role"] == "volunteer":
         body["nearby"] = nearby_rows
         body["myJoinRequests"] = nearby.join_request_summaries(
             store.where(store.JOIN_REQUESTS, "volunteerId", "==", user["id"])
         )
-    if season_stats is not None:
+    if user["role"] == "volunteer":
         body["seasonStats"] = season_stats
     if user["role"] == "volunteer" and "sentSince" in request.args:
         # The reports this volunteer sent since their own start of day (#131). Left out when it cannot be read.
@@ -637,6 +644,38 @@ def verify_incident(incident_id):
         incident = snapshot.to_dict() or {}
         if incident.get("status") not in ("open", "held"):
             raise conflict(f"An incident that is {incident.get('status')} cannot be verified")
+        task_snaps = store.where(store.TASKS, "incidentId", "==", incident_id)
+        verify_tasks = {
+            snap.id: (snap.to_dict() or {})
+            for snap in task_snaps
+            if (snap.to_dict() or {}).get("type") == "verify"
+        }
+        observations = store.get_many(store.OBSERVATIONS, incident.get("observationIds") or [])
+        task_observations = {}
+        for observation in (snap.to_dict() or {} for snap in observations.values()):
+            task_id = observation.get("checkTaskId")
+            if task_id not in verify_tasks or observation.get("volunteerId") != verify_tasks[task_id].get("volunteerId"):
+                continue
+            previous = task_observations.get(task_id)
+            is_no_fire = observation.get("source") == "photo" and (observation.get("text") or "").startswith("Bukan kebakaran:")
+            was_no_fire = previous and previous.get("source") == "photo" and (previous.get("text") or "").startswith("Bukan kebakaran:")
+            if previous is None or (is_no_fire and not was_no_fire) or (is_no_fire == was_no_fire and observation.get("capturedAt", "") > previous.get("capturedAt", "")):
+                task_observations[task_id] = observation
+        lead_id = incident.get("satelliteLeadId") if task_observations else None
+        lead_ref = _ref("leads", lead_id) if isinstance(lead_id, str) and lead_id else None
+        lead_snapshot = lead_ref.get(transaction=transaction) if lead_ref else None
+        lead = (lead_snapshot.to_dict() or {}) if lead_snapshot and lead_snapshot.exists else None
+        check_refs = {}
+        existing_checks = {}
+        if lead_ref and lead:
+            check_refs = {
+                task_id: _ref("leadChecks", f"{lead_id}__{task_id}")
+                for task_id in task_observations
+            }
+            existing_checks = {
+                task_id: ref.get(transaction=transaction)
+                for task_id, ref in check_refs.items()
+            }
         changes = {"status": "verified"}
         audit_id = _commit_with_audit(transaction, ref, changes, "incident.verify", incident_id)
         closed_at = rules.now_iso()
@@ -646,11 +685,33 @@ def verify_incident(incident_id):
             "closedByName": (actor.get("displayName") or "").strip() or None,
             "closeMessage": "False alarm cleared. Nobody else has to walk out there.",
         }
-        for snap in store.where(store.TASKS, "incidentId", "==", incident_id):
+        for snap in task_snaps:
             task = snap.to_dict() or {}
             if task.get("type") != "verify" or task.get("closedAt"):
                 continue
             transaction.update(_ref(store.TASKS, snap.id), close_fields)
+        if lead_ref and lead:
+            for task_id, observation in task_observations.items():
+                if existing_checks[task_id].exists:
+                    continue
+                no_fire = observation.get("source") == "photo" and (observation.get("text") or "").startswith("Bukan kebakaran:")
+                transaction.set(check_refs[task_id], {
+                    "id": f"{lead_id}__{task_id}",
+                    "leadId": lead_id,
+                    "taskId": task_id,
+                    "incidentId": incident_id,
+                    "observationId": observation["id"],
+                    "volunteerId": verify_tasks[task_id]["volunteerId"],
+                    "outcome": "checked_no_fire" if no_fire else "verified_fire",
+                    "checkedAt": closed_at,
+                })
+                if no_fire and not lead.get("verifiedBy"):
+                    transaction.update(lead_ref, {
+                        "status": "checked_no_fire",
+                        "verifiedBy": verify_tasks[task_id]["volunteerId"],
+                        "verifiedAt": closed_at,
+                        "incidentId": incident_id,
+                    })
         incident.update(changes)
         incident["id"] = incident_id
         return rules.pick(incident, rules.INCIDENT_FIELDS), audit_id

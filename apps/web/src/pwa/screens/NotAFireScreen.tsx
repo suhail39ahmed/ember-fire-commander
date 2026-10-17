@@ -190,7 +190,7 @@ export function NotAFireScreen() {
     setState({ kind: 'sending' })
     try {
       const photoPath = await uploadPhoto(api, upload, shot.blob, shot.contentType)
-      const result = await outbox.submit(buildPhotoObservation(photoPath, shot.capturedAt, shot.pos, notAFireNote(reason)))
+      const result = await outbox.submit(buildPhotoObservation(photoPath, shot.capturedAt, shot.pos, notAFireNote(reason), undefined, task?.id))
       setState({ kind: 'done', queued: result === 'queued' })
     } catch (error) {
       fail(error instanceof UploadError ? t(lang, s.notFire.failed) : describe(error))

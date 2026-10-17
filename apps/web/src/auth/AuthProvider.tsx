@@ -13,7 +13,7 @@ interface AuthState {
   user: User | null
   me: Me | null
   message: string | null
-  signIn: () => Promise<void>
+  signIn: (options?: { registerVolunteer?: boolean }) => Promise<void>
   signOut: () => Promise<void>
   /**
    * Re-run GET /me for the signed-in Firebase user (no-access "Check again").
@@ -36,10 +36,11 @@ async function loadMe(
   setMessage: (message: string | null) => void,
   setStatus: (status: Status) => void,
   quiet = false,
+  registerVolunteer = false,
 ) {
   if (!quiet) setStatus('loading')
   try {
-    const result = await fetchMe(next)
+    const result = await fetchMe(next, registerVolunteer)
     if ('error' in result) {
       setMe(null)
       setStatus(
@@ -65,12 +66,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const userRef = useRef<User | null>(null)
+  const registeringRef = useRef(false)
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (next) => {
       const same = next !== null && next.uid === userRef.current?.uid
       userRef.current = next
       setUser(next)
+      // Registration owns the /me check until the server has assigned the volunteer claim.
+      if (next && registeringRef.current) return
       if (!next) {
         setMe(null)
         setStatus('signed-out')
@@ -94,16 +98,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     me,
     message,
-    signIn: async () => {
+    signIn: async (options) => {
       setMessage(null)
+      const registering = options?.registerVolunteer === true
+      registeringRef.current = registering
       try {
-        const result = await signInWithPopup(auth, googleProvider)
+        const next = registering && user ? user : (await signInWithPopup(auth, googleProvider)).user
+        if (registering) {
+          userRef.current = next
+          setUser(next)
+          await loadMe(next, setMe, setMessage, setStatus, false, true)
+          return
+        }
         // The same user signing in again does not fire onAuthStateChanged with a new user, so check /me here.
         if (status === 'session-expired' || status === 'device-unverified') {
-          await loadMe(result.user, setMe, setMessage, setStatus, true)
+          await loadMe(next, setMe, setMessage, setStatus, true)
         }
       } catch (err) {
         setMessage(err instanceof Error ? err.message : 'Google sign-in failed')
+      } finally {
+        registeringRef.current = false
       }
     },
     signOut: async () => {
