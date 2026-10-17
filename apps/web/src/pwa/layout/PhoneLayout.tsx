@@ -36,8 +36,11 @@ import { useVolunteer } from './volunteerContext'
 export function PhoneLayout() {
   const { lang } = useLanguage()
   const profileRoute = useMatch('/pwa/profile') !== null
+  const smsRoute = useMatch('/pwa/sms') !== null
+  const homeRoute = useMatch('/pwa') !== null
   const v = useVolunteer()
   const { api, me, volunteerId, digest, digestStatus, lastSyncAt, refresh, position, outbox, mock } = v
+  const dataOnline = outbox.online && digestStatus !== 'unreachable'
 
   const task = currentTask(digest)
   usePushNavigation()
@@ -52,10 +55,10 @@ export function PhoneLayout() {
       <div className="vol-background" aria-hidden={withdraw || undefined} ref={(element) => { if (element) element.inert = withdraw }}>
       {!profileRoute && <VolunteerHeader name={me?.displayName} crew={me?.crewName} lang={lang} />}
 
-      <main className="vol-main">
-        {!profileRoute && <p className="badge-simulated vol-simulated">{t(lang, strings.simulated)}</p>}
+      <main className={`vol-main${smsRoute || (homeRoute && !dataOnline) ? ' vol-main-field' : ''}`}>
+        {!profileRoute && !smsRoute && !(homeRoute && !dataOnline) && <p className="badge-simulated vol-simulated">{t(lang, strings.simulated)}</p>}
         <InstallBanner lang={lang} />
-        <DigestNotice status={digestStatus} hasDigest={digest !== null} lang={lang} onRetry={refresh} />
+        {outbox.online && !(homeRoute && !dataOnline) && !smsRoute && <DigestNotice status={digestStatus} hasDigest={digest !== null} lang={lang} onRetry={refresh} />}
 
         {flow.cleared && !withdraw ? (
           <WithdrawCleared lang={lang} sentAt={flow.cleared.sentAt} reasons={flow.cleared.reasons} clearedAtMs={flow.cleared.clearedAtMs} clearedByName={flow.cleared.clearedByName} clearReason={flow.cleared.clearReason} onDismiss={flow.dismissCleared} />
@@ -69,9 +72,10 @@ export function PhoneLayout() {
                 digest={digest}
                 status={digestStatus}
                 lastSyncAt={lastSyncAt}
-                online={outbox.online}
+                online={dataOnline}
                 queuedCount={outbox.items.length}
                 queued={outbox.items}
+                outboxActions={outbox}
                 api={api}
                 volunteerId={volunteerId}
                 onRefresh={refresh}

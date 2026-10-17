@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import type { ReactNode } from 'react'
 
 import type { Task } from '../contracts/types'
 import { formatTime } from '../formatTime'
@@ -6,8 +7,14 @@ import { t, type Lang } from '../i18n'
 import type { OutboxItem } from '../outbox/types'
 import { ageMinutes, safetyFirst } from './noSignal'
 import { screenStrings } from './strings'
+import './field.css'
 
 const s = screenStrings.noSignal
+
+function FieldIcon({ kind }: { kind: 'offline' | 'saved' | 'sms' }) {
+  const path = kind === 'offline' ? 'm3 3 18 18M4 10a13 13 0 0 1 3-2m4-1a13 13 0 0 1 9 3M8 14a7 7 0 0 1 4-1m4 1 1 1M11 18h2' : kind === 'saved' ? 'M6 3h9l4 4v14H5V3h1m3 0v6h7M8 14h8M8 17h6' : 'M3 4h18v13H8l-5 4V4z'
+  return <svg className="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={path} /></svg>
+}
 
 /**
  * The offline field card (#150). Only what is still true from the last sync and from this phone: the last
@@ -21,6 +28,7 @@ export function NoSignalCard({
   task,
   queued,
   nowMs,
+  queueDetails,
 }: {
   lang: Lang
   /** Phone time the signal was first seen to be gone. */
@@ -30,6 +38,7 @@ export function NoSignalCard({
   task: Task | null
   queued: OutboxItem[]
   nowMs: number
+  queueDetails?: ReactNode
 }) {
   const sentAt = task?.sentAt ?? null
   const age = ageMinutes(sentAt, nowMs)
@@ -53,16 +62,20 @@ export function NoSignalCard({
   const waiting = queued.filter((q) => q.state !== 'sent')
   const last = waiting.map((q) => q.queuedAt).sort().pop()
   return (
-    <>
-      <section className="card offline-card" role="status" data-testid="home-offline">
+    <div className="no-signal">
+      <section className="card offline-card field-row" role="status" data-testid="home-offline">
+        <FieldIcon kind="offline" />
+        <div>
         <h2>
           {t(lang, s.since)} {sinceMs !== null ? formatTime(sinceMs) : '--:--'}
         </h2>
-        <p>{t(lang, s.sinceBody)}</p>
+        <p className="muted small">{t(lang, s.sinceBody)}</p>
         {batteryPct !== null && <p className="muted small">{t(lang, s.battery)} {batteryPct} %</p>}
+        </div>
       </section>
       {safetyOnTop ? [rule, instruction] : [instruction, rule]}
-      <section className="card" data-testid="no-signal-saved">
+      <section className="card field-row" data-testid="no-signal-saved">
+        <FieldIcon kind="saved" /><div>
         {waiting.length > 0 ? (
           <>
             <strong>
@@ -79,11 +92,13 @@ export function NoSignalCard({
             <p className="muted small">{t(lang, s.savedNoneBody)}</p>
           </>
         )}
+        {queueDetails && <details className="field-queue"><summary>{t(lang, s.viewSaved)}</summary>{queueDetails}</details>}
+        </div>
       </section>
-      <Link className="card link-card" to="/pwa/sms" data-testid="no-signal-sms">
-        <strong>{t(lang, s.sms)}</strong>
-        <span className="muted small">{t(lang, s.smsBody)}</span>
+      <Link className="card link-card field-row" to="/pwa/sms" data-testid="no-signal-sms">
+        <FieldIcon kind="sms" /><div><strong>{t(lang, s.sms)}</strong>
+        <span className="muted small">{t(lang, s.smsBody)}</span></div>
       </Link>
-    </>
+    </div>
   )
 }

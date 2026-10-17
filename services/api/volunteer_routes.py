@@ -15,6 +15,7 @@ from photos.paths import owner_of
 from incidents import rules, store
 from incidents.errors import ApiError, conflict, error_response, not_found, validation
 from config_route import read_demo_mode
+from sms_config import sms_config
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,9 @@ def profile_fields(profile):
     display_name = text("displayName")
     if display_name:
         fields["displayName"] = display_name
+    sms = sms_config(profile)
+    if sms is not None:
+        fields["sms"] = sms
     return fields
 
 

@@ -21,11 +21,15 @@ function clock(d: Date): string {
  * incident code when the last digest had one, the time, and the GPS fix when there is one. It never invents a
  * position; with no fix it says so.
  */
-export function buildSms(input: { kind: SmsKind; name: string | null; incidentCode: string | null; at: Date; position: DevicePosition }): string {
+export function buildSms(input: { kind: SmsKind; name: string | null; incidentCode: string | null; at: Date; position: DevicePosition; template?: string }): string {
   const place =
     input.position.kind === 'ok'
       ? `${input.position.lat.toFixed(4)}, ${input.position.lng.toFixed(4)} (±${input.position.accuracyM} M)`
       : 'LOKASI TIDAK TERSEDIA'
+  if (input.template) {
+    const values: Record<string, string> = { status: SMS_KINDS[input.kind], name: input.name?.trim().toUpperCase() || '', incidentCode: input.incidentCode?.trim().toUpperCase() || '', time: clock(input.at), location: place }
+    return input.template.replace(/\{(status|name|incidentCode|time|location)\}/g, (_, key: string) => values[key]).split('·').map((part) => part.trim()).filter(Boolean).join(' · ')
+  }
   return [
     `EMBER ${SMS_KINDS[input.kind]}`,
     input.name?.trim() ? input.name.trim().toUpperCase() : null,

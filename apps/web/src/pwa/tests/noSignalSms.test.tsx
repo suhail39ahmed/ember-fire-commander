@@ -116,6 +116,11 @@ describe('the SMS text (#151)', () => {
     expect(incidentCodeOf(null)).toBeNull()
     expect(incidentCodeOf('')).toBeNull()
   })
+
+  it('fills the API template using the phone time and coordinates', () => {
+    const body = buildSms({ kind: 'safe', name: 'Sari', incidentCode: null, at: at0, position: fix, template: '{status} · {name} · {incidentCode} · {time} · {location}' })
+    expect(body).toBe('AMAN · SARI · 14:44 · -0.8712, 102.7134 (±12 M)')
+  })
 })
 
 describe('the SMS screen (#151)', () => {
@@ -142,6 +147,22 @@ describe('the SMS screen (#151)', () => {
     expect(view({ kind: 'waiting' } as never)).toContain('data-testid="sms-no-location"')
     expect(view()).not.toContain('data-testid="sms-no-location"')
   })
+
+  it('shows the last-known contacts and includes only selected recipients in the native draft', () => {
+    const recipients = [
+      { id: 'lead', name: 'Crew leader', role: 'crew_lead' as const, phone: '+6281212344410' },
+      { id: 'duty', name: 'Duty desk', role: 'duty_line' as const, phone: '+62763123112' },
+    ]
+    const html = render(<SmsView lang="en" kind="safe" onKind={() => undefined} body="EMBER AMAN" position={{ kind: 'unavailable' }} onBack={() => undefined} recipients={recipients} selectedRecipients={['lead']} />)
+    expect(html).toContain('Crew leader · crew lead')
+    expect(html).toContain('Duty desk · BPBD duty line')
+    expect(html).toContain('sms:+6281212344410?')
+    expect(html).not.toContain('sms:+62763123112')
+    expect(html).toContain('SMS needs cellular service')
+    const empty = render(<SmsView lang="en" kind="help" onKind={() => undefined} body="HELP" position={{ kind: 'unavailable' }} onBack={() => undefined} recipients={recipients} selectedRecipients={[]} />)
+    expect(empty).toContain('aria-disabled="true"')
+    expect(empty).not.toContain('href="sms:')
+  })
 })
 
 describe('Home and routes with no signal', () => {
@@ -159,5 +180,18 @@ describe('Home and routes with no signal', () => {
     const html = layout('/pwa/sms')
     expect(html).toContain('Send by SMS')
     expect(html).toContain('data-testid="tab-home"')
+  })
+
+  it('provides SMS access offline even before any digest has loaded', () => {
+    const html = layout('/pwa', { digest: null, digestStatus: 'loading', outbox: outboxHandle({ online: false }) })
+    expect(html).toContain('data-testid="no-signal-sms"')
+    expect(html).toContain('No instruction in the last data.')
+    expect(html).not.toContain('home-skeleton')
+  })
+
+  it('offers SMS when data is unreachable even if the browser still reports online', () => {
+    const html = layout('/pwa', { digestStatus: 'unreachable', outbox: outboxHandle({ online: true }) })
+    expect(html).toContain('data-testid="no-signal-sms"')
+    expect(html).not.toContain('TASK WAITING')
   })
 })

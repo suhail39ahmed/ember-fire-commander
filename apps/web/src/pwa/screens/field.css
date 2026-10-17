@@ -1,0 +1,40 @@
+/* Offline field card and native SMS handoff: Figma frames 27 and 28. */
+.vol-main.vol-main-field { padding: 16px 16px calc(104px + env(safe-area-inset-bottom, 0px)); }
+.no-signal, .sms-screen { display: flex; flex-direction: column; gap: 16px; }
+.no-signal .card { border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; box-shadow: none; gap: 6px; }
+.no-signal .field-row { display: flex; flex-direction: row; align-items: center; gap: 12px; }
+.field-icon { flex: none; width: 20px; height: 20px; color: #cc390a; }
+.field-row > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.no-signal strong, .no-signal .rule-text { font-size: 15px; line-height: 1.45; font-weight: 600; }
+.no-signal .small { font-size: 13px; line-height: 1.45; }
+.vol .no-signal .offline-card { background: #f1e8d9; border-color: #ac6b00; }
+.no-signal .offline-card .field-icon { color: #ac6b00; }
+.no-signal .offline-card h2 { font-size: 15px; line-height: 1.4; font-weight: 600; }
+.vol .no-signal .safety-rule { border-color: #ff3434; background: #fde6e1; }
+.no-signal .safety-rule .section-label { color: #d52920; }
+.no-signal .section-label, .sms-screen .section-label { font-family: var(--fig-mono, ui-monospace, monospace); font-size: 10px; letter-spacing: .06em; line-height: 1.5; }
+.no-signal .link-card { color: inherit; text-decoration: none; }
+.field-queue summary { padding: 8px 0; color: var(--ink-muted); font-size: 12px; cursor: pointer; }
+.field-queue .card { padding: 10px; }
+.sms-screen h2 { font-size: 24px; line-height: 1.25; font-weight: 700; }
+.sms-back { align-self: flex-start; padding: 0; min-height: 28px; border: 0; color: var(--ink-muted); background: transparent; cursor: pointer; font: inherit; font-size: 13px; }
+.sms-lead { color: var(--ink-muted); font-size: 15px; line-height: 1.5; }
+.sms-section { display: flex; flex-direction: column; gap: 12px; }
+.sms-recipients { display: flex; flex-direction: column; gap: 14px; }
+.sms-recipient { display: flex; align-items: center; gap: 12px; min-height: 62px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); cursor: pointer; }
+.sms-recipient:has(input:checked) { border-color: #3455ff; background: #e5e9f5; }
+.sms-recipient input { width: 18px; height: 18px; flex: none; accent-color: #2852df; }
+.sms-recipient span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.sms-recipient strong { font-size: 15px; line-height: 1.3; font-weight: 600; }
+.sms-recipient small { color: var(--ink-muted); font: 11px var(--fig-mono, ui-monospace, monospace); letter-spacing: .06em; }
+.sms-screen .sms-body { margin: 0; padding: 14px; border: 1px solid #d8d3cb; border-radius: 12px; background: var(--surface-2); font: 11px/1.5 var(--fig-mono, ui-monospace, monospace); letter-spacing: .05em; overflow-wrap: anywhere; }
+.sms-kinds { display: flex; flex-wrap: wrap; gap: 8px; }
+.sms-kind { min-height: 38px; border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font: inherit; font-size: 12px; font-weight: 600; background: var(--surface-2); color: var(--ink); cursor: pointer; }
+.sms-kind[aria-checked='true'] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.sms-screen .sms-open { display: flex; align-items: center; justify-content: center; min-height: 56px; width: 100%; border-radius: 999px; background: var(--ink); color: var(--paper); text-decoration: none; font-weight: 600; }
+.sms-open[aria-disabled='true'] { opacity: .5; cursor: not-allowed; }
+.sms-screen .warn { color: #a86300; font-size: 13px; line-height: 1.45; }
+[data-theme='dark'] .no-signal .offline-card { background: #34291b; }
+[data-theme='dark'] .no-signal .safety-rule { background: #3c201d; }
+[data-theme='dark'] .sms-recipient:has(input:checked) { background: #222d49; }
+[data-theme='dark'] .sms-screen .warn { color: #e9b96e; }

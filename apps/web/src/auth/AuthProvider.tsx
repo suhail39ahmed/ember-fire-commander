@@ -5,6 +5,7 @@ import { fetchMe, type Me } from './api'
 import { classifyAuthFailure, type AuthFailure } from './failure'
 import { auth, googleProvider } from './firebase'
 import { unregisterPushFor } from '../pwa/push/browser'
+import { clearOfflineCache, readOfflineProfile, saveOfflineProfile } from '../pwa/offlineCache'
 
 type Status = 'loading' | 'signed-out' | 'ready' | 'no-access' | 'error' | AuthFailure
 
@@ -38,6 +39,15 @@ async function loadMe(
   quiet = false,
   registerVolunteer = false,
 ) {
+  // Only an already authenticated volunteer can reopen their own cached field
+  // data offline. Online failures always retain the normal authentication checks.
+  const cached = !registerVolunteer && typeof navigator !== 'undefined' && navigator.onLine === false ? readOfflineProfile(next.uid) : null
+  if (cached) {
+    setMe(cached)
+    setMessage(null)
+    setStatus('ready')
+    return
+  }
   if (!quiet) setStatus('loading')
   try {
     const result = await fetchMe(next, registerVolunteer)
@@ -51,9 +61,20 @@ async function loadMe(
       return
     }
     setMe(result.me)
+    saveOfflineProfile(result.me)
     setMessage(null)
     setStatus('ready')
   } catch (err) {
+    // Some phones still report "online" while mobile data is unreachable.
+    // A rejected API response is handled above and never uses this fallback.
+    const code = (err as { code?: string } | null)?.code
+    const offline = !registerVolunteer && (err instanceof TypeError || code === 'auth/network-request-failed') ? readOfflineProfile(next.uid) : null
+    if (offline) {
+      setMe(offline)
+      setMessage(null)
+      setStatus('ready')
+      return
+    }
     setMe(null)
     setStatus('error')
     setMessage(err instanceof Error ? err.message : 'Could not reach ember-api')
@@ -85,6 +106,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!same) setMe(null)
       await loadMe(next, setMe, setMessage, setStatus, same)
     })
+  }, [])
+
+  useEffect(() => {
+    const recheck = () => {
+      if (userRef.current) void loadMe(userRef.current, setMe, setMessage, setStatus, true)
+    }
+    window.addEventListener('online', recheck)
+    return () => window.removeEventListener('online', recheck)
   }, [])
 
   const reportAuthFailure = useCallback((failure: AuthFailure) => {
@@ -126,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut: async () => {
       await unregisterPushFor(user)
       await signOut(auth)
+      clearOfflineCache()
     },
     refreshMe: async (options) => {
       if (!user) return

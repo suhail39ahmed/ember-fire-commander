@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { EmberApi } from './api/types'
 import type { Digest, DigestPosition } from './contracts/types'
 import { DigestPoller, type PollFailure } from './digestPoll'
+import { readOfflineDigest, saveOfflineDigest } from './offlineCache'
 
 export type DigestStatus = 'loading' | 'ready' | PollFailure
 
@@ -29,10 +30,11 @@ export function useDigest(
   api: EmberApi,
   onSynced?: (digest: Digest, receivedAt: Date) => void,
   position: DigestPosition | null = null,
+  cacheUid: string | null = null,
 ): DigestState {
-  const [digest, setDigest] = useState<Digest | null>(null)
+  const [digest, setDigest] = useState<Digest | null>(() => readOfflineDigest(cacheUid)?.digest ?? null)
   const [status, setStatus] = useState<DigestStatus>('loading')
-  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null)
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(() => readOfflineDigest(cacheUid)?.receivedAt ?? null)
   const poller = useRef<DigestPoller | null>(null)
   const synced = useRef(onSynced)
   synced.current = onSynced
@@ -41,12 +43,16 @@ export function useDigest(
   const hasPosition = position !== null
 
   useEffect(() => {
+    const cached = readOfflineDigest(cacheUid)
+    setDigest(cached?.digest ?? null)
+    setLastSyncAt(cached?.receivedAt ?? null)
     const instance = new DigestPoller({
       fetchDigest: () => api.getDigest(latest.current),
       onDigest: (next, receivedAt) => {
         setDigest(next)
         setStatus('ready')
         setLastSyncAt(receivedAt.toISOString())
+        if (cacheUid) saveOfflineDigest(cacheUid, next, receivedAt.toISOString())
         synced.current?.(next, receivedAt)
       },
       onFailure: setStatus,
@@ -65,7 +71,7 @@ export function useDigest(
       instance.stop()
       poller.current = null
     }
-  }, [api])
+  }, [api, cacheUid])
 
   useEffect(() => {
     if (hasPosition) void poller.current?.refresh()

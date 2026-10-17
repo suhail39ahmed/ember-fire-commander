@@ -8,6 +8,8 @@ import { formatTime } from '../formatTime'
 import { strings, t, type Lang } from '../i18n'
 import { incidentLabelById } from '../incidentName'
 import type { OutboxItem } from '../outbox/types'
+import type { OutboxHandle } from '../outbox/useOutbox'
+import { OutboxPanel } from '../outbox/OutboxPanel'
 import type { DigestStatus } from '../useDigest'
 import { useBattery, useNow, useOfflineSince } from '../useDeviceStatus'
 import type { DevicePosition } from './arrival'
@@ -37,6 +39,7 @@ export interface HomeProps {
   queuedCount: number
   /** What is waiting in the outbox, for the no-signal card. Without it the card says no report is saved. */
   queued?: OutboxItem[]
+  outboxActions?: Pick<OutboxHandle, 'retry' | 'discard' | 'flush'>
   /** ember-api client. Required so Join now on the nearby prompt can call it. */
   api: EmberApi
   volunteerId?: string | null
@@ -104,6 +107,7 @@ export function HomeScreen({
   online,
   queuedCount,
   queued = [],
+  outboxActions,
   api,
   volunteerId = null,
   onRefresh,
@@ -132,7 +136,7 @@ export function HomeScreen({
     })
   }, [])
 
-  if (!digest && status === 'loading') {
+  if (online && !digest && status === 'loading') {
     return (
       <>
         <ReportTile lang={lang} />
@@ -142,7 +146,7 @@ export function HomeScreen({
   }
 
   const thankYou = closedThankYouTask(digest, seenClosed)
-  if (thankYou) {
+  if (online && thankYou) {
     return (
       <LeadClosedScreen
         lang={lang}
@@ -168,7 +172,7 @@ export function HomeScreen({
 
   return (
     <>
-      {offline && <NoSignalCard lang={lang} sinceMs={offlineSince} batteryPct={battery} task={task && task.type !== 'withdraw' ? task : null} queued={queued} nowMs={nowMs} />}
+      {offline && <NoSignalCard lang={lang} sinceMs={offlineSince} batteryPct={battery} task={task && task.type !== 'withdraw' ? task : null} queued={queued} nowMs={nowMs} queueDetails={outboxActions && queued.some((item) => item.state !== 'sent') ? <OutboxPanel items={queued} online={online} lang={lang} onRetry={(id) => void outboxActions.retry(id)} onDiscard={(id) => void outboxActions.discard(id)} onSendNow={() => void outboxActions.flush()} /> : undefined} />}
       {offline && lastSyncAt && (
         <p className="muted small" data-testid="home-last-sync">
           {t(lang, screenStrings.home.lastSync)} {formatTime(lastSyncAt)}
