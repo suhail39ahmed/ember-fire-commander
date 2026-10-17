@@ -19,7 +19,48 @@ export function placeLine(card: VolunteerCardData | null): string | null {
   if (!card || card.lastLat === null || card.lastLng === null) return null
   if (!Number.isFinite(card.lastLat) || !Number.isFinite(card.lastLng)) return null
   const place = `${card.lastLat.toFixed(3)}, ${card.lastLng.toFixed(3)}`
-  return card.lastAccuracyM === null ? place : `${place} · ±${card.lastAccuracyM} m`
+  const accuracy = accuracyText(card.lastAccuracyM)
+  return accuracy ? `${place} · ${accuracy}` : place
+}
+
+/**
+ * The accuracy the phone reported for a position, in the unit a person reads: "±18 m", "±2.4 km", "±1497 km".
+ * The value is stored in metres as the browser gave it. A desktop that locates by network address reports
+ * thousands of metres, and that is what this shows, with no change to the stored number. Null when none was reported.
+ */
+export function accuracyText(accuracyM: number | null | undefined): string | null {
+  if (accuracyM === null || accuracyM === undefined || !Number.isFinite(accuracyM) || accuracyM < 0) return null
+  if (accuracyM < 1000) return `±${Math.round(accuracyM)} m`
+  const km = accuracyM / 1000
+  return km < 10 ? `±${km.toFixed(1)} km` : `±${Math.round(km)} km`
+}
+
+/** True when the reported accuracy is too wide to place anyone on a map (5 km or more). */
+export function isCoarse(accuracyM: number | null | undefined): boolean {
+  return typeof accuracyM === 'number' && Number.isFinite(accuracyM) && accuracyM >= 5000
+}
+
+/** "Sari · crew lead": the name and the stored team role. The role is left out when none is stored. */
+export function nameRole(name: string, card: VolunteerCardData | null): string {
+  const role = card?.teamRole?.trim()
+  return role ? `${name} · ${role}` : name
+}
+
+/** "Tim Pompa A · 120 m from the flame edge" style second line: crew, then distance. Null when neither is stored. */
+export function crewDistanceLine(lang: Lang, card: VolunteerCardData | null): string | null {
+  const parts = [card?.crewName?.trim() || null, distanceLine(lang, card)].filter((part): part is string => Boolean(part))
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
+/** "4G · 64%": what the phone said with its newest report that carried it. Parts it did not send are left out. */
+export function linkLine(card: VolunteerCardData | null): string | null {
+  const device = card?.device
+  if (!device) return null
+  const parts = [
+    device.network && NETWORKS[device.network] ? NETWORKS[device.network] : null,
+    device.batteryPct !== null && device.batteryPct !== undefined ? `${device.batteryPct}%` : null,
+  ].filter((part): part is string => Boolean(part))
+  return parts.length > 0 ? parts.join(' · ') : null
 }
 
 const NETWORKS = { '2g': '2G', '3g': '3G', '4g': '4G', wifi: 'Wi-Fi', unknown: '' } as const

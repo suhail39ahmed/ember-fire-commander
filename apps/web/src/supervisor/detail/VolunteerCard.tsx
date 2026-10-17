@@ -7,10 +7,9 @@ import { ApiError } from '../../pwa/api/types'
 import type { LiveSeatVolunteer } from '../contracts'
 import { detailCopy, severityName } from './copy'
 import { stateCopy } from './withdrawStateCopy'
-import { popupCopy } from './popupCopy'
 import { liveCopy } from './liveCopy'
 import { DeliveryLine } from './DeliveryLine'
-import { deliveryFacts, distanceLine, placeLine, profileLine, safeStamp } from './cardModel'
+import { accuracyText, crewDistanceLine, deliveryFacts, isCoarse, linkLine, nameRole, safeStamp } from './cardModel'
 import { helpCopy } from './helpCopy'
 import { HELP_CHIP } from './helpModel'
 import { initialsOf, volunteerLabel, type VolunteerRow } from './model'
@@ -57,9 +56,8 @@ export function VolunteerCard({
 }) {
   const name = row.name ?? volunteerLabel(row.id, lang)
   const { latest, task, card } = row
-  const away = distanceLine(lang, card)
-  const place = placeLine(card)
-  const profile = profileLine(card)
+  const crewLine = crewDistanceLine(lang, card)
+  const link = linkLine(card)
   const needsHelp = latest?.chip === HELP_CHIP
   const stamp = safeStamp(lang, card)
   const facts = deliveryFacts(lang, card)
@@ -79,14 +77,15 @@ export function VolunteerCard({
     }
   }
 
+  const onLive = live?.media === 'live'
   return (
-    <article className={`${row.withdrawn ? 'inc-vol withdrawn' : 'inc-vol'}${row.withdrawn && safe === false ? ' wd-unconfirmed' : ''}${needsHelp ? ' help' : ''}`} aria-label={name}>
+    <article className={`${row.withdrawn ? 'inc-vol withdrawn' : 'inc-vol'}${row.withdrawn && safe === false ? ' wd-unconfirmed' : ''}${needsHelp ? ' help' : ''}${onLive ? ' on-live' : ''}`} aria-label={name}>
       <header className="inc-vol-head">
         <span className="inc-avatar" aria-hidden="true">{initialsOf(name)}</span>
         <div className="inc-vol-id">
-          <p className="inc-vol-name">{name}</p>
+          <p className="inc-vol-name">{nameRole(name, card)}</p>
+          {crewLine && <p className="inc-muted inc-vol-crew">{crewLine}</p>}
           <p className="inc-muted">{reportLine(lang, row)}</p>
-          {profile && <p className="inc-muted inc-vol-profile">{profile}</p>}
           {live && (
             <p className="inc-muted">
               {live.signal.toUpperCase()}
@@ -95,12 +94,13 @@ export function VolunteerCard({
             </p>
           )}
         </div>
+        {link && <span className="inc-vol-link">{link}</span>}
         {needsHelp && <span className="inc-pill inc-pill-red">{t(lang, helpCopy.badge)}</span>}
         {row.withdrawn && <span className="inc-pill inc-pill-red">{t(lang, detailCopy.withdrawSent)}</span>}
         {live?.media === 'live' && <span className="inc-pill inc-pill-live">{t(lang, liveCopy.liveBadge)}</span>}
         {onOpen && (
-          <button type="button" className="inc-btn inc-btn-plain inc-vol-open" aria-label={`${t(lang, popupCopy.open)} ${name}`} onClick={onOpen}>
-            {t(lang, popupCopy.open)}
+          <button type="button" className="inc-btn inc-btn-plain inc-vol-open" aria-label={`${t(lang, detailCopy.expand)} ${name}`} onClick={onOpen}>
+            {t(lang, detailCopy.expand)}
           </button>
         )}
       </header>
@@ -143,9 +143,7 @@ export function VolunteerCard({
             </p>
             {latest.source === 'photo' && <p className="inc-muted">{t(lang, detailCopy.photoReport)}</p>}
             <p className="inc-vol-text">{latest.text ? `“${latest.text}”` : t(lang, detailCopy.noReportText)}</p>
-            <p className="inc-muted">
-              {t(lang, detailCopy.source[latest.source])} · ±{latest.accuracyM ?? '?'} m
-            </p>
+            {isCoarse(latest.accuracyM) && <p className="inc-muted">{t(lang, detailCopy.coarseFix)} {accuracyText(latest.accuracyM)}</p>}
           </>
         ) : card?.lastReportAt ? (
           // A conflict lists only its two sides, so this volunteer's report is known from the card alone.
@@ -156,7 +154,6 @@ export function VolunteerCard({
         ) : (
           <p className="inc-muted">{t(lang, detailCopy.noReport)}</p>
         )}
-        {(away || place) && <p className="inc-muted inc-vol-where">{[away, place].filter(Boolean).join(' · ')}</p>}
       </section>
 
       <section className="inc-vol-task" aria-label={t(lang, detailCopy.lastInstruction)}>

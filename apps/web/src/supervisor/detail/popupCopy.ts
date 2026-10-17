@@ -50,6 +50,9 @@ export const popupCopy = {
   suggestions: { id: 'Saran EMBER', en: 'EMBER suggests' },
   ask: { id: 'Tanya EMBER tentang', en: 'Ask EMBER about' },
   askBefore: { id: 'MINTA SEBELUM DIKIRIM', en: 'ASKS BEFORE IT SENDS' },
+  promptNext: { id: 'Apa selanjutnya?', en: 'What next?' },
+  promptRecap: { id: 'Ringkas 5 menit terakhir', en: 'Summarise last 5 min' },
+  promptAll: { id: 'Buat draf untuk semua', en: 'Draft for everyone' },
   askPlaceholder: { id: 'Tanya EMBER, atau tulis instruksi…', en: 'Ask EMBER, or tell it what to send…' },
   askGap: {
     id: 'Layanan agents belum punya endpoint yang menjawab pertanyaan, jadi obrolan ini belum tersambung. Tidak ada yang dikirim dari sini.',

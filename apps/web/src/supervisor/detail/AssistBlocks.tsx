@@ -4,6 +4,7 @@ import { formatTimeZone } from '../../pwa/formatTime'
 import { t, type Lang } from '../../pwa/i18n'
 import type { AskAnswer, DetailSuggestions, Translation } from '../contracts'
 import { assistCopy } from './assistCopy'
+import { popupCopy } from './popupCopy'
 import { ASK_MAX, assistProblem, languageName, worthShowing, type AssistActions } from './assistModel'
 import './assist.css'
 
@@ -73,12 +74,15 @@ export function AskBox({ lang, volunteerId, assist, offline }: { lang: Lang; vol
   const trimmed = question.trim()
   const tooLong = trimmed.length > ASK_MAX
 
-  async function submit() {
-    if (busy || offline || trimmed === '' || tooLong) return
+  /** Asks `text` when given (a quick prompt), else what is typed in the box. A prompt fills the box so the question stays visible. */
+  async function submit(text?: string) {
+    const asked = (text ?? question).trim()
+    if (busy || offline || asked === '' || asked.length > ASK_MAX) return
+    if (text !== undefined) setQuestion(asked)
     setBusy(true)
     setProblem(null)
     try {
-      setAnswer(await assist.ask(trimmed, volunteerId))
+      setAnswer(await assist.ask(asked, volunteerId))
     } catch (error) {
       setAnswer(null)
       setProblem(assistProblem(lang, error))
@@ -89,6 +93,13 @@ export function AskBox({ lang, volunteerId, assist, offline }: { lang: Lang; vol
 
   return (
     <>
+      <div className="pop-prompts">
+        {[popupCopy.promptNext, popupCopy.promptRecap, popupCopy.promptAll].map((label) => (
+          <button key={label.en} type="button" className="pop-btn" disabled={busy || offline} onClick={() => void submit(t(lang, label))}>
+            {t(lang, label)}
+          </button>
+        ))}
+      </div>
       <div className="ast-ask">
         <input
           className="pop-input"

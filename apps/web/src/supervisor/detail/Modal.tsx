@@ -13,6 +13,7 @@ export function Modal({
   onClose,
   dismissible = true,
   wide = false,
+  closeLabel,
   children,
 }: {
   title: string
@@ -21,6 +22,8 @@ export function Modal({
   dismissible?: boolean
   /** The wide panel the volunteer pop-up uses. */
   wide?: boolean
+  /** When set, a close (✕) button sits at the top right with this accessible label. Closing writes nothing. */
+  closeLabel?: string
   children: ReactNode
 }) {
   const titleId = useId()
@@ -63,6 +66,9 @@ export function Modal({
   return (
     <div className="inc-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && canClose.current) onClose() }}>
       <div ref={panel} className={wide ? 'inc-modal wide' : 'inc-modal'} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+        {closeLabel && (
+          <button type="button" className="inc-modal-x" aria-label={closeLabel} disabled={!dismissible} onClick={onClose}>✕</button>
+        )}
         <h2 className="inc-modal-title" id={titleId}>{title}</h2>
         {children}
       </div>
