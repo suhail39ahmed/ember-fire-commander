@@ -47,4 +47,29 @@
 .cam-toggle.is-on { background: #fff; color: var(--ink); border-color: #fff; }
 .cam-toggle[aria-busy='true'] { opacity: 0.7; }
 .cam-back:focus-visible, .cam-toggle:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) { .cam * { transition: none; } }
+
+/* Recording indicator: pulsing red dot + elapsed counter */
+.cam-rec {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px;
+  background: rgba(20, 18, 16, 0.72); border: 1px solid rgba(255, 255, 255, 0.22); font-size: 13px; font-weight: 600; white-space: nowrap;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: #fff;
+}
+.cam-rec-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: #e8372a; flex: none;
+  animation: cam-rec-pulse 1.2s ease-in-out infinite;
+}
+@keyframes cam-rec-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.cam-rec-time { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.04em; }
+.cam-rec-label { color: #e8372a; }
+
+/* "VIDEO READY" hint that appears once the clip is saved but not yet sent */
+.cam-clip-ready {
+  position: absolute; left: 14px; right: 14px; bottom: 66px; margin: 0; padding: 6px 12px; border-radius: 12px;
+  background: rgba(20, 18, 16, 0.86); font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.06em; text-align: center; color: rgba(255, 255, 255, 0.88);
+}
+
+@media (prefers-reduced-motion: reduce) { .cam * { transition: none; animation: none; } }

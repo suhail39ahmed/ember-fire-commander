@@ -1,4 +1,4 @@
-import type { DeclineReason, Digest, DigestOptions, DigestPosition, FlagRequest, IncidentDetail, IncidentMembership, JoinRequestSummary, Observation, ObservationRequest, PhotoContentType, PracticeResponse, TrainingPayload, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
+import type { DeclineReason, Digest, DigestOptions, DigestPosition, FlagRequest, IncidentDetail, IncidentMembership, JoinRequestSummary, Observation, ObservationRequest, PhotoContentType, PracticeResponse, TrainingPayload, UploadUrl, VideoContentType, VideoUploadUrl, WithdrawAnswerRequest } from '../contracts/types'
 
 import type { Me, MePatch } from '../../auth/api'
 import type { PracticeRequest, PracticeAnswer } from '../contracts/types'
@@ -29,6 +29,8 @@ export interface EmberApi {
   createObservation(body: ObservationRequest): Promise<Observation>
   /** POST /photos/upload-url: a signed PUT URL for one photo in the private bucket. */
   createUploadUrl(contentType: PhotoContentType): Promise<UploadUrl>
+  /** POST /videos/upload-url: a signed PUT URL for one video clip in the private bucket. */
+  createVideoUploadUrl(contentType: VideoContentType): Promise<VideoUploadUrl>
   /** POST /tasks/{id}/heard: this phone showed the task. Sets `heardAt` once; a repeat changes nothing. */
   markTaskHeard(taskId: string): Promise<void>
   /** POST /tasks/{id}/accept: Doing it. Recorded once; a repeat changes nothing. */

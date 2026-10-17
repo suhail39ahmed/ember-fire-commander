@@ -7,7 +7,13 @@ import type { IncidentStatus, Observation as StoredObservation, Severity, Task, 
 export type { IncidentStatus, Severity, Task, Withdraw }
 
 /** An observation as a supervisor reads it. `volunteerName` is on it when one was stored (section 6.3). */
-export type Observation = StoredObservation & { volunteerName?: string }
+export type Observation = StoredObservation & { volunteerName?: string; videoPath?: string | null }
+
+/** What a short-lived signed read of one video report returns (section 6.7). */
+export interface VideoUrl {
+  url: string
+  expiresAt: string
+}
 
 /** Full incident record (section 5.2). */
 export interface Incident {

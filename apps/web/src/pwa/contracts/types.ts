@@ -6,7 +6,7 @@ import type { Me } from '../../auth/api'
 
 export type { Me }
 
-export type ObservationSource = 'live' | 'chip' | 'text' | 'photo'
+export type ObservationSource = 'live' | 'chip' | 'text' | 'photo' | 'video'
 export type ChipValue = 'asap' | 'api' | 'aman' | 'butuh_bantuan'
 export type Severity = 'none' | 'smoke' | 'small_flame' | 'large_flame' | 'unknown'
 export type IncidentStatus = 'open' | 'held' | 'verified' | 'extinguished'
@@ -87,7 +87,26 @@ export interface PhotoObservationCreate {
   taskId?: string
 }
 
-export type ObservationRequest = ObservationCreate | PhotoObservationCreate
+/**
+ * Video observation body. Same position shape as section 6.2 plus the private object path
+ * returned by POST /videos/upload-url. Sent only after the upload succeeded.
+ */
+export interface VideoObservationCreate {
+  source: 'video'
+  capturedAt: string
+  lat: number
+  lng: number
+  accuracyM: number | null
+  chip: null
+  text: string | null
+  videoPath: string
+  clientId?: string
+  device?: ObservationDevice
+  /** Verify task answered by this video. */
+  taskId?: string
+}
+
+export type ObservationRequest = ObservationCreate | PhotoObservationCreate | VideoObservationCreate
 
 /** Body of POST /photos/upload-url. */
 export interface UploadUrlRequest {
@@ -105,6 +124,25 @@ export interface UploadUrl {
   expiresAt: string
 }
 
+export type VideoContentType = 'video/mp4' | 'video/webm'
+
+/** Body of POST /videos/upload-url. */
+export interface VideoUploadUrlRequest {
+  contentType: VideoContentType
+}
+
+/** Response of POST /videos/upload-url: a short-lived signed PUT URL and the private object path. */
+export interface VideoUploadUrl {
+  uploadUrl: string
+  method: 'PUT'
+  headers: Record<string, string>
+  videoPath: string
+  expiresAt: string
+}
+
+/** Maximum video upload size enforced by the server (10 MB). */
+export const MAX_VIDEO_BYTES = 10 * 1024 * 1024
+
 /** Stored observation (section 5.1). */
 export interface Observation {
   id: string
@@ -121,6 +159,8 @@ export interface Observation {
   text: string | null
   severity: Severity
   photoPath: string | null
+  /** Present only on source: video observations. Private object path, never a URL. */
+  videoPath?: string | null
   immutable: true
   /** Present when the report was sent with a clientId. */
   clientId?: string

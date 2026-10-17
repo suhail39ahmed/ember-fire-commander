@@ -57,6 +57,7 @@ def assemble_record(prepared, volunteer_id, received_at, volunteer_name=None):
         "text": prepared["text"],
         "severity": prepared["severity"],
         "photoPath": prepared.get("photoPath"),
+        "videoPath": prepared.get("videoPath"),
         "immutable": True,
     }
     if prepared.get("clientId"):

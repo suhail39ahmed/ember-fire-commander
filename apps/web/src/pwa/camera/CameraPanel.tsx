@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { t, type Lang } from '../i18n'
 import type { CameraState, StreamLike } from './cameraController'
 import { cameraStrings as s } from './cameraStrings'
+import type { VideoRecorderSnapshot } from './videoRecorder'
 import './camera.css'
 
 interface Props {
@@ -19,6 +20,8 @@ interface Props {
    * (shared contract section 7), so the Report tab passes false and the caption says "preview only".
    */
   framesToCoach?: boolean
+  /** Current recording state from the VideoRecorder. Omit to hide the indicator. */
+  recorderSnap?: VideoRecorderSnapshot
 }
 
 function CameraIcon({ off }: { off: boolean }) {
@@ -46,11 +49,40 @@ function problemText(state: CameraState): (typeof s)[keyof typeof s] | null {
   }
 }
 
+function formatElapsed(ms: number): string {
+  const totalSec = Math.floor(ms / 1000)
+  const m = Math.floor(totalSec / 60)
+  const sec = totalSec % 60
+  return `${m}:${String(sec).padStart(2, '0')}`
+}
+
+/** Pulsing REC badge + elapsed timer. Only shown while actively recording. */
+function RecordingChip({ lang, startedAt }: { lang: Lang; startedAt: number }) {
+  const [elapsed, setElapsed] = useState(() => Date.now() - startedAt)
+  useEffect(() => {
+    const id = setInterval(() => setElapsed(Date.now() - startedAt), 500)
+    return () => clearInterval(id)
+  }, [startedAt])
+  const display = formatElapsed(elapsed)
+  return (
+    <span
+      className="cam-rec"
+      aria-label={`${t(lang, s.recAriaLabel)} ${display}`}
+      data-testid="camera-rec"
+      role="status"
+    >
+      <span className="cam-rec-dot" aria-hidden="true" />
+      <span className="cam-rec-label" aria-hidden="true">{t(lang, s.recLabel)}</span>
+      <span className="cam-rec-time" aria-hidden="true" data-testid="camera-rec-time">{display}</span>
+    </span>
+  )
+}
+
 /**
  * The dark camera panel at the top of the Report tab. Its height is fixed, so turning the camera on or off, or an
  * error message, never moves what is below. The camera starts only from the toggle tap.
  */
-export function CameraPanel({ lang, state, stream, onToggle, accuracyM, onBack, framesToCoach = false }: Props) {
+export function CameraPanel({ lang, state, stream, onToggle, accuracyM, onBack, framesToCoach = false, recorderSnap }: Props) {
   const video = useRef<HTMLVideoElement>(null)
   const running = state === 'on'
   const problem = problemText(state)
@@ -70,6 +102,9 @@ export function CameraPanel({ lang, state, stream, onToggle, accuracyM, onBack, 
   const caption =
     state === 'on' ? (framesToCoach ? s.captionToCoach : s.captionPreview) : state === 'starting' ? s.captionStarting : problem ? s.captionProblem : s.captionOff
 
+  const isRecording = recorderSnap?.recording === true
+  const hasClip = Boolean(recorderSnap?.clip)
+
   return (
     <section className="cam" data-testid="camera-panel" data-camera={state} aria-label={t(lang, s.panel)}>
       <video ref={video} className="cam-video" data-testid="camera-video" playsInline muted autoPlay hidden={!running} aria-hidden="true" />
@@ -85,6 +120,9 @@ export function CameraPanel({ lang, state, stream, onToggle, accuracyM, onBack, 
               <i className="cam-dot ok" aria-hidden="true" />±{accuracyM} m
             </span>
           )}
+          {isRecording && recorderSnap?.startedAt && (
+            <RecordingChip lang={lang} startedAt={recorderSnap.startedAt} />
+          )}
         </div>
         {onBack && (
           <button type="button" className="cam-back" aria-label={t(lang, s.back)} onClick={onBack}>
@@ -98,6 +136,12 @@ export function CameraPanel({ lang, state, stream, onToggle, accuracyM, onBack, 
       {problem && (
         <p className="cam-problem" role="status" data-testid="camera-problem">
           {t(lang, problem)}
+        </p>
+      )}
+
+      {!problem && !isRecording && hasClip && (
+        <p className="cam-clip-ready" data-testid="camera-clip-ready">
+          {t(lang, s.recReady)}
         </p>
       )}
 

@@ -50,6 +50,7 @@ function validationError(field: string, hint: string): ApiError {
 }
 
 const MOCK_PHOTO_PREFIX = 'photos/'
+const MOCK_VIDEO_PREFIX = 'videos/'
 
 const mockTraining: TrainingPayload = {
   video: {
@@ -115,7 +116,7 @@ const NEARBY_FIXTURES = [
 ] as const
 
 function validate(body: ObservationRequest, volunteerId: string): void {
-  if (body.source !== 'chip' && body.source !== 'text' && body.source !== 'photo') throw validationError('source', 'use chip, text or photo')
+  if (body.source !== 'chip' && body.source !== 'text' && body.source !== 'photo' && body.source !== 'video') throw validationError('source', 'use chip, text, photo or video')
   if (typeof body.lat !== 'number' || body.lat < -90 || body.lat > 90) throw validationError('lat', 'required, -90 to 90')
   if (typeof body.lng !== 'number' || body.lng < -180 || body.lng > 180) throw validationError('lng', 'required, -180 to 180')
   if (!body.capturedAt) throw validationError('capturedAt', 'required')
@@ -125,6 +126,9 @@ function validate(body: ObservationRequest, volunteerId: string): void {
   if (body.source === 'text' && !body.text?.trim()) throw validationError('text', 'required for a text report')
   if (body.source === 'photo' && !body.photoPath?.startsWith(`${MOCK_PHOTO_PREFIX}${volunteerId}/`)) {
     throw validationError('photoPath', 'use the photoPath from your own upload')
+  }
+  if (body.source === 'video' && !body.videoPath?.startsWith(`${MOCK_VIDEO_PREFIX}${volunteerId}/`)) {
+    throw validationError('videoPath', 'use the videoPath from your own upload')
   }
 }
 
@@ -407,6 +411,18 @@ export function createMockApi(volunteerId: string, latencyMs = 300, initialProfi
         method: 'PUT',
         headers: { 'Content-Type': contentType },
         photoPath: `${MOCK_PHOTO_PREFIX}${volunteerId}/mock/${id}.${ext}`,
+        expiresAt: new Date(Date.now() + 300_000).toISOString(),
+      }
+    },
+    async createVideoUploadUrl(contentType) {
+      await wait()
+      const id = Math.random().toString(16).slice(2).padEnd(12, '0')
+      const ext = contentType === 'video/mp4' ? 'mp4' : 'webm'
+      return {
+        uploadUrl: `mock-upload-video://${id}`,
+        method: 'PUT',
+        headers: { 'Content-Type': contentType },
+        videoPath: `${MOCK_VIDEO_PREFIX}${volunteerId}/mock/${id}.${ext}`,
         expiresAt: new Date(Date.now() + 300_000).toISOString(),
       }
     },

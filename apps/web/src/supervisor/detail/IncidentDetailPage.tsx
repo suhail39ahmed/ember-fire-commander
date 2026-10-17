@@ -115,6 +115,7 @@ export function IncidentDetailPage() {
         }
       }}
       photoUrl={(id, observationId) => api.getPhotoUrl(id, observationId)}
+      videoUrl={(id, observationId) => api.getVideoUrl(id, observationId)}
       assist={{
         suggest: async () => {
           const result = await api.suggestIncident(incidentId)

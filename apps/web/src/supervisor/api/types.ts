@@ -1,4 +1,4 @@
-import type { AskAnswer, DetailSuggestions, Incident, IncidentDecision, IncidentDetail, JoinDecision, LiveSeat, PendingJoinRequest, LowerableSeverity, PhotoUrl, ProposedTask, TaskDecision, Translation, WithdrawRequest } from '../contracts'
+import type { AskAnswer, DetailSuggestions, Incident, IncidentDecision, IncidentDetail, JoinDecision, LiveSeat, PendingJoinRequest, LowerableSeverity, PhotoUrl, VideoUrl, ProposedTask, TaskDecision, Translation, WithdrawRequest } from '../contracts'
 
 export interface LiveSeatDecision {
   liveSeat: LiveSeat
@@ -64,6 +64,8 @@ export interface SupervisorApi {
   sendInstruction(id: string, volunteerId: string, instruction: string): Promise<TaskDecision>
   /** A short-lived signed URL to read one photo report of the incident. `404` when there is none. */
   getPhotoUrl(id: string, observationId: string): Promise<PhotoUrl>
+  /** A short-lived signed URL to read one video report of the incident. `404` when there is none. */
+  getVideoUrl(id: string, observationId: string): Promise<VideoUrl>
   /** Stores a strictly lower severity. An active withdraw stays in effect. Only code can raise severity. */
   lowerSeverity(id: string, severity: LowerableSeverity): Promise<IncidentDecision>
   /** Human only, and the console cannot undo it. `409` when the incident is already extinguished. */

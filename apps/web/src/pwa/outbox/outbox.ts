@@ -7,18 +7,21 @@
  * the stored body and is never re-stamped. Every request carries the item id as
  * `clientId`, so a replay after a lost reply cannot create a second observation.
  */
-import type { Observation, ObservationRequest, PhotoContentType } from '../contracts/types'
+import type { Observation, ObservationRequest, PhotoContentType, VideoContentType } from '../contracts/types'
 import { ApiError } from '../api/types'
 import { UploadError } from '../photo/upload'
 import { buildPhotoObservation } from '../photo/uploadPhoto'
+import { buildVideoObservation } from '../video/uploadVideo'
 import type { OutboxStore } from './store'
-import { capturedAtOf, type OutboxItem, type PendingPhoto } from './types'
+import { capturedAtOf, type OutboxItem, type PendingPhoto, type PendingVideo } from './types'
 
 export interface OutboxDeps {
   store: OutboxStore
   send: (body: ObservationRequest) => Promise<Observation>
   /** Uploads a pending photo and resolves with its private object path. */
   uploadPhoto: (blob: Blob, contentType: PhotoContentType) => Promise<string>
+  /** Uploads a pending video and resolves with its private object path. Optional; items with video are skipped until this is provided. */
+  uploadVideo?: (blob: Blob, contentType: VideoContentType) => Promise<string>
   onChange?: (items: OutboxItem[]) => void
   now?: () => Date
   newId?: () => string
@@ -90,12 +93,17 @@ export class Outbox {
   }
 
   async enqueue(body: ObservationRequest): Promise<OutboxItem> {
-    return this.add({ body, photo: null })
+    return this.add({ body, photo: null, video: null })
   }
 
   /** Keeps a photo whose upload failed, so it survives a reload and uploads later. */
   async enqueuePhoto(photo: PendingPhoto): Promise<OutboxItem> {
-    return this.add({ body: null, photo })
+    return this.add({ body: null, photo, video: null })
+  }
+
+  /** Keeps a video clip whose upload failed, so it survives a reload and uploads later. */
+  async enqueueVideo(video: PendingVideo): Promise<OutboxItem> {
+    return this.add({ body: null, photo: null, video })
   }
 
   /**
@@ -166,6 +174,13 @@ export class Outbox {
           item = { ...item, body: buildPhotoObservation(photoPath, capturedAt, pos), photo: null }
           await this.save(item)
         }
+        if (!item.body && item.video) {
+          if (!this.deps.uploadVideo) throw new Error('Outbox item has a video but no uploadVideo dependency')
+          const { blob, contentType, capturedAt, pos } = item.video
+          const videoPath = await this.deps.uploadVideo(blob, contentType)
+          item = { ...item, body: buildVideoObservation(videoPath, capturedAt, pos), video: null }
+          await this.save(item)
+        }
         if (!item.body) throw new Error('Outbox item has nothing to send')
         // The item id is the idempotency key: if ember-api stored the report but the reply was lost,
         // the replay gets the stored report back instead of creating a second one.
@@ -182,7 +197,7 @@ export class Outbox {
     return false
   }
 
-  private async add(fields: Pick<OutboxItem, 'body' | 'photo'>): Promise<OutboxItem> {
+  private async add(fields: Pick<OutboxItem, 'body' | 'photo' | 'video'>): Promise<OutboxItem> {
     await this.load()
     const item: OutboxItem = {
       id: this.newId(),
@@ -193,6 +208,7 @@ export class Outbox {
       queuedAt: this.now().toISOString(),
       sentAt: null,
       observationId: null,
+      video: fields.video ?? null,
     }
     await this.save(item)
     return { ...item }

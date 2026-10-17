@@ -39,7 +39,7 @@ export function digest(over: Partial<Digest> = {}): Digest {
 
 export function outboxHandle(over: Partial<OutboxHandle> = {}): OutboxHandle {
   const noop = async () => undefined
-  return { items: [], online: true, submit: async () => 'sent', queuePhoto: noop, retry: noop, discard: noop, flush: noop, ...over }
+  return { items: [], online: true, submit: async () => 'sent', queuePhoto: noop, retry: noop, discard: noop, flush: noop, submitVideo: async () => 'sent', queueVideo: noop, ...over }
 }
 
 export function volunteerValue(over: Partial<VolunteerValue> = {}): VolunteerValue {

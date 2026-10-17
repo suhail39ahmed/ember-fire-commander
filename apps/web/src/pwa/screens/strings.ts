@@ -150,6 +150,7 @@ export const screenStrings = {
       text: { id: 'CATATAN', en: 'NOTE' },
       photo: { id: 'FOTO', en: 'PHOTO' },
       live: { id: 'SUARA', en: 'VOICE' },
+      video: { id: 'VIDEO', en: 'VIDEO' },
     },
     reportFromHere: { id: 'Lapor dari sini', en: 'Report from here' },
     notFoundTitle: { id: 'Insiden tidak ditemukan', en: 'Incident not found' },

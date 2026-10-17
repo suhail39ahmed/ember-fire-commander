@@ -447,6 +447,13 @@ export function createMockSupervisorApi(
       if (!obs?.photoPath) throw notFound()
       return { url: `mock-photo://${obs.photoPath}`, expiresAt: new Date(Date.now() + 300_000).toISOString() }
     },
+    async getVideoUrl(id, observationId) {
+      await wait()
+      const d = details.find((x) => x.incident.id === id)
+      const obs = d?.observations.find((o) => o.id === observationId)
+      if (!(obs as { videoPath?: string })?.videoPath) throw notFound()
+      return { url: `mock-video://${(obs as { videoPath?: string }).videoPath}`, expiresAt: new Date(Date.now() + 300_000).toISOString() }
+    },
     async lowerSeverity(id, severity) {
       await wait()
       const d = details.find((x) => x.incident.id === id)

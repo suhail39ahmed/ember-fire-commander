@@ -6,7 +6,7 @@ import type { ErrorBody } from '../../pwa/contracts/types'
 import type { AuthHeadersProvider } from '../../pwa/api/authHeaders'
 import { API_BASE_URL } from '../../pwa/api/config'
 import { ApiError } from '../../pwa/api/types'
-import type { AskAnswer, DetailSuggestions, Incident, IncidentDecision, IncidentDetail, JoinDecision, LowerableSeverity, PendingJoinRequest, PhotoUrl, ProposedTask, TaskDecision, Translation, WithdrawRequest } from '../contracts'
+import type { AskAnswer, DetailSuggestions, Incident, IncidentDecision, IncidentDetail, JoinDecision, LowerableSeverity, PendingJoinRequest, PhotoUrl, VideoUrl, ProposedTask, TaskDecision, Translation, WithdrawRequest } from '../contracts'
 import type { AuditPage, AuditQuery, LiveSeatDecision, SupervisorApi } from './types'
 
 export const SUPERVISOR_ENDPOINTS = {
@@ -22,6 +22,7 @@ export const SUPERVISOR_ENDPOINTS = {
   withdrawSafe: (id: string) => `/incidents/${encodeURIComponent(id)}/withdraw/safe`,
   instruct: (id: string, volunteerId: string) => `/incidents/${encodeURIComponent(id)}/volunteers/${encodeURIComponent(volunteerId)}/instruct`,
   photo: (id: string, observationId: string) => `/incidents/${encodeURIComponent(id)}/photos/${encodeURIComponent(observationId)}`,
+  video: (id: string, observationId: string) => `/incidents/${encodeURIComponent(id)}/videos/${encodeURIComponent(observationId)}`,
   suggestions: (id: string) => `/incidents/${encodeURIComponent(id)}/suggestions`,
   ask: (id: string) => `/incidents/${encodeURIComponent(id)}/ask`,
   translate: (id: string, observationId: string) => `/incidents/${encodeURIComponent(id)}/observations/${encodeURIComponent(observationId)}/translate`,
@@ -98,6 +99,7 @@ export function createHttpSupervisorApi(
     markWithdrawSafe: (id, volunteerId, sessionId) => post<IncidentDecision>(SUPERVISOR_ENDPOINTS.withdrawSafe(id), { volunteerId, sessionId }),
     sendInstruction: (id, volunteerId, instruction) => post<TaskDecision>(SUPERVISOR_ENDPOINTS.instruct(id, volunteerId), { instruction }),
     getPhotoUrl: (id, observationId) => request<PhotoUrl>(SUPERVISOR_ENDPOINTS.photo(id, observationId)),
+    getVideoUrl: (id, observationId) => request<VideoUrl>(SUPERVISOR_ENDPOINTS.video(id, observationId)),
     suggestIncident: (id) => post<DetailSuggestions>(SUPERVISOR_ENDPOINTS.suggestions(id)),
     askIncident: (id, question, volunteerId) => post<AskAnswer>(SUPERVISOR_ENDPOINTS.ask(id), volunteerId ? { question, volunteerId } : { question }),
     translateObservation: (id, observationId) => post<Translation>(SUPERVISOR_ENDPOINTS.translate(id, observationId)),
