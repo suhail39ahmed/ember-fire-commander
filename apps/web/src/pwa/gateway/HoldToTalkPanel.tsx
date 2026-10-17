@@ -5,8 +5,9 @@ import { gatewayStrings } from './gatewayStrings'
 import './talk.css'
 
 /**
- * Hold to talk (#129). Reuses TalkCard; when listening, shows the live frame chrome.
- * Transcript text is only shown when the gateway already sent one — never invented.
+ * Hold to talk (#129). Reuses TalkCard. While listening, the live transcript card sits above the button.
+ * Transcript text is only shown when the gateway already sent one — never invented. The camera is the panel
+ * above this one on the Report tab, so there is no camera stand-in here.
  */
 export function HoldToTalkPanel({
   lang,
@@ -25,15 +26,12 @@ export function HoldToTalkPanel({
   return (
     <section className={`hold-panel${listening ? ' hold-live' : ''}`} data-testid="hold-to-talk">
       {listening && (
-        <div className="hold-camera" aria-hidden="true">
-          <div className="hold-camera-ring" />
-          <p className="hold-camera-label">{t(lang, gatewayStrings.liveCamera)}</p>
+        <div className="hold-transcript" data-testid="hold-transcript" aria-live="polite">
+          {transcript && <p className="hold-transcript-label">{t(lang, gatewayStrings.youTranscript)}</p>}
+          <p className={transcript ? 'hold-transcript-text' : 'hold-transcript-text hold-transcript-empty'}>
+            {transcript ? `“${transcript}”` : t(lang, gatewayStrings.listeningHint)}
+          </p>
         </div>
-      )}
-      {listening && (
-        <p className="hold-transcript" data-testid="hold-transcript" aria-live="polite">
-          {transcript ?? t(lang, gatewayStrings.listeningHint)}
-        </p>
       )}
       <TalkCard lang={lang} view={view} onPress={onPress} onRelease={onRelease} />
       {listening && <p className="muted small hold-hint">{t(lang, gatewayStrings.releaseHint)}</p>}

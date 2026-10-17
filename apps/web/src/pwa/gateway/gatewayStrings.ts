@@ -1,6 +1,7 @@
 /** Copy for hold-to-talk and coach reply (#129, #130). Bahasa is draft. */
 export const gatewayStrings = {
-  liveCamera: { id: 'KAMERA LANGSUNG · KE COACH', en: 'LIVE CAMERA · TO COACH' },
+  /** What the volunteer said, as the gateway heard it. Not model text, so no "AI" in this label. */
+  youTranscript: { id: 'ANDA · TRANSKRIP LANGSUNG', en: 'YOU · LIVE TRANSCRIPT' },
   listeningHint: { id: 'Mendengarkan… lepas untuk kirim.', en: 'Listening… release to send.' },
   releaseHint: {
     id: 'Lepas untuk mengirim. Laporan suara terkirim sendiri saat Anda melepas.',
@@ -18,11 +19,9 @@ export const gatewayStrings = {
     id: 'Lokasi diperlukan untuk mengirim laporan suara. Izinkan lokasi, lalu coba lagi.',
     en: 'Location is needed to send a voice report. Allow location, then try again.',
   },
-  replying: { id: 'AI MENJAWAB…', en: 'AI REPLYING…' },
-  replyDone: { id: 'JAWABAN COACH AI', en: 'AI COACH REPLY' },
+  /** The coach card is model output, so the label says AI. */
+  coachLabel: { id: 'COACH AI', en: 'AI COACH' },
   replyWaiting: { id: 'Menunggu jawaban…', en: 'Waiting for the reply…' },
-  replyHint: {
-    id: 'Anda masih bisa menambah chip atau catatan di bawah.',
-    en: 'You can still add a chip or note below.',
-  },
+  /** Shown under Hold to talk once the report is stored and the API gave a time or an incident. */
+  savedAsReport: { id: 'Tersimpan sebagai laporan', en: 'Saved as a report' },
 }

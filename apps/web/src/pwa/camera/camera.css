@@ -1,0 +1,50 @@
+/* Live camera panel (Report tab). Fixed height, so toggling the camera or showing a message never moves the page. */
+.cam {
+  position: relative; isolation: isolate; overflow: hidden; border-radius: 22px; background: #0d0c0b; color: #fff;
+  height: clamp(210px, 34vh, 300px); display: flex; flex-direction: column; justify-content: space-between;
+  padding: 12px 14px; box-sizing: border-box;
+}
+.cam-video { position: absolute; inset: 0; z-index: -3; width: 100%; height: 100%; object-fit: cover; background: #0d0c0b; }
+.cam-video[hidden] { display: none; }
+.cam-shade {
+  position: absolute; inset: 0; z-index: -2; pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, rgba(226, 83, 27, 0.16), rgba(0, 0, 0, 0) 62%), linear-gradient(180deg, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0) 28%, rgba(0, 0, 0, 0) 62%, rgba(0, 0, 0, 0.55));
+}
+.cam-ring {
+  position: absolute; z-index: -1; left: 50%; top: 50%; width: 76px; height: 76px; margin: -38px 0 0 -38px; border-radius: 50%;
+  border: 2.5px solid var(--ember); display: flex; align-items: center; justify-content: center; pointer-events: none; opacity: 0.9;
+}
+.cam-ring i { width: 22px; height: 22px; border-radius: 50%; background: var(--ember); }
+.cam-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; }
+.cam-chips { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.cam-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px;
+  background: rgba(20, 18, 16, 0.72); border: 1px solid rgba(255, 255, 255, 0.22); font-size: 13px; font-weight: 600; white-space: nowrap;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.cam-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--data); flex: none; }
+.cam-dot.ok { background: #3fb36b; }
+.cam-back {
+  flex: none; width: 44px; height: 44px; margin: -4px -6px -4px 0; border: 0; border-radius: 50%; background: transparent; color: #fff;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.cam-problem {
+  position: absolute; left: 14px; right: 14px; bottom: 66px; margin: 0; padding: 8px 12px; border-radius: 12px;
+  background: rgba(20, 18, 16, 0.86); font-size: 13px; line-height: 1.35; font-weight: 500; text-align: center;
+}
+/* With a message showing, the viewfinder mark steps back so the two never fight for the middle of the panel. */
+.cam[data-camera='denied'] .cam-ring, .cam[data-camera='unavailable'] .cam-ring, .cam[data-camera='busy'] .cam-ring, .cam[data-camera='insecure'] .cam-ring { opacity: 0.25; top: 38%; }
+.cam-bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.cam-caption {
+  margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1.3; letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.88); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+.cam-toggle {
+  flex: none; width: 48px; height: 48px; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, 0.4); background: rgba(20, 18, 16, 0.72);
+  color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.cam-toggle.is-on { background: #fff; color: var(--ink); border-color: #fff; }
+.cam-toggle[aria-busy='true'] { opacity: 0.7; }
+.cam-back:focus-visible, .cam-toggle:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .cam * { transition: none; } }

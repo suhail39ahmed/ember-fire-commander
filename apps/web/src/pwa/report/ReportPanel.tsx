@@ -199,7 +199,7 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, task
 
   const title = (
     <h3 id="quick-report-label" className="section-label">
-      {t(lang, strings.quickReport)}
+      {t(lang, strings.tapWhatYouSee)}
     </h3>
   )
 
@@ -240,7 +240,7 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, task
         }}
       />
 
-      <label className="section-label" htmlFor="report-note">
+      <label className="note-label" htmlFor="report-note">
         {t(lang, strings.noteLabel)}
       </label>
       <input

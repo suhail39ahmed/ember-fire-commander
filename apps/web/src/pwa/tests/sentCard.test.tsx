@@ -66,7 +66,7 @@ describe('time in the outbox', () => {
 
 describe('status line for an empty draft', () => {
   it('asks for a chip or a note until there is a draft', () => {
-    expect(statusLine({ kind: 'idle' }, 'en', false).text).toBe('Pick a chip or write a note to send.')
+    expect(statusLine({ kind: 'idle' }, 'en', false).text).toBe('Pick a card or write a note to send.')
     expect(statusLine({ kind: 'idle' }, 'id', false).text).toContain('Pilih')
     expect(statusLine({ kind: 'idle' }, 'en', true).text).toBe('Your location is attached when you send.')
   })
