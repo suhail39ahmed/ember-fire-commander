@@ -74,7 +74,7 @@ class GeminiLiveClient:
     """Synchronous face over the async Gemini Live session."""
 
     def __init__(self, model=None, location=None):
-        self.model = model or os.getenv("LIVE_MODEL", "").strip() or "gemini-3.8-live"
+        self.model = model or os.getenv("LIVE_MODEL", "").strip() or "gemini-live-2.5-flash-native-audio"
         self.location = location or os.getenv("LIVE_LOCATION", "").strip() or "us-central1"
         self._loop = None
         self._thread = None

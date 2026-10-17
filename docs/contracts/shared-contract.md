@@ -1292,7 +1292,7 @@ If the client just disconnects, the gateway sends nothing and counts the minutes
 
 On session start the gateway injects the caller’s current digest into the Gemini Live context. It then sends `session.ready` and one `digest` message, in that order. The digest is not sent again during the session. `audio` messages carry Gemini's reply as base64. The code does not set or convert the audio format, so the format is whatever Gemini Live returns.
 
-Gemini Live runs through Vertex with the gateway's own service account, with no API key. The model is `LIVE_MODEL` and the region is `LIVE_LOCATION` (default `us-central1`; Gemini Live has no Asia endpoint). Replies are audio. The README records that the latency gate, a push-to-talk report on a real phone through the deployed gateway in Singapore, has not passed.
+Gemini Live runs through Vertex with the gateway's own service account, with no API key. The model is `LIVE_MODEL` (`gemini-live-2.5-flash-native-audio`; retirement 2026-12-13) and the region is `LIVE_LOCATION` (default `us-central1`; Gemini Live has no Asia endpoint). Replies are audio. The README records that the latency gate, a push-to-talk report on a real phone through the deployed gateway in Singapore, has not passed.
 
 ### 7.1 Tools
 
@@ -1414,7 +1414,7 @@ Terraform also sets `REGION`, `EMBER_FIRESTORE_DB`, and `SIGNED_URL_TTL_SECONDS`
 | `FIRESTORE_DATABASE` | empty | When empty, the gateway keeps observations in memory instead of Firestore |
 | `APP_CHECK_ENFORCE` | `false` | As §2 |
 | `EMBER_AGENTS_URL` | empty | Agents origin for the intake call. Skipped when empty |
-| `LIVE_MODEL` | set in code | Gemini Live model |
+| `LIVE_MODEL` | `gemini-live-2.5-flash-native-audio` | Gemini Live model (retirement 2026-12-13) |
 | `LIVE_LOCATION` | `us-central1` | Vertex region for Gemini Live |
 | `LIVE_MINUTE_CAP_USER` | `10` | Minutes per user (§7) |
 | `LIVE_MINUTE_CAP_OP` | `60` | Minutes for the whole operation (§7) |
@@ -1635,5 +1635,7 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · #92, #93: `POST /observations` accepts an optional `device` (`batteryPct`, `network`, `language`), stored best effort and never failing a report (§5.1). A supervisor's `GET /incidents/{id}` adds `header`, `conditions` and `photoReads`, and each volunteer card adds `crewName`, `teamRole` and `device` (§6.3). The video, Ask EMBER and English translation parts of #93 are not built (§6.3, §12.4).
 - 2026-10-16 · #95: evidence factors `wind` and `satellite`, each worth 0 points so no score or rule changes (§5.2), audit action `conflict.open` written by code when a conflict is created (§5.5), `conflictContext.allObservations` (§6.3). Settings `EMBER_SATELLITE_RADIUS_M` and `EMBER_SATELLITE_WINDOW_H` (§11.3). No `investigate` proposal is added (§12.5).
 - 2026-10-17 · agents endpoints (#92, #93, #185): new private agents routes `POST /internal/incidents/{id}/suggestions`, `/ask` and `POST /internal/observations/{id}/translate` (§8.1), same Gemini client and settings as triage. New collections `incident_suggestions` and `observation_translations` (§5, §5.7). New supervisor routes `POST /incidents/{id}/suggestions`, `POST /incidents/{id}/ask` and `POST /incidents/{id}/observations/{observationId}/translate` (§6.13, §12.1), and a supervisor's `GET /incidents/{id}` adds `suggestions` and `translations` (§6.3, §12.2). `ember-api` now calls the existing triage route after a photo report and the translate route after a report with text, on a background thread that never delays the report, so `photoReads` fills in (§6.3, §8.1, §10). Setting `EMBER_ASSIST_BACKGROUND` (§11.1). No route changes an incident, a severity, a task or a withdraw. Still not built: an `investigate` proposal, sending to everyone on site, video, and the crew lead and duty numbers (§12.4).
+
+- 2026-10-17 · infra: `LIVE_MODEL` set to `gemini-live-2.5-flash-native-audio` (Vertex AI Agent Platform GA model id, retires 2026-12-13) in place of the placeholder `gemini-3.8-live`. `LIVE_LOCATION` stays `us-central1`; the model is not served in asia-southeast1 (§7, §11.2).
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).

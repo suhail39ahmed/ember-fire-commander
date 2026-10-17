@@ -17,6 +17,7 @@ team_member_emails = [
 # Gemini via Agent Platform (service accounts). No API key secret for now.
 create_gemini_api_key_secret = false
 live_location                = "us-central1"
+live_model                   = "gemini-live-2.5-flash-native-audio"
 
 # Firestore: location is PERMANENT.
 firestore_location          = "asia-southeast1"

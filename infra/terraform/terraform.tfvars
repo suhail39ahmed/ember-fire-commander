@@ -19,6 +19,7 @@ team_role = "roles/editor"
 # Gemini via Agent Platform (service accounts). No GEMINI_API_KEY secret live.
 create_gemini_api_key_secret = false
 live_location                = "us-central1"
+live_model                   = "gemini-live-2.5-flash-native-audio"
 
 # Firestore: named database "ember-db". Location is PERMANENT.
 firestore_database_name     = "ember-db"

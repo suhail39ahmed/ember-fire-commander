@@ -144,6 +144,6 @@ Things that cost money only when used: Cloud Run requests (min instances 0), Gem
 
 ## Confirm list
 
-- `LIVE_MODEL` ID and Live-minute caps (10 per user, 60 per op are placeholders).
+- `LIVE_MODEL` is `gemini-live-2.5-flash-native-audio` (Vertex AI Agent Platform GA id; retires 2026-12-13). Live-minute caps (10 per user, 60 per op) are placeholders.
 - `api_token_creator_scope = "self"` for least privilege. Test signed URLs after changing it.
 - Out of scope for now: Scheduler + `ember-ingest` job, BigQuery, Pub/Sub, Earth Engine, Load Balancer/Cloud Armor, custom domain.
