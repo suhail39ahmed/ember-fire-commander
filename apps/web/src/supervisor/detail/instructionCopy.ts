@@ -40,6 +40,10 @@ export const suggestCopy = {
     id: 'EMBER hanya mengusulkan tugas periksa saat laporan berbeda. Saran bebas dengan alasan belum dibuat layanan mana pun.',
     en: 'EMBER only proposes a verify task when reports disagree. No service writes free-form advice with a rationale.',
   },
+  limitWithModel: {
+    id: 'Tugas periksa diusulkan saat laporan berbeda. Saran bebas dengan alasan ada di halaman insiden.',
+    en: 'A verify task is proposed when reports disagree. Free suggestions with a reason are on the incident page.',
+  },
 } as const
 
 export const photoCopy = {

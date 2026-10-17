@@ -31,3 +31,9 @@ def no_profile_read(monkeypatch):
     import volunteer_routes
 
     monkeypatch.setattr(volunteer_routes, "read_profile", lambda uid: {})
+
+
+@pytest.fixture(autouse=True)
+def no_assist_background(monkeypatch):
+    """The photo read and translation calls run on a thread after a report is stored; tests turn them on one by one."""
+    monkeypatch.setenv("EMBER_ASSIST_BACKGROUND", "off")

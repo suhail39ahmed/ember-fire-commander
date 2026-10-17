@@ -12,6 +12,7 @@ COPY observations ./observations
 COPY photos ./photos
 COPY incidents ./incidents
 COPY notifications ./notifications
+COPY assist ./assist
 
 ENV PORT=8080
 EXPOSE 8080

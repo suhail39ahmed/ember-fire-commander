@@ -107,7 +107,7 @@ Timestamps are ISO-8601 UTC strings. Ids are server-generated strings.
 
 Collections used by this contract: `observations`, `incidents`, `conflicts`, `tasks`, `audit`. The digest (§5.6) is not a collection. `ember-api` and `voice-gateway` each build it from `incidents` and `tasks` when asked, and nothing stores it.
 
-Services also keep collections that no REST route returns (or that only return a safe subset). They are listed in §5.7 with the field types and the service that writes them: `liveSeats`, `photo_triage`, `incident_summaries`, `sites`, `sites_meta`, `notificationAttempts`, `photoUploads`, `intakePending`, `volunteers`, `counters`, `leads`, `weather`, `psi`, and `ingestRuns`.
+Services also keep collections that no REST route returns (or that only return a safe subset). They are listed in §5.7 with the field types and the service that writes them: `liveSeats`, `photo_triage`, `incident_summaries`, `incident_suggestions`, `observation_translations`, `sites`, `sites_meta`, `notificationAttempts`, `photoUploads`, `intakePending`, `volunteers`, `counters`, `leads`, `weather`, `psi`, and `ingestRuns`.
 
 ### 5.1 Observation
 
@@ -455,6 +455,40 @@ Written by `ember-agents` (spotter). One document per incident, with the inciden
 
 A supervisor's `GET /incidents/{id}` returns `english`, `bahasa`, `source` and `at` of this document as `summary` (§6.3). The `facts` object is not returned.
 
+#### `incident_suggestions`
+
+Written by `ember-agents` (assist). One document per incident, with the incident id as the document id. It is a separate collection, not a field of the incident, because fusion rewrites the whole incident document. Code builds the facts from stored records (the incident, its reports, photo reads, tasks, volunteer names and crews, the device facts phones sent, and `weather/current`), the model proposes, and code keeps at most 4 well-formed items. An item that states a severity, a withdraw, an evacuation, an extinguish call or a confirmation is dropped, because those stay with code and people. When the model is not available, or nothing usable comes back, code stores a short rule-based list instead (`source: template`).
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | The incident id |
+| `incidentId` | string | |
+| `suggestions` | array | At most 4 of `{ "text", "rationale" }`: `text` at most 200 characters, `rationale` at most 240 and naming the stored fact it rests on. May be empty |
+| `source` | string | `model` or `template` |
+| `advisory` | `true` | Always true |
+| `model` | string or null | Null when `source` is `template` |
+| `reportCount` | number | How many reports the incident held when it was made |
+| `generatedAt` | string | |
+
+A supervisor's `GET /incidents/{id}` returns `items`, `source` and `generatedAt` of this document as `suggestions` (§6.3). Satellite leads, phone numbers and device tokens are never part of the facts.
+
+#### `observation_translations`
+
+Written by `ember-agents` (assist). One document per observation that has text, with the observation id as the document id. Observations are immutable (§1 rule 1), so the translation lives here and the original `text` is never changed. Once stored it is final: a repeat call returns it and makes no model call.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | The observation id |
+| `observationId` | string | |
+| `volunteerId` | string or null | The reporting volunteer |
+| `sourceLanguage` | string | Lowercase ISO 639-1 code the model named, or `und` when it could not tell or named something that is not a two or three letter code |
+| `english` | string | At most 1200 characters. The same text when the report is already English |
+| `advisory` | `true` | Always true |
+| `model` | string | |
+| `at` | string | |
+
+Only the first 1000 characters of a report are translated. A supervisor's `GET /incidents/{id}` returns `english`, `sourceLanguage` and `at` as `translations[observationId]` (§6.3).
+
 #### `sites` and `sites_meta`
 
 Written by `ember-agents` (sites, the re-ignition watch). A `sites` document is made for each extinguished incident, with the incident id as the document id. An alert asks a supervisor to look again. It never reopens, verifies, or re-rates the incident.
@@ -785,13 +819,15 @@ For a supervisor the body has one more key, `evidenceFactors`: the stored factor
 
 `conditions` is `{ weather, air }`, each `null` when nothing is stored (or when the read fails). `weather` is `weather/current` (§5.7): `observedAt`, `windKmh`, `windDirDeg`, `windFrom` (a compass point such as `SW`, the direction the wind blows from), `gustKmh`, `tempC`, `humidityPct`, `rainMm` and `source`, each `null` when missing. `air` is `psi/current`: `observedAt`, `psi24hMax`, `pm25Max` (the largest regional 24 h value) and `source`. These are one fixed monitoring point and one national feed. **They are not measured at the incident**, and the console says so. Nothing here is a forecast, a plume or a predicted shift.
 
-`photoReads` is an object keyed by observation id, for photo reports that have a `photo_triage` record with `status: ok`: `smokeVisible`, `flameVisible`, `burnScarVisible`, `notes` and `at`. It is `{}` when none. It is advisory text about the picture, it states no severity, and it changes nothing. Today nothing calls the triage route (§8.1), so it is `{}` until something does.
+`photoReads` is an object keyed by observation id, for photo reports that have a `photo_triage` record with `status: ok`: `smokeVisible`, `flameVisible`, `burnScarVisible`, `notes` and `at`. It is `{}` when none. It is advisory text about the picture, it states no severity, and it changes nothing. `ember-api` asks agents for the photo read after it stores a photo report (§8.1), best effort, so a report's read appears a few seconds later, or never if that call fails.
 
 Each `volunteers` card also has `crewName` (`volunteers/{uid}.crewName`), `teamRole` (`incident_members/{incidentId}__{uid}.teamRole`) and `device`: `{ batteryPct, network, language, at }` from the newest report that carried a `device` (§5.1), each part `null` when that report lacked it, and the whole value `null` when no report did. `at` is that report's `capturedAt`. Battery and network are what the phone said when it reported, not a live reading.
 
 In `conflictContext` (below), `allObservations` lists every report of the incident and of the conflict, the two sides included, oldest first, in the same record shape as `otherObservations`.
 
-Not returned, because no service stores a source: the crew lead's phone and duty phones, the volunteer's own live battery or position, an English translation of a report, a predicted wind shift, spread, at-risk places and model-written advice. What EMBER proposes is the incident's `tasks` with `status: proposed` (agents write only `verify` proposals, when a conflict opens, §5.3) and the reasons behind the score are `evidenceFactors` (§6.3), so those are the suggestions a screen can show. `weather` and `psi` stay internal (§1 rule 7, §12.4).
+**Model-written help.** Two more keys, supervisor only, both advisory text that changes nothing. `suggestions` is `null` until suggestions were made for the incident (§6.13), then `{ "items": [ { "text", "rationale" } ], "source", "generatedAt" }` from `incident_suggestions` (§5.7); `items` may be `[]`. `translations` is an object keyed by observation id, for reports that have text and a stored `observation_translations` record: `{ "english", "sourceLanguage", "at" }`. It is `{}` when none. A report whose `sourceLanguage` is `en` has nothing to add, and the console does not repeat it.
+
+Not returned, because no service stores a source: the crew lead's phone and duty phones, the volunteer's own live battery or position, a predicted wind shift, spread and at-risk places. What EMBER proposes is the incident's `tasks` with `status: proposed` (agents write only `verify` proposals, when a conflict opens, §5.3) and the reasons behind the score are `evidenceFactors` (§6.3), so those are the suggestions a screen can show. `weather` and `psi` stay internal (§1 rule 7, §12.4).
 
 Who can read what:
 
@@ -1104,6 +1140,20 @@ Volunteer-only. A supervisor is `403`. Practice never creates an observation, ta
 
 Lesson and reply copy is served as API fixtures until content is authored elsewhere. `message` is required, at most 500 characters.
 
+### 6.13 Suggestions, Ask EMBER and translation
+
+Supervisor-only (a volunteer is `403`). Each route calls a private agents route (§8.1) with the API's own Cloud Run ID token, and every answer is advisory text. None of them changes an incident, a severity, a task or a withdraw, writes an audit row, or sends anything to a volunteer. Sending stays with the instruction routes in §6.5.
+
+| Route | Body | Result |
+|---|---|---|
+| `POST /incidents/{id}/suggestions` | none | Makes fresh suggestions from the stored facts and stores them for the incident. `200` `{ "items": [ { "text", "rationale" } ], "source": "model" \| "template", "generatedAt" }`, the same shape as `suggestions` in §6.3. `items` may be `[]` |
+| `POST /incidents/{id}/ask` | `{ "question": string, "volunteerId"?: string }` | Answers from the stored facts only, and says when they do not hold what the question needs. `200` `{ "answer", "enoughData", "at" }`. `answer` is at most 700 characters; `enoughData` is `false` when the model says the facts are not enough, and `null` when it did not say. With `volunteerId` the answer is about that volunteer, who must be on the incident. Nothing is stored |
+| `POST /incidents/{id}/observations/{observationId}/translate` | none | English translation of one report's text, stored in `observation_translations` (§5.7). `200` `{ "observationId", "sourceLanguage", "english", "at" }`. A repeat call returns the stored one |
+
+`question` is required, not blank, and at most 500 characters (`400` with `fields.question` otherwise). `volunteerId` is a non-blank string when sent. `404 not_found` for an unknown incident, for an observation that is not one of the incident's (or its conflict's) reports, and for a `volunteerId` that is not on the incident. `400` when the report has no text. When agents or the model is not available the answer is `502 agents_unavailable` (or `503` when `EMBER_AGENTS_URL` is empty) and nothing is stored. Suggestions are the one exception to "nothing stored on failure": when only the model fails, agents store the rule-based list and answer `200` with `source: template`. These routes make one model call each, with a 40 second limit, and are never called on a timer: the console calls them only when a supervisor asks.
+
+After `ember-api` stores a report it also starts model work for it on a background thread, which never delays or fails the report: a `photo` report is sent to the triage route (§8.1), and a report with text to the translate route. A failure is logged and leaves no record. `EMBER_ASSIST_BACKGROUND=off` turns these calls off (§11.1). Reports the voice gateway stores (`live`) are not sent; a supervisor can ask for their translation with the route above. Cloud Run is configured with `cpu_idle = true`, so CPU is only guaranteed during a request and the background call may finish late.
+
 ## 7. WebSocket
 
 `voice-gateway` serves the WebSocket at `/`, with no other path. `/healthz` stays public. The upgrade is meant to carry the same two headers as §2. The gateway checks the ID token's signature, expiry, and role (not revocation), and App Check follows `APP_CHECK_ENFORCE` as in §2. For invalid credentials it sends `{ "type": "session.closed", "reason": "unauthorized" }` and closes the socket before a Gemini session starts. It does not read tokens from the query string.
@@ -1221,8 +1271,11 @@ All are private like the intake route. None is a route for a browser.
 | `POST /internal/sites/scan` | none | Runs the re-ignition watch (§5.7). Cloud Scheduler job `ember-sites-scan` calls it every 15 minutes by default. `200` `{ "sitesWatched", "sitesRemembered", "sitesExpired", "alertsCreated" }`, all numbers |
 | `POST /internal/observations/{id}/triage` | Optional `{ "callerId": "<uid>" }` | Advisory photo triage. `200` with the `photo_triage` record (§5.7). `404 not_found` for an unknown observation. `403 forbidden` when the observation has no photo or the photo is not the reporter's (a `rejected` record is stored). `413 photo_too_large` over 8 MB (a `rejected` record is stored). `502 triage_failed` for a model or storage error (an `error` record is stored) |
 | `POST /internal/incidents/{id}/summary` | none | Advisory summary. `200` with the `incident_summaries` record (§5.7). `404 not_found` for an unknown incident |
+| `POST /internal/incidents/{id}/suggestions` | none | Advisory suggestions. Reads the incident's stored facts, asks the model, stores and returns the `incident_suggestions` record (§5.7). A model failure stores the rule-based list (`source: template`) and still answers `200`. `404 not_found` for an unknown incident |
+| `POST /internal/incidents/{id}/ask` | `{ "question": string, "volunteerId"?: string }` | Advisory answer from the stored facts. `200` `{ "incidentId", "answer", "enoughData", "advisory", "model", "at" }`. Nothing is stored. `400 validation_error` for a missing, blank or over-500-character question, `404 not_found` for an unknown incident or a volunteer who is not on it, `502 model_unavailable` when the model fails |
+| `POST /internal/observations/{id}/translate` | none | English translation of the report's text. `200` with the `observation_translations` record (§5.7), the stored one when it exists. `400 validation_error` when the report has no text, `404 not_found` for an unknown observation, `502 model_unavailable` when the model fails (nothing is stored) |
 
-These errors use the §3 body without `fields`. No service in this repository calls the triage or summary routes today, so `photo_triage` and `incident_summaries` stay empty until something does.
+These errors use the §3 body without `fields`. `ember-api` calls the triage route after it stores a photo report, and the translate route after it stores a report with text (§6.13), and a supervisor's request calls the suggestions, ask and translate routes. Nothing calls the summary route yet, so `incident_summaries` stays empty until something does.
 
 ## 9. Worked path
 
@@ -1246,7 +1299,7 @@ Step 4's `409` on an `investigate` task can be tried only on a hand-written task
 | `ops`, `pings`, `crews` | Not required to implement this contract. `volunteers` holds only `fcmTokens` (§5.7) |
 | Browser handshake for the WebSocket | Undecided. See §7 |
 | Hourly FIRMS, weather, and PSI ingest | Ingest work. The collections it writes are in §5.7. Wind enters WITHDRAW only through the agents rule |
-| Flash photo triage, summaries, evals, Memory Bank | The triage and summary routes exist (§8.1) and their records are in §5.7. Nothing calls them yet. Evals and Memory Bank are later agent work |
+| Flash photo triage, summaries, suggestions, answers, translation, evals, Memory Bank | The routes exist (§8.1) and their records are in §5.7. `ember-api` calls triage and translate after a report is stored, and the supervisor routes in §6.13 call suggestions, ask and translate. Nothing calls the summary route yet. Evals and Memory Bank are later agent work |
 | Ephemeral-token Live fallback | Only if a later decision replaces the relay |
 | Map tiles | Loaded by the browser with the referrer-restricted Maps key |
 | Agency report delivery | EMBER does not send agency reports |
@@ -1263,7 +1316,8 @@ Names and defaults are the ones the code reads. Terraform in `infra/terraform/cl
 | `FIRESTORE_DATABASE` | `ember-db` | Firestore database. The observation store requires it to be set |
 | `ALLOWED_ORIGINS` | `http://localhost:5173` | Comma list of CORS origins |
 | `APP_CHECK_ENFORCE` | `false` | `true` rejects a missing or invalid App Check token with `401` (§2) |
-| `EMBER_AGENTS_URL` | empty | Agents origin for the intake call. The call is skipped when it is empty |
+| `EMBER_AGENTS_URL` | empty | Agents origin for the intake call and the assist calls (§6.13). The calls are skipped when it is empty |
+| `EMBER_ASSIST_BACKGROUND` | on | `off` stops the photo read and translation calls that follow a stored report (§6.13). The supervisor routes still work |
 | `EMBER_AGENTS_CALLER` | empty | Service account email allowed on `/internal/notifications/withdraw`. When empty the route is `401` |
 | `PHOTO_BUCKET` | `ember-fire-commander-ember-photos` | Private photo bucket |
 | `PHOTO_UPLOAD_TTL_SECONDS` | `300` | Signed URL lifetime, clamped to 60 to 900 |
@@ -1299,9 +1353,9 @@ Terraform also sets `LIVE_BACKEND`, `EMBER_FIRESTORE_DB`, and `ALLOWED_ORIGINS` 
 | `EMBER_SITE_RADIUS_M` | `500` | Re-ignition alert radius |
 | `EMBER_SITE_WATCH_DAYS` | `14` | Length of the watch window |
 | `PHOTO_BUCKET` | built-in default | Bucket agents read photos from |
-| `EMBER_FLASH_MODEL` | set in code | Model for triage and summaries |
+| `EMBER_FLASH_MODEL` | set in code | Model for triage, summaries, suggestions, answers and translations |
 | `EMBER_FLASH_TIMEOUT_SECONDS` | `30` | Model call timeout |
-| `EMBER_VERTEX_LOCATION` | `asia-southeast1` | Vertex region for triage and summaries |
+| `EMBER_VERTEX_LOCATION` | `asia-southeast1` | Vertex region for the model calls |
 
 Terraform also sets `REGION` and `EMBER_FIRESTORE_DB` on agents. No agents code reads them.
 
@@ -1358,6 +1412,7 @@ Everything here is taken from the code and tests on `main`. Where the code leave
 | `POST /incidents/{id}/extinguish`, `/severity`, `/withdraw`, `/withdraw/safe` | supervisor | Yes |
 | `POST /incidents/{id}/volunteers/{volunteerId}/instruct` | supervisor | Yes (volunteer pop-up) |
 | `GET /incidents/{id}/photos/{observationId}` | supervisor | Yes (volunteer pop-up) |
+| `POST /incidents/{id}/suggestions`, `POST /incidents/{id}/ask`, `POST /incidents/{id}/observations/{observationId}/translate` | supervisor | Yes (incident detail and volunteer pop-up, §6.13) |
 | `GET /training`, `POST /training/progress`, `POST /training/practice` | volunteer | Yes (Guide and Practice, §6.12) |
 | WebSocket at the gateway (§7) | any | No. Voice is unavailable in the browser (§7). Hold-to-talk UI shows unavailable and never invents a transcript |
 
@@ -1381,6 +1436,7 @@ Every route except `/healthz` needs the two headers in §2.
 | `join` | `POST /observations` response, `sentToday[]` rows | Absent from the create response, and `null` in `sentToday`, until agents have placed the report. Never an error (§6.2) |
 | `sentToday` | Volunteer digest | Present only when the request carried `sentSince` (§6.4) |
 | `header`, `conditions`, `photoReads` | `GET /incidents/{id}`, supervisor only | Always present for a supervisor. `header.openedAt` and `header.source` are `null` when no report can be read. `conditions.weather` and `conditions.air` are `null` when nothing is stored. `photoReads` is `{}` when none (§6.3) |
+| `suggestions`, `translations` | `GET /incidents/{id}`, supervisor only | Always present for a supervisor. `suggestions` is `null` until made, and its `items` may be `[]`. `translations` is `{}` when none is stored (§6.3) |
 | `volunteers[].crewName`, `teamRole`, `device` | Same | `null` when nothing is stored. `device`'s parts are `null` when that report lacked them (§6.3) |
 | `conflictContext.allObservations` | Same | `[]` when the incident has no readable report |
 | `volunteers[].name`, `lastReportAt`, `lastSeverity`, `lastLat`, `lastLng`, `lastAccuracyM`, `distanceM` | Same | `null` when the volunteer has no report on the incident, or no name was stored |
@@ -1424,7 +1480,7 @@ The browser cannot read these. A screen that needs one needs a new REST route fi
 
 - `incident.observationIds` (§5.2). `incident.evidenceFactors` is returned only on a supervisor's `GET /incidents/{id}` (§6.3).
 - Photo bytes. `GET /incidents/{id}/photos/{observationId}` returns only a short-lived signed URL (§6.7).
-- `photo_triage`, `sites` and their alerts, the `facts` of `incident_summaries` (its text is `summary` in §6.3), `leads`, `weather`, `psi` (except the latest read in `conditions`, §6.3), `ingestRuns`, and `notificationAttempts` (§5.7). `GET /audit` reads the `audit` collection for supervisors (§5.5).
+- `photo_triage` (except the `photoReads` in §6.3), `incident_suggestions` and `observation_translations` (except `suggestions` and `translations`, §6.3), `sites` and their alerts, the `facts` of `incident_summaries` (its text is `summary` in §6.3), `leads`, `weather`, `psi` (except the latest read in `conditions`, §6.3), `ingestRuns`, and `notificationAttempts` (§5.7). `GET /audit` reads the `audit` collection for supervisors (§5.5).
 - Observations that are not on the two sides of a conflict, when the incident has a conflict, are not in `observations` (§6.3). A volunteer's read never has them. A supervisor's read returns them in `conflictContext.otherObservations`.
 - An `investigate` proposal, and any agency assignment or hand-off (§5.2, §6.3, §10).
 - A task or incident created or updated time.
@@ -1441,7 +1497,8 @@ Each of these is a difference between what this contract implies and what the co
 - **Supervisor alert push.** None exists (§6.6).
 - **Live observation checks.** The gateway stores `capturedAt` from the phone without the REST window or format check, and does not limit text length (§7.1).
 - **Resend of gateway observations.** An observation the gateway could not hand to agents is resent only when a later REST report reaches agents (§8).
-- **Spotter routes.** Triage and summary exist, and nothing calls them (§8.1).
+- **Summary route.** It exists and nothing calls it, so `summary` stays `null` (§8.1).
+- **Background model calls.** They run on a thread after the report is stored, and Cloud Run only guarantees CPU during a request (§6.13).
 - **Minute caps.** They are counted in memory per instance (§7).
 - **`volunteers/{uid}.displayName`.** Fusion reads it as a fallback, and nothing writes it (§5.7).
 - **Settings.** `SIGNED_URL_TTL_SECONDS` in Terraform is not the variable the code reads, and the `.env.example` location differs from the docs (§11).
@@ -1492,5 +1549,6 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · #131, #132: `POST /observations` (`201` and the `200` replay) adds `join` (`incidentId`, `incidentName`, `incidentArea`, `joined`, `nearbyCount`, `nearestM`, `radiusM`), read from the new `observation_joins` collection that agents write when they place a report. A volunteer's `GET /digest` adds `sentToday` when the request carries the new `sentSince` query, each row with the same `join` (§5.6, §5.7, §6.2, §6.4). The phone shows how many reports are near its own and the join radius.
 - 2026-10-16 · #92, #93: `POST /observations` accepts an optional `device` (`batteryPct`, `network`, `language`), stored best effort and never failing a report (§5.1). A supervisor's `GET /incidents/{id}` adds `header`, `conditions` and `photoReads`, and each volunteer card adds `crewName`, `teamRole` and `device` (§6.3). The video, Ask EMBER and English translation parts of #93 are not built (§6.3, §12.4).
 - 2026-10-16 · #95: evidence factors `wind` and `satellite`, each worth 0 points so no score or rule changes (§5.2), audit action `conflict.open` written by code when a conflict is created (§5.5), `conflictContext.allObservations` (§6.3). Settings `EMBER_SATELLITE_RADIUS_M` and `EMBER_SATELLITE_WINDOW_H` (§11.3). No `investigate` proposal is added (§12.5).
+- 2026-10-17 · agents endpoints (#92, #93, #185): new private agents routes `POST /internal/incidents/{id}/suggestions`, `/ask` and `POST /internal/observations/{id}/translate` (§8.1), same Gemini client and settings as triage. New collections `incident_suggestions` and `observation_translations` (§5, §5.7). New supervisor routes `POST /incidents/{id}/suggestions`, `POST /incidents/{id}/ask` and `POST /incidents/{id}/observations/{observationId}/translate` (§6.13, §12.1), and a supervisor's `GET /incidents/{id}` adds `suggestions` and `translations` (§6.3, §12.2). `ember-api` now calls the existing triage route after a photo report and the translate route after a report with text, on a background thread that never delays the report, so `photoReads` fills in (§6.3, §8.1, §10). Setting `EMBER_ASSIST_BACKGROUND` (§11.1). No route changes an incident, a severity, a task or a withdraw. Still not built: an `investigate` proposal, sending to everyone on site, video, and the crew lead and duty numbers (§12.4).
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).

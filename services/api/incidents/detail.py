@@ -16,6 +16,8 @@ ATTEMPTS = "notificationAttempts"
 SUMMARIES = "incident_summaries"
 MEMBERS = "incident_members"
 PHOTO_TRIAGE = "photo_triage"
+SUGGESTIONS = "incident_suggestions"
+TRANSLATIONS = "observation_translations"
 WEATHER = "weather"
 PSI = "psi"
 COMPASS = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
@@ -305,6 +307,35 @@ def _photo_reads(observations):
     return reads
 
 
+def _suggestions(incident_id):
+    """The last suggestions agents stored for the incident, or None. Advisory text only."""
+    snap = store.db().collection(SUGGESTIONS).document(incident_id).get()
+    if not snap.exists:
+        return None
+    raw = snap.to_dict() or {}
+    items = [
+        {"text": _text(i.get("text")), "rationale": _text(i.get("rationale"))}
+        for i in (raw.get("suggestions") or []) if isinstance(i, dict) and _text(i.get("text"))
+    ]
+    return {
+        "items": items,
+        "source": _text(raw.get("source")),
+        "generatedAt": _text(raw.get("generatedAt")),
+    }
+
+
+def _translations(observations):
+    """{observation id: stored English translation} for reports that have text. `{}` when none was stored."""
+    ids = [o["id"] for o in observations if _text(o.get("text"))]
+    out = {}
+    for oid, snap in store.get_many(TRANSLATIONS, ids).items():
+        raw = snap.to_dict() or {}
+        english = _text(raw.get("english"))
+        if english:
+            out[oid] = {"english": english, "sourceLanguage": _text(raw.get("sourceLanguage")), "at": _text(raw.get("at"))}
+    return out
+
+
 def _guard(name, build, fallback):
     """A source that cannot be read leaves its part empty. It never fails the whole incident read."""
     try:
@@ -374,6 +405,8 @@ def build(incident_id, data, observations, conflict_body, tasks):
         "header": _header(incident_id, data, observations, tasks),
         "conditions": _guard("conditions", _conditions, {"weather": None, "air": None}),
         "photoReads": _guard("photo reads", lambda: _photo_reads(observations), {}),
+        "suggestions": _guard("suggestions", lambda: _suggestions(incident_id), None),
+        "translations": _guard("translations", lambda: _translations(observations), {}),
     }
 
 
