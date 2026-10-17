@@ -20,6 +20,7 @@ import {
 } from '../contracts/types'
 import { bearingDeg, distanceM } from '../screens/geo'
 import { ApiError, type EmberApi } from './types'
+import type { Me } from '../../auth/api'
 
 export interface MockControls {
   /** Simulate the backend safety rule firing (code WITHDRAW). */
@@ -124,7 +125,8 @@ function validate(body: ObservationRequest, volunteerId: string): void {
 
 const SEVERITY = { asap: 'smoke', api: 'small_flame', aman: 'none', butuh_bantuan: 'unknown' } as const
 
-export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & { mock: MockControls } {
+export function createMockApi(volunteerId: string, latencyMs = 300, initialProfile?: Me): EmberApi & { mock: MockControls } {
+  let profile: Me = initialProfile ?? { id: volunteerId, displayName: 'Pak Dedi', role: 'volunteer', crewName: 'Crew A · Desa Tohor', roleLabel: 'pump team', supervisorName: 'Bu Maya · BPBD Kep. Meranti', phoneMasked: '•••• 4417', trainingDone: 2, trainingTotal: 4, language: null, shareMyLocationWithCrew: true, demoMode: true }
   let digest: Digest
   let failure: 'network' | 'validation' | null = null
   const observations: Observation[] = []
@@ -191,6 +193,12 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
       .sort((a, b) => a.distanceM - b.distanceM)
 
   return {
+    async patchMe(body) {
+      await wait()
+      if (failure) { const kind = failure; failure = null; throw new ApiError(kind, 'Could not save preferences', kind === 'network' ? null : 400, kind === 'network') }
+      profile = { ...profile, ...body }
+      return { ...profile }
+    },
     async getDigest(position, options) {
       await wait()
       if (position) lastPosition = position

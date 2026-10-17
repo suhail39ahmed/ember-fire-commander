@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 
-import type { Me } from '../../auth/api'
+import type { Me, MePatch } from '../../auth/api'
 import type { EmberApi } from '../api/types'
 import type { MockControls } from '../api/mock'
 import type { Digest } from '../contracts/types'
@@ -43,6 +43,9 @@ export interface TalkHandle {
 export interface VolunteerValue {
   api: EmberApi
   me: Me | null
+  updateMe: (patch: MePatch) => void
+  settingsSaving: boolean
+  settingsError: boolean
   volunteerId: string | null
   digest: Digest | null
   digestStatus: DigestStatus

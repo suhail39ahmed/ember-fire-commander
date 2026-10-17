@@ -5,6 +5,7 @@ route, and a volunteer only ever acts for themselves: their own task, or an inci
 Each write commits the change and its audit row in one transaction, like the supervisor decisions do.
 """
 import logging
+import re
 
 from flask import Blueprint, g, jsonify, request
 
@@ -12,6 +13,7 @@ from identity import AuthError
 from photos.paths import owner_of
 from incidents import rules, store
 from incidents.errors import ApiError, conflict, error_response, not_found, validation
+from config_route import read_demo_mode
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +48,66 @@ def crew_name_of(uid):
         logger.warning("crew name read failed", exc_info=True)
         return None
     return crew.strip() if isinstance(crew, str) and crew.strip() else None
+
+
+def profile_fields(profile):
+    """Public profile allowlist. Raw phone numbers never leave this module."""
+    def text(key):
+        value = profile.get(key)
+        return value.strip() if isinstance(value, str) and value.strip() else None
+
+    def count(key):
+        value = profile.get(key)
+        return value if type(value) is int and value >= 0 else None
+
+    phone = re.sub(r"\D", "", text("phone") or "")
+    return {
+        "crewName": text("crewName"),
+        "roleLabel": text("roleLabel"),
+        "supervisorName": text("supervisorName"),
+        "phoneMasked": ("•••• " + phone[-4:]) if len(phone) > 4 else None,
+        "trainingDone": count("trainingDone"),
+        "trainingTotal": count("trainingTotal"),
+        "language": profile.get("language") if profile.get("language") in ("id", "en", "jv", "su", "ms") else None,
+        "shareMyLocationWithCrew": profile.get("shareMyLocationWithCrew") if type(profile.get("shareMyLocationWithCrew")) is bool else True,
+        "demoMode": read_demo_mode(),
+    }
+
+
+def profile_of(uid):
+    try:
+        profile = read_profile(uid)
+    except Exception:
+        logger.warning("profile read failed", exc_info=True)
+        profile = {}
+    return profile_fields(profile)
+
+
+@volunteer_bp.route("/me", methods=["PATCH"])
+def patch_me():
+    """Only the caller's language and crew-sharing preference may be changed."""
+    _require_volunteer()
+    body = _body()
+    allowed = {"language", "shareMyLocationWithCrew"}
+    if not body or body.keys() - allowed:
+        raise validation("body", "send language and/or shareMyLocationWithCrew only")
+    if "language" in body and body["language"] not in ("id", "en", "jv", "su", "ms"):
+        raise validation("language", "use id, en, jv, su or ms")
+    if "shareMyLocationWithCrew" in body and type(body["shareMyLocationWithCrew"]) is not bool:
+        raise validation("shareMyLocationWithCrew", "a boolean")
+
+    def run(transaction):
+        ref = _ref(store.VOLUNTEERS, g.user["id"])
+        snapshot = ref.get(transaction=transaction)
+        profile = (snapshot.to_dict() or {}) if snapshot.exists else {}
+        if snapshot.exists:
+            transaction.update(ref, body)
+        else:
+            transaction.set(ref, body)
+        return profile | body
+
+    profile = store.run_transaction(run)
+    return jsonify(dict(g.user) | profile_fields(profile)), 200
 
 
 def _require_volunteer():

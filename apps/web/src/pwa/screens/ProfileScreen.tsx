@@ -1,51 +1,57 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { useAuth } from '../../auth/AuthProvider'
-import { ThemeSwitch } from '../DisplayControls'
-import { LanguageToggle } from '../LanguageProvider'
+import { LanguageDropdown, ThemeSwitch } from '../DisplayControls'
 import { PermissionsPanel } from '../install/PermissionsPanel'
 import { useLanguage } from '../language'
 import { useVolunteer } from '../layout/volunteerContext'
 import { t } from '../i18n'
 import { screenStrings } from './strings'
+import './profile.css'
 
-/** The Profile tab (#152): name and crew, language, appearance, permission rows and sign out. */
 export function ProfileScreen() {
   const { lang } = useLanguage()
   const { signOut } = useAuth()
-  const { me, perms, asking, requestPermission } = useVolunteer()
+  const { me, perms, asking, requestPermission, position, updateMe, settingsSaving, settingsError } = useVolunteer()
   const [failed, setFailed] = useState(false)
-  const crew = me?.crewName?.trim()
+  const copy = screenStrings.profile
+  const initials = (me?.displayName ?? '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((word) => Array.from(word)[0]).join('').toLocaleUpperCase()
+  const crew = [me?.crewName?.trim(), me?.roleLabel?.trim()].filter(Boolean).join(' · ')
 
   return (
-    <>
-      <section className="card" aria-labelledby="profile-name">
-        <h2 id="profile-name">{me?.displayName || 'EMBER'}</h2>
-        <p className="section-label">{t(lang, screenStrings.profile.crew)}</p>
-        <p data-testid="profile-crew">{crew || t(lang, screenStrings.profile.crewUnknown)}</p>
+    <div className="profile-screen">
+      <h1 className="profile-title">{t(lang, copy.title)}</h1>
+      <section className="card profile-card" aria-labelledby="profile-name">
+        <div className="profile-identity">
+          {initials && <span className="profile-avatar" aria-hidden="true">{initials}</span>}
+          <div><h2 id="profile-name">{me?.displayName || 'EMBER'}</h2>
+            {crew && <p className="muted small" data-testid="profile-crew">{crew}</p>}
+          </div>
+        </div>
+        <dl className="profile-details">
+          {me?.supervisorName && <div><dt>{t(lang, copy.supervisor)}</dt><dd>{me.supervisorName}</dd></div>}
+          {me?.phoneMasked && <div><dt>{t(lang, copy.phone)}</dt><dd>{me.phoneMasked}</dd></div>}
+          {me?.trainingDone != null && me?.trainingTotal != null && <div><dt>{t(lang, copy.training)}</dt><dd><Link to="/pwa/guide">{t(lang, copy.trainingProgress(me.trainingDone, me.trainingTotal))}</Link></dd></div>}
+        </dl>
       </section>
-
-      <section className="card">
-        <p className="section-label">{t(lang, screenStrings.profile.language)}</p>
-        <LanguageToggle />
-        <p className="section-label">{t(lang, screenStrings.profile.appearance)}</p>
+      <section className="card profile-setting">
+        <div><h3>{t(lang, copy.language)}</h3><p className="muted small">{t(lang, copy.languageNote)}</p></div>
+        <LanguageDropdown />
+      </section>
+      <section className="card profile-setting">
+        <div><h3>{t(lang, copy.appearance)}</h3><p className="muted small">{t(lang, copy.appearanceNote)}</p></div>
         <ThemeSwitch />
-        <p className="muted small">{t(lang, screenStrings.profile.appearanceNote)}</p>
       </section>
-
-      <PermissionsPanel perms={perms} asking={asking} lang={lang} onRequest={requestPermission} />
-
-      <button
-        type="button"
-        className="btn secondary"
-        onClick={() => {
-          setFailed(false)
-          signOut().catch(() => setFailed(true))
-        }}
-      >
-        {t(lang, screenStrings.profile.signOut)}
-      </button>
-      {failed && <p className="error" role="alert">{t(lang, screenStrings.profile.signOutFailed)}</p>}
-    </>
+      <section className="card profile-setting">
+        <div><h3 id="profile-share-label">{t(lang, copy.share)}</h3><p className="muted small">{t(lang, copy.shareNote)}</p></div>
+        <button type="button" role="switch" className="profile-switch" aria-labelledby="profile-share-label" aria-checked={me?.shareMyLocationWithCrew ?? true} disabled={settingsSaving} onClick={() => updateMe({ shareMyLocationWithCrew: !(me?.shareMyLocationWithCrew ?? true) })}><span /></button>
+      </section>
+      {settingsError && <p className="error" role="alert">{t(lang, copy.saveFailed)}</p>}
+      <PermissionsPanel perms={perms} asking={asking} lang={lang} onRequest={requestPermission} accuracyM={position.kind === 'ok' ? position.accuracyM : null} />
+      <button type="button" className="btn secondary profile-signout" onClick={() => { setFailed(false); signOut().catch(() => setFailed(true)) }}>{t(lang, copy.signOut)}</button>
+      {failed && <p className="error" role="alert">{t(lang, copy.signOutFailed)}</p>}
+      {me?.demoMode === true && <p className="profile-demo">{t(lang, copy.demo)}</p>}
+    </div>
   )
 }

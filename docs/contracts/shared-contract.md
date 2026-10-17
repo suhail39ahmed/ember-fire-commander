@@ -44,6 +44,8 @@ The role is the Firebase custom claim `role`: `volunteer` or `supervisor`. `embe
 
 `GET /me` returns the signed-in user.
 
+For volunteers it also returns profile labels and preferences from `volunteers/{uid}`: `crewName`, `roleLabel`, `supervisorName`, `phoneMasked`, `trainingDone`, `trainingTotal`, `language`, and `shareMyLocationWithCrew`. Labels and counts are `null` when missing or invalid; blank strings are `null`. `phoneMasked` exposes only the last four digits, prefixed with `••••`; a missing number or one with four or fewer digits returns `null`. The raw `phone` is never returned. `language` is `id`, `en`, `jv`, `su`, `ms`, or `null`; `shareMyLocationWithCrew` defaults to `true`. `demoMode` is a boolean from server configuration (`ops/config`, with `DEMO_MODE` fallback), never the volunteer document. Supervisors keep the identity-only response.
+
 ```json
 {
   "id": "uid_sari",
@@ -623,9 +625,15 @@ Written by the hourly ingest job and nowhere else. It never writes incidents, ob
 
 Base URL is the `ember-api` origin. Unless a route says otherwise, the caller is any signed-in role and the success body is the stored record.
 
-### 6.1 `GET /me`
+### 6.1 `GET /me`, `PATCH /me`
 
 Returns §2. For a volunteer it also carries `crewName`: the crew written on their profile (`volunteers/{uid}.crewName`), or `null` when none is set or the profile cannot be read. A supervisor has no `crewName` field. `401` or `403` as in §3.
+
+The other volunteer fields and null/default rules are in §2. Read-only profile fields are `roleLabel`, `supervisorName`, `phoneMasked` (masked server-side from `phone`), `trainingDone`, and `trainingTotal` (nonnegative integers). Omit missing profile rows in the UI. `demoMode` controls the Profile demo footer. On a profile read failure, labels, counts and language are `null`, sharing is `true`, and the server demo flag still applies.
+
+`PATCH /me` is volunteer-only and updates only the caller's `volunteers/{uid}` document. Send a nonempty JSON object containing `language` (`id`, `en`, `jv`, `su`, or `ms`) and/or `shareMyLocationWithCrew` (boolean). Unknown fields, nulls, and invalid values return `400 validation_error`; missing identity returns `401`, supervisors return `403`. The write preserves all other profile fields and creates the document if absent. Success is `200` with the same complete volunteer shape as `GET /me`.
+
+Language also selects coach copy/voice; there is no separate voice setting. The existing UI fallback to English remains for languages without translated copy. A missing server language preserves the device choice until the first explicit change. On sign-in a saved server language wins. Failed preference writes restore the last confirmed value (or the original device language if the server has none). Appearance remains device-only (`ember.theme`) and is never sent here. Crew sharing does not remove GPS from reports; reports always carry location. The sharing flag is stored as a preference; this route does not add a new crew-location feed.
 
 ### 6.2 `POST /observations`
 

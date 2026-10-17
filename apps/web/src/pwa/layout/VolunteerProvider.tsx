@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 
 import { useAuth } from '../../auth/AuthProvider'
 import { authHeadersFor } from '../api/authHeaders'
@@ -21,6 +21,8 @@ import { usePushRegistration } from '../push/usePushRegistration'
 import { useDevicePosition } from '../screens/useDevicePosition'
 import { useDigest } from '../useDigest'
 import { VolunteerContext, type VolunteerValue } from './volunteerContext'
+import { LanguageContext, useLanguage } from '../language'
+import { createProfileSettings } from './profileSettings'
 
 const IDLE_COACH: CoachState = { phase: 'idle', replyText: null, receivedAt: null, incidentLabel: null }
 
@@ -31,6 +33,8 @@ const IDLE_COACH: CoachState = { phase: 'idle', replyText: null, receivedAt: nul
  */
 export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberApi; children: ReactNode }) {
   const { user, me, reportAuthFailure } = useAuth()
+  const language = useLanguage()
+  const initialLanguage = useRef(language.language)
   const [session, setSession] = useState<SessionState>('idle')
   const [pttBlocked, setPttBlocked] = useState<'auth' | 'unavailable' | null>(null)
   const [transcript, setTranscript] = useState<string | null>(null)
@@ -40,8 +44,8 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
   const getAuthHeaders = useMemo(() => authHeadersFor(user), [user])
   const volunteerId = me?.id ?? null
   const baseApi = useMemo<EmberApi>(
-    () => apiOverride ?? (USE_MOCK_API ? createMockApi(volunteerId ?? 'uid_mock') : createHttpApi(getAuthHeaders)),
-    [apiOverride, getAuthHeaders, volunteerId],
+    () => apiOverride ?? (USE_MOCK_API ? createMockApi(volunteerId ?? 'uid_mock', 300, me ?? undefined) : createHttpApi(getAuthHeaders)),
+    [apiOverride, getAuthHeaders, volunteerId, me],
   )
   // A 401 on any call swaps the page for the sign-in screen (session expired, or device not verified).
   const api = useMemo<EmberApi>(
@@ -49,6 +53,9 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
     [baseApi, reportAuthFailure],
   )
   const mock = (baseApi as EmberApi & { mock?: MockControls }).mock
+  const settings = useMemo(() => createProfileSettings(me, api, initialLanguage.current, language.setLang), [me, api, language.setLang])
+  useEffect(() => settings.connect(), [settings])
+  const profile = useSyncExternalStore(settings.subscribe, settings.get, settings.get)
   const upload = useMemo(() => (USE_MOCK_API ? createMockUpload() : createXhrUpload()), [])
   const outbox = useOutbox(api, upload)
 
@@ -113,7 +120,10 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
   const view = talkView({ voice, session, mic: perms.microphone, blocked: pttBlocked })
   const value: VolunteerValue = {
     api,
-    me,
+    me: profile.me,
+    updateMe: settings.update,
+    settingsSaving: profile.saving,
+    settingsError: profile.error,
     volunteerId,
     digest,
     digestStatus,
@@ -148,5 +158,9 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
     },
     mock,
   }
-  return <VolunteerContext.Provider value={value}>{children}</VolunteerContext.Provider>
+  return (
+    <LanguageContext.Provider value={{ ...language, setLang: (next) => settings.update({ language: next }) }}>
+      <VolunteerContext.Provider value={value}>{children}</VolunteerContext.Provider>
+    </LanguageContext.Provider>
+  )
 }

@@ -11,11 +11,12 @@ const render = (perms: Perms, asking: Asking = {}, lang: 'en' | 'id' = 'en', pla
 const row = (html: string, key: string) => html.match(new RegExp(`<li[^>]*data-testid="perm-${key}"[\\s\\S]*?</li>`))![0]
 
 describe('PermissionsPanel', () => {
-  it('shows an Allow button with the Figma hint for each ungranted row', () => {
+  it('makes the whole prompt row actionable with the permission hint', () => {
     const html = render(all('prompt'))
     const mic = row(html, 'microphone')
     expect(mic).toContain('Needed for push-to-talk')
-    expect(mic).toContain('>Allow<')
+    expect(mic).toContain('class="perm-row-action"')
+    expect(mic).toContain('>Not allowed<')
     expect(mic).toContain('aria-label="Allow Microphone"')
     expect(row(html, 'camera')).toContain('Live video and photos')
   })
@@ -40,6 +41,7 @@ describe('PermissionsPanel', () => {
     const denied = all('denied')
     expect(row(render(denied), 'notifications')).toContain('Site settings → Notifications → Allow')
     expect(row(render(denied), 'notifications')).toContain('>Blocked<')
+    expect(row(render(denied), 'notifications')).not.toContain('<button')
     expect(row(render(denied, {}, 'en', 'ios'), 'microphone')).toContain('Settings → Safari → Microphone → Allow')
     expect(row(render(denied, {}, 'en', 'android'), 'camera')).toContain('Tap the lock icon → Permissions → Camera → Allow')
     expect(row(render(denied, {}, 'id'), 'microphone')).toContain('Pengaturan situs → Mikrofon → Izinkan')
@@ -51,11 +53,20 @@ describe('PermissionsPanel', () => {
     expect(cam).not.toContain('<button')
   })
 
-  it('has no unlabelled duplicate status line, and one labelled summary', () => {
+  it('shows actual GPS accuracy only on a granted location row', () => {
+    const panel = (state: Perms[keyof Perms], accuracyM: number | null) => renderToStaticMarkup(<PermissionsPanel perms={all(state)} lang="en" onRequest={() => undefined} accuracyM={accuracyM} />)
+    expect(row(panel('granted', 18.4), 'location')).toContain('±18 m')
+    expect(row(panel('granted', null), 'location')).toContain('Attached to every report')
+    expect(row(panel('denied', 18), 'location')).not.toContain('±18 m')
+    expect(row(panel('granted', NaN), 'location')).not.toContain('NaN')
+  })
+
+  it('shows LIVE without the readiness summary', () => {
     const html = render({ microphone: 'granted', camera: 'prompt', location: 'granted', notifications: 'denied' })
     expect(html).not.toContain('not asked yet')
-    expect(html).toContain('2 of 4 ready · notifications are off, tasks still show while the app is open')
-    expect(render(all('granted'))).toContain('4 of 4 ready')
+    expect(html).toContain('>LIVE<')
+    expect(html).not.toContain('of 4 ready')
+    expect(render(all('granted'))).not.toContain('of 4 ready')
   })
 
   it('renders one row per permission, each with the same structure in every state', () => {

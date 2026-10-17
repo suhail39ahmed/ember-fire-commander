@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useMatch } from 'react-router-dom'
 
 import { InstallBanner } from '../install/InstallBanner'
 import { DigestNotice } from '../DigestNotice'
@@ -35,6 +35,7 @@ import { useVolunteer } from './volunteerContext'
  */
 export function PhoneLayout() {
   const { lang } = useLanguage()
+  const profileRoute = useMatch('/pwa/profile') !== null
   const v = useVolunteer()
   const { api, me, volunteerId, digest, digestStatus, lastSyncAt, refresh, position, outbox, mock } = v
 
@@ -48,10 +49,10 @@ export function PhoneLayout() {
 
   return (
     <div className="vol">
-      <VolunteerHeader name={me?.displayName} crew={me?.crewName} lang={lang} />
+      {!profileRoute && <VolunteerHeader name={me?.displayName} crew={me?.crewName} lang={lang} />}
 
       <main className="vol-main">
-        <p className="badge-simulated vol-simulated">{t(lang, strings.simulated)}</p>
+        {!profileRoute && <p className="badge-simulated vol-simulated">{t(lang, strings.simulated)}</p>}
         <InstallBanner lang={lang} />
         <DigestNotice status={digestStatus} hasDigest={digest !== null} lang={lang} onRetry={refresh} />
 
@@ -94,7 +95,7 @@ export function PhoneLayout() {
         </Routes>
         )}
 
-        {USE_MOCK_API && mock && (
+        {!profileRoute && USE_MOCK_API && mock && (
           <section className="card dev" aria-label="Mock controls">
             <p className="section-label">MOCK API · DEV ONLY</p>
             <button type="button" className="btn small" onClick={() => { mock.triggerWithdraw(); refresh() }}>

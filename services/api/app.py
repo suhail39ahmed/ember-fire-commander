@@ -83,7 +83,7 @@ def me():
     """Return the signed-in user. Role comes only from the ID token; a volunteer's crew comes from their profile."""
     body = dict(g.user)
     if body.get("role") == "volunteer":
-        body["crewName"] = volunteer_routes.crew_name_of(body["id"])
+        body.update(volunteer_routes.profile_of(body["id"]))
     return jsonify(body), 200
 
 

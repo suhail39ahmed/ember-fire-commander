@@ -10,6 +10,7 @@ import { API_BASE_URL } from './config'
 import { ApiError, type EmberApi } from './types'
 
 export const ENDPOINTS = {
+  me: '/me',
   digest: '/digest',
   // About 1 m of precision is plenty for "how far is that fire", and keeps the URL free of exponent forms.
   digestAt: (position: DigestPosition) => `/digest?lat=${position.lat.toFixed(5)}&lng=${position.lng.toFixed(5)}`,
@@ -74,6 +75,7 @@ export function createHttpApi(
   }
 
   return {
+    patchMe: (body) => request(ENDPOINTS.me, { method: 'PATCH', body: JSON.stringify(body) }),
     getDigest: (position, options) => request<Digest>(digestPath(position, options)),
     requestJoin: async (incidentId) => {
       const body = await request<{ joinRequest: JoinRequestSummary }>(ENDPOINTS.joinRequest(incidentId), { method: 'POST' })

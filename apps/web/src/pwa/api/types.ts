@@ -1,5 +1,7 @@
 import type { DeclineReason, Digest, DigestOptions, DigestPosition, FlagRequest, IncidentDetail, IncidentMembership, JoinRequestSummary, Observation, ObservationRequest, PhotoContentType, PracticeResponse, TrainingPayload, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
 
+import type { Me, MePatch } from '../../auth/api'
+
 /** Error surfaced to the UI. `retryable` is true for network failures, 429 and 5xx. */
 export class ApiError extends Error {
   constructor(
@@ -16,6 +18,7 @@ export class ApiError extends Error {
 
 /** The ember-api operations the volunteer PWA uses. */
 export interface EmberApi {
+  patchMe(body: MePatch): Promise<Me>
   /** GET /digest. With the phone's position the answer also lists live incidents near it (`nearby`). The position is not stored. */
   getDigest(position?: DigestPosition | null, options?: DigestOptions): Promise<Digest>
   /** POST /incidents/{id}/join-requests: ask a supervisor to add this volunteer to a fire. A repeat returns the first request. */
