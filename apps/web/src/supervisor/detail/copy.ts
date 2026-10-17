@@ -28,6 +28,12 @@ export const detailCopy = {
 
   fieldTitle: { id: 'Langsung dari lapangan', en: 'Live from the field' },
   fieldNote: { id: 'laporan terbaru dari tiap relawan', en: 'latest report from each volunteer' },
+  fieldSub: {
+    id: 'relawan · satu kamera live dalam satu waktu · yang lain kirim foto tiap 60 dtk',
+    en: 'volunteers · one live camera at a time · others send a photo every 60 s',
+  },
+  expand: { id: 'Perbesar', en: 'Expand' },
+  coarseFix: { id: 'lokasi kasar', en: 'coarse location' },
   fieldEmpty: { id: 'Belum ada relawan di insiden ini.', en: 'No volunteers on this incident yet.' },
   lastReport: { id: 'Laporan terakhir', en: 'Last report' },
   noReportText: { id: 'Tanpa catatan.', en: 'No note.' },

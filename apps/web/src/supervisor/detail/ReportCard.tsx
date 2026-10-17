@@ -4,6 +4,7 @@ import { chipLabel } from '../../pwa/report/chips'
 import type { Observation } from '../contracts'
 import { detailCopy, severityName, taskCopy } from './copy'
 import { disagreeCopy } from './disagreeCopy'
+import { accuracyText } from './cardModel'
 import { HELP_CHIP } from './helpModel'
 import { volunteerLabel } from './model'
 import './disagree.css'
@@ -20,7 +21,7 @@ export function ReportCard({ lang, obs }: { lang: Lang; obs: Observation }) {
       <header className="rep-head">
         <h3 className="rep-name">{name}</h3>
         <p className="rep-meta">
-          <time dateTime={obs.capturedAt}>{formatTimeZone(obs.capturedAt)}</time> · ±{obs.accuracyM ?? '?'} m
+          <time dateTime={obs.capturedAt}>{formatTimeZone(obs.capturedAt)}</time>{accuracyText(obs.accuracyM) && ` · ${accuracyText(obs.accuracyM)}`}
         </p>
       </header>
       <div className="rep-pills">

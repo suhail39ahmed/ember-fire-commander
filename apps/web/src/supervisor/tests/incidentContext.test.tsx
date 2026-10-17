@@ -133,7 +133,10 @@ describe('volunteer card and profile from stored context', () => {
 
   it('draws that line on the volunteer card in the detail', () => {
     const detail: IncidentDetail = { ...fixture('conflict'), volunteers: [sariCard()] }
-    expect(view(detail)).toContain('Tim Pompa A · pump team · 41% · 3G · ID')
+    const html = view(detail)
+    expect(html).toContain('Sari · pump team')
+    expect(html).toContain('Tim Pompa A')
+    expect(html).toContain('<span class="inc-vol-link">3G · 41%</span>')
   })
 
   it('fills the pop-up profile from the card, with the live signal winning over the report network', () => {

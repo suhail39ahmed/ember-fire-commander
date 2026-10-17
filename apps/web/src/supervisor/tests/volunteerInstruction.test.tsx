@@ -109,7 +109,7 @@ describe('the volunteer pop-up with real data', () => {
     const d = enriched()
     d.volunteers![0].pushReady = false
     expect(html(d, 'uid_sari')).toContain('<dt>Device</dt><dd>No push token stored</dd>')
-    expect(html(fixture('conflict'), 'uid_sari')).toContain('<dt>Device</dt><dd>—</dd>')
+    expect(html(fixture('conflict'), 'uid_sari')).not.toContain('<dt>Device</dt>')
   })
 
   it('lists the proposed task as a suggestion with its stored reason, and the evidence factors', () => {

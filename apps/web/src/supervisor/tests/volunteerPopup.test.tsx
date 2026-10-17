@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { StaticRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
-import { formatTimeZone } from '../../pwa/formatTime'
+import { formatTime, formatTimeZone } from '../../pwa/formatTime'
 import type { IncidentDetail, Observation } from '../contracts'
 import { fixture } from '../fixtures'
 import type { IncidentActions } from '../IncidentView'
@@ -77,12 +77,13 @@ describe('volunteer pop-up: every region of the frame is there', () => {
     expect(html).toContain('>Tutup<')
   })
 
-  it('shows the profile values the API has and a dash for the rest', () => {
+  it('shows the profile values the API has and leaves out the rest', () => {
     const html = popup(fixture('conflict'), 'uid_sari')
     expect(html).toContain('<dt>Position</dt><dd>-1.849, 110.051 · ±22 m</dd>')
     expect(html).toContain(`<dt>First report</dt><dd>${formatTimeZone('2026-10-17T03:05:00Z')}</dd>`)
     expect(html).toContain('<dt>Incident</dt><dd>Ketapang, Kalimantan Barat · Pak Dedi · #1</dd>')
-    for (const label of ['Role', 'Network', 'Battery', 'Language', 'Last heard']) expect(html).toContain(`<dt>${label}</dt><dd>—</dd>`)
+    for (const label of ['Role', 'Network', 'Battery', 'Language', 'Last heard']) expect(html).not.toContain(`<dt>${label}</dt>`)
+    expect(html).not.toContain('<dd>—</dd>')
     expect(html).toContain('No report from this volunteer has carried network, battery or language yet.')
   })
 
@@ -96,7 +97,7 @@ describe('volunteer pop-up: every region of the frame is there', () => {
 
   it('lists photo reports by time and volunteer, asking for the signed link and never printing the storage path', () => {
     const html = popup(withPhoto(fixture('conflict')), 'uid_sari')
-    expect(html).toContain(`${formatTimeZone('2026-10-17T03:07:00Z')} · Sari`)
+    expect(html).toContain(`${formatTime('2026-10-17T03:07:00Z')} · SARI`)
     expect(html).toContain('Loading photo…')
     expect(html).not.toContain('photos/uid_sari')
   })
@@ -145,10 +146,10 @@ describe('volunteer pop-up: every region of the frame is there', () => {
 })
 
 describe('volunteer pop-up: where it opens', () => {
-  it('puts an Open button on each volunteer card', () => {
+  it('puts an Expand button on each volunteer card', () => {
     const row = volunteersOf(fixture('conflict'))[0]
-    expect(renderToStaticMarkup(<VolunteerCard lang="en" row={row} onOpen={() => undefined} />)).toContain('aria-label="Open Sari"')
-    expect(renderToStaticMarkup(<VolunteerCard lang="en" row={row} />)).not.toContain('>Open<')
+    expect(renderToStaticMarkup(<VolunteerCard lang="en" row={row} onOpen={() => undefined} />)).toContain('aria-label="Expand Sari"')
+    expect(renderToStaticMarkup(<VolunteerCard lang="en" row={row} />)).not.toContain('>Expand<')
   })
 
   it('keeps the incident detail as it is while closed', () => {
@@ -166,6 +167,6 @@ describe('volunteer pop-up: where it opens', () => {
       </StaticRouter>,
     )
     expect(html).not.toContain('role="dialog"')
-    expect(html.match(/aria-label="Open (Sari|Dedi)"/g)).toHaveLength(2)
+    expect(html.match(/aria-label="Expand (Sari|Dedi)"/g)).toHaveLength(2)
   })
 })
