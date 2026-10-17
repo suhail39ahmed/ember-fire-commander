@@ -13,10 +13,11 @@ import { PhotoPanel } from '../photo/PhotoPanel'
 import { ReportPanel } from '../report/ReportPanel'
 import { getPosition, locate, watchLocationGranted } from '../report/location'
 import { stampNow } from '../clock'
-import type { ChipValue } from '../contracts/types'
+import type { ChipValue, ObservationRequest } from '../contracts/types'
 import { t } from '../i18n'
 import { incidentLabelById } from '../incidentName'
 import { screenStrings } from './strings'
+import type { SubmitResult } from '../outbox/useOutbox'
 
 /** The Report tab (#128 / #129 / #130): live camera, hold to talk, coach reply, report cards, photo, outbox. */
 export function ReportScreen() {
@@ -37,6 +38,18 @@ export function ReportScreen() {
     camera.start()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- start is stable per screen; only the permission matters
   }, [perms.camera])
+
+  // Connect / disconnect the microphone from Hold to Talk to the video recorder.
+  // When HtT goes live, talk.micStream becomes non-null and is mixed into the recording.
+  // When released, it becomes null and silence is recorded again.
+  useEffect(() => {
+    camera.recorder.setMicStream(talk.micStream)
+  }, [camera.recorder, talk.micStream])
+
+  // Discard any unsent clip when the volunteer leaves the screen without pressing Send.
+  useEffect(() => {
+    return () => camera.recorder.discard()
+  }, [camera.recorder])
 
   async function onRelease() {
     const text = talk.takeTranscript()
@@ -76,6 +89,39 @@ export function ReportScreen() {
     }
   }
 
+  /**
+   * Wrap the outbox submit so the video clip is queued at the same time as the chip/text report.
+   * Taking the clip with takeClip() clears it from the recorder so it is not double-submitted
+   * even if the volunteer presses Send again (e.g. after a network failure and retry).
+   */
+  async function submitWithVideo(body: ObservationRequest): Promise<SubmitResult> {
+    const clip = camera.recorder.takeClip()
+    const result = await outbox.submit(body)
+    if (clip && camera.recorderSnap.mimeType) {
+      const pos = await getPosition()
+      if (pos) {
+        const mimeType = camera.recorderSnap.mimeType
+        const contentType = mimeType.startsWith('video/mp4') ? 'video/mp4' : 'video/webm'
+        try {
+          await outbox.submitVideo?.({
+            blob: clip,
+            contentType,
+            capturedAt: stampNow(),
+            pos,
+          })
+        } catch {
+          // Queue for later if submission fails; the clip is already taken from the recorder.
+          try {
+            await outbox.queueVideo?.({ blob: clip, contentType, capturedAt: stampNow(), pos })
+          } catch {
+            // If even queuing fails (e.g. storage unavailable), the clip is lost.
+          }
+        }
+      }
+    }
+    return result
+  }
+
   return (
     <>
       <CameraPanel
@@ -87,6 +133,7 @@ export function ReportScreen() {
         onBack={() => navigate('/pwa')}
         // The browser cannot open the voice-gateway socket yet (contract section 7), so no frame leaves the phone.
         framesToCoach={false}
+        recorderSnap={camera.recorderSnap}
       />
       {state?.incidentId && (
         <p className="muted small" data-testid="report-context">
@@ -119,7 +166,7 @@ export function ReportScreen() {
         onLocationGranted={watchLocationGranted}
         preset={preset}
         taskId={state?.taskId}
-        submit={outbox.submit}
+        submit={submitWithVideo}
         volunteerId={volunteerId}
         onDone={() => navigate('/pwa')}
       />
