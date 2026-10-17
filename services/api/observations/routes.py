@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, g, jsonify, request
 
+from assist import background as assist_background
 from observations.notify import notify_observation, resend_pending
 from observations.photo import check_photo_path
 from observations.store import assemble_record, get_store, utc_now_iso
@@ -53,6 +54,8 @@ def create_observation():
         # The same clientId was sent before (an outbox replay): answer with the stored report.
         return jsonify(_with_join(store, stored)), 200
     _hand_off(store, stored["id"])
+    # The photo read and the English translation run after the report is stored and never delay it.
+    assist_background.after_store(stored, g.user["id"])
     return jsonify(_with_join(store, stored)), 201
 
 
