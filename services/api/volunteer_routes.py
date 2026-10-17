@@ -8,6 +8,7 @@ import logging
 import re
 
 from flask import Blueprint, g, jsonify, request
+from firebase_admin import auth as firebase_auth
 
 from identity import AuthError
 from photos.paths import owner_of
@@ -91,6 +92,23 @@ def profile_of(uid):
         logger.warning("profile read failed", exc_info=True)
         profile = {}
     return profile_fields(profile)
+
+
+@volunteer_bp.route("/volunteers/register", methods=["POST"])
+def register_volunteer():
+    """Opt-in Google registration. The only role this endpoint can assign is volunteer."""
+    record = firebase_auth.get_user(g.user["id"])
+    claims = dict(record.custom_claims or {})
+    # Read the current server claims as well as the token, so a stale token can never replace a supervisor role.
+    if g.user.get("role") not in (None, "volunteer") or claims.get("role") not in (None, "", "volunteer"):
+        raise AuthError(403, "forbidden", "This account already has another role")
+    if request.get_data():
+        raise validation("body", "registration does not accept profile or role fields")
+    if claims.get("role") != "volunteer":
+        firebase_auth.set_custom_user_claims(record.uid, claims | {"role": "volunteer"})
+    body = dict(g.user) | {"role": "volunteer"}
+    body.update(profile_of(g.user["id"]))
+    return jsonify(body), 200
 
 
 @volunteer_bp.route("/me", methods=["PATCH"])

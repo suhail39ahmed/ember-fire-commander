@@ -25,9 +25,11 @@ All client access to Firestore and Storage goes through `ember-api`. The browser
 
 `GET /me` verifies the Firebase ID token in `Authorization: Bearer <token>` and returns `id`, `displayName`, and `role`.
 
-The role is the Firebase custom claim `role` already present on that Google sign-in token: `volunteer` or `supervisor`. ember-api reads the claim. It does not call `set_custom_user_claims`, and it does not accept a role from query parameters or JSON. A verified token with no `role` claim returns `403` with `error.code` `role_missing`. Any other claim value returns `403` `forbidden`. A missing, invalid, or expired token returns `401` `unauthorized`.
+The role is the Firebase custom claim `role` already present on that Google sign-in token: `volunteer` or `supervisor`. Normal API routes read the claim and do not accept a role from query parameters or JSON. A verified token with no `role` claim returns `403` with `error.code` `role_missing`. Any other claim value returns `403` `forbidden`. A missing, invalid, or expired token returns `401` `unauthorized`.
 
-Set the claim on each Firebase Auth user in Google Cloud, then sign out and sign in again so the ID token includes it. `GET /healthz` stays unauthenticated.
+`POST /volunteers/register` is the explicit PWA registration entry. It accepts no request body and requires a verified Google identity, revocation checks, and the normal App Check policy. A Google account with no role can opt into the `volunteer` custom claim. Other custom claims are preserved, and existing non-volunteer roles are rejected using both the token and the current Firebase user record. Registration is idempotent for volunteers and returns the volunteer `/me` shape. The client then refreshes its ID token and opens the existing account and permissions setup when `onboardingComplete` is false. The API identity needs permission to update Firebase Auth users. This endpoint never grants a supervisor role.
+
+Supervisor claims are still assigned administratively in Google Cloud. The PWA registers roleless Google users as volunteers on sign-in or from the Create Account page, then refreshes the ID token. `GET /healthz` stays unauthenticated.
 
 Protected routes also read `X-Firebase-AppCheck`. `APP_CHECK_ENFORCE` defaults to `false`: a missing or invalid App Check token is logged and the request continues. Set `APP_CHECK_ENFORCE=true` to reject it with `401` before the handler runs. That production switch is separate from this service code.
 

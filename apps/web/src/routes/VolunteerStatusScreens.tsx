@@ -7,7 +7,7 @@ import { t } from '../pwa/i18n'
 import { useLanguage } from '../pwa/language'
 import { copy, fill } from './copy'
 import { homeFor } from './paths'
-import { GoogleButton } from './SignInScreen'
+import { GoogleButton } from './VolunteerSignIn'
 import { SignInAlert, StatusCard, VolunteerAuthShell } from './VolunteerAuthShell'
 import { useSignIn } from './useSignIn'
 

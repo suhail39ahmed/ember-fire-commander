@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../auth/AuthProvider'
@@ -10,6 +10,10 @@ import { ApiError } from '../pwa/api/types'
 import { usePermissions } from '../pwa/permissions/usePermissions'
 import { Shield } from './VolunteerAuthShell'
 import './createAccount.css'
+import { useSignIn } from './useSignIn'
+import { volunteerSignInError } from './copy'
+import { LanguageDropdown } from '../pwa/DisplayControls'
+import { isE164Phone, normalizeE164Phone } from './accountValidation'
 
 const copy = {
   back: { id: 'Masuk', en: 'Sign in' },
@@ -17,6 +21,9 @@ const copy = {
   title: { id: 'Bergabung dengan regu pemadam desa', en: 'Join your village fire crew' },
   intro: { id: 'Atur nomor telepon Anda. Panduan tersedia kapan saja di menu Panduan.', en: 'Set up your phone once. Training is in Guide whenever you are ready.' },
   google: { id: 'Terdaftar dengan Google · ganti', en: 'Signed up with Google · change' },
+  googleStart: { id: 'Daftar dengan Google', en: 'Sign up with Google' },
+  googleRequired: { id: 'Daftar dengan Google untuk melengkapi akun relawan Anda.', en: 'Sign up with Google to complete your volunteer account.' },
+  googleBusy: { id: 'Sedang mendaftar…', en: 'Signing up…' },
   name: { id: 'Nama Anda', en: 'Your name' },
   nameHint: { id: 'Dari Google. Regu Anda melihat nama ini.', en: 'From Google. Your crew sees this name.' },
   phone: { id: 'Nomor untuk SMS', en: 'Phone for SMS' },
@@ -42,39 +49,42 @@ function text(lang: 'id' | 'en', value: { id: string; en: string }) {
   return value[lang]
 }
 
-export function normalizeE164Phone(value: string): string {
-  return value.replace(/[\s().-]/g, '')
-}
-
-export function isE164Phone(value: string): boolean {
-  return /^\+[1-9]\d{7,14}$/.test(normalizeE164Phone(value))
-}
-
 export function VolunteerCreateAccountScreen() {
-  const { user, me, signOut, refreshMe } = useAuth()
-  const { lang, setLang } = useLanguage()
+  const { user, me, status, signOut, refreshMe } = useAuth()
+  const { busy, message, onGoogle } = useSignIn(true)
+  const registered = status === 'ready' && me?.role === 'volunteer'
+  const { lang, language } = useLanguage()
   const { perms, asking, request } = usePermissions()
   const navigate = useNavigate()
   const [name, setName] = useState(me?.displayName || user?.displayName || '')
   const [phone, setPhone] = useState('')
   const [area, setArea] = useState(me?.area ?? '')
   const [crew, setCrew] = useState(me?.crewName ?? '')
-  const [coachLanguage, setCoachLanguage] = useState<'id' | 'en'>(me?.language === 'en' ? 'en' : 'id')
   const [step, setStep] = useState<'account' | 'permissions'>('account')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    if (registered) setName((current) => current || me?.displayName || user?.displayName || '')
+  }, [registered, me?.displayName, user?.displayName])
 
   const api = createHttpApi(authHeadersFor(user))
+  async function changeGoogleAccount() {
+    await signOut()
+    setName('')
+    setPhone('')
+    setArea('')
+    setCrew('')
+  }
   const values = {
     displayName: name.trim(),
     phone: normalizeE164Phone(phone),
     area: area.trim(),
     crewName: crew.trim(),
-    language: coachLanguage,
+    language,
   } as const
 
   async function saveProfile(onboardingComplete: boolean) {
-    if (!user) {
+    if (!user || !registered) {
       setError(text(lang, copy.saveFailed))
       return false
     }
@@ -115,20 +125,23 @@ export function VolunteerCreateAccountScreen() {
       <div className="create-account-frame">
         {step === 'account' ? (
           <>
-            <button className="create-account-back" type="button" onClick={() => { void signOut() }}>
+            <button className="create-account-back" type="button" onClick={() => { void signOut().then(() => navigate('/pwa')) }}>
               <span aria-hidden="true">←</span> {text(lang, copy.back)}
             </button>
+            <div className="create-account-display"><LanguageDropdown /></div>
             <p className="create-account-step">{text(lang, copy.stepAccount)}</p>
             <h1>{text(lang, copy.title)}</h1>
             <p className="create-account-intro">{text(lang, copy.intro)}</p>
-            <button className="create-account-google" type="button" onClick={() => { void signOut() }}>
+            <button className="create-account-google" type="button" disabled={busy} aria-busy={busy} onClick={() => { if (registered) void changeGoogleAccount(); else void onGoogle() }}>
               <span className="create-account-google-mark" aria-hidden="true">G</span>
               <span className="create-account-google-copy">
-                <strong>{user?.email || '—'}</strong>
-                <span>{text(lang, copy.google)}</span>
+                <strong>{registered ? user?.email : text(lang, busy ? copy.googleBusy : copy.googleStart)}</strong>
+                <span>{text(lang, registered ? copy.google : copy.googleRequired)}</span>
               </span>
             </button>
+            {message && !busy ? <p className="create-account-error" role="alert">{volunteerSignInError(message, lang).body}</p> : null}
             <form className="create-account-form" onSubmit={(event) => { void continueToPermissions(event) }} noValidate>
+              <fieldset className="create-account-fields" disabled={!registered || saving}>
               <label>
                 <span>{text(lang, copy.name)}</span>
                 <input autoComplete="name" maxLength={80} name="displayName" onChange={(event) => setName(event.target.value)} required value={name} />
@@ -151,15 +164,13 @@ export function VolunteerCreateAccountScreen() {
               <fieldset className="create-account-language">
                 <legend>{text(lang, copy.language)}</legend>
                 <p>{text(lang, copy.languageHint)}</p>
-                <div role="group" aria-label={text(lang, copy.language)}>
-                  <button aria-pressed={coachLanguage === 'id'} lang="id" onClick={() => { setCoachLanguage('id'); setLang('id') }} type="button">ID</button>
-                  <button aria-pressed={coachLanguage === 'en'} lang="en" onClick={() => { setCoachLanguage('en'); setLang('en') }} type="button">EN</button>
-                </div>
+                <LanguageDropdown />
               </fieldset>
               {error ? <p className="create-account-error" role="alert">{error}</p> : null}
               <button className="create-account-primary" disabled={saving} type="submit" aria-busy={saving}>
                 {saving ? (lang === 'id' ? 'Menyimpan…' : 'Saving…') : text(lang, copy.continue)}
               </button>
+              </fieldset>
             </form>
           </>
         ) : (
@@ -168,8 +179,7 @@ export function VolunteerCreateAccountScreen() {
               <Shield size={32} />
               <div><strong>{name}</strong><span>{crew} · {area}</span></div>
               <div className="create-account-language-switch" role="group" aria-label={text(lang, copy.language)}>
-                <button aria-pressed={coachLanguage === 'id'} lang="id" onClick={() => { setCoachLanguage('id'); setLang('id') }} type="button">ID</button>
-                <button aria-pressed={coachLanguage === 'en'} lang="en" onClick={() => { setCoachLanguage('en'); setLang('en') }} type="button">EN</button>
+                <LanguageDropdown />
               </div>
             </header>
             <p className="create-account-step">{text(lang, copy.stepPermissions)}</p>

@@ -5,14 +5,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLanguageStore } from '../../pwa/language'
 import { LanguageProvider } from '../../pwa/LanguageProvider'
 
-const state = vi.hoisted(() => ({ auth: null as any }))
+type TestAuth = {
+  status: 'ready' | 'signed-out'
+  user: { email: string; displayName: string } | null
+  me: { id: string; displayName: string; role: 'volunteer' } | null
+  signOut: () => Promise<void>
+  signIn: () => Promise<void>
+  refreshMe: () => Promise<void>
+}
+
+const state = vi.hoisted(() => ({ auth: null as unknown as TestAuth }))
 
 vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => state.auth }))
 vi.mock('../../pwa/api/authHeaders', () => ({
   authHeadersFor: () => async () => ({ Authorization: 'Bearer test' }),
 }))
 
-import { VolunteerCreateAccountScreen, isE164Phone, normalizeE164Phone } from '../VolunteerCreateAccountScreen'
+import { VolunteerCreateAccountScreen } from '../VolunteerCreateAccountScreen'
+import { isE164Phone, normalizeE164Phone } from '../accountValidation'
 
 function render(lang: 'id' | 'en' = 'en') {
   const store = createLanguageStore({ storage: { getItem: () => lang, setItem: () => undefined }, root: { lang: '' } })
@@ -27,14 +37,26 @@ function render(lang: 'id' | 'en' = 'en') {
 
 beforeEach(() => {
   state.auth = {
+    status: 'ready',
     user: { email: 'dedi@example.com', displayName: 'Pak Dedi' },
     me: { id: 'vol_1', displayName: 'Pak Dedi', role: 'volunteer' },
     signOut: async () => undefined,
+    signIn: async () => undefined,
     refreshMe: async () => undefined,
   }
 })
 
 describe('volunteer create-account screen', () => {
+  it('opens the existing account page before Google registration and gates profile submission', () => {
+    state.auth.status = 'signed-out'
+    state.auth.user = null
+    state.auth.me = null
+    const html = render()
+    expect(html).toContain('Join your village fire crew')
+    expect(html).toContain('Sign up with Google')
+    expect(html).toContain('class="create-account-fields" disabled=""')
+    expect(html).toContain('aria-haspopup="menu"')
+  })
   it('prefills Google identity and asks for the required profile details', () => {
     const html = render()
     expect(html).toContain('dedi@example.com')
@@ -44,8 +66,8 @@ describe('volunteer create-account screen', () => {
     expect(html).toContain('name="crewName"')
     expect(html).toContain('STEP 1 OF 2 · YOUR ACCOUNT')
     expect(html).toContain('Coach language')
-    expect(html).toContain('>ID</button>')
-    expect(html).toContain('>EN</button>')
+    expect(html).toContain('aria-label="Language: English"')
+    expect(html).not.toContain('aria-pressed=')
   })
 
   it('renders account copy in Bahasa', () => {

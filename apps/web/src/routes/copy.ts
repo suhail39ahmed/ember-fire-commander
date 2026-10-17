@@ -55,8 +55,8 @@ export const copy = {
   /** The volunteer sign-in frame (02 Sign in) and the states drawn on the same shell. */
   volunteer: {
     tagline: {
-      id: 'Laporkan kebakaran lewat suara, kamera, atau satu ketukan. Supervisor Anda melihatnya dan mengirim bantuan.',
-      en: 'Report fires by voice, camera or one tap. Your supervisor sees it and sends help.',
+      id: 'Melihat kebakaran? Kirim foto atau laporan suara. Supervisor Anda dapat mengoordinasikan bantuan.',
+      en: 'Spot a fire? Send a photo or voice report. Your supervisor can coordinate help.',
     },
     newToEmber: { id: 'BARU DI EMBER?', en: 'NEW TO EMBER?' },
     createAccount: { id: 'Buat akun relawan', en: 'Create a volunteer account' },
@@ -107,15 +107,16 @@ export const copy = {
     },
   },
   roleChoice: {
-    title: { id: 'Masuk sebagai siapa?', en: 'Who are you signing in as?' },
-    sub: { id: 'Pilih peran Anda untuk masuk.', en: 'Pick your role to sign in.' },
+    title: { id: 'Bagaimana Anda akan membantu hari ini?', en: 'How will you help today?' },
+    sub: { id: 'Pilih peran Anda. Kami akan mengingatnya di ponsel ini.', en: 'Choose your role. We’ll remember this on this phone.' },
+    language: { id: 'Bahasa', en: 'Language' },
     volunteer: {
       title: { id: 'Saya relawan', en: "I'm a volunteer" },
-      desc: { id: 'Laporkan kebakaran, terima tugas dari supervisor Anda', en: 'Report fires, get tasks from your supervisor' },
+      desc: { id: 'Laporkan kebakaran dan terima tugas dari regu Anda.', en: 'Report fires and receive tasks from your team.' },
     },
     supervisor: {
       title: { id: 'Saya supervisor', en: "I'm a supervisor" },
-      desc: { id: 'Konsol BPBD: verifikasi, setujui, kirim bantuan', en: 'BPBD console: verify, approve, send help' },
+      desc: { id: 'BPBD: tinjau laporan, koordinasikan bantuan.', en: 'BPBD: review reports, coordinate help.' },
     },
   },
   wrongRole: {

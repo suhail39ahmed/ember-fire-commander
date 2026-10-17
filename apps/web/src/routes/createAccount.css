@@ -11,6 +11,10 @@
   text-align: left;
 }
 
+.create-account-display { display: flex; justify-content: flex-end; margin: -36px 0 20px; }
+.create-account-fields { display: grid; gap: 20px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.create-account-fields:disabled { opacity: .6; }
+
 .create-account-frame {
   display: flex;
   flex-direction: column;

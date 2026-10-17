@@ -1,0 +1,32 @@
+.pwa-role-choice {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  max-width: 480px;
+  min-height: 100svh;
+  margin: 0 auto;
+  background: #0c0b0a;
+  color: #faf9f7;
+  text-align: left;
+}
+.pwa-role-photo, .pwa-role-shade { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; }
+.pwa-role-photo { object-fit: cover; object-position: center top; }
+.pwa-role-shade { background: linear-gradient(to bottom, rgb(4 6 5 / 60%), rgb(4 6 5 / 10%) 15%, rgb(4 6 5 / 10%) 36%, rgb(4 6 5 / 35%) 44%, rgb(4 6 5 / 83%) 51%, rgb(4 6 5 / 90%) 67%, rgb(4 6 5 / 94%)); }
+.pwa-role-brand { position: absolute; top: calc(max(env(safe-area-inset-top, 0px), 44px) + 14px); left: 16px; display: flex; align-items: center; gap: 9px; font-size: 19px; font-weight: 700; letter-spacing: .12em; }
+.pwa-role-content { box-sizing: border-box; width: 100%; padding: 420px 16px calc(env(safe-area-inset-bottom, 0px) + 16px); }
+.pwa-role-content h1 { margin: 0 0 14px; font-size: 24px; line-height: 30px; letter-spacing: -.07px; }
+.pwa-role-content > p { margin: 0 0 18px; font-size: 15px; line-height: 22px; }
+.pwa-role-cards { display: grid; gap: 16px; }
+.pwa-role-card { display: flex; align-items: center; gap: 16px; padding: 20px; border: 1px solid #ddd9d3; border-radius: 16px; color: #12110f; background: #fff; text-decoration: none; }
+.pwa-role-icon { display: grid; place-items: center; flex: none; width: 48px; height: 48px; background: #f2f1ee; border-radius: 12px; }
+.pwa-role-copy { display: grid; gap: 5px; }
+.pwa-role-copy strong { font-size: 18px; line-height: 23px; }
+.pwa-role-copy > span { color: #6b645c; font-size: 13px; line-height: 18px; }
+.pwa-role-copy small { color: #e2531b; font: 11px/16px 'Space Mono', monospace; letter-spacing: .08em; }
+.pwa-role-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; font-size: 13px; }
+.pwa-role-footer .lang-menu { --surface: #fff; --ink: #12110f; --ink-muted: #12110f; --paper: #fff; --line: transparent; }
+.pwa-role-footer .lang-menu-list { max-height: 60svh; overflow-y: auto; }
+.pwa-role-card:focus-visible { outline: 3px solid #e2531b; outline-offset: 3px; }
+@media (max-height: 740px) { .pwa-role-content { padding-top: 320px; } }

@@ -1,6 +1,6 @@
 import type { Me } from '../auth/api'
 
-/** Where the volunteer starts a new account. That screen is a separate issue (#124). */
+/** Google registration entry; eligible signed-in volunteers continue to account setup. */
 export const CREATE_ACCOUNT_PATH = '/pwa/create-account'
 
 export type Audience = 'volunteer' | 'supervisor'
