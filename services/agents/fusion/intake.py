@@ -10,7 +10,7 @@ from flask import Blueprint, jsonify
 from clock import now_iso as _now
 from fusion.notify import notify_withdraw
 from fusion.places import incident_name, place_label
-from fusion.rules import fuse
+from fusion.rules import fuse, lead_window_start
 from fusion.settings import Settings
 from fusion.store import get_store
 
@@ -62,13 +62,21 @@ def intake(observation_id):
     except Exception:
         logger.exception("wind lookup failed; the wind rule is skipped for this intake")
         wind = None
+    settings = Settings.from_env()
+    now = _now()
+    try:
+        leads = store.recent_leads(lead_window_start(now, settings))
+    except Exception:
+        logger.exception("satellite lead lookup failed; no lead is listed for this intake")
+        leads = []
     plan = fuse(
         observation,
         store.load_state(),
         new_id=store.new_id,
-        now=_now(),
+        now=now,
         wind_kmh=wind,
-        settings=Settings.from_env(),
+        settings=settings,
+        leads=leads,
     )
     if not plan.skipped:
         if plan.incident_is_new:

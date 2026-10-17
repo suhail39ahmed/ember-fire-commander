@@ -3,9 +3,11 @@
  * answer. A region whose data no route returns is not given invented content: see `popupCopy.gaps`.
  */
 import type { Lang } from '../../pwa/i18n'
-import type { EvidenceFactor, IncidentDetail, Observation, Task } from '../contracts'
+import type { CardDevice, EvidenceFactor, IncidentDetail, Observation, PhotoRead, Task } from '../contracts'
+import { screenStrings } from '../../pwa/screens/strings'
 import { incidentLabel } from '../../pwa/incidentName'
 import { cardOf, distanceLine, placeLine } from './cardModel'
+import { answerCopy, profileCopy, visionCopy } from './instructionCopy'
 import { formatPosition, initialsOf, nameOf } from './model'
 
 export interface PopupProfile {
@@ -27,6 +29,16 @@ export interface PopupProfile {
   lastHeardAt: string | null
   /** A push token is stored for them. Null from an older API that sends no card. */
   pushReady: boolean | null
+  /** The crew on their profile and the role stored when they joined. Null until stored, or from an older API. */
+  crew: string | null
+  role: string | null
+  /**
+   * What the phone said with its newest report that carried it. Network falls back to the live seat's signal.
+   * Null parts are not stored. The whole value is null from an older API.
+   */
+  device: CardDevice | null
+  /** The live seat's signal for this volunteer when it is not `unknown`. More current than the report's network. */
+  liveSignal: CardDevice['network']
 }
 
 export interface Popup {
@@ -45,6 +57,45 @@ export interface Popup {
   hasConflict: boolean
   /** The factors behind the incident's evidence score, as agents stored them. */
   factors: EvidenceFactor[]
+  /** The advisory read of each photo report, by observation id. `{}` when none was read or from an older API. */
+  photoReads: Record<string, PhotoRead>
+}
+
+const NETWORK_NAME = { '2g': '2G', '3g': '3G', '4g': '4G', wifi: 'Wi-Fi', unknown: '' } as const
+
+/** "3G", "Wi-Fi", or null. The live signal wins over the report's network when it is known. */
+export function networkText(profile: Pick<PopupProfile, 'device' | 'liveSignal'>): string | null {
+  const network = profile.liveSignal ?? profile.device?.network ?? null
+  return network && NETWORK_NAME[network] ? NETWORK_NAME[network] : null
+}
+
+export function batteryText(device: CardDevice | null): string | null {
+  return device && device.batteryPct !== null ? `${device.batteryPct}%` : null
+}
+
+export function languageText(lang: Lang, device: CardDevice | null): string | null {
+  return device?.language ? profileCopy.languageName[device.language][lang] : null
+}
+
+/** What the photo read says in one line: smoke, flame, burn scar, then the model's short note. Null when nothing was read. */
+export function visionLine(lang: Lang, read: PhotoRead | undefined): string | null {
+  if (!read) return null
+  const parts: string[] = []
+  if (read.smokeVisible !== null) parts.push(visionCopy[read.smokeVisible ? 'smoke' : 'noSmoke'][lang])
+  if (read.flameVisible && read.flameVisible in visionCopy.flame) parts.push(visionCopy.flame[read.flameVisible as keyof typeof visionCopy.flame][lang])
+  if (read.burnScarVisible) parts.push(visionCopy.burnScar[lang])
+  if (read.notes) parts.push(`“${read.notes}”`)
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
+/** "Accepted" or "Declined · Too far", with the volunteer's note. Null while the volunteer has not answered. */
+export function answerLine(lang: Lang, task: Task, format: (value: string) => string): string | null {
+  if (task.declinedAt) {
+    const reason = task.declineReason ? screenStrings.decline.reasons[task.declineReason]?.[lang] : null
+    return [`${answerCopy.declined[lang]} ${format(task.declinedAt)}`, reason, task.declineNote?.trim() || null].filter(Boolean).join(' · ')
+  }
+  if (task.acceptedAt) return `${answerCopy.accepted[lang]} ${format(task.acceptedAt)}`
+  return null
 }
 
 function byTimeDesc(a: Observation, b: Observation): number {
@@ -61,6 +112,7 @@ export function popupFor(detail: IncidentDetail, volunteerId: string, lang: Lang
   const newest = reports[0] ?? null
   const oldest = reports[reports.length - 1] ?? null
   const name = nameOf(detail, volunteerId, lang)
+  const liveSignal = detail.liveSeat?.volunteers[volunteerId]?.signal ?? 'unknown'
   return {
     profile: {
       id: volunteerId,
@@ -77,6 +129,10 @@ export function popupFor(detail: IncidentDetail, volunteerId: string, lang: Lang
       distance: distanceLine(lang, card),
       lastHeardAt: card?.lastHeardAt ?? null,
       pushReady: card ? card.pushReady : null,
+      crew: card?.crewName ?? null,
+      role: card?.teamRole ?? null,
+      device: card?.device ?? null,
+      liveSignal: liveSignal !== 'unknown' ? liveSignal : null,
     },
     reports,
     photos: reports.filter((o) => o.source === 'photo'),
@@ -85,5 +141,6 @@ export function popupFor(detail: IncidentDetail, volunteerId: string, lang: Lang
     suggestions: tasks.filter((t) => t.status === 'proposed'),
     hasConflict: detail.conflict !== null,
     factors: detail.evidenceFactors ?? [],
+    photoReads: detail.photoReads ?? {},
   }
 }

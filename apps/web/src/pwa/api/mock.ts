@@ -12,6 +12,7 @@ import {
   type IncidentMembership,
   type NearbyIncident,
   type Observation,
+  type ObservationJoin,
   type ObservationRequest,
   type PracticeResponse,
   type TrainingPayload,
@@ -133,6 +134,7 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
   let digest: Digest
   let failure: 'network' | 'validation' | null = null
   const observations: Observation[] = []
+  const joins = new Map<string, ObservationJoin>()
   const memberships = new Map<string, IncidentMembership>()
   let nearbyAvailable = true
 
@@ -155,6 +157,7 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
     }
     failure = null
     observations.length = 0
+    joins.clear()
     memberships.clear()
     nearbyAvailable = true
     mockTraining.video.progressSec = 80
@@ -169,9 +172,25 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
   const wait = () => new Promise((r) => setTimeout(r, latencyMs))
 
   return {
-    async getDigest(position) {
+    async getDigest(position, options) {
       await wait()
       const next = structuredClone(digest)
+      if (options?.sentSince) {
+        const since = Date.parse(options.sentSince)
+        next.sentToday = observations
+          .filter((o) => !Number.isFinite(since) || Date.parse(o.receivedAt) >= since)
+          .map((o) => ({
+            id: o.id,
+            capturedAt: o.capturedAt,
+            receivedAt: o.receivedAt,
+            source: o.source,
+            chip: o.chip,
+            text: o.text,
+            accuracyM: o.accuracyM,
+            ...(o.clientId ? { clientId: o.clientId } : {}),
+            join: joins.get(o.id) ?? null,
+          }))
+      }
       if (position && nearbyAvailable && !digest.incidents.some((i) => i.id === NEARBY_ID)) {
         const distance = distanceM(position, { lat: NEARBY_BASE.lat, lng: NEARBY_BASE.lng })
         next.nearby = [{
@@ -216,7 +235,9 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
         immutable: true,
       }
       observations.push(stored)
-      return stored
+      // The demo incident already holds Pak Dedi's report, so a mock report always joins it.
+      joins.set(stored.id, { incidentId: INCIDENT_ID, incidentName: INCIDENT_NAME, incidentArea: 'Ketapang, Kalimantan Barat', joined: true, nearbyCount: 1, nearestM: 140, radiusM: 300 })
+      return { ...stored, join: joins.get(stored.id) }
     },
     async markTaskHeard(taskId) {
       await wait()

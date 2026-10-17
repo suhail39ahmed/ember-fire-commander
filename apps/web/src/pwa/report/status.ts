@@ -8,7 +8,7 @@ export type ReportStatus =
   | { kind: 'locating' }
   | { kind: 'sending' }
   /** `sent`: the supervisor has it. `queued`: kept on the phone. `at` is an ISO timestamp, formatted when shown; `chip` and `text` are what was sent. */
-  | { kind: 'sent' | 'queued'; at: string; chip: ChipValue | null; text: string }
+  | { kind: 'sent' | 'queued'; at: string; /** The `capturedAt` stamped on the report. */ capturedAt: string; chip: ChipValue | null; text: string }
   | { kind: 'error'; message: string; retryable: boolean; location?: 'denied' | 'unavailable' }
 
 export type StatusTone = 'muted' | 'busy' | 'error'

@@ -1,6 +1,7 @@
 import type {
   DeclineReason,
   Digest,
+  DigestOptions,
   DigestPosition,
   FlagRequest,
   IncidentDetail,
@@ -31,7 +32,7 @@ export class ApiError extends Error {
 /** The ember-api operations the volunteer PWA uses. */
 export interface EmberApi {
   /** GET /digest. Pass the phone position when known so `nearby` can be filled (#134). */
-  getDigest(position?: DigestPosition | null): Promise<Digest>
+  getDigest(position?: DigestPosition | null, options?: DigestOptions): Promise<Digest>
   /** GET /incidents/{id}: one incident this volunteer is on. A volunteer who is not on it gets `not_found` (404). */
   getIncident(incidentId: string): Promise<IncidentDetail>
   createObservation(body: ObservationRequest): Promise<Observation>

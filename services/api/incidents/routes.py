@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from flask import Blueprint, g, jsonify, request
 
 from identity import AuthError
-from incidents import detail as incident_detail, live_seat, members, rules, store
+from incidents import detail as incident_detail, live_seat, members, rules, sent, store
 from incidents.errors import ApiError, conflict, error_response, not_found, validation
 from notifications.send import deliver_task
 from photos import paths as photo_paths, signing
@@ -271,6 +271,12 @@ def digest():
         body["nearby"] = nearby
     if season_stats is not None:
         body["seasonStats"] = season_stats
+    if user["role"] == "volunteer" and "sentSince" in request.args:
+        # The reports this volunteer sent since their own start of day (#131). Left out when it cannot be read.
+        try:
+            body["sentToday"] = sent.sent_today(user["id"], request.args.get("sentSince"))
+        except Exception:
+            logger.warning("sent today could not be read", exc_info=True)
     return jsonify(body), 200
 
 

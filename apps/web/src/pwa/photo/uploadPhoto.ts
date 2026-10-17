@@ -1,4 +1,4 @@
-import type { PhotoContentType, PhotoObservationCreate } from '../contracts/types'
+import type { ObservationDevice, PhotoContentType, PhotoObservationCreate } from '../contracts/types'
 import type { EmberApi } from '../api/types'
 import type { Position } from '../report/buildObservation'
 import type { UploadFn, UploadOptions } from './upload'
@@ -25,7 +25,7 @@ export async function uploadPhoto(
  * `capturedAt` is when the photo was taken, not when it finished uploading.
  * The client never sends id or severity; ember-api sets both.
  */
-export function buildPhotoObservation(photoPath: string, capturedAt: string, pos: Position, note = ''): PhotoObservationCreate {
+export function buildPhotoObservation(photoPath: string, capturedAt: string, pos: Position, note = '', device?: ObservationDevice): PhotoObservationCreate {
   const text = note.trim()
   return {
     source: 'photo',
@@ -36,5 +36,6 @@ export function buildPhotoObservation(photoPath: string, capturedAt: string, pos
     chip: null,
     text: text ? text : null,
     photoPath,
+    ...(device ? { device } : {}),
   }
 }

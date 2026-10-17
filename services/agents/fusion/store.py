@@ -13,6 +13,8 @@ INCIDENT_COUNTER = "incidents"
 
 def _apply(plan, put):
     put("incidents", plan.incident)
+    if plan.join:
+        put("observation_joins", plan.join)
     if plan.conflict:
         put("conflicts", plan.conflict)
     for task in plan.tasks:
@@ -26,6 +28,7 @@ class MemoryFusionStore:
         self.collections = {
             "observations": {}, "incidents": {}, "conflicts": {}, "tasks": {}, "audit": {},
             "weather": {}, "counters": {}, "volunteers": {},
+            "leads": {}, "observation_joins": {},
         }
 
     def new_id(self, collection):
@@ -69,6 +72,10 @@ class MemoryFusionStore:
 
     def wind_kmh(self):
         return (self.collections["weather"].get("current") or {}).get("windKmh")
+
+    def recent_leads(self, since):
+        """Satellite leads seen at or after `since` (an ISO time)."""
+        return [dict(v) for v in self.collections["leads"].values() if str(v.get("acqAt") or "") >= since]
 
     def apply(self, plan):
         def put(collection, doc):
@@ -162,6 +169,10 @@ class FirestoreFusionStore:
         if not snapshot.exists:
             return None
         return (snapshot.to_dict() or {}).get("windKmh")
+
+    def recent_leads(self, since):
+        """Satellite leads seen at or after `since` (an ISO time). One range on one field, so it needs no index."""
+        return self._docs(self._db().collection("leads").where("acqAt", ">=", since))
 
     def apply(self, plan):
         db = self._db()

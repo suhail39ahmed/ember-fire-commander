@@ -124,27 +124,12 @@ def _short_id(incident_id):
 
 def _incident_number(incident):
     """The `#<n>` at the end of the stored name, or None."""
-    name = _text(incident.get("name"))
-    if name and " \u00b7 " in name:
-        last = name.rsplit(" \u00b7 ", 1)[1].strip()
-    else:
-        last = name or ""
-    if last.startswith("#") and last[1:].isdigit():
-        return last
-    return None
+    return rules.incident_number(incident)
 
 
 def _place_name(incident):
     """The stored area, else the place part of the stored name, else the position as a label."""
-    area = _text(incident.get("area"))
-    if area:
-        return area
-    name = _text(incident.get("name"))
-    if name:
-        head = name.split(" \u00b7 ")[0].strip()
-        if head and not (head.startswith("#") and head[1:].isdigit()):
-            return head
-    return _coordinate_label(incident.get("lat"), incident.get("lng"))
+    return rules.place_name(incident)
 
 
 def _province(area):

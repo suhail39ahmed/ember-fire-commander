@@ -16,7 +16,7 @@ This revision matches `main` at `0e0b32c` (15 Oct 2026). Section 11 lists the se
 4. **WITHDRAW needs no approval.** It is an instruction to specific volunteers. Code sends it immediately when an observation severity is `large_flame` or the wind rule fires. A supervisor may also send it to chosen volunteers. Both paths write the instruction, the tasks, and an audit record.
 5. **Dispatch always needs supervisor approval.** Dispatch means approving a proposed task of type `investigate`. Approval is rejected while that incident has an open conflict.
 6. Only a supervisor can verify an incident, extinguish it, or lower its severity. Code may raise severity. Nothing in the client, and nothing returned by the model, can do those three human actions.
-7. FIRMS hotspots are leads to verify. No REST or WebSocket payload in this contract has a lead, forecast, haze, or plume field. The collections that services keep for those are internal and listed in §5.7. Every number a client shows comes from one of these payloads.
+7. FIRMS hotspots are leads to verify. No REST or WebSocket payload in this contract has a lead, forecast, haze, or plume field. The one exception is a sentence: the `satellite` evidence factor (§5.2) says that an unverified lead was seen, how far away and when, and carries no id or coordinates. The collections that services keep for those are internal and listed in §5.7. Every number a client shows comes from one of these payloads.
 8. The direct phone-to-Gemini fallback is outside this contract. The Live path is the relay through `voice-gateway`.
 
 Severity order, low to high: `none`, `smoke`, `small_flame`, `large_flame`. `unknown` does not raise or lower a known severity.
@@ -129,6 +129,7 @@ Immutable. The stored record always has `"immutable": true`. There is no update 
 | `text` | string or null | Client, or the Live tool. REST text is trimmed, at most 280 characters, and a blank string is stored as `null`. The Live tool's text is stored as the model sent it, with no trim and no length cap |
 | `severity` | severity enum | Server. See the mapping below |
 | `photoPath` | string or null | Client, for `source: photo` only: the path from `POST /photos/upload-url` (§6.7). `null` for every other source. A private object path, never a public URL |
+| `device` | object, optional | Client, best effort. What the phone says about itself: `batteryPct` (a number from 0 to 100, rounded), `network` (`2g`, `3g`, `4g`, `wifi` or `unknown`) and `language` (`id` or `en`, the language the volunteer's app is shown in, not a detected spoken language), each present only when the phone sent a valid value. Any other key, or a value that is not valid, is dropped without an error, so a fire report never fails on telemetry. The key is absent when nothing valid was sent, and on every report stored before #92. Never in an observation from `GET /incidents/{id}`; a supervisor's card carries the newest one (§6.3) |
 | `immutable` | `true` | Server |
 
 Chip to severity, applied by `ember-api` even if the client sends a severity:
@@ -146,7 +147,7 @@ A `text` or `photo` observation is stored as `unknown`. A `live` observation sto
 
 Which fields a response carries:
 
-- `POST /observations` returns the full stored record, including `volunteerName` and `clientId` when they exist.
+- `POST /observations` returns the full stored record, including `volunteerName`, `clientId` and `device` when they exist, and a `join` (§6.2) once agents have placed the report.
 - The `observations` in `GET /incidents/{id}` carry only `id`, `volunteerId`, `capturedAt`, `receivedAt`, `source`, `lat`, `lng`, `accuracyM`, `chip`, `text`, `severity`, `photoPath`, and `immutable`.
 
 ### 5.2 Incident
@@ -183,7 +184,7 @@ An evidence factor explains one part of `evidenceScore`. The score is the sum of
 
 | Field | Type | Notes |
 |---|---|---|
-| `factor` | string | `severity`, `corroboration`, `photo`, `gps`, or `conflict` |
+| `factor` | string | `severity`, `corroboration`, `photo`, `gps`, `wind`, `satellite`, or `conflict` |
 | `points` | number | Negative for `conflict` |
 | `detail` | string | A plain sentence, such as `highest reported severity is small_flame` |
 
@@ -195,6 +196,8 @@ Points:
 | `corroboration` | 15 for each volunteer beyond the first who reported `smoke` or worse, at most 30 |
 | `photo` | 10 when any observation has a photo |
 | `gps` | 10 when any observation has `accuracyM` of 50 m or better |
+| `wind` | 0. Present only when `weather/current.windKmh` is stored. The sentence gives the speed and says it is the weather station's, not the incident's. It explains the picture and changes no score and no rule |
+| `satellite` | 0. Present only when a `leads` document (§5.7) of kind `firms_hotspot` that no person dismissed (`status` is not `checked_no_fire`) lies within `EMBER_SATELLITE_RADIUS_M` (default 2000 m) of the incident and was acquired within `EMBER_SATELLITE_WINDOW_H` (default 24 h). The nearest such lead is named by distance, time and confidence only. A lead is unverified and adds no points, so it never raises severity or the score |
 | `conflict` | −20 while a conflict is open |
 
 `withdraw` when active:
@@ -285,6 +288,7 @@ The display fields never carry a raw id. `actorName` is the stored `actorName`, 
 | `action` | When |
 |---|---|
 | `observation.create` | An observation was stored |
+| `conflict.open` | Code opened a disagreement between reports. `actorId` is `code` and `targetId` is the incident id. Written once, when the conflict is created. A conflict opened before #95 has no such row |
 | `task.approve` | A supervisor approved a proposed task |
 | `task.reject` | A supervisor rejected a proposed task |
 | `task.edit` | A supervisor replaced a task instruction |
@@ -320,6 +324,7 @@ One current picture for Live context, REST polling, and the `digest` WebSocket m
 | `incidents` | incident summary[] | `id`, `name`, `area`, `status`, `severity`, `withdraw`, `lat`, `lng`. No `evidenceScore` and no `conflictId` |
 | `myTasks` | task[] | Every task whose `volunteerId` is the caller, in any status (`proposed`, `approved`, `rejected`). Empty for a supervisor |
 | `nearby` | nearby incident[] | Volunteer only. Live incidents (`open`, `held`, `verified`) within `EMBER_NEARBY_RADIUS_M` (default 5000 m) that the caller is not already on. Empty when the request has no usable `lat`/`lng` query pair, and omitted on a supervisor digest. Sorted by `distanceM`, then `id` |
+| `sentToday` | sent report[], optional | Volunteer only, and only when the request carries `sentSince` (§6.4). The caller's own reports since that time, oldest first, at most 50 |
 | `seasonStats` | object, optional | Volunteer only. `{ checksDone, falseAlarmsCleared }` counts of this volunteer's `verify` tasks and those with `closedAt`. Omitted when the volunteer has no `verify` task |
 
 Each nearby row is an incident summary plus:
@@ -330,6 +335,8 @@ Each nearby row is an incident summary plus:
 | `bearingDeg` | number or null | Initial bearing from the phone to the incident, 0 = north |
 | `crewOnSite` | number | Distinct volunteers linked by a join, a task, or a report on that incident |
 | `ask` | string or null | What the supervisor asked for. `null` until a stored field exists; the phone omits the line |
+
+Each `sentToday` row is `{ id, capturedAt, receivedAt, source, chip, text, accuracyM, join }`, plus `clientId` when the report had one. `join` is the object in §6.2, or `null` when agents have not placed the report (or the join could not be read). The phone matches a row to its own report by `capturedAt`, because its outbox does not keep the create response.
 
 The digest is built on request. A volunteer receives every incident, in any status including `extinguished`, that has one of their tasks, lists them in `withdraw.volunteerIds`, has one of their observations in its `observationIds`, has one of their observations in one of its conflicts, or has an `incident_members` join for them (§5.7). A supervisor receives incidents whose status is `open`, `held`, or `verified`. Both lists are sorted by `id`, which is not chronological.
 
@@ -389,6 +396,20 @@ Written by `ember-api` (`POST /incidents/{id}/withdraw/answer`, §6.11). One doc
 | `incidentId`, `volunteerId` | string | |
 | `state` | string | `safe` or `stuck` |
 | `lat`, `lng`, `accuracyM` | number or null | The phone's position when it answered, `null` when it had none |
+| `at` | string | |
+
+#### `observation_joins`
+
+Written by `ember-agents` when it places an observation (§8), and read by `ember-api` for the `join` object in §6.2 and for `sentToday` (§5.6). One document per observation, with the observation id as the document id. Only agents write it, because only agents know the clustering radius (`EMBER_CLUSTER_RADIUS_M`). The first placement is kept: a repeated intake does not change it. An observation placed before #131 has none.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id`, `observationId` | string | The observation id |
+| `incidentId` | string | The incident the report was placed on |
+| `joined` | boolean | `true` when the report joined an incident that already had a report within the radius. `false` when it started the incident |
+| `nearbyCount` | number | How many other reports, from other volunteers, the incident held within the radius when this one arrived |
+| `nearestM` | number or null | Metres to the nearest of those, rounded. `null` when `nearbyCount` is `0` |
+| `radiusM` | number | The radius used, in metres |
 | `at` | string | |
 
 #### `incident_members`
@@ -647,6 +668,17 @@ A request that carries no `clientId` and is sent again creates a new observation
 
 The hand-off to agents happens after the write. If it fails, the response is still `201` and the observation waits in `intakePending` (§8).
 
+**Join (#131, #132).** The `201` and the `200` replay carry one more key, `join`, read from `observation_joins` (§5.7) after the hand-off. The key is absent when agents have not placed the report yet, when the record is missing, and when it cannot be read. A client must treat absent as "not known yet".
+
+| Field | Type | Notes |
+|---|---|---|
+| `incidentId` | string | The incident the report is on |
+| `incidentName`, `incidentArea` | string or null | The incident's stored `name` and `area`. The console and phone build their label from them (§12.2) |
+| `joined` | boolean | `true` when it joined an incident another report had already opened, `false` when it started a new one |
+| `nearbyCount` | number | Other reports, from other volunteers, within `radiusM` of this one when it arrived |
+| `nearestM` | number or null | Metres to the nearest of them. `null` when `nearbyCount` is `0` |
+| `radiusM` | number | The join radius in metres (`EMBER_CLUSTER_RADIUS_M`, default 300) |
+
 ### 6.3 `GET /incidents` and `GET /incidents/{id}`
 
 `GET /incidents` returns a JSON array of incident records, scoped as in §5.6.
@@ -739,7 +771,27 @@ For a supervisor the body has one more key, `evidenceFactors`: the stored factor
 
 `summary` is `null` unless `incident_summaries/{incident id}` exists with a non-blank `english` or `bahasa`. Then it is `{ "english", "bahasa", "source", "at" }` (§5.7). It is advisory text and states no severity. Nothing calls the summary route today (§8.1), so it is `null` until something does.
 
-Not returned, because no service stores a source: conditions at the site (wind, humidity, air quality, next satellite pass), a volunteer's crew role, battery, network, spoken language or place name, the crew lead, an English translation of a report, and free-form advice. What EMBER proposes is the incident's `tasks` with `status: proposed` (agents write only `verify` proposals, when a conflict opens, §5.3) and the reasons behind the score are `evidenceFactors` (§6.3), so those are the suggestions a screen can show. `weather` and `psi` stay internal (§1 rule 7, §12.4).
+**More supervisor extras (#92, #93).** Four more keys and four more card fields, all read from stored records. A volunteer's read has none of them.
+
+`header`:
+
+| Field | Type | Source |
+|---|---|---|
+| `code` | string | `#<n>` from the incident `name`, else `INC-` and the last 4 characters of the id in capitals |
+| `placeName` | string | `area`, else the part of `name` before the first ` · `, else the coordinates |
+| `openedAt` | string or null | `receivedAt` of the earliest report in `incident.observationIds`. `null` when none can be read |
+| `peopleOnSite` | number | Distinct volunteers with a report or a task on the incident. It counts reporters, not people confirmed at the fire |
+| `source` | source enum or null | `source` of that earliest report. A satellite lead is never named here |
+
+`conditions` is `{ weather, air }`, each `null` when nothing is stored (or when the read fails). `weather` is `weather/current` (§5.7): `observedAt`, `windKmh`, `windDirDeg`, `windFrom` (a compass point such as `SW`, the direction the wind blows from), `gustKmh`, `tempC`, `humidityPct`, `rainMm` and `source`, each `null` when missing. `air` is `psi/current`: `observedAt`, `psi24hMax`, `pm25Max` (the largest regional 24 h value) and `source`. These are one fixed monitoring point and one national feed. **They are not measured at the incident**, and the console says so. Nothing here is a forecast, a plume or a predicted shift.
+
+`photoReads` is an object keyed by observation id, for photo reports that have a `photo_triage` record with `status: ok`: `smokeVisible`, `flameVisible`, `burnScarVisible`, `notes` and `at`. It is `{}` when none. It is advisory text about the picture, it states no severity, and it changes nothing. Today nothing calls the triage route (§8.1), so it is `{}` until something does.
+
+Each `volunteers` card also has `crewName` (`volunteers/{uid}.crewName`), `teamRole` (`incident_members/{incidentId}__{uid}.teamRole`) and `device`: `{ batteryPct, network, language, at }` from the newest report that carried a `device` (§5.1), each part `null` when that report lacked it, and the whole value `null` when no report did. `at` is that report's `capturedAt`. Battery and network are what the phone said when it reported, not a live reading.
+
+In `conflictContext` (below), `allObservations` lists every report of the incident and of the conflict, the two sides included, oldest first, in the same record shape as `otherObservations`.
+
+Not returned, because no service stores a source: the crew lead's phone and duty phones, the volunteer's own live battery or position, an English translation of a report, a predicted wind shift, spread, at-risk places and model-written advice. What EMBER proposes is the incident's `tasks` with `status: proposed` (agents write only `verify` proposals, when a conflict opens, §5.3) and the reasons behind the score are `evidenceFactors` (§6.3), so those are the suggestions a screen can show. `weather` and `psi` stay internal (§1 rule 7, §12.4).
 
 Who can read what:
 
@@ -752,14 +804,15 @@ A supervisor's `GET /incidents/{id}` also carries `volunteerPhones`, an object o
 
 **Supervisor extras (#95, #105).** For a supervisor the body has two more keys, both read from stored records. A volunteer's read has neither.
 
-`conflictContext` is `null` when the incident has no conflict. Otherwise it is an object with two lists, `[]` when nothing is stored:
+`conflictContext` is `null` when the incident has no conflict. Otherwise it is an object with three lists, `[]` when nothing is stored:
 
 | Field | Type | Source |
 |---|---|---|
 | `otherObservations` | observation[] | The reports in `incident.observationIds` that are not in `conflict.observationIds` (a `smoke` or `unknown` report is on neither side, §5.4), oldest first. Each is the §5.1 record that `observations` carries, with `volunteerName` when one was stored. `observations` itself is unchanged and still lists only the two sides |
-| `audit` | timeline entry[] | The audit rows that decide the disagreement, oldest first, the newest 100, in the shape of a `timeline` audit entry: `task.approve`, `task.reject`, `task.edit`, `task.resend` and `task.heard` rows whose `targetId` is a `verify` or `investigate` task of the incident, and `incident.verify`, `incident.extinguish` and `incident.severity.lower` or `.raise` rows whose `targetId` is the incident. Withdraw, instruct, re-ignition and `observation.create` rows are left out |
+| `allObservations` | observation[] | Every report in `incident.observationIds` or `conflict.observationIds`, oldest first, in the same shape as `otherObservations`. The two sides are included |
+| `audit` | timeline entry[] | The audit rows that decide the disagreement, oldest first, the newest 100, in the shape of a `timeline` audit entry: `conflict.open`, `task.approve`, `task.reject`, `task.edit`, `task.resend` and `task.heard` rows whose `targetId` is a `verify` or `investigate` task of the incident, and `incident.verify`, `incident.extinguish` and `incident.severity.lower` or `.raise` rows whose `targetId` is the incident. Withdraw, instruct, re-ignition and `observation.create` rows are left out |
 
-The same data supports what the screen shows. The reasons behind `evidenceScore` are `evidenceFactors`. **No wind or satellite factor is stored:** fusion writes only `severity`, `corroboration`, `photo`, `gps` and `conflict` (§5.2), and wind enters only the withdraw reasons (§5.2). **No audit row records the moment a conflict opened**, and **no service creates an `investigate` task** (§5.3), so a proposed dispatch appears in `tasks` only if one is written some other way. None of the three is invented here.
+The same data supports what the screen shows. The reasons behind `evidenceScore` are `evidenceFactors`. The `wind` and `satellite` factors are written with zero points (§5.2), and a conflict opened since #95 has a `conflict.open` audit row (§5.5); an older one has none, and the console then says it cannot show when it opened. **No service creates an `investigate` task** (§5.3), so a proposed dispatch appears in `tasks` only if one is written some other way. Nothing is invented here.
 
 `agencyInCharge` is the trimmed `incidents/{id}.agency` (§5.2), or `null` when the field is missing, not a string or blank. Nothing writes it today, so it is `null` until a later change records an agency. It is never taken from the signed-in supervisor's profile: `GET /dashboard` returns that agency as `agency` (§6.9), and it names the supervisor's own agency, not the one in charge of an incident.
 
@@ -770,6 +823,8 @@ A supervisor's `GET /incidents/{id}` also carries `liveSeat` from `liveSeats/{in
 ### 6.4 `GET /digest`
 
 Returns the §5.6 digest for the caller. The two web apps poll `GET /digest` (volunteer) and `GET /incidents` (console) every 5 seconds.
+
+Optional query `sentSince`: an ISO-8601 time with a zone (for example the phone's local start of day, URL-encoded). A volunteer's digest then adds `sentToday` (§5.6), the caller's reports received or captured since that time. A value that is missing, unreadable, has no zone or lies in the future means the last 24 hours, and a value more than 48 hours back is held to 48 hours. A supervisor's digest ignores it. The list is built only when asked, and a failure to read it leaves the digest without the key rather than failing the digest.
 
 ### 6.5 Approval and human incident actions
 
@@ -1151,6 +1206,8 @@ The resend runs only inside `POST /observations`, and only after a call to agent
 
 Agents may create and update incidents, conflicts, tasks, and audit records, within the field rules in §5. They do not write a digest (§5.6). They cluster nearby observations, set `evidenceScore`, open conflicts, raise severity, and issue code WITHDRAW. They do not verify, extinguish, lower severity, or copy the model’s severity onto the incident.
 
+After it places an observation, agents write `observation_joins/{observationId}` (§5.7) with the real clustering radius, the number of other reports within it and the distance to the nearest, and they write the `conflict.open` audit row when they create a conflict. A failure to read `leads` (for the `satellite` factor) is logged and leaves that factor out; it never stops the intake.
+
 The high-wind threshold is `EMBER_WIND_WITHDRAW_KMH` (default 40 km/h), compared with `weather/current.windKmh`. If there is no value or the read fails, the wind rule is skipped for that intake. Crossing it produces the same WITHDRAW writes as a `large_flame` observation. The `large_flame` trigger uses the observation's own severity, so a `live` `large_flame` observation fires WITHDRAW even though it does not raise the incident's severity.
 
 After it commits a code WITHDRAW, agents call `POST /internal/notifications/withdraw` on `ember-api` with `{ "incidentId": "inc_01", "tasks": [ { "id": "tsk_01", "volunteerId": "uid_sari" } ] }`, using its Cloud Run ID token, 10 second timeout, and up to 3 attempts. A failure is logged and never undoes the write. `ember-api` answers `202` with `{ "results": [ { "result": "sent", "attempts": 1 } ] }`. It sends the instruction stored on each task, and never text from the caller. It answers `400` when the incident's withdraw is not active or a task is not an approved `withdraw` task of that incident for a listed volunteer, and `404` for an unknown incident or task.
@@ -1236,6 +1293,8 @@ Terraform also sets `LIVE_BACKEND`, `EMBER_FIRESTORE_DB`, and `ALLOWED_ORIGINS` 
 | `FIRESTORE_DATABASE` | none, required | Firestore database |
 | `EMBER_CLUSTER_RADIUS_M` | `300` | Clustering radius (§5.2) |
 | `EMBER_WIND_WITHDRAW_KMH` | `40` | Wind speed that fires WITHDRAW (§8) |
+| `EMBER_SATELLITE_RADIUS_M` | `2000` | How far from an incident a satellite lead is still named in the `satellite` factor (§5.2) |
+| `EMBER_SATELLITE_WINDOW_H` | `24` | How old a lead may be to be named in that factor |
 | `EMBER_API_URL` | empty | `ember-api` origin for the WITHDRAW push call. Skipped when empty |
 | `EMBER_SITE_RADIUS_M` | `500` | Re-ignition alert radius |
 | `EMBER_SITE_WATCH_DAYS` | `14` | Length of the watch window |
@@ -1318,6 +1377,12 @@ Every route except `/healthz` needs the two headers in §2.
 | `volunteers`, `timeline`, `summary` | `GET /incidents/{id}`, supervisor only | Always present for a supervisor: `[]`, `[]` and `null` when nothing is stored. Absent from a volunteer's read and from an older API (§6.3) |
 | `conflictContext` | `GET /incidents/{id}`, supervisor only | The key is present for a supervisor. `null` when the incident has no conflict, else `{ otherObservations, audit }` with `[]` for each list that has nothing stored (§6.3). Absent from a volunteer's read and from an older API |
 | `agencyInCharge` | Same | The key is present for a supervisor. `null` until an agency is stored on the incident, which nothing does yet (§5.2). Absent from a volunteer's read and from an older API |
+| `device` | Observation, `POST /observations` request and response | Optional on the way in and absent on the way out unless a valid part was sent (§5.1) |
+| `join` | `POST /observations` response, `sentToday[]` rows | Absent from the create response, and `null` in `sentToday`, until agents have placed the report. Never an error (§6.2) |
+| `sentToday` | Volunteer digest | Present only when the request carried `sentSince` (§6.4) |
+| `header`, `conditions`, `photoReads` | `GET /incidents/{id}`, supervisor only | Always present for a supervisor. `header.openedAt` and `header.source` are `null` when no report can be read. `conditions.weather` and `conditions.air` are `null` when nothing is stored. `photoReads` is `{}` when none (§6.3) |
+| `volunteers[].crewName`, `teamRole`, `device` | Same | `null` when nothing is stored. `device`'s parts are `null` when that report lacked them (§6.3) |
+| `conflictContext.allObservations` | Same | `[]` when the incident has no readable report |
 | `volunteers[].name`, `lastReportAt`, `lastSeverity`, `lastLat`, `lastLng`, `lastAccuracyM`, `distanceM` | Same | `null` when the volunteer has no report on the incident, or no name was stored |
 | `volunteers[].lastHeardAt` | Same | `null` when they have no report and no heard task on the incident |
 | `volunteers[].pushReady` | Same | Always a boolean. `false` when no device token is stored |
@@ -1359,9 +1424,9 @@ The browser cannot read these. A screen that needs one needs a new REST route fi
 
 - `incident.observationIds` (§5.2). `incident.evidenceFactors` is returned only on a supervisor's `GET /incidents/{id}` (§6.3).
 - Photo bytes. `GET /incidents/{id}/photos/{observationId}` returns only a short-lived signed URL (§6.7).
-- `photo_triage`, `sites` and their alerts, the `facts` of `incident_summaries` (its text is `summary` in §6.3), `leads`, `weather`, `psi`, `ingestRuns`, and `notificationAttempts` (§5.7). `GET /audit` reads the `audit` collection for supervisors (§5.5).
+- `photo_triage`, `sites` and their alerts, the `facts` of `incident_summaries` (its text is `summary` in §6.3), `leads`, `weather`, `psi` (except the latest read in `conditions`, §6.3), `ingestRuns`, and `notificationAttempts` (§5.7). `GET /audit` reads the `audit` collection for supervisors (§5.5).
 - Observations that are not on the two sides of a conflict, when the incident has a conflict, are not in `observations` (§6.3). A volunteer's read never has them. A supervisor's read returns them in `conflictContext.otherObservations`.
-- A wind or satellite evidence factor, an audit row for the moment a conflict opened, an `investigate` proposal, and any agency assignment or hand-off (§5.2, §6.3, §10).
+- An `investigate` proposal, and any agency assignment or hand-off (§5.2, §6.3, §10).
 - A task or incident created or updated time.
 
 ### 12.5 Undecided
@@ -1424,5 +1489,8 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-16 · #141: new volunteer route `POST /observations/{id}/flag` (§6.11), audit `observation.flag`, stored in the new `observation_flags` collection. Observations stay immutable. The audit table (§5.5) also lists `task.accept`, `task.decline` and `withdraw.answer`, which #136, #137 and #146 to #148 already wrote.
 - 2026-10-16 · #134, #135: `GET /digest` gains volunteer-only `nearby` (optional `lat`/`lng` query), new `incident_members` collection, `POST /incidents/{id}/join` and `POST /incidents/{id}/en-route`, audits `incident.join` and `incident.en_route`. A volunteer's `GET /incidents/{id}` may include `membership`. Wind/ask stay null until stored (§5.5, §5.6, §5.7, §6.11).
 - 2026-10-16 · #129, #130, #140, #153, #154: hold-to-talk and coach reply stay UI-only until a browser WebSocket handshake exists (§7); spoken reports POST `/observations` only with a real gateway transcript. Tasks gain optional lead-closed fields and digest may include `seasonStats` (§5.3, §5.6); `POST /incidents/{id}/verify` closes open verify tasks. New volunteer routes `GET /training`, `POST /training/progress`, `POST /training/practice` (§6.12) for Guide and practice (never live voice or observations).
+- 2026-10-16 · #131, #132: `POST /observations` (`201` and the `200` replay) adds `join` (`incidentId`, `incidentName`, `incidentArea`, `joined`, `nearbyCount`, `nearestM`, `radiusM`), read from the new `observation_joins` collection that agents write when they place a report. A volunteer's `GET /digest` adds `sentToday` when the request carries the new `sentSince` query, each row with the same `join` (§5.6, §5.7, §6.2, §6.4). The phone shows how many reports are near its own and the join radius.
+- 2026-10-16 · #92, #93: `POST /observations` accepts an optional `device` (`batteryPct`, `network`, `language`), stored best effort and never failing a report (§5.1). A supervisor's `GET /incidents/{id}` adds `header`, `conditions` and `photoReads`, and each volunteer card adds `crewName`, `teamRole` and `device` (§6.3). The video, Ask EMBER and English translation parts of #93 are not built (§6.3, §12.4).
+- 2026-10-16 · #95: evidence factors `wind` and `satellite`, each worth 0 points so no score or rule changes (§5.2), audit action `conflict.open` written by code when a conflict is created (§5.5), `conflictContext.allObservations` (§6.3). Settings `EMBER_SATELLITE_RADIUS_M` and `EMBER_SATELLITE_WINDOW_H` (§11.3). No `investigate` proposal is added (§12.5).
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).

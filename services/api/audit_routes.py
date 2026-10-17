@@ -231,6 +231,8 @@ def _detail(action, target_id, tasks, incidents, observations, names):
         return "Instruction sent again"
     if action == "task.heard":
         return "Heard on device"
+    if action == "conflict.open":
+        return "Reports disagree, dispatch held"
     if action == "live.make":
         return "Live seat assigned"
     if action == "live.retry":

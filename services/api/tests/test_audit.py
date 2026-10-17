@@ -1,5 +1,6 @@
 import pytest
 
+import audit_routes
 import identity
 from app import app
 from incidents import store
@@ -202,3 +203,14 @@ def test_audit_never_shows_a_raw_id_for_a_person_or_an_incident(client, monkeypa
     for item in items.values():
         text = " ".join(str(v) for v in item.values() if v is not None and v not in (item["actorId"], item["targetId"], item["incidentId"], item["id"]))
         assert "IUR0XPrG" not in text and "uid_" not in text and "inc_13sW" not in text
+
+
+def test_a_conflict_open_row_reads_as_the_incident_with_a_plain_detail(client, monkeypatch):
+    fake = FakeFirestore()
+    monkeypatch.setattr(store, "db", lambda: fake)
+    _as(monkeypatch)
+    fake.add("incidents", "inc_held", {"name": "Bengkalis, Riau · Sari · #2", "observationIds": []})
+    fake.add("audit", "a_open", {"actorId": "code", "action": "conflict.open", "targetId": "inc_held", "at": "2026-10-16T14:10:00Z"})
+    [item] = client.get("/audit", headers=AUTH).get_json()["items"]
+    assert (item["actorName"], item["target"], item["incidentId"]) == (audit_routes.CODE_ACTOR_NAME, "Bengkalis, Riau · Sari · #2", "inc_held")
+    assert item["detail"] == "Reports disagree, dispatch held"
