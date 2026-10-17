@@ -236,6 +236,7 @@ export interface TrainingLesson {
   body: Localized
   status: 'not_started' | 'in_progress' | 'done'
   score?: number | null
+  total?: number
 }
 
 export interface TrainingPayload {
@@ -249,14 +250,31 @@ export interface TrainingPayload {
 
 export interface PracticeResponse {
   practice: true
+  turnId: string
+  ruleKey: 'withdraw' | 'upwind' | 'report' | null
   reply: Localized
   correct: boolean | null
   check: {
+    index: number
+    total: number
     question: Localized
     options: { id: string; label: Localized }[]
-    lessonId: string
+    lessonId?: string | null
   } | null
   safetyLines: Localized[]
+}
+
+export interface PracticeRequest {
+  message: string
+  lang: 'id' | 'en'
+  lessonId?: string
+  previousTurnId?: string
+}
+
+export interface PracticeAnswer {
+  correct: boolean
+  feedback: Localized
+  lessonComplete: boolean
 }
 
 /** Why a volunteer cannot follow an instruction (contract section 6.11). Labels come from the copy bundle. */

@@ -300,6 +300,18 @@ variable "agents_flash_model" {
   default     = "gemini-2.5-flash"
 }
 
+variable "training_video_url" {
+  description = "Guide training video: YouTube watch URL or hosted video URL."
+  type        = string
+  default     = "https://www.youtube.com/watch?v=LVcnXNLAPKo"
+}
+
+variable "practice_search_datastore" {
+  description = "Fully qualified Vertex AI Search datastore containing services/agents/practice/guidance. Empty disables live practice."
+  type        = string
+  default     = ""
+}
+
 variable "agents_vertex_location" {
   description = "Vertex AI location for agents_flash_model. gemini-2.5-flash is served in asia-southeast1."
   type        = string

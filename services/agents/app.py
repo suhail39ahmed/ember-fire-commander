@@ -13,10 +13,12 @@ from assist.routes import bp as assist_bp
 from fusion.intake import bp as fusion_bp
 from sites.routes import bp as sites_bp
 from spotter.routes import bp as spotter_bp
+from practice.routes import bp as practice_bp
 
 app = Flask(__name__)
 app.register_blueprint(fusion_bp)
 app.register_blueprint(spotter_bp)
+app.register_blueprint(practice_bp)
 app.register_blueprint(assist_bp)
 app.register_blueprint(sites_bp)
 

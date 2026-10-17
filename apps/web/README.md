@@ -96,6 +96,10 @@ The volunteer screen lives in `src/pwa/` and is mounted at `/pwa` behind `Requir
 - WITHDRAW is shown full screen when the digest carries an active `incident.withdraw` that names the volunteer, or a withdraw task.
 - `VITE_API_BASE_URL` sets the API origin and falls back to `VITE_EMBER_API_URL`. `VITE_USE_MOCK_API=true` swaps in an in-browser mock with synthetic data.
 
+Guide lives at `/pwa/guide`, with practice at `/pwa/guide/practice`. For Google sign-in during local testing use `http://localhost:5173` (not `127.0.0.1`). Mock mode still uses the normal Firebase sign-in, but Guide/practice data stays in the browser. Mock progress is stored per volunteer across reloads.
+
+The Guide video uses the supplied YouTube fire safety training link. The backend can replace it through `TRAINING_VIDEO_URL`. Playback duration comes from the player; position resumes from device storage and syncs to `/training/progress`. YouTube playback requires a signal. The catalog stays readable offline, while practice shows “Chat needs a signal.” Live practice requires the agents Search datastore setup in `services/agents/practice/README.md`.
+
 ```bash
 npm run typecheck && npm run lint && npm test && npm run build
 ```

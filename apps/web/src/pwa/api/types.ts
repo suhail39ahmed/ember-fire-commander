@@ -1,6 +1,7 @@
 import type { DeclineReason, Digest, DigestOptions, DigestPosition, FlagRequest, IncidentDetail, IncidentMembership, JoinRequestSummary, Observation, ObservationRequest, PhotoContentType, PracticeResponse, TrainingPayload, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
 
 import type { Me, MePatch } from '../../auth/api'
+import type { PracticeRequest, PracticeAnswer } from '../contracts/types'
 
 /** Error surfaced to the UI. `retryable` is true for network failures, 429 and 5xx. */
 export class ApiError extends Error {
@@ -45,7 +46,8 @@ export interface EmberApi {
   /** GET /training: Guide lessons and progress (#153). */
   getTraining(): Promise<TrainingPayload>
   /** POST /training/progress: save video/lesson progress (#153). */
-  saveTrainingProgress(body: { videoProgressSec?: number; lessonId?: string; status?: string; score?: number }): Promise<void>
+  saveTrainingProgress(body: { videoProgressSec?: number; lessonId?: string; status?: string; score?: number; total?: number }): Promise<void>
   /** POST /training/practice: practice chat that cannot create observations (#154). */
-  practiceTurn(body: { message: string; lessonId?: string; optionId?: string }): Promise<PracticeResponse>
+  askPractice(body: PracticeRequest): Promise<PracticeResponse>
+  answerPractice(turnId: string, optionId: string): Promise<PracticeAnswer>
 }
