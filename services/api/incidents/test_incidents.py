@@ -329,7 +329,7 @@ def test_verify_and_extinguish_are_audited(client, monkeypatch, db):
 
 
 def test_verify_closes_open_verify_tasks_for_thank_you(client, monkeypatch, db):
-    """#140: verifying stamps closed* on open verify tasks; digest omits nulls and adds seasonStats."""
+    """#140: conflict tasks get a thank-you, but earn no satellite-lead credit."""
     _as(monkeypatch)
     body = client.post("/incidents/inc_01/verify", headers=AUTH).get_json()
     assert body["incident"]["status"] == "verified"
@@ -342,13 +342,42 @@ def test_verify_closes_open_verify_tasks_for_thank_you(client, monkeypatch, db):
 
     _as(monkeypatch, role="volunteer", uid="uid_sari", name="Sari")
     digest = client.get("/digest", headers=AUTH).get_json()
-    assert digest["seasonStats"] == {"checksDone": 1, "falseAlarmsCleared": 1}
+    assert digest["seasonStats"] == {"checksDone": 0, "falseAlarmsCleared": 0}
+    assert not db.data.get("leadChecks")
     verify = next(t for t in digest["myTasks"] if t["id"] == "task_verify_sari")
     assert verify["closedAt"]
     assert verify["closedByName"] == "Bu Maya"
     open_task = next(t for t in digest["myTasks"] if t["id"] == "task_investigate")
     assert "closedAt" not in open_task
     assert "closedBy" not in open_task
+
+
+@pytest.mark.parametrize("author,text,checks,cleared", [
+    ("uid_sari", "Bukan kebakaran: nothing here", 1, 1),
+    ("uid_sari", "Flames at the canal", 1, 0),
+    ("uid_rizal", "Bukan kebakaran: nothing here", 0, 0),
+])
+def test_satellite_credit_requires_the_task_owners_linked_report(client, monkeypatch, db, author, text, checks, cleared):
+    db.add("leads", "lead_01", {"status": "pending"})
+    db.data["incidents"]["inc_01"].update({
+        "satelliteLeadId": "lead_01", "observationIds": ["obs_check"],
+    })
+    db.add("observations", "obs_check", {
+        "id": "obs_check", "checkTaskId": "task_verify_sari", "volunteerId": author,
+        "source": "photo", "text": text, "capturedAt": "2026-10-13T09:00:00Z",
+    })
+    _as(monkeypatch)
+    assert client.post("/incidents/inc_01/verify", headers=AUTH).status_code == 200
+    _as(monkeypatch, role="volunteer", uid="uid_sari", name="Sari")
+    response = client.get("/digest", headers=AUTH)
+    assert response.status_code == 200
+    assert response.get_json()["seasonStats"] == {"checksDone": checks, "falseAlarmsCleared": cleared}
+    if checks:
+        check = db.data["leadChecks"]["lead_01__task_verify_sari"]
+        assert check["volunteerId"] == "uid_sari"
+        assert check["observationId"] == "obs_check"
+    else:
+        assert not db.data.get("leadChecks")
 
 
 @pytest.mark.parametrize("severity,status", [

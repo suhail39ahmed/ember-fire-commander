@@ -19,6 +19,8 @@ type Auth = {
 const state = vi.hoisted(() => ({ auth: null as unknown as Auth }))
 
 vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => state.auth }))
+// Account setup imports auth headers. Route rendering must not initialize Firebase or require CI credentials.
+vi.mock('../../auth/firebase', () => ({ getAppCheck: () => null }))
 vi.mock('../../auth/config', () => ({
   fetchConfig: async () => ({ demoMode: false }),
 }))
