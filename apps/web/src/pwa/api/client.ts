@@ -4,7 +4,7 @@
  * see ../gateway/). No Firestore or Cloud Storage SDK is used in the browser.
  * The one exception is the photo PUT to a signed URL that ember-api issued (see ../photo/).
  */
-import type { DeclineReason, Digest, DigestOptions, DigestPosition, ErrorBody, FlagRequest, IncidentDetail, IncidentMembership, JoinRequestSummary, Observation, ObservationRequest, PracticeResponse, TrainingPayload, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
+import type { DeclineReason, Digest, DigestOptions, DigestPosition, ErrorBody, FlagRequest, IncidentDetail, IncidentMembership, JoinRequestSummary, Observation, ObservationRequest, PracticeResponse, TrainingPayload, UploadUrl, VideoContentType, VideoUploadUrl, WithdrawAnswerRequest } from '../contracts/types'
 import type { AuthHeadersProvider } from './authHeaders'
 import type { PracticeAnswer } from '../contracts/types'
 import { API_BASE_URL } from './config'
@@ -22,6 +22,7 @@ export const ENDPOINTS = {
   enRoute: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}/en-route`,
   observations: '/observations',
   photoUploadUrl: '/photos/upload-url',
+  videoUploadUrl: '/videos/upload-url',
   accept: (taskId: string) => `/tasks/${encodeURIComponent(taskId)}/accept`,
   decline: (taskId: string) => `/tasks/${encodeURIComponent(taskId)}/decline`,
   withdrawAnswer: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}/withdraw/answer`,
@@ -89,6 +90,8 @@ export function createHttpApi(
       request<Observation>(ENDPOINTS.observations, { method: 'POST', body: JSON.stringify(body) }),
     createUploadUrl: (contentType) =>
       request<UploadUrl>(ENDPOINTS.photoUploadUrl, { method: 'POST', body: JSON.stringify({ contentType }) }),
+    createVideoUploadUrl: (contentType: VideoContentType) =>
+      request<VideoUploadUrl>(ENDPOINTS.videoUploadUrl, { method: 'POST', body: JSON.stringify({ contentType }) }),
     markTaskHeard: async (taskId) => {
       await request<unknown>(ENDPOINTS.heard(taskId), { method: 'POST' })
     },

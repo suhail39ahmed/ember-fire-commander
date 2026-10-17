@@ -1,4 +1,4 @@
-import type { ObservationRequest, PhotoContentType } from '../contracts/types'
+import type { ObservationRequest, PhotoContentType, VideoContentType } from '../contracts/types'
 import type { Position } from '../report/buildObservation'
 
 export type OutboxState = 'queued' | 'sending' | 'failed' | 'sent'
@@ -11,15 +11,25 @@ export interface PendingPhoto {
   pos: Position
 }
 
+/** A video clip recorded offline whose upload has not finished yet. */
+export interface PendingVideo {
+  blob: Blob
+  contentType: VideoContentType
+  capturedAt: string
+  pos: Position
+}
+
 /**
  * One unsent report, kept in IndexedDB until ember-api stores it.
  * `id` is local to this phone and is never sent to the API.
  */
 export interface OutboxItem {
   id: string
-  /** The exact body to send. Absent only while a photo still has to upload. */
+  /** The exact body to send. Absent only while a photo or video still has to upload. */
   body: ObservationRequest | null
   photo: PendingPhoto | null
+  /** Video clip waiting for upload. Absent on items created before video support existed. */
+  video?: PendingVideo | null
   state: OutboxState
   attempts: number
   lastError: string | null
@@ -29,5 +39,5 @@ export interface OutboxItem {
 }
 
 export function capturedAtOf(item: OutboxItem): string {
-  return item.body?.capturedAt ?? item.photo?.capturedAt ?? item.queuedAt
+  return item.body?.capturedAt ?? item.photo?.capturedAt ?? item.video?.capturedAt ?? item.queuedAt
 }

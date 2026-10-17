@@ -13,6 +13,8 @@ export const outboxStrings = {
   },
   photo: { id: 'Foto', en: 'Photo' },
   photoWaiting: { id: 'Foto (belum diunggah)', en: 'Photo (not uploaded yet)' },
+  video: { id: 'Video laporan', en: 'Report video' },
+  videoWaiting: { id: 'Video (belum diunggah)', en: 'Video (not uploaded yet)' },
   text: { id: 'Catatan', en: 'Note' },
   retry: { id: 'Coba lagi', en: 'Retry' },
   discard: { id: 'Hapus', en: 'Discard' },
@@ -24,6 +26,10 @@ export const outboxStrings = {
   queuedPhoto: {
     id: 'Foto disimpan di ponsel ini. Diunggah otomatis saat sinyal kembali.',
     en: 'Photo saved on this phone. Uploads automatically when signal returns.',
+  },
+  queuedVideo: {
+    id: 'Video disimpan di ponsel ini. Diunggah otomatis saat sinyal kembali.',
+    en: 'Video saved on this phone. Uploads automatically when signal returns.',
   },
   queuedTitle: { id: 'Tersimpan di kotak keluar', en: 'Saved to outbox' },
 } as const
