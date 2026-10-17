@@ -25,6 +25,10 @@ The voice gateway is a WebSocket server that relays push-to-talk audio and ~1 fp
 
 The WebSocket is served at `/`, the URL in `VITE_VOICE_GATEWAY_WSS_URL` with no extra path. `GET /healthz` stays public.
 
+`GET /health` is an equivalent public check. Prefer it for checking the deployed Cloud Run URL; requests to `/healthz` have returned a Google-generated 404 even when the WebSocket service was reachable. These checks confirm that the HTTP service responds, not that Firestore authentication or a Gemini Live session succeeds.
+
+The container uses Gunicorn's native `gthread` worker with 100 threads. Each open WebSocket occupies one thread, leaving room above Cloud Run's default 80 concurrent requests. Do not replace this with a gevent worker without addressing both gRPC gevent initialization and the Gemini client's native asyncio thread. Revision `voice-gateway-00006-4km` used gevent without gRPC integration and logged 60-second Firestore transaction timeouts while consuming voice tickets; Flask's threaded local server did not exhibit that deployment-specific issue. See [Flask-Sock's Gunicorn deployment guidance](https://flask-sock.readthedocs.io/en/latest/web_servers.html) and [gRPC's gevent initialization requirements](https://github.com/grpc/grpc/blob/master/src/python/grpcio/grpc/experimental/gevent.py).
+
 Two authentication paths are supported (§7):
 
 **Native clients** send the two identity headers:

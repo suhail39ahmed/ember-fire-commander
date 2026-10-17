@@ -22,6 +22,14 @@ def test_healthz_stays_a_plain_route():
     assert rules[0].websocket is False
 
 
+def test_public_health_alias_returns_the_same_service_status():
+    with app.test_client() as client:
+        health = client.get('/health')
+        assert health.status_code == 200
+        assert health.json == client.get('/healthz').json
+        assert health.json['service'] == 'voice-gateway'
+
+
 @pytest.fixture
 def live_server():
     server = make_server("127.0.0.1", 0, app, threaded=True)
