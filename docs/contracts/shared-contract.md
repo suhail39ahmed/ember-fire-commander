@@ -94,7 +94,7 @@ Only errors raised by the routes in §6 use this body. `app.py` registers no han
 | Name | Values |
 |---|---|
 | Role | `volunteer`, `supervisor` |
-| Observation source | `live`, `chip`, `text`, `photo` |
+| Observation source | `live`, `chip`, `text`, `photo`, `video` |
 | Chip | `asap`, `api`, `aman`, `butuh_bantuan` |
 | Severity | `none`, `smoke`, `small_flame`, `large_flame`, `unknown` |
 | Incident status | `open`, `held`, `verified`, `extinguished` |
@@ -102,6 +102,7 @@ Only errors raised by the routes in §6 use this body. `app.py` registers no han
 | Task status | `proposed`, `approved`, `rejected` |
 | Conflict status | `open`, `resolved` |
 | Photo content type | `image/jpeg`, `image/webp` |
+| Video content type | `video/mp4`, `video/webm` |
 
 Wire value for the “butuh bantuan” chip is `butuh_bantuan`. A text-only report omits the chip.
 
@@ -133,6 +134,7 @@ Immutable. The stored record always has `"immutable": true`. There is no update 
 | `text` | string or null | Client, or the Live tool. REST text is trimmed, at most 280 characters, and a blank string is stored as `null`. The Live tool's text is stored as the model sent it, with no trim and no length cap |
 | `severity` | severity enum | Server. See the mapping below |
 | `photoPath` | string or null | Client, for `source: photo` only: the path from `POST /photos/upload-url` (§6.7). `null` for every other source. A private object path, never a public URL |
+| `videoPath` | string or null | Client, for `source: video` only: the path from `POST /videos/upload-url` (§6.7.1). `null` for every other source. A private object path, never a public URL |
 | `device` | object, optional | Client, best effort. What the phone says about itself: `batteryPct` (a number from 0 to 100, rounded), `network` (`2g`, `3g`, `4g`, `wifi` or `unknown`) and `language` (`id` or `en`, the language the volunteer's app is shown in, not a detected spoken language), each present only when the phone sent a valid value. Any other key, or a value that is not valid, is dropped without an error, so a fire report never fails on telemetry. The key is absent when nothing valid was sent, and on every report stored before #92. Never in an observation from `GET /incidents/{id}`; a supervisor's card carries the newest one (§6.3) |
 | `checkTaskId` | string, internal optional | Set by `ember-api` when a client submits optional `taskId` for their own `verify` task. Used to link the report to a satellite lead when the incident is verified. Never returned to clients. |
 | `immutable` | `true` | Server |
@@ -1005,6 +1007,50 @@ Supervisor only (a volunteer is `403`). Returns a short-lived signed URL to read
 
 The URL is a V4 signed `GET` that works for 300 seconds by default (`PHOTO_READ_TTL_SECONDS`, at least 60 and at most 900). `404` when the incident is unknown, the observation is not one of the incident's (`observationIds` or its conflict), it has no `photoPath`, or the path is not `photos/<the reporter's uid>/...`. `503 unavailable` when the URL cannot be signed. `ember-api` signs through the same IAM `signBlob` path as uploads and reads with its existing object access on the bucket.
 
+### 6.7.1 Video upload and playback
+
+#### `POST /videos/upload-url`
+
+Volunteers only. A supervisor receives `403`. Mirrors `POST /photos/upload-url` for video clips recorded from the camera. The browser then sends a `video` observation (§6.2) with the returned `videoPath`.
+
+Request:
+
+```json
+{ "contentType": "video/mp4" }
+```
+
+`contentType` is `video/mp4` or `video/webm`. Anything else, or a body that is not a JSON object, is `400` with `fields.contentType`. Response `201`:
+
+```json
+{
+  "uploadUrl": "https://storage.googleapis.com/...",
+  "method": "PUT",
+  "headers": { "Content-Type": "video/mp4" },
+  "videoPath": "videos/uid_sari/20261013/3f2a9c4e5b7d4a1e8c6f0b2d9a7e5c31.mp4",
+  "expiresAt": "2026-10-13T08:17:00Z"
+}
+```
+
+The client sends the file with exactly that `method` and `Content-Type` header. The same signed-URL TTL applies (`PHOTO_UPLOAD_TTL_SECONDS`). `videoPath` is `videos/<uid>/<yyyymmdd>/<32 hex>.mp4` or `.webm`. `ember-api` records the upload in `videoUploads` (§5.7). Maximum accepted clip size is 10 MB server-side; clips recorded at 500 kbps for 60 s are under 4 MB, well within this limit.
+
+**`source: video` observation.** Sent after a successful upload. Same fields as a `photo` observation (§6.2) but with `source: "video"` and `videoPath` instead of `photoPath`. The `video` source is accepted on `POST /observations`. The path ownership check is the same as for `photoPath`. `videoPath` and `photoPath` are mutually exclusive.
+
+**Video is not sent to the photo checker.** The `photo_triage` agent (§8.1) only processes `source: photo` observations; video observations are stored and handed off to agents but not triaged.
+
+#### `GET /incidents/{id}/videos/{observationId}`
+
+Supervisor only (a volunteer is `403`). Returns a short-lived signed URL to read one video report of the incident so the console can play the clip. The object stays private. Response `200` with `Cache-Control: no-store`:
+
+```json
+{ "url": "https://storage.googleapis.com/...", "expiresAt": "2026-10-13T08:17:00Z" }
+```
+
+Same TTL, signing path, and ownership check as `GET /incidents/{id}/photos/{observationId}`. `404` when the incident is unknown, the observation is not one of the incident's, it has no `videoPath`, or the path is not `videos/<the reporter's uid>/...`.
+
+**`videoUploads` collection** (§5.7). One document per issued URL with `volunteerId`, `videoPath`, `contentType`, `createdAt`, and `expiresAt`. Used to verify ownership on `POST /observations`.
+
+**Lifecycle and storage.** Video objects live under the `videos/` prefix of the same private bucket as photos. A separate lifecycle rule deletes them after `video_retention_days` (default 7, configurable in Terraform). The CORS rule already allows `PUT` from the PWA origins; no additional CORS change is needed.
+
 ### 6.8 `POST` and `DELETE /notifications/token`
 
 Volunteers only. A supervisor receives `403`. The body is `{ "token": "<FCM device token>" }`. `token` is required, a string of at most 4096 characters with no whitespace, otherwise `400`. A body may also carry `volunteerId`, but it must equal the caller's uid or the route is `403`. The uid always comes from the ID token.
@@ -1637,5 +1683,6 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-17 · agents endpoints (#92, #93, #185): new private agents routes `POST /internal/incidents/{id}/suggestions`, `/ask` and `POST /internal/observations/{id}/translate` (§8.1), same Gemini client and settings as triage. New collections `incident_suggestions` and `observation_translations` (§5, §5.7). New supervisor routes `POST /incidents/{id}/suggestions`, `POST /incidents/{id}/ask` and `POST /incidents/{id}/observations/{observationId}/translate` (§6.13, §12.1), and a supervisor's `GET /incidents/{id}` adds `suggestions` and `translations` (§6.3, §12.2). `ember-api` now calls the existing triage route after a photo report and the translate route after a report with text, on a background thread that never delays the report, so `photoReads` fills in (§6.3, §8.1, §10). Setting `EMBER_ASSIST_BACKGROUND` (§11.1). No route changes an incident, a severity, a task or a withdraw. Still not built: an `investigate` proposal, sending to everyone on site, video, and the crew lead and duty numbers (§12.4).
 
 - 2026-10-17 · infra: `LIVE_MODEL` set to `gemini-live-2.5-flash-native-audio` (Vertex AI Agent Platform GA model id, retires 2026-12-13) in place of the placeholder `gemini-3.8-live`. `LIVE_LOCATION` stays `us-central1`; the model is not served in asia-southeast1 (§7, §11.2).
+- 2026-10-17 · #206 follow-up: video recording from the live camera panel. New `source: video` observation type (§4, §5.1); new `POST /videos/upload-url` and `GET /incidents/{id}/videos/{observationId}` (§6.7.1); new `videoUploads` Firestore collection (§5.7). Video observation body is identical to `photo` except `videoPath` replaces `photoPath`. The PWA records up to 60 s of video (named constant `MAX_RECORDING_MS`) at 500 kbps (`VIDEO_BITS_PER_SECOND`), mixes in the volunteer's HtT microphone audio (the same `MediaStream` the gateway already opened — no second mic request), and queues the clip in the outbox exactly like photos. Coach reply audio is not recorded. Format is feature-detected: `video/mp4` (iOS Safari, Chrome 105+) then `video/webm` (Android Chrome). The supervisor console plays the clip in the expanded volunteer view alongside photos. Video objects expire after 7 days (configurable via `video_retention_days` in Terraform). Videos are not sent to the photo checker. The Terraform `storage.tf` bucket CORS rule already covers `PUT`; a new lifecycle rule covers the `videos/` prefix. Apply terraform after merge.
 
 Also on `main` since v1 and now in this contract: task and WITHDRAW pushes (#78, §6.6), photo observations and `POST /photos/upload-url` with push-token registration (#80, §6.2, §6.7, §6.8), and the `notificationAttempts` record (§5.7).
