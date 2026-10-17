@@ -36,6 +36,7 @@ import { useVolunteer } from './volunteerContext'
 export function PhoneLayout() {
   const { lang } = useLanguage()
   const profileRoute = useMatch('/pwa/profile') !== null
+  const reportRoute = useMatch('/pwa/report') !== null
   const v = useVolunteer()
   const { api, me, volunteerId, digest, digestStatus, lastSyncAt, refresh, position, outbox, mock } = v
 
@@ -48,14 +49,14 @@ export function PhoneLayout() {
   useWakeLock(withdraw)
 
   return (
-    <div className="vol">
+    <div className="vol" data-screen={reportRoute ? 'report' : undefined}>
       <div className="vol-background" aria-hidden={withdraw || undefined} ref={(element) => { if (element) element.inert = withdraw }}>
-      {!profileRoute && <VolunteerHeader name={me?.displayName} crew={me?.crewName} lang={lang} />}
+      {!profileRoute && !reportRoute && <VolunteerHeader name={me?.displayName} crew={me?.crewName} lang={lang} />}
 
       <main className="vol-main">
-        {!profileRoute && <p className="badge-simulated vol-simulated">{t(lang, strings.simulated)}</p>}
-        <InstallBanner lang={lang} />
-        <DigestNotice status={digestStatus} hasDigest={digest !== null} lang={lang} onRetry={refresh} />
+        {!profileRoute && !reportRoute && <p className="badge-simulated vol-simulated">{t(lang, strings.simulated)}</p>}
+        {!reportRoute && <InstallBanner lang={lang} />}
+        {!reportRoute && <DigestNotice status={digestStatus} hasDigest={digest !== null} lang={lang} onRetry={refresh} />}
 
         {flow.cleared && !withdraw ? (
           <WithdrawCleared lang={lang} sentAt={flow.cleared.sentAt} reasons={flow.cleared.reasons} clearedAtMs={flow.cleared.clearedAtMs} clearedByName={flow.cleared.clearedByName} clearReason={flow.cleared.clearReason} onDismiss={flow.dismissCleared} />
@@ -96,7 +97,7 @@ export function PhoneLayout() {
         </Routes>
         )}
 
-        {!profileRoute && USE_MOCK_API && mock && (
+        {!profileRoute && !reportRoute && USE_MOCK_API && mock && (
           <section className="card dev" aria-label="Mock controls">
             <p className="section-label">MOCK API · DEV ONLY</p>
             <button type="button" className="btn small" onClick={() => { mock.triggerWithdraw(); refresh() }}>
@@ -131,7 +132,7 @@ export function PhoneLayout() {
         )}
       </main>
 
-      <TabBar lang={lang} />
+      {!reportRoute && <TabBar lang={lang} />}
       </div>
       {withdraw && <WithdrawScreen lang={lang} flow={flow} />}
     </div>

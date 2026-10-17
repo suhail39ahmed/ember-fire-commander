@@ -6,8 +6,6 @@ import { HoldToTalkPanel } from '../gateway/HoldToTalkPanel'
 import { gatewayStrings } from '../gateway/gatewayStrings'
 import { useLanguage } from '../language'
 import { useVolunteer } from '../layout/volunteerContext'
-import { OutboxPanel } from '../outbox/OutboxPanel'
-import { PhotoPanel } from '../photo/PhotoPanel'
 import { ReportPanel } from '../report/ReportPanel'
 import { getPosition, locate, watchLocationGranted } from '../report/location'
 import { stampNow } from '../clock'
@@ -19,7 +17,7 @@ import { screenStrings } from './strings'
 /** The Report tab (#128 / #129 / #130): hold to talk, coach reply, chips, photo, outbox. */
 export function ReportScreen() {
   const { lang } = useLanguage()
-  const { api, volunteerId, outbox, upload, talk, digest, refresh } = useVolunteer()
+  const { api, volunteerId, outbox, talk, digest, refresh, position } = useVolunteer()
   const navigate = useNavigate()
   const state = useLocation().state as { chip?: ChipValue | null; n?: number; incidentId?: string; taskId?: string } | null
   const preset = state && state.chip !== undefined ? { chip: state.chip, n: state.n ?? 1 } : undefined
@@ -81,12 +79,15 @@ export function ReportScreen() {
         transcript={talk.transcript}
         onPress={talk.onPress}
         onRelease={() => void onRelease()}
+        onBack={() => navigate('/pwa')}
+        accuracyM={position.kind === 'ok' ? position.accuracyM : null}
       />
       {voiceNote && (
         <p className="muted small" role="status" data-testid="voice-note">
           {voiceNote}
         </p>
       )}
+      <p className="section-label report-prompt">{t(lang, screenStrings.report.tapWhatYouSee)}</p>
       <CoachReply
         lang={lang}
         phase={talk.coach.phase}
@@ -104,15 +105,6 @@ export function ReportScreen() {
         submit={outbox.submit}
         volunteerId={volunteerId}
         onDone={() => navigate('/pwa')}
-      />
-      <PhotoPanel api={api} upload={upload} lang={lang} getPosition={getPosition} submit={outbox.submit} queuePhoto={outbox.queuePhoto} taskId={state?.taskId} />
-      <OutboxPanel
-        items={outbox.items}
-        online={outbox.online}
-        lang={lang}
-        onRetry={(id) => void outbox.retry(id)}
-        onDiscard={(id) => void outbox.discard(id)}
-        onSendNow={() => void outbox.flush()}
       />
     </>
   )

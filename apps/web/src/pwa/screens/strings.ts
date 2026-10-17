@@ -162,6 +162,7 @@ export const screenStrings = {
   report: {
     forIncident: { id: 'Melapor untuk', en: 'Reporting for' },
     forTask: { id: 'Menjawab tugas:', en: 'Answering task:' },
+    tapWhatYouSee: { id: 'ATAU PILIH YANG ANDA LIHAT', en: 'OR TAP WHAT YOU SEE' },
   },
   task: {
     title: { id: 'Tugas', en: 'Task' },

@@ -30,6 +30,24 @@
 .chip:disabled { cursor: not-allowed; opacity: 0.55; }
 .chip-text { display: flex; flex-direction: column; min-width: 0; }
 .chip-secondary { font-size: 12px; font-weight: 500; opacity: 0.75; }
+.vol-main .chips.report-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.vol-main .chips.report-choices .chip { position: relative; min-height: 124px; min-width: 0; width: 100%; align-items: flex-start; justify-content: flex-start; flex-direction: column; gap: 7px; padding: 12px; border-radius: 14px; }
+.chip-symbol { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--chip-dot) 12%, white); color: var(--chip-dot); font-size: 16px; }
+.chip-text { gap: 1px; }
+.chip-primary { font-size: 12px; font-weight: 700; }
+.report-choices .chip-secondary { font-family: ui-monospace, monospace; font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+.chip-description { color: var(--ink-muted); font-size: 10px; font-weight: 400; line-height: 1.2; }
+.chip-radio { position: absolute; right: 10px; top: 10px; width: 16px; height: 16px; border: 1.5px solid #c7c7c7; border-radius: 50%; }
+.chip.selected .chip-radio { border: 5px solid var(--ember); }
+.chip.selected { background: #fff8f4; color: var(--ink); border-color: var(--ember); }
+.chip.selected .chip-mark { position: absolute; width: 1px; height: 1px; overflow: hidden; }
+.report { gap: 12px; }
+.vol[data-screen='report'] .card.report { background: transparent; padding: 0; border-radius: 0; }
+.vol[data-screen='report'] .report-prompt { margin: 2px 0 0; font: 9px ui-monospace, monospace; letter-spacing: .1em; }
+.report-choices .chip-mark { display: none; }
+.report .section-label { margin-top: 2px; }
+.report .btn.primary { border-radius: 999px; }
+.report .btn.primary:disabled { background: #e9e7e4; color: #625d57; opacity: 1; }
 
 /* Status line under Send report (#73). Its height is reserved so a status change never moves the form. */
 .report-status { box-sizing: border-box; min-height: 40px; display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 20px; font-weight: 500; color: var(--ink-muted); }

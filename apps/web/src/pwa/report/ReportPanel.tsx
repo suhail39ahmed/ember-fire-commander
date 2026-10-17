@@ -198,7 +198,7 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, task
   const line = statusLine(status, lang, hasDraft)
 
   const title = (
-    <h3 id="quick-report-label" className="section-label">
+    <h3 id="quick-report-label" className="vol-sr-only">
       {t(lang, strings.quickReport)}
     </h3>
   )

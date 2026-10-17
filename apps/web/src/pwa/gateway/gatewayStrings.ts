@@ -1,6 +1,18 @@
 /** Copy for hold-to-talk and coach reply (#129, #130). Bahasa is draft. */
 export const gatewayStrings = {
-  liveCamera: { id: 'KAMERA LANGSUNG · KE COACH', en: 'LIVE CAMERA · TO COACH' },
+  liveCamera: { id: 'PRATINJAU KAMERA', en: 'CAMERA PREVIEW' },
+  liveStatus: { id: 'KAMERA LANGSUNG', en: 'LIVE CAMERA' },
+  back: { id: 'Kembali', en: 'Back' },
+  cameraLive: { id: 'KAMERA AKTIF', en: 'CAMERA LIVE' },
+  cameraStarting: { id: 'Membuka kamera…', en: 'Opening camera…' },
+  cameraOpen: { id: 'Buka kamera', en: 'Open camera' },
+  cameraUnavailableLabel: { id: 'VIDEO TIDAK TERSEDIA', en: 'VIDEO NOT AVAILABLE' },
+  cameraPreview: { id: 'Pratinjau kamera mati. Buka kamera untuk melihat siaran langsung.', en: 'Camera preview is off. Open the camera to see a live view.' },
+  cameraDenied: { id: 'Kamera tidak tersedia. Izinkan akses kamera untuk melihat siaran langsung.', en: 'Camera unavailable. Allow camera access to see the live view.' },
+  cameraUnavailable: { id: 'Kamera tidak dapat dibuka di perangkat ini.', en: 'Camera is not available on this device.' },
+  cameraRetry: { id: 'Coba lagi', en: 'Try camera again' },
+  cameraStop: { id: 'Matikan kamera', en: 'Turn camera off' },
+  cameraOff: { id: 'Kamera mati', en: 'Camera off' },
   listeningHint: { id: 'Mendengarkan… lepas untuk kirim.', en: 'Listening… release to send.' },
   releaseHint: {
     id: 'Lepas untuk mengirim. Laporan suara terkirim sendiri saat Anda melepas.',
