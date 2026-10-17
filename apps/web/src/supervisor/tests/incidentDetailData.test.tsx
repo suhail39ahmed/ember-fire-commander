@@ -99,7 +99,7 @@ describe('card lines', () => {
     expect(summaryText('en', { ...s, english: null, bahasa: null })).toBeNull()
     expect(summaryText('en', null)).toBeNull()
     expect(summaryText('en', undefined)).toBeNull()
-    expect(summarySourceText('en', s)).toBe('reworded by a model')
+    expect(summarySourceText('en', s)).toBe('reworded by AI')
     expect(summarySourceText('en', { ...s, source: null })).toBeNull()
   })
 

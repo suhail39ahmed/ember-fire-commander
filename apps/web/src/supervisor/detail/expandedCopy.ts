@@ -15,7 +15,7 @@ export const expandedCopy = {
   snapshot: { id: 'Foto', en: 'Snapshot' },
   flip: { id: 'Balik kamera', en: 'Flip camera' },
   endLive: { id: 'Akhiri live', en: 'End live' },
-  captionTitle: { id: 'Apa yang terlihat', en: 'What the frame shows' },
+  captionTitle: { id: 'AI membaca bingkai · periksa sendiri', en: 'AI read the frame · check it yourself' },
   captionPlaceholder: {
     id: 'Keterangan bingkai belum tersedia — periksa sendiri di video saat sudah langsung.',
     en: 'Frame caption not available yet — check it yourself once live video is connected.',
@@ -27,17 +27,21 @@ export const expandedCopy = {
 
   latestMsg: { id: 'Pesan terbaru', en: 'Latest message' },
   noMsg: { id: 'Relawan ini belum mengirim laporan.', en: 'No report from this volunteer yet.' },
-  english: { id: 'Inggris', en: 'English' },
+  english: { id: 'Terjemahan AI', en: 'AI translation' },
   translatedFrom: { id: 'dari', en: 'from' },
 
-  snapshots: { id: 'Foto tersimpan', en: 'Saved snapshots' },
+  snapshots: { id: 'Foto · tersimpan di insiden', en: 'Snapshots · saved to the incident' },
+  photoCheck: { id: 'Cek foto AI', en: 'AI photo check' },
+  photoLarge: { id: 'Foto dari relawan, ukuran besar', en: 'Photo from the volunteer, larger' },
+  photoLargeClose: { id: 'Tutup foto', en: 'Close photo' },
   noSnapshots: { id: 'Belum ada foto dari relawan ini.', en: 'No photos from this volunteer yet.' },
 
   sentTitle: { id: 'Dikirim ke', en: 'Sent to' },
   noSent: { id: 'Belum ada instruksi untuk relawan ini.', en: 'No instructions for this volunteer yet.' },
-  heard: { id: 'Terdengar', en: 'Heard' },
-  done: { id: 'Selesai', en: 'Done' },
-  heardAt: { id: 'pukul', en: 'at' },
+  heard: { id: 'terdengar', en: 'heard' },
+  done: { id: 'selesai', en: 'done' },
+  declined: { id: 'ditolak', en: 'declined' },
+  sentNoAnswer: { id: 'terkirim', en: 'sent' },
 
   notYet: { id: 'Belum tersedia', en: 'Not available yet' },
 
@@ -48,13 +52,15 @@ export const expandedCopy = {
   battery: { id: 'baterai', en: 'battery' },
 
   // Chat thread
-  chatTitle: { id: 'Tanya EMBER', en: 'Ask EMBER' },
-  chatNote: { id: 'dijawab dari data tersimpan · tidak ada yang dikirim dari sini', en: 'answered from stored data · nothing is sent from here' },
+  chatTitle: { id: 'Tanya EMBER AI', en: 'Ask EMBER AI' },
+  chatAbout: { id: 'tentang', en: 'about' },
+  asksBeforeSend: { id: 'Minta sebelum dikirim', en: 'Asks before it sends' },
+  chatNote: { id: 'dijawab AI dari data tersimpan · tidak ada yang dikirim dari sini', en: 'answered by AI from stored data · nothing is sent from here' },
   earlierCount: { id: 'pesan sebelumnya', en: 'earlier messages' },
   showEarlier: { id: 'Tampilkan', en: 'Show' },
   hideEarlier: { id: 'Sembunyikan', en: 'Hide' },
   you: { id: 'Anda', en: 'You' },
-  ember: { id: 'EMBER', en: 'EMBER' },
+  ember: { id: 'AI', en: 'AI' },
   notEnough: { id: 'Data tersimpan tidak cukup untuk menjawab penuh.', en: 'Stored data is not enough for a full answer.' },
 
   // Quick prompts
@@ -63,16 +69,19 @@ export const expandedCopy = {
   promptAll: { id: 'Buat draf untuk semua', en: 'Draft for everyone' },
 
   // Input
-  inputPlaceholder: { id: 'Tanya EMBER tentang relawan ini…', en: 'Ask EMBER about this volunteer…' },
+  inputPlaceholder: { id: 'Tanya EMBER AI tentang relawan ini…', en: 'Ask EMBER AI about this volunteer…' },
   inputMic: { id: 'Mulai rekam suara', en: 'Start voice input' },
   sendBtn: { id: 'Kirim pertanyaan', en: 'Ask' },
   asking: { id: 'Menjawab…', en: 'Answering…' },
 
   // Proposal card
   proposalTitle: { id: 'Sebelum saya kirim sesuatu, periksa dulu ini', en: 'Before I send anything, check these' },
+  aiDraft: { id: 'Draf AI', en: 'AI draft' },
+  toName: { id: 'Untuk', en: 'To' },
+  sendThis: { id: 'Kirim instruksi ini?', en: 'Send this instruction?' },
   proposalEmpty: {
-    id: 'Tanya EMBER dulu untuk membuat draf — gunakan pertanyaan cepat atau tulis di bawah.',
-    en: 'Ask EMBER first to build a draft — use a quick prompt or type below.',
+    id: 'Tanya EMBER AI dulu untuk membuat draf — gunakan pertanyaan cepat atau tulis di bawah.',
+    en: 'Ask EMBER AI first to build a draft — use a quick prompt or type below.',
   },
   sendBoth: { id: 'Kirim keduanya sekarang', en: 'Send both now' },
   sendBothNote: { id: 'Kirim ke semua memerlukan rute terpisah — belum tersedia.', en: 'Send to everyone needs a separate route — not available yet.' },

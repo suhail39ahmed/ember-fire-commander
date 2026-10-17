@@ -179,15 +179,15 @@ describe('photo reads under a snapshot', () => {
   it('shows what the read said, marked advisory', () => {
     const detail: IncidentDetail = { ...fixture('conflict'), observations: [...fixture('conflict').observations, photo], photoReads: { obs_photo: read } }
     const html = popup(detail, 'uid_sari')
-    expect(html).toContain('Photo read (advisory)')
+    expect(html).toContain('AI photo check')
     expect(html).toContain('smoke visible · small flame · “Thin smoke beside a canal”')
     expect(html).toContain('Describes the picture, not the incident severity.')
   })
 
   it('shows nothing when no read exists for the photo', () => {
     const detail: IncidentDetail = { ...fixture('conflict'), observations: [...fixture('conflict').observations, photo], photoReads: {} }
-    expect(popup(detail, 'uid_sari')).not.toContain('Photo read')
-    expect(popup({ ...detail, photoReads: undefined }, 'uid_sari')).not.toContain('Photo read')
+    expect(popup(detail, 'uid_sari')).not.toContain('AI photo check')
+    expect(popup({ ...detail, photoReads: undefined }, 'uid_sari')).not.toContain('AI photo check')
   })
 
   it('words the read from the fields it has', () => {

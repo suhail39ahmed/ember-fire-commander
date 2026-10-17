@@ -11,6 +11,7 @@ export const disagreeCopy = {
   original: { id: 'LAPORAN ASLI · TIDAK DIUBAH', en: 'ORIGINAL REPORT · UNCHANGED' },
   proposals: { id: 'Usulan', en: 'Proposals' },
   proposedWord: { id: 'USULAN', en: 'PROPOSED' },
+  aiProposedWord: { id: 'SARAN AI', en: 'AI SUGGESTED' },
   heldLine: { id: '409 · Dispatch tidak bisa disetujui selama laporan berbeda', en: '409 · Can’t approve dispatch while reports disagree' },
   factorsTitle: { id: 'Mengapa bukti bernilai', en: 'Why evidence is' },
   factorsEmpty: { id: 'Belum ada rincian bukti dari ember-api.', en: 'ember-api has not sent the evidence factors.' },

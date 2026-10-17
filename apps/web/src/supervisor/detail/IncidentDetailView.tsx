@@ -311,7 +311,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
       {summary && detail.summary && (
         <section className="inc-card" aria-labelledby="inc-summary-title">
           <h2 className="inc-h2" id="inc-summary-title">
-            {t(lang, summaryCopy.title)}
+            {t(lang, detail.summary.source === 'model' ? summaryCopy.titleModel : summaryCopy.title)}
             <span className="inc-h2-note">{t(lang, summaryCopy.note)}{summarySourceText(lang, detail.summary) && ` · ${summarySourceText(lang, detail.summary)}`}</span>
           </h2>
           <p>{summary}</p>
