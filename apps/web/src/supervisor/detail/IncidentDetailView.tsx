@@ -36,7 +36,7 @@ import { VolunteerCard } from './VolunteerCard'
 import { WithdrawPanel } from './WithdrawPanel'
 import { elapsedSince, unconfirmed, withdrawState } from './withdrawState'
 import { countText, stateCopy } from './withdrawStateCopy'
-import { VolunteerPopup } from './VolunteerPopup'
+import { ExpandedVolunteerView } from './ExpandedVolunteerView'
 import { actionText, actorOf, subjectOf, summarySourceText, summaryText } from './cardModel'
 import { summaryCopy } from './cardCopy'
 import { HeardToast } from './HeardToast'
@@ -364,7 +364,19 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         {paused && <p className="wd-paused">{t(lang, stateCopy.paused)}</p>}
         <p className="inc-callout"><span className="inc-callout-dot" aria-hidden="true" />{t(lang, detailCopy.withdrawRule)}</p>
       </section>
-      {popupId !== null && <VolunteerPopup lang={lang} detail={detail} volunteerId={popupId} onClose={() => setPopupId(null)} offline={offline} now={clock} onResend={resendTask} sendInstruction={sendInstruction} photoUrl={photoUrl} assist={assist} />}
+      {popupId !== null && (
+        <ExpandedVolunteerView
+          lang={lang}
+          detail={detail}
+          volunteerId={popupId}
+          onClose={() => setPopupId(null)}
+          offline={offline}
+          now={clock}
+          sendInstruction={sendInstruction}
+          photoUrl={photoUrl}
+          assist={assist}
+        />
+      )}
       {toasts[0] && <HeardToast lang={lang} event={toasts[0]} name={nameOf(detail, toasts[0].volunteerId, lang)} onClose={dismiss} />}
       {dialog === 'withdraw' && (
         <SendWithdrawDialog
