@@ -6,7 +6,7 @@
  */
 import type { IncidentDetail, Observation, Task } from './contracts'
 
-export type FixtureName = 'normal' | 'conflict' | 'withdraw'
+export type FixtureName = 'normal' | 'conflict' | 'withdraw' | 'declined'
 
 const DEMO_AREA = 'Ketapang, Kalimantan Barat'
 const DEMO_NAME = `${DEMO_AREA} · Pak Dedi · #1`
@@ -59,6 +59,8 @@ const task = (id: string, volunteerId: string, type: Task['type'], status: Task[
   instruction,
 })
 
+const INSTRUCT_TEXT = 'Basahi tanah di sekeliling api. Jaga jarak aman.'
+
 const investigate = task('task_demo_investigate', 'uid_dedi', 'investigate', 'proposed', 'Check the ditch edge from the east road and report the fire line.')
 
 export function fixture(name: FixtureName): IncidentDetail {
@@ -98,6 +100,26 @@ export function fixture(name: FixtureName): IncidentDetail {
     ],
   }
   if (name === 'conflict') return conflict
+  if (name === 'declined') {
+    const declinedTask: Task = {
+      ...task('task_demo_instruct_sari', 'uid_sari', 'instruct', 'approved', INSTRUCT_TEXT),
+      sentAt: '2026-10-17T03:07:00Z',
+      heardAt: '2026-10-17T03:07:05Z',
+      declinedAt: '2026-10-17T03:09:00Z',
+      declineReason: 'too_far',
+      declineNote: 'Road to the ditch is flooded',
+    }
+    return {
+      incident: { id: 'inc_demo_01', name: DEMO_NAME, area: DEMO_AREA, status: 'open', severity: 'small_flame', evidenceScore: 45, conflictId: null, withdraw: null, lat: LAT, lng: LNG },
+      observations: [structuredClone(obsDedi), structuredClone(obsSari)],
+      conflict: null,
+      tasks: [structuredClone(investigate), declinedTask],
+      evidenceFactors: [
+        { factor: 'severity', points: 35, detail: 'highest reported severity is small_flame' },
+        { factor: 'gps', points: 10, detail: 'a report has GPS accuracy of 50 m or better' },
+      ],
+    }
+  }
   return {
     ...conflict,
     incident: {
