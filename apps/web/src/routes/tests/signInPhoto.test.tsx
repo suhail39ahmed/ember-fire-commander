@@ -45,9 +45,11 @@ describe('supervisor sign-in field photo', () => {
     expect(html).toContain('Every report matters.')
   })
 
-  it('leaves the volunteer sign-in on the plain panel', () => {
+  it('keeps the volunteer sign-in in its own welcome shell', () => {
     const html = render('volunteer')
-    expect(html).toContain('class="login-brand"')
+    expect(html).toContain('class="vauth vauth-welcome"')
+    expect(html).toContain('class="vauth-photo"')
+    expect(html).not.toContain(LOGIN_PHOTO)
     expect(html).not.toContain('login-photo')
   })
 
