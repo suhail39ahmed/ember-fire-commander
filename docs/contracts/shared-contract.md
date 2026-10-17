@@ -121,7 +121,7 @@ Immutable. The stored record always has `"immutable": true`. There is no update 
 | `volunteerId` | string | Server, from the token |
 | `capturedAt` | string | Client. The phone time of the report, in UTC (`Z` or `+00:00`; any other offset is `400`). Must be within [now − 7 days, now + 5 minutes] when received, otherwise `400`. Stored as `YYYY-MM-DDTHH:MM:SS[.mmm]Z`. A `live` observation takes it from the phone's `location` message, and the gateway does not apply this window (§7) |
 | `receivedAt` | string | Server |
-| `volunteerName` | string, optional | `ember-api` and `voice-gateway`, from the token display name, one line of at most 80 characters. Absent when the token has no display name. Agents use it to name the incident. Only the create response (§6.2) returns it; the observations in §6.3 do not |
+| `volunteerName` | string, optional | `ember-api` and `voice-gateway`, from the token display name, one line of at most 80 characters. Absent when the token has no display name. Agents use it to name the incident. Returned on create (§6.2) and on reports in an authorized incident detail (§6.3), including volunteer reads (#195) |
 | `clientId` | string, optional | Client. The outbox item id, 1 to 128 letters, digits, `.`, `-` or `_`. Present only when the client sent it. Only the create response (§6.2) returns it; the observations in §6.3 do not. The gateway never sets it |
 | `source` | source enum | Client for `chip`, `text`, and `photo`. Gateway sets `live`. `live` is refused on `POST /observations` |
 | `lat` | number, −90 to 90 | Phone |
@@ -150,7 +150,7 @@ A `text` or `photo` observation is stored as `unknown`. A `live` observation sto
 Which fields a response carries:
 
 - `POST /observations` returns the full stored record, including `volunteerName`, `clientId` and `device` when they exist, and a `join` (§6.2) once agents have placed the report.
-- The `observations` in `GET /incidents/{id}` carry only `id`, `volunteerId`, `capturedAt`, `receivedAt`, `source`, `lat`, `lng`, `accuracyM`, `chip`, `text`, `severity`, `photoPath`, and `immutable`.
+- The `observations` in `GET /incidents/{id}` carry `id`, `volunteerId`, `capturedAt`, `receivedAt`, `source`, `lat`, `lng`, `accuracyM`, `chip`, `text`, `severity`, `photoPath`, and `immutable`, plus the stored `volunteerName` when present. They never carry device telemetry or `clientId`.
 
 ### 5.2 Incident
 
@@ -856,6 +856,14 @@ Not returned, because no service stores a source: the crew lead's phone and duty
 
 Who can read what:
 
+**Volunteer presentation metadata (#195).** The existing volunteer `GET /digest` adds `code`, `placeName`, `updatedAt`, `closedAt`, `reportCount`, `myReportCount`, `participantCount`, and `includesMe` to its incident summaries. Volunteer `GET /incidents/{id}` adds the same fields to `incident`. `code` and `placeName` use the existing incident label helpers. Counts cover readable reports linked through the incident or its conflicts; `participantCount` counts distinct volunteers on those reports, tasks or membership rows, and `includesMe` says whether the caller is among them. These are linked participants, not confirmed live presence, so the PWA labels them volunteers rather than people currently on site.
+
+`updatedAt` is the latest stored incident timestamp, Firestore document update time, incident audit time, or report receipt time. It is never the digest response clock. `closedAt` is available only for extinguished incidents and comes from stored `closedAt` / `extinguishedAt` or an `incident.extinguish` audit row; a later unrelated update does not replace it. Missing or invalid dates are null. Completed groups closing dates in the last 30 days using the digest's server clock; older and undated incidents remain available in a separate group, sorted with known latest dates first.
+
+Volunteer tasks in the digest and detail include nullable `createdAt` (stored value, else Firestore creation time) and `reasonCode`. `reports_disagree` is returned for a stored reason or a verify task on a held incident with an open current conflict; otherwise the reason is null. The UI may display `sentAt` when a legacy task has no creation timestamp. It never invents one.
+
+A volunteer detail now lists the deduplicated union of the incident's own reports and the current conflict's reports. It also includes `conflictSummary`, null unless the incident is held with an open current conflict, else `{ dispatchHeld, reports: [{ observationId, volunteerId, volunteerName, severity }], instruction, supervisorName }`. The reports are the conflict's stored sides; instruction is the caller's latest approved, unclosed verify/investigate task, and supervisorName is the recorded actor name on its latest approve/edit/resend audit. Missing names and instructions remain null. No model-generated summary is substituted. Authorization still runs before enrichment; phone numbers, device telemetry, evidence factors, supervisor cards and advisory tools stay excluded from volunteer reads.
+
 | Route | Supervisor | Volunteer |
 |---|---|---|
 | `GET /incidents` | Incidents with status `open`, `held`, or `verified` | Incidents linked to the caller by the rule in §5.6, in any status |
@@ -1519,7 +1527,7 @@ Every route except `/healthz` needs the two headers in §2.
 7. **Photo reports.** Upload first (§6.7), with exactly the returned `method` and `Content-Type`, before the signed URL expires (300 s by default). Then send the `photo` observation with the returned `photoPath`. Only `image/jpeg` and `image/webp` are accepted.
 8. **Text and chips.** Text is at most 280 characters. A `chip` report needs one of the four chips. A `text` report needs non-blank text and no chip.
 9. **Errors.** Read `error.code` and `error.fields` when present. A body without `error.code` can happen (§3), so keep a fallback by HTTP status. `5xx` and `429` are the retryable statuses in the web clients.
-10. **Order and time.** Incident and task lists are sorted by `id`, and an `id` is not chronological. Incidents and tasks have no created or updated time. The only "newer" signal for incidents is the `#<number>` in `name`. The digest's `updatedAt` is the time of the response, read from the server clock. The volunteer app compares it with the phone clock and adds the gap to the `capturedAt` it stamps, because §6.2 refuses a `capturedAt` more than 5 minutes ahead of the server.
+10. **Order and time.** API incident and task lists are sorted by `id`, and an `id` is not chronological. Volunteer presentation metadata adds nullable incident update/closing times and task creation times derived from stored records (§6.3); clients must not manufacture missing dates. Completed sorts known closing dates newest first and retains undated records. The digest's top-level `updatedAt` remains the response clock, distinct from each incident's update time. The volunteer app compares that response clock with the phone clock and adds the gap to the `capturedAt` it stamps, because §6.2 refuses a `capturedAt` more than 5 minutes ahead of the server.
 11. **Language.** Enum values are fixed English wire values. `instruction`, `reasons`, error `message`, and evidence `detail` are English sentences written by the services, and the contract has no Bahasa form for them. Only `incident_summaries` has both `english` and `bahasa`, and it is not returned by any route.
 12. **Updates.** There is no push to the console and no change feed. Both apps poll every 5 seconds. A volunteer's device also gets an FCM push for a new approved task or a WITHDRAW (§6.6).
 

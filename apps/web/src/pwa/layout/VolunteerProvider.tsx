@@ -44,7 +44,7 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
   const getAuthHeaders = useMemo(() => authHeadersFor(user), [user])
   const volunteerId = me?.id ?? null
   const baseApi = useMemo<EmberApi>(
-    () => apiOverride ?? (USE_MOCK_API ? createMockApi(volunteerId ?? 'uid_mock', 300, me ?? undefined) : createHttpApi(getAuthHeaders)),
+    () => apiOverride ?? (USE_MOCK_API ? createMockApi(volunteerId ?? 'uid_mock', 300, me ?? undefined, { incidentFlow: true }) : createHttpApi(getAuthHeaders)),
     [apiOverride, getAuthHeaders, volunteerId, me],
   )
   // A 401 on any call swaps the page for the sign-in screen (session expired, or device not verified).

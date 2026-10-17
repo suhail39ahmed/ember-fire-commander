@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from flask import Blueprint, g, jsonify, request
 
 from identity import AuthError
-from incidents import detail as incident_detail, live_seat, members, nearby, rules, sent, store
+from incidents import detail as incident_detail, live_seat, members, nearby, rules, sent, store, volunteer_view
 from incidents.errors import ApiError, conflict, error_response, not_found, validation
 from notifications.send import deliver_task
 from photos import paths as photo_paths, signing
@@ -53,6 +53,11 @@ _CLOSED_FIELDS = ("closedAt", "closedBy", "closedByName", "closeMessage")
 def _task_for_client(snapshot):
     """Task record for clients: omit null lead-closed fields (#140)."""
     record = rules.with_receipt(rules.to_record(snapshot, rules.TASK_FIELDS))
+    created_at = volunteer_view.task_created(snapshot)
+    if created_at:
+        record["createdAt"] = created_at
+    if (snapshot.to_dict() or {}).get("reasonCode") == "reports_disagree":
+        record["reasonCode"] = "reports_disagree"
     for key in _CLOSED_FIELDS:
         if record.get(key) is None:
             record.pop(key, None)
@@ -161,6 +166,7 @@ def get_incident(incident_id):
             conflict_body = rules.to_record(conflict_snap, rules.CONFLICT_FIELDS)
 
     tasks = _tasks_for(incident_id)
+    all_tasks = tasks
     shown_ids = _incident_observation_ids(data, conflict_body)
     wanted_ids = list(shown_ids)
     if user["role"] != "supervisor":
@@ -177,6 +183,8 @@ def get_incident(incident_id):
         if not _volunteer_on_incident(user["id"], data, found, tasks, incident_id):
             raise not_found("incident")
         tasks = [t for t in tasks if t["volunteerId"] == user["id"]]
+        # The volunteer detail lists every report linked to this incident, including conflict sides.
+        shown_ids = list(dict.fromkeys(shown_ids + list(data.get("observationIds") or [])))
 
     observations = [rules.to_record(found[obs_id], rules.OBSERVATION_FIELDS) for obs_id in shown_ids if obs_id in found]
 
@@ -187,12 +195,21 @@ def get_incident(incident_id):
         "tasks": tasks,
     }
     if user["role"] != "supervisor":
+        metadata, contexts, task_metadata, _ = volunteer_view.load([snapshot], user["id"], known_reports=found, known_tasks=all_tasks)
+        body["incident"].update(metadata[incident_id])
+        body["conflictSummary"] = contexts[incident_id]
+        for task in tasks:
+            task.update(task_metadata.get(task["id"], {}))
+        for record in observations:
+            name = rules.reporter_name(found[record["id"]].to_dict() or {})
+            if name:
+                record["volunteerName"] = name
         # Optional join fields for the joined-incident screen (#135). Absent when they only have a report or task.
         membership = members.read_member(incident_id, user["id"])
         if membership is not None:
             body["membership"] = membership
     if user["role"] == "supervisor":
-        # Supervisor only: the reporter's name, when one was stored, and the factors behind evidenceScore.
+        # Stored report names, plus the supervisor-only factors behind evidenceScore.
         for record in observations:
             name = rules.reporter_name(found[record["id"]].to_dict() or {})
             if name:
@@ -267,6 +284,11 @@ def digest():
             (_task_for_client(s) for s in store.where(store.TASKS, "volunteerId", "==", user["id"])),
             key=lambda t: t["id"],
         )
+        metadata, _, task_metadata, _ = volunteer_view.load(scoped, user["id"])
+        for incident in incidents:
+            incident.update(metadata[incident["id"]])
+        for task in my_tasks:
+            task.update(task_metadata.get(task["id"], {}))
         # Nearby fires the volunteer has not joined (#134). Needs the phone's lat/lng; otherwise [].
         position = nearby.parse_position(request.args)
         if position is not None:

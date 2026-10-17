@@ -163,13 +163,13 @@ def test_detail_without_stored_factors_has_an_empty_list(client, monkeypatch, db
     assert all("volunteerName" not in o for o in body["observations"])
 
 
-def test_volunteer_detail_has_no_names_or_factors(client, monkeypatch, db):
+def test_volunteer_detail_has_incident_report_names_but_no_factors(client, monkeypatch, db):
     db.data["observations"]["obs_02"]["volunteerName"] = "Rizal"
     db.data["incidents"]["inc_01"]["evidenceFactors"] = [{"factor": "photo", "points": 10, "detail": "a photo"}]
     _as(monkeypatch, role="volunteer", uid="uid_sari")
     body = client.get("/incidents/inc_01", headers=AUTH).get_json()
     assert "evidenceFactors" not in body
-    assert all("volunteerName" not in o for o in body["observations"])
+    assert next(o for o in body["observations"] if o["id"] == "obs_02")["volunteerName"] == "Rizal"
 
 
 def test_unknown_incident_is_404(client, monkeypatch, db):
@@ -197,7 +197,7 @@ def test_digest_matches_pwa_shape(client, monkeypatch, db):
     body = client.get("/digest", headers=AUTH).get_json()
     assert set(body) == {"updatedAt", "incidents", "myTasks", "nearby", "myJoinRequests", "seasonStats"}
     assert body["updatedAt"].endswith("Z")
-    assert set(body["incidents"][0]) == {"id", "name", "area", "status", "severity", "withdraw", "lat", "lng"}
+    assert set(body["incidents"][0]) == {"id", "name", "area", "status", "severity", "withdraw", "lat", "lng", "code", "placeName", "updatedAt", "closedAt", "reportCount", "myReportCount", "participantCount", "includesMe"}
     assert [t["id"] for t in body["myTasks"]] == ["task_investigate", "task_verify_sari"]
 
 
@@ -1024,7 +1024,8 @@ def test_a_volunteer_read_has_none_of_the_supervisor_extras(client, monkeypatch,
     _as(monkeypatch, role="volunteer", uid="uid_sari")
     body = client.get("/incidents/inc_01", headers=AUTH).get_json()
     assert not [key for key in EXTRA_KEYS + ("volunteerPhones",) if key in body]
-    assert "Two reports" not in str(body) and "Ayu" not in str(body)
+    assert "Two reports" not in str(body)
+    assert any(o.get("volunteerName") == "Ayu" for o in body["observations"])
     # A volunteer who is not on the incident still gets a 404, not the extras.
     _as(monkeypatch, role="volunteer", uid="uid_other")
     assert client.get("/incidents/inc_01", headers=AUTH).status_code == 404
@@ -1453,3 +1454,70 @@ def test_the_approvals_count_matches_the_list(client, monkeypatch, db):
     listed = client.get("/tasks?status=proposed", headers=AUTH).get_json()
     count = client.get("/dashboard", headers=AUTH).get_json()["approvalsCount"]
     assert len(listed) == count == 3
+
+# #195 volunteer presentation metadata ------------------------------------------------
+
+def test_volunteer_metadata_uses_stored_reports_audit_and_safe_context(client, monkeypatch, db):
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    _third_reporter(db)
+    db.data["observations"]["obs_02"].update(volunteerName="Rizal", phone="private-phone", device={"secret": True})
+    db.data["tasks"]["task_verify_sari"].update(status="approved", sentAt="2026-10-13T08:16:00Z", createdAt="2026-10-13T08:15:00Z")
+    db.add("audit", "approval", {"targetId": "task_verify_sari", "action": "task.approve", "actorName": "Bu Maya", "at": "2026-10-13T08:16:00Z"})
+    db.add("audit", "held", {"targetId": "inc_01", "action": "conflict.open", "at": "2026-10-13T08:15:00Z"})
+    body = client.get("/digest", headers=AUTH).get_json()
+    incident = next(row for row in body["incidents"] if row["id"] == "inc_01")
+    assert incident["reportCount"] == 3 and incident["myReportCount"] == 1
+    assert incident["participantCount"] == 3 and incident["includesMe"] is True
+    assert incident["updatedAt"] == "2026-10-13T08:15:00Z"
+    assert incident["closedAt"] is None
+    task = next(row for row in body["myTasks"] if row["id"] == "task_verify_sari")
+    assert task["reasonCode"] == "reports_disagree"
+    assert task["createdAt"] == "2026-10-13T08:15:00Z"
+    detail = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    assert len(detail["observations"]) == 3
+    assert detail["conflictSummary"]["supervisorName"] == "Bu Maya"
+    assert detail["conflictSummary"]["instruction"] == "Check the east bank"
+    assert any(row["volunteerName"] == "Rizal" for row in detail["conflictSummary"]["reports"])
+    assert "private-phone" not in str(detail) and "secret" not in str(detail)
+    assert not any(key in detail for key in ("volunteerPhones", "evidenceFactors", "liveSeat", "summary"))
+
+
+def test_completed_date_comes_from_extinguish_audit_not_response_clock(client, monkeypatch, db):
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    db.data["incidents"]["inc_01"]["status"] = "extinguished"
+    db.add("audit", "close", {"targetId": "inc_01", "action": "incident.extinguish", "at": "2026-10-12T08:10:00Z"})
+    db.add("audit", "after", {"targetId": "inc_01", "action": "incident.severity.lower", "at": "2026-10-13T08:10:00Z"})
+    incident = client.get("/digest", headers=AUTH).get_json()["incidents"][0]
+    assert incident["closedAt"] == "2026-10-12T08:10:00Z"
+    assert incident["updatedAt"] == "2026-10-13T08:13:03Z"
+    del db.data["audit"]["close"]
+    assert client.get("/digest", headers=AUTH).get_json()["incidents"][0]["closedAt"] is None
+
+
+def test_volunteer_metadata_stays_scoped_and_missing_values_stay_null(client, monkeypatch, db):
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    db.add("incidents", "secret_incident", {"status": "extinguished", "observationIds": ["secret_report"]})
+    db.add("observations", "secret_report", {"volunteerId": "uid_secret", "volunteerName": "Hidden Person"})
+    response = client.get("/digest", headers=AUTH).get_json()
+    assert "Hidden Person" not in str(response) and "secret_incident" not in str(response)
+    assert all(row["closedAt"] is None for row in response["incidents"])
+    assert ("observations", 1) not in db.batch_reads  # no isolated read of the unrelated report
+    _as(monkeypatch, role="volunteer", uid="uid_stranger")
+    assert client.get("/incidents/inc_01", headers=AUTH).status_code == 404
+
+
+def test_task_creation_timestamp_can_come_from_firestore():
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+    from incidents.volunteer_view import task_created, latest
+    snap = SimpleNamespace(to_dict=lambda: {}, create_time=datetime(2026, 10, 17, 8, 0, tzinfo=timezone.utc))
+    assert task_created(snap) == "2026-10-17T08:00:00Z"
+    assert latest(["bad", "2026-10-17T09:00:00+01:00", "2026-10-17T08:30:00Z"]) == "2026-10-17T08:30:00Z"
+
+@pytest.mark.parametrize("status", ["open", "verified", "extinguished"])
+def test_old_conflict_does_not_add_hold_context_after_status_changes(client, monkeypatch, db, status):
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    db.data["incidents"]["inc_01"]["status"] = status
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    assert body["incident"]["status"] == status
+    assert body["conflictSummary"] is None

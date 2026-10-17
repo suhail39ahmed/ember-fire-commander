@@ -8,6 +8,18 @@ export function liveIncidents(digest: Digest | null): IncidentSummary[] {
 /** Extinguished incidents this volunteer is linked to. */
 export function completedIncidents(digest: Digest | null): IncidentSummary[] {
   return (digest?.incidents ?? []).filter((incident) => incident.status === 'extinguished')
+    .sort((a, b) => (Date.parse(b.closedAt || '') || 0) - (Date.parse(a.closedAt || '') || 0))
+}
+
+/** The server clock defines the window. Undated/older records remain reachable. */
+export function completedGroups(digest: Digest | null) {
+  const now = Date.parse(digest?.updatedAt || '')
+  const recent: IncidentSummary[] = [], older: IncidentSummary[] = []
+  for (const incident of completedIncidents(digest)) {
+    const closed = Date.parse(incident.closedAt || '')
+    ;(Number.isFinite(now) && Number.isFinite(closed) && closed <= now && now - closed <= 30 * 86400000 ? recent : older).push(incident)
+  }
+  return { recent, older }
 }
 
 /**
