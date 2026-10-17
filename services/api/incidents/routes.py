@@ -207,6 +207,16 @@ def get_incident(incident_id):
                 if phone:
                     phones[uid] = phone
             body["volunteerPhones"] = phones
+            # Supervisor only: volunteer self-safe answers from the PWA (POST /incidents/{id}/withdraw/answer).
+            named = set(withdraw["volunteerIds"])
+            self_safe = []
+            for snap in store.where("withdraw_answers", "incidentId", "==", incident_id):
+                row = snap.to_dict() or {}
+                uid = row.get("volunteerId")
+                if row.get("state") == "safe" and uid in named:
+                    self_safe.append(uid)
+            if self_safe and body.get("incident", {}).get("withdraw"):
+                body["incident"]["withdraw"]["selfSafeVolunteerIds"] = self_safe
         # Supervisor only: volunteer cards, a timeline and the advisory summary, from stored records.
         known = [found[i].to_dict() | {"id": i} for i in dict.fromkeys(wanted_ids) if i in found]
         body.update(incident_detail.build(incident_id, data, known, conflict_body, tasks))

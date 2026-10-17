@@ -135,6 +135,8 @@ export interface Withdraw {
   sentAt?: string
   /** Volunteers a supervisor marked found safe. Absent on an older withdraw. */
   safeVolunteerIds?: string[]
+  /** Volunteers who answered "safe" via the PWA withdraw-answer route. Supervisor read only; absent when none. */
+  selfSafeVolunteerIds?: string[]
 }
 
 /** Incident as `GET /incidents/{id}` returns it (section 5.2). The digest summary plus the evidence score. */

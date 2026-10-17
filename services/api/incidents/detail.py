@@ -20,6 +20,7 @@ SUGGESTIONS = "incident_suggestions"
 TRANSLATIONS = "observation_translations"
 WEATHER = "weather"
 PSI = "psi"
+WITHDRAW_ANSWERS = "withdraw_answers"
 COMPASS = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 TIMELINE_LIMIT = 100
 # Audit rows that belong on an incident's timeline. `observation.create` is left out because the report itself is listed.
@@ -114,7 +115,7 @@ def _device(reports):
     return None
 
 
-def _card(uid, observations, tasks, withdraw, names, push, centre, delivery, safe_marks, crews, roles):
+def _card(uid, observations, tasks, withdraw, names, push, centre, delivery, safe_marks, crews, roles, self_safe_ids=None):
     mine = sorted(
         (o for o in observations if o.get("volunteerId") == uid),
         key=lambda o: (_when(o.get("capturedAt")), o.get("id") or ""),
@@ -147,7 +148,8 @@ def _card(uid, observations, tasks, withdraw, names, push, centre, delivery, saf
     if withdraw.get("active") and uid in (withdraw.get("volunteerIds") or []):
         sent = _newest([t for t in tasks if t.get("volunteerId") == uid and t.get("type") == "withdraw"], "sentAt")
         mark = safe_marks.get(uid)
-        safe = uid in (withdraw.get("safeVolunteerIds") or [])
+        # Confirmed if a supervisor marked them safe, or if the volunteer answered "safe" via the PWA.
+        safe = uid in (withdraw.get("safeVolunteerIds") or []) or uid in (self_safe_ids or set())
         card["withdraw"] = {
             "sentAt": sent.get("sentAt") if sent else None,
             "heardAt": sent.get("heardAt") if sent else None,
@@ -345,6 +347,23 @@ def _guard(name, build, fallback):
         return fallback
 
 
+def _self_safe_ids(incident_id, withdraw):
+    """Volunteer ids who answered 'safe' via the PWA on this incident's active withdraw.
+
+    Only ids named on the withdraw are counted; answers from people not on it are ignored.
+    """
+    if not withdraw.get("active") or not withdraw.get("volunteerIds"):
+        return set()
+    named = set(withdraw["volunteerIds"])
+    result = set()
+    for snap in store.where(WITHDRAW_ANSWERS, "incidentId", "==", incident_id):
+        row = snap.to_dict() or {}
+        uid = row.get("volunteerId")
+        if row.get("state") == "safe" and uid in named:
+            result.add(uid)
+    return result
+
+
 def build(incident_id, data, observations, conflict_body, tasks):
     """The supervisor-only extras for one incident.
 
@@ -369,13 +388,16 @@ def build(incident_id, data, observations, conflict_body, tasks):
                 safe_marks[row["subjectId"]] = row
     delivery = _delivery(withdraw_task_ids)
 
+    # Volunteer self-confirmations: who answered "safe" via the PWA withdraw-answer route.
+    self_safe = _guard("withdraw answers", lambda: _self_safe_ids(incident_id, withdraw), set())
+
     roles = _team_roles(incident_id)
     centre = (data.get("lat"), data.get("lng"))
     people = {o.get("volunteerId") for o in observations} | {t.get("volunteerId") for t in tasks}
     if withdraw.get("active"):
         people |= set(withdraw.get("volunteerIds") or [])
     people.discard(None)
-    cards = [_card(uid, observations, tasks, withdraw, names, push, centre, delivery, safe_marks, crews, roles) for uid in sorted(people)]
+    cards = [_card(uid, observations, tasks, withdraw, names, push, centre, delivery, safe_marks, crews, roles, self_safe) for uid in sorted(people)]
     cards.sort(key=lambda c: (-_when(c["lastReportAt"]), c["volunteerId"]))
 
     task_by_id = {t["id"]: t for t in tasks}

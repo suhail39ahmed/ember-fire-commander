@@ -679,6 +679,60 @@ def test_no_phones_without_an_active_withdraw(client, monkeypatch, db):
     assert "volunteerPhones" not in client.get("/incidents/inc_01", headers=AUTH).get_json()
 
 
+def test_self_safe_answers_appear_in_the_supervisor_withdraw_read(client, monkeypatch, db):
+    db.data["incidents"]["inc_01"]["withdraw"] = dict(ACTIVE_WITHDRAW)
+    db.add("withdraw_answers", "inc_01__uid_sari", {
+        "incidentId": "inc_01", "volunteerId": "uid_sari", "state": "safe", "at": "2026-10-13T08:21:00Z",
+    })
+    _as(monkeypatch)
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    assert body["incident"]["withdraw"]["selfSafeVolunteerIds"] == ["uid_sari"]
+
+
+def test_stuck_or_other_answers_are_not_counted_as_safe(client, monkeypatch, db):
+    db.data["incidents"]["inc_01"]["withdraw"] = dict(ACTIVE_WITHDRAW)
+    db.add("withdraw_answers", "inc_01__uid_sari", {
+        "incidentId": "inc_01", "volunteerId": "uid_sari", "state": "stuck", "at": "2026-10-13T08:21:00Z",
+    })
+    _as(monkeypatch)
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    assert "selfSafeVolunteerIds" not in body["incident"]["withdraw"]
+
+
+def test_answers_from_non_withdraw_volunteers_are_excluded(client, monkeypatch, db):
+    db.data["incidents"]["inc_01"]["withdraw"] = dict(ACTIVE_WITHDRAW)
+    db.add("withdraw_answers", "inc_01__uid_ayu", {
+        "incidentId": "inc_01", "volunteerId": "uid_ayu", "state": "safe", "at": "2026-10-13T08:21:00Z",
+    })
+    _as(monkeypatch)
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    assert "selfSafeVolunteerIds" not in body["incident"]["withdraw"]
+
+
+def test_self_safe_answers_do_not_appear_on_volunteer_read(client, monkeypatch, db):
+    db.data["incidents"]["inc_01"]["withdraw"] = dict(ACTIVE_WITHDRAW)
+    db.add("withdraw_answers", "inc_01__uid_sari", {
+        "incidentId": "inc_01", "volunteerId": "uid_sari", "state": "safe", "at": "2026-10-13T08:21:00Z",
+    })
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    withdraw = body["incident"]["withdraw"]
+    assert "selfSafeVolunteerIds" not in withdraw
+
+
+def test_self_safe_marks_the_volunteer_safe_on_the_card(client, monkeypatch, db):
+    db.data["incidents"]["inc_01"]["withdraw"] = dict(ACTIVE_WITHDRAW)
+    db.add("withdraw_answers", "inc_01__uid_sari", {
+        "incidentId": "inc_01", "volunteerId": "uid_sari", "state": "safe", "at": "2026-10-13T08:21:00Z",
+    })
+    _as(monkeypatch)
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    sari_card = next(c for c in body["volunteers"] if c["volunteerId"] == "uid_sari")
+    assert sari_card["withdraw"]["safe"] is True
+    rizal_card = next(c for c in body["volunteers"] if c["volunteerId"] == "uid_rizal")
+    assert rizal_card["withdraw"]["safe"] is False
+
+
 # Edit: the editor's name ------------------------------------------------------------
 
 def test_edit_returns_the_editors_name_when_the_token_has_one(client, monkeypatch, db):

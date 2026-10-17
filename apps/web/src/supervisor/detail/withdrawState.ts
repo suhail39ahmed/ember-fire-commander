@@ -30,7 +30,8 @@ export interface WithdrawState {
 export function withdrawState(detail: IncidentDetail): WithdrawState | null {
   const w = detail.incident.withdraw
   if (!w?.active) return null
-  const safe = new Set(w.safeVolunteerIds ?? [])
+  // Confirmed by a supervisor mark OR by the volunteer's own "safe" answer via the PWA.
+  const safe = new Set([...(w.safeVolunteerIds ?? []), ...(w.selfSafeVolunteerIds ?? [])])
   const phones = detail.volunteerPhones ?? {}
   const cards = new Map((detail.volunteers ?? []).map((c) => [c.volunteerId, c] as const))
   const people = w.volunteerIds.map<WithdrawPerson>((id) => ({ id, safe: safe.has(id), phone: phones[id]?.trim() || null, card: cards.get(id) ?? null }))

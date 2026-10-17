@@ -56,6 +56,21 @@ describe('withdraw state', () => {
     expect(withdrawState(d)!.confirmed).toBe(0)
   })
 
+  it('counts a volunteer self-safe answer (selfSafeVolunteerIds) in the confirmed total', () => {
+    const d = withdrawn({ safe: [] })
+    d.incident.withdraw!.selfSafeVolunteerIds = ['uid_dedi']
+    const state = withdrawState(d)!
+    expect([state.confirmed, state.total]).toEqual([1, 2])
+    expect(unconfirmed(state).map((p) => p.id)).toEqual(['uid_sari'])
+  })
+
+  it('merges supervisor marks and self-answers without double-counting', () => {
+    const d = withdrawn({ safe: ['uid_sari'] })
+    d.incident.withdraw!.selfSafeVolunteerIds = ['uid_sari', 'uid_dedi']
+    const state = withdrawState(d)!
+    expect([state.confirmed, state.total, state.allSafe]).toEqual([2, 2, true])
+  })
+
   it('is null when there is no active withdraw', () => {
     expect(withdrawState(fixture('conflict'))).toBeNull()
   })
@@ -154,6 +169,26 @@ describe('withdraw not confirmed: the banner', () => {
     const html = view(withdrawn({ safe: [] }), 'en', { link: 'lost' })
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Mark found safe<\/button>/)
   })
+
+  it('shows "not available yet" for an unconfirmed person when no card data is stored', () => {
+    const html = view(withdrawn({ safe: ['uid_sari'] }))
+    // The fixture has no volunteers cards, so last contact falls back to the not-available state.
+    expect(html).toContain('Last contact not available yet')
+  })
+
+  it('shows last-heard and place facts when the card carries them', () => {
+    const d = withdrawn({ safe: ['uid_sari'] })
+    d.volunteers = [{
+      volunteerId: 'uid_dedi', name: 'Dedi', reportCount: 1, firstReportAt: '2026-10-17T03:02:00Z',
+      lastReportAt: '2026-10-17T03:02:00Z', lastSeverity: 'small_flame', lastLat: -1.849, lastLng: 110.051,
+      lastAccuracyM: 15, distanceM: 120, lastHeardAt: null, pushReady: true,
+      withdraw: { sentAt: '2026-10-17T03:08:00Z', heardAt: null, sendCount: 1, delivery: null, safe: false, safeAt: null, safeBy: null },
+    }]
+    const html = view(d)
+    expect(html).toContain('Last report')
+    expect(html).toContain('-1.849, 110.051')
+    expect(html).not.toContain('Last contact not available yet')
+  })
 })
 
 describe('withdraw not confirmed: the rest of the screen', () => {
@@ -166,8 +201,8 @@ describe('withdraw not confirmed: the rest of the screen', () => {
   it('lets the instructions resume once everyone is marked safe', () => {
     const html = view(withdrawn({ safe: ['uid_sari', 'uid_dedi'] }))
     expect(html).not.toContain('Instructions are paused')
-    // Only the dispatch held by the open conflict is still off.
-    expect(html.match(/<button[^>]*disabled=""[^>]*>Approve<\/button>/g)).toHaveLength(1)
+    // All Approve buttons are enabled; the API handles conflict checks when clicked.
+    expect(html.match(/<button[^>]*disabled=""[^>]*>Approve<\/button>/g)).toBeNull()
   })
 
   it('marks each volunteer card: confirmed, or not confirmed with the time since the send', () => {

@@ -102,10 +102,12 @@ export function WithdrawPanel({ lang, state, now, offline, markSafe, nameOf }: W
                 <p className="wd-who">
                   {name} · {t(lang, stateCopy.notConfirmed)}{elapsed && ` · ${elapsed}`}
                 </p>
-                {(lastAt || place || heard.length > 0) && (
+                {(lastAt || place || heard.length > 0) ? (
                   <p className="wd-facts">
                     {[lastAt ? `${t(lang, cardCopy.lastReport)} ${formatTimeZone(lastAt)}` : null, place, ...heard].filter(Boolean).join(' · ')}
                   </p>
+                ) : (
+                  <p className="wd-facts wd-facts-none">{t(lang, stateCopy.noLastContact)}</p>
                 )}
                 <div className="wd-actions">
                   {href ? (
