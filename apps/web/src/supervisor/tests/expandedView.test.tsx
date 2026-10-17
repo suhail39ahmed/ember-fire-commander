@@ -10,6 +10,7 @@ import type { IncidentActions } from '../IncidentView'
 import { AskThread, ExpandedVolunteerView, ProposalCard, type ChatEntry } from '../detail/ExpandedVolunteerView'
 import { IncidentDetailView } from '../detail/IncidentDetailView'
 import { expandedCopy } from '../detail/expandedCopy'
+import { instructionCopy } from '../detail/instructionCopy'
 import type { AssistActions } from '../detail/assistModel'
 
 const NOW = Date.parse('2026-10-17T03:10:00Z')
@@ -263,6 +264,15 @@ describe('expanded view: right pane — Ask EMBER', () => {
     expect(live.match(new RegExp(`<button[^>]*>${expandedCopy.sendOnly.en} Sari</button>`))?.[0]).not.toMatch(/disabled=""/)
     const off = renderToStaticMarkup(<ProposalCard lang="en" name="Sari" draft="Hold the north side." offline onSendOnly={async () => undefined} />)
     expect(off.match(new RegExp(`<button[^>]*>${expandedCopy.sendOnly.en} Sari</button>`))?.[0]).toMatch(/disabled=""/)
+  })
+
+  it('"Only to Sari" is disabled and explains why when the incident is extinguished or a WITHDRAW is in force', () => {
+    for (const block of ['extinguished', 'withdraw'] as const) {
+      const html = renderToStaticMarkup(<ProposalCard lang="en" name="Sari" draft="Hold the north side." offline={false} block={block} onSendOnly={async () => undefined} />)
+      expect(html.match(new RegExp(`<button[^>]*>${expandedCopy.sendOnly.en} Sari</button>`))?.[0]).toMatch(/disabled=""/)
+      expect(html).toContain(instructionCopy.blocked[block].en)
+      expect(html).not.toContain(expandedCopy.sendError.en)
+    }
   })
 
   it('states WITHDRAW is never held up by this chat, once', () => {

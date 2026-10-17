@@ -8,7 +8,8 @@ import type { AskAnswer, IncidentDetail, PhotoUrl, TaskDecision } from '../contr
 import { severityName, taskCopy } from './copy'
 import { expandedCopy } from './expandedCopy'
 import { batteryText, networkText, popupFor, visionLine, type Popup } from './popupModel'
-import { photoCopy } from './instructionCopy'
+import { instructionCopy, photoCopy } from './instructionCopy'
+import { instructionFailure, sendBlock, type SendBlock } from './instructionModel'
 import { initialsOf } from './model'
 import { worthShowing, ASK_MAX } from './assistModel'
 import type { AssistActions } from './assistModel'
@@ -230,26 +231,29 @@ export function ProposalCard({
   name,
   draft,
   offline,
+  block = null,
   onSendOnly,
 }: {
   lang: Lang
   name: string
   draft: string | null
   offline: boolean
+  /** Why a send is refused before any request: an extinguished incident, or an active WITHDRAW on this volunteer. */
+  block?: SendBlock | null
   onSendOnly(text: string): Promise<void>
 }) {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null)
 
   async function handleSendOnly() {
-    if (!draft || busy || offline) return
+    if (!draft || busy || offline || block) return
     setBusy(true)
     setResult(null)
     try {
       await onSendOnly(draft)
       setResult({ ok: true, text: t(lang, expandedCopy.sent) })
-    } catch {
-      setResult({ ok: false, text: t(lang, expandedCopy.sendError) })
+    } catch (error) {
+      setResult({ ok: false, text: instructionFailure(error, lang) })
     } finally {
       setBusy(false)
     }
@@ -282,7 +286,7 @@ export function ProposalCard({
         <button
           type="button"
           className="exp-proposal-btn primary"
-          disabled={busy || offline}
+          disabled={busy || offline || block !== null}
           onClick={() => void handleSendOnly()}
           aria-label={`${t(lang, expandedCopy.sendOnly)} ${name}`}
         >
@@ -290,6 +294,7 @@ export function ProposalCard({
         </button>
       </div>
       <p className="exp-proposal-note">{t(lang, expandedCopy.sendBothNote)}</p>
+      {block && !offline && <p className="exp-proposal-result err" role="status">{t(lang, instructionCopy.blocked[block])}</p>}
       {result && (
         <p className={`exp-proposal-result ${result.ok ? 'ok' : 'err'}`} role={result.ok ? 'status' : 'alert'}>
           {result.text}
@@ -375,12 +380,14 @@ function AskEmberPane({
   popup,
   assist,
   offline,
+  block,
   onSendInstruction,
 }: {
   lang: Lang
   popup: Popup
   assist: AssistActions | undefined
   offline: boolean
+  block: SendBlock | null
   onSendInstruction(instruction: string): Promise<TaskDecision>
 }) {
   const name = popup.profile.name
@@ -435,6 +442,7 @@ function AskEmberPane({
         name={name}
         draft={proposalDraft}
         offline={offline}
+        block={block}
         onSendOnly={async (text) => { await onSendInstruction(text) }}
       />
 
@@ -588,6 +596,7 @@ export function ExpandedVolunteerView({ lang, detail, volunteerId, onClose, offl
             popup={popup}
             assist={assist}
             offline={offline}
+            block={sendBlock(detail, volunteerId, false)}
             onSendInstruction={(instruction) => sendInstruction(volunteerId, instruction)}
           />
         </div>
