@@ -5,24 +5,33 @@ tasks, the audit log, notification attempts, volunteer names and the advisory
 incident summary. Nothing is guessed. A value with no stored source is None
 and a part with nothing to show is an empty list, never a made-up default.
 """
+import logging
 import math
 
 from incidents import rules, store
 
+logger = logging.getLogger(__name__)
+
 ATTEMPTS = "notificationAttempts"
 SUMMARIES = "incident_summaries"
+MEMBERS = "incident_members"
+PHOTO_TRIAGE = "photo_triage"
+WEATHER = "weather"
+PSI = "psi"
+COMPASS = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 TIMELINE_LIMIT = 100
 # Audit rows that belong on an incident's timeline. `observation.create` is left out because the report itself is listed.
 TIMELINE_ACTIONS = (
-    "task.approve", "task.reject", "task.edit", "task.instruct", "task.resend", "task.heard", "task.withdraw",
+    "conflict.open", "task.approve", "task.reject", "task.edit", "task.instruct", "task.resend", "task.heard", "task.withdraw",
     "withdraw.safe", "incident.verify", "incident.extinguish", "incident.severity.lower",
     "incident.severity.raise", "site.reinspect",
 )
 SUMMARY_FIELDS = ("english", "bahasa", "source", "at")
+DEVICE_KEYS = ("batteryPct", "network", "language")
 # Audit rows that belong to a disagreement: decisions on its verify and investigate tasks, and on the incident itself.
 CONFLICT_TASK_TYPES = ("verify", "investigate")
 CONFLICT_TASK_ACTIONS = ("task.approve", "task.reject", "task.edit", "task.resend", "task.heard")
-CONFLICT_INCIDENT_ACTIONS = ("incident.verify", "incident.extinguish", "incident.severity.lower", "incident.severity.raise")
+CONFLICT_INCIDENT_ACTIONS = ("conflict.open", "incident.verify", "incident.extinguish", "incident.severity.lower", "incident.severity.raise")
 
 
 def distance_m(lat1, lng1, lat2, lng2):
@@ -57,19 +66,22 @@ def _text(value):
 
 
 def _profiles(uids):
-    """What volunteers/{uid} says about each volunteer: a display name, and whether a device is registered.
+    """What volunteers/{uid} says about each volunteer: a display name, a crew, and whether a device is registered.
 
     The phone and the device tokens themselves are never copied out. `push` is only whether one token exists.
     """
-    names, push = {}, {}
+    names, push, crews = {}, {}, {}
     for uid, snap in store.get_many(store.VOLUNTEERS, [u for u in uids if u]).items():
         data = snap.to_dict() or {}
         name = _text(data.get("displayName"))
         if name:
             names[uid] = name
+        crew = _text(data.get("crewName"))
+        if crew:
+            crews[uid] = crew
         tokens = data.get("fcmTokens")
         push[uid] = isinstance(tokens, list) and any(isinstance(t, str) and t.strip() for t in tokens)
-    return names, push
+    return names, push, crews
 
 
 def _docs(snaps):
@@ -91,7 +103,16 @@ def _audit_rows(incident_id, task_ids):
     return [r for r in rows if r.get("action") in TIMELINE_ACTIONS]
 
 
-def _card(uid, observations, tasks, withdraw, names, push, centre, delivery, safe_marks):
+def _device(reports):
+    """Battery, network and language from the newest report (oldest first in `reports`) that carried them."""
+    for report in reversed(reports):
+        device = report.get("device")
+        if isinstance(device, dict) and any(device.get(k) is not None for k in DEVICE_KEYS):
+            return {**{k: device.get(k) for k in DEVICE_KEYS}, "at": report.get("capturedAt")}
+    return None
+
+
+def _card(uid, observations, tasks, withdraw, names, push, centre, delivery, safe_marks, crews, roles):
     mine = sorted(
         (o for o in observations if o.get("volunteerId") == uid),
         key=lambda o: (_when(o.get("capturedAt")), o.get("id") or ""),
@@ -112,8 +133,13 @@ def _card(uid, observations, tasks, withdraw, names, push, centre, delivery, saf
         "distanceM": distance_m(centre[0], centre[1], last.get("lat"), last.get("lng")) if last else None,
         # The latest sign of life: their newest report arriving, or their app saying it showed an instruction.
         "lastHeardAt": _latest([last.get("receivedAt") if last else None] + [t.get("heardAt") for t in tasks if t.get("volunteerId") == uid]),
-        # Whether a device token is stored for them. No role, network, battery or language is stored anywhere.
+        # Whether a device token is stored for them.
         "pushReady": push.get(uid, False),
+        # The crew on their profile, and the team role stored when they joined. Each is None until something stores it.
+        "crewName": crews.get(uid),
+        "teamRole": roles.get(uid),
+        # What their phone said about itself with its newest report that carried it. None when no report did.
+        "device": _device(mine),
         "withdraw": None,
     }
     if withdraw.get("active") and uid in (withdraw.get("volunteerIds") or []):
@@ -151,8 +177,9 @@ def _conflict_context(incident_id, data, observations, conflict_body, tasks, aud
 
     `otherObservations` are the reports the incident holds that are on neither side (smoke or unknown),
     which `observations` leaves out while a conflict exists. `audit` is the recorded decisions on the
-    conflict's verify and investigate tasks and on the incident. No audit row records the moment a conflict
-    opened, and no wind or satellite factor is stored, so neither is returned.
+    conflict's verify and investigate tasks and on the incident, with the `conflict.open` row code wrote when the
+    disagreement began (an older conflict has none). `allObservations` is every report of the incident, the two
+    sides included.
     """
     if not conflict_body:
         return None
@@ -162,13 +189,19 @@ def _conflict_context(incident_id, data, observations, conflict_body, tasks, aud
         (o for o in observations if o.get("id") in mine and o.get("id") not in sides),
         key=lambda o: (_when(o.get("capturedAt")), o.get("id") or ""),
     )
-    records = []
-    for o in others:
+    def record_of(o):
         record = rules.pick(o, rules.OBSERVATION_FIELDS)
         name = rules.reporter_name(o)
         if name:
             record["volunteerName"] = name
-        records.append(record)
+        return record
+
+    records = [record_of(o) for o in others]
+    # Every report the incident holds or the conflict lists, the two sides included, oldest first.
+    every = sorted(
+        (o for o in observations if o.get("id") in mine or o.get("id") in sides),
+        key=lambda o: (_when(o.get("capturedAt")), o.get("id") or ""),
+    )
     task_ids = {t["id"] for t in tasks if t.get("type") in CONFLICT_TASK_TYPES}
     rows = [
         r for r in audit
@@ -177,7 +210,108 @@ def _conflict_context(incident_id, data, observations, conflict_body, tasks, aud
     ]
     entries = [_audit_entry(r, task_by_id, names) for r in rows]
     entries.sort(key=lambda e: (_when(e["at"]), e["id"]))
-    return {"otherObservations": records, "audit": entries[-TIMELINE_LIMIT:]}
+    return {"otherObservations": records, "allObservations": [record_of(o) for o in every], "audit": entries[-TIMELINE_LIMIT:]}
+
+
+def _team_roles(incident_id):
+    """{volunteer id: team role} from the join rows that have one. Empty when nothing stored a role."""
+    roles = {}
+    for snap in store.where(MEMBERS, "incidentId", "==", incident_id):
+        row = snap.to_dict() or {}
+        role = _text(row.get("teamRole"))
+        if role and isinstance(row.get("volunteerId"), str):
+            roles[row["volunteerId"]] = role
+    return roles
+
+
+def _header(incident_id, data, observations, tasks):
+    """Code, place, when it opened, who is on site and what opened it, from the incident and its reports.
+
+    `openedAt` and `source` come from the earliest of the incident's own reports (by `receivedAt`). Both are
+    None when none can be read. A satellite lead is never a source here: leads stay internal.
+    """
+    own = set(data.get("observationIds") or [])
+    mine = [o for o in observations if o.get("id") in own]
+    first = min(mine, key=lambda o: (_when(o.get("receivedAt") or o.get("capturedAt")), o.get("id") or ""), default=None)
+    people = {o.get("volunteerId") for o in observations} | {t.get("volunteerId") for t in tasks}
+    people.discard(None)
+    return {
+        "code": rules.incident_code(data, incident_id),
+        "placeName": rules.place_name(data),
+        "openedAt": (first.get("receivedAt") or first.get("capturedAt")) if first else None,
+        "peopleOnSite": len(people),
+        "source": first.get("source") if first else None,
+    }
+
+
+def _number(value):
+    return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def _conditions():
+    """The latest stored weather and air reads, as the ingest job wrote them. Each part is None when not stored.
+
+    Both come from one fixed monitoring point or one national feed, not from the incident, and the answer says so.
+    Nothing here is a forecast or a plume.
+    """
+    weather = air = None
+    snap = store.db().collection(WEATHER).document("current").get()
+    if snap.exists:
+        raw = snap.to_dict() or {}
+        direction = _number(raw.get("windDirDeg"))
+        weather = {
+            "observedAt": _text(raw.get("observedAt")),
+            "windKmh": _number(raw.get("windKmh")),
+            "windDirDeg": round(direction % 360, 1) if direction is not None else None,
+            "windFrom": COMPASS[int(((direction % 360) + 22.5) // 45) % 8] if direction is not None else None,
+            "gustKmh": _number(raw.get("gustKmh")),
+            "tempC": _number(raw.get("tempC")),
+            "humidityPct": _number(raw.get("humidityPct")),
+            "rainMm": _number(raw.get("precipMm")),
+            "source": _text(raw.get("source")),
+        }
+    snap = store.db().collection(PSI).document("current").get()
+    if snap.exists:
+        raw = snap.to_dict() or {}
+        pm25 = [v for v in (raw.get("pm25_24h") or {}).values() if _number(v) is not None] if isinstance(raw.get("pm25_24h"), dict) else []
+        air = {
+            "observedAt": _text(raw.get("observedAt")),
+            "psi24hMax": _number(raw.get("psi24hMax")),
+            "pm25Max": max(pm25) if pm25 else None,
+            "source": _text(raw.get("source")),
+        }
+    return {"weather": weather, "air": air}
+
+
+def _photo_reads(observations):
+    """{observation id: what the advisory photo read said}, for photo reports that were read successfully.
+
+    The read describes the picture. It is advisory, it states no severity, and it is never an incident fact.
+    """
+    ids = [o["id"] for o in observations if o.get("source") == "photo"]
+    reads = {}
+    for oid, snap in store.get_many(PHOTO_TRIAGE, ids).items():
+        raw = snap.to_dict() or {}
+        result = raw.get("result")
+        if raw.get("status") != "ok" or not isinstance(result, dict):
+            continue
+        reads[oid] = {
+            "smokeVisible": result.get("smokeVisible") if isinstance(result.get("smokeVisible"), bool) else None,
+            "flameVisible": _text(result.get("flameVisible")),
+            "burnScarVisible": result.get("burnScarVisible") if isinstance(result.get("burnScarVisible"), bool) else None,
+            "notes": _text(result.get("notes")),
+            "at": _text(raw.get("at")),
+        }
+    return reads
+
+
+def _guard(name, build, fallback):
+    """A source that cannot be read leaves its part empty. It never fails the whole incident read."""
+    try:
+        return build()
+    except Exception:  # noqa: BLE001 - one unreadable collection must not hide the incident
+        logger.exception("incident detail %s could not be read", name)
+        return fallback
 
 
 def build(incident_id, data, observations, conflict_body, tasks):
@@ -193,7 +327,7 @@ def build(incident_id, data, observations, conflict_body, tasks):
     uids |= set(withdraw.get("volunteerIds") or []) if withdraw.get("active") else set()
     uids |= {r.get("actorId") for r in audit} | {r.get("subjectId") for r in audit}
     uids.discard(None)
-    names, push = _profiles(uids)
+    names, push, crews = _profiles(uids)
 
     withdraw_task_ids = {t["id"] for t in tasks if t.get("type") == "withdraw"}
     safe_marks = {}
@@ -204,12 +338,13 @@ def build(incident_id, data, observations, conflict_body, tasks):
                 safe_marks[row["subjectId"]] = row
     delivery = _delivery(withdraw_task_ids)
 
+    roles = _team_roles(incident_id)
     centre = (data.get("lat"), data.get("lng"))
     people = {o.get("volunteerId") for o in observations} | {t.get("volunteerId") for t in tasks}
     if withdraw.get("active"):
         people |= set(withdraw.get("volunteerIds") or [])
     people.discard(None)
-    cards = [_card(uid, observations, tasks, withdraw, names, push, centre, delivery, safe_marks) for uid in sorted(people)]
+    cards = [_card(uid, observations, tasks, withdraw, names, push, centre, delivery, safe_marks, crews, roles) for uid in sorted(people)]
     cards.sort(key=lambda c: (-_when(c["lastReportAt"]), c["volunteerId"]))
 
     task_by_id = {t["id"]: t for t in tasks}
@@ -236,6 +371,9 @@ def build(incident_id, data, observations, conflict_body, tasks):
         "conflictContext": _conflict_context(incident_id, data, observations, conflict_body, tasks, audit, names, task_by_id),
         # Only a value stored on the incident itself. Nothing writes it yet, so it is None today.
         "agencyInCharge": _text(data.get("agency")),
+        "header": _header(incident_id, data, observations, tasks),
+        "conditions": _guard("conditions", _conditions, {"weather": None, "air": None}),
+        "photoReads": _guard("photo reads", lambda: _photo_reads(observations), {}),
     }
 
 
@@ -267,7 +405,7 @@ def list_extras(snapshots):
             if current is None or (_when(row.get("at")), row["id"]) >= (_when(current.get("at")), current["id"]):
                 verify_rows[row.get("targetId")] = row
     actor_ids = [r.get("actorId") for r in verify_rows.values() if not _text(r.get("actorName"))]
-    names, _ = _profiles(actor_ids)
+    names, _, _ = _profiles(actor_ids)
 
     out = {}
     for incident_id, data in incidents.items():
@@ -296,5 +434,5 @@ def volunteer_names(incidents, volunteer_ids):
         name = rules.reporter_name(data)
         if name and data.get("volunteerId") in wanted:
             names[data["volunteerId"]] = name
-    profile_names, _ = _profiles([v for v in wanted if v not in names])
+    profile_names, _, _ = _profiles([v for v in wanted if v not in names])
     return names | profile_names

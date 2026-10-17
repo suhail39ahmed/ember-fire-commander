@@ -1224,8 +1224,11 @@ def test_supervisor_conflict_context_lists_reports_on_neither_side_and_the_confl
 def test_conflict_context_is_empty_lists_when_a_disagreement_has_nothing_else_stored(client, monkeypatch, db):
     _as(monkeypatch)
     body = client.get("/incidents/inc_01", headers=AUTH).get_json()
-    assert body["conflictContext"] == {"otherObservations": [], "audit": []}
-    assert body["evidenceFactors"] == []  # no wind or satellite factor is stored or invented
+    context = body["conflictContext"]
+    assert (context["otherObservations"], context["audit"]) == ([], [])
+    # The two sides are still every report this incident has, oldest first.
+    assert [o["id"] for o in context["allObservations"]] == ["obs_01", "obs_02"]
+    assert body["evidenceFactors"] == []  # only what fusion stored: no wind or satellite factor is invented
 
 
 def test_conflict_context_is_null_without_a_conflict(client, monkeypatch, db):

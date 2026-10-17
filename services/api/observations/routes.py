@@ -51,9 +51,19 @@ def create_observation():
     stored, created = store.create(record)
     if not created:
         # The same clientId was sent before (an outbox replay): answer with the stored report.
-        return jsonify(stored), 200
+        return jsonify(_with_join(store, stored)), 200
     _hand_off(store, stored["id"])
-    return jsonify(stored), 201
+    return jsonify(_with_join(store, stored)), 201
+
+
+def _with_join(store, record):
+    """The stored report, plus `join` when agents has already placed it. A failed read only leaves `join` out."""
+    try:
+        join = store.get_join(record["id"])
+    except Exception:
+        logger.warning("join read failed for observation %s", record.get("id"), exc_info=True)
+        join = None
+    return dict(record, join=join) if join else record
 
 
 def _hand_off(store, observation_id):

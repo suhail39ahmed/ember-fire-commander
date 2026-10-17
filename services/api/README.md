@@ -69,8 +69,8 @@ Routes follow `docs/contracts/shared-contract.md` §6.3 to §6.5, and `GET /dash
 | Route | Who | Result |
 |---|---|---|
 | `GET /incidents` | both roles | Supervisor: incidents that are `open`, `held` or `verified`. Volunteer: incidents linked to their observations, tasks or a withdraw instruction |
-| `GET /incidents/{id}` | both roles | `incident`, `observations`, `conflict`, `tasks`. A volunteer not on the incident gets `404` and sees only their own tasks |
-| `GET /digest` | both roles | `updatedAt`, `incidents` (summaries), `myTasks` (empty for a supervisor) |
+| `GET /incidents/{id}` | both roles | `incident`, `observations`, `conflict`, `tasks`. A volunteer not on the incident gets `404` and sees only their own tasks. A supervisor also gets `header`, `conditions`, `photoReads`, volunteer cards (with crew, team role and device) and `conflictContext` (`incidents/detail.py`, §6.3) |
+| `GET /digest` | both roles | `updatedAt`, `incidents` (summaries), `myTasks` (empty for a supervisor). A volunteer who sends `?sentSince=<ISO time with zone>` also gets `sentToday`, their own reports since then with the join agents recorded for each (`incidents/sent.py`) |
 | `GET /dashboard` | supervisor | `agency` (or `null`), `serverTime`, `approvalsCount` of `proposed` tasks, the live banner (`updatedAt`, `nextSatellitePass`, `liveFires`), `seasonImpact`, `charts`, and `reignitionAlert`. Figures are computed on read from stored incidents, observations, tasks, audit rows, leads, device records, and `weather/current`. Cameras, photo cadence, distance to risk, injuries, and the median target are `null` |
 | `POST /sites/{id}/alerts/{id}/dismiss` | supervisor | Body `{ reason }`. Marks the alert dismissed and writes `site.dismiss`. Incident stays extinguished |
 | `POST /sites/{id}/alerts/{id}/recheck` | supervisor | Creates a proposed `verify` task, writes `site.recheck`. Incident stays extinguished |
