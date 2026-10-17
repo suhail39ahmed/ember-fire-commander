@@ -84,13 +84,13 @@ describe('signed-out sign-in', () => {
     expect(html).toContain('Spot a fire? Send a photo or voice report.')
     expect(html).toContain('VOLUNTEER APP')
     expect(html).not.toContain('Supervisor Console')
-    expect(html).not.toContain('invited BPBD supervisors')
+    expect(html).not.toContain('create a BPBD supervisor account')
   })
 
   it('shows supervisor wording at /console', () => {
     const html = render('/console')
     expect(html).toContain('Sign in to the Supervisor Console')
-    expect(html).toContain('invited BPBD supervisors')
+    expect(html).toContain('create a BPBD supervisor account')
     expect(html).not.toContain('Spot a fire?')
     expect(html).not.toContain('console screen')
     expect(html).not.toContain('On duty')
@@ -358,5 +358,42 @@ describe('unknown paths', () => {
 
   it('follow the stored language', () => {
     expect(render('/nonexistent', 'id')).toContain('Halaman tidak ditemukan')
+  })
+})
+
+
+describe('supervisor signup entry', () => {
+  it('links from both sign-in pages', () => {
+    expect(render('/pwa')).toContain('Join as Supervisor')
+    expect(render('/console')).toContain('Create a supervisor account')
+    expect(render('/console')).toContain('href="/console/create-account"')
+  })
+
+  it('opens a dedicated signup page without requiring an existing role', () => {
+    expect(render('/console/create-account')).toContain('Sign up with Google')
+    expect(render('/console/create-account')).toContain('receive the supervisor role')
+    state.auth = signedOut({ status: 'no-access', user: { email: 'new@example.com' } })
+    expect(render('/console/create-account')).toContain('new@example.com')
+    expect(render('/console/create-account')).toContain('Use another Google account')
+  })
+
+  it('keeps signup visible while loading and after a failure', () => {
+    state.auth = signedOut({ status: 'loading' })
+    expect(render('/console/create-account')).toContain('disabled=""')
+    state.auth = signedOut({ status: 'error', message: 'Could not register account' })
+    expect(render('/console/create-account')).toContain('role="alert"')
+    expect(render('/console/create-account')).toContain('Could not register account')
+  })
+
+  it('does not offer to replace an existing volunteer role', () => {
+    state.auth = signedOut({ status: 'ready', me: volunteer })
+    const html = render('/console/create-account')
+    expect(html).not.toContain('Sign up with Google')
+    expect(html).toContain('href="/pwa"')
+  })
+
+  it('renders Bahasa signup copy', () => {
+    expect(render('/console/create-account', 'id')).toContain('Buat akun supervisor')
+    expect(render('/console/create-account', 'id')).toContain('Daftar dengan Google')
   })
 })

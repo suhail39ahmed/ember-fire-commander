@@ -15,7 +15,7 @@ describe('PWA volunteer registration', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'role_missing' } }), { status: 403 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(me)))
     vi.stubGlobal('fetch', fetch)
-    expect(await fetchMe(user, true)).toEqual({ me })
+    expect(await fetchMe(user, 'volunteer')).toEqual({ me })
     expect(fetch.mock.calls[0][0]).toMatch(/\/me$/)
     expect(fetch.mock.calls[1]).toEqual([expect.stringMatching(/\/volunteers\/register$/), expect.objectContaining({ method: 'POST' })])
     expect(getIdToken).toHaveBeenLastCalledWith(true)
@@ -26,7 +26,7 @@ describe('PWA volunteer registration', () => {
     const me = { id: 'supervisor', role: 'supervisor' }
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(me)))
     vi.stubGlobal('fetch', fetch)
-    expect(await fetchMe(user, true)).toEqual({ me })
+    expect(await fetchMe(user, 'volunteer')).toEqual({ me })
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 
@@ -34,7 +34,43 @@ describe('PWA volunteer registration', () => {
     const user = { getIdToken: vi.fn().mockResolvedValue('expired') } as unknown as User
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: 'unauthorized' } }), { status: 401 }))
     vi.stubGlobal('fetch', fetch)
-    expect(await fetchMe(user, true)).toMatchObject({ error: { status: 401 } })
+    expect(await fetchMe(user, 'volunteer')).toMatchObject({ error: { status: 401 } })
     expect(fetch).toHaveBeenCalledTimes(1)
+  })
+})
+
+
+describe('supervisor registration', () => {
+  it('uses the supervisor endpoint and refreshes the Firebase claim', async () => {
+    const getIdToken = vi.fn().mockResolvedValue('token')
+    const user = { getIdToken } as unknown as User
+    const me = { id: 'new', displayName: 'New', role: 'supervisor' }
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'role_missing' } }), { status: 403 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(me)))
+    vi.stubGlobal('fetch', fetch)
+    expect(await fetchMe(user, 'supervisor')).toEqual({ me })
+    expect(fetch.mock.calls[1]).toEqual([expect.stringMatching(/\/supervisors\/register$/), expect.objectContaining({ method: 'POST' })])
+    expect(getIdToken).toHaveBeenLastCalledWith(true)
+  })
+
+  it('preserves an existing volunteer account', async () => {
+    const getIdToken = vi.fn().mockResolvedValue('token')
+    const me = { id: 'volunteer', role: 'volunteer' }
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(me)))
+    vi.stubGlobal('fetch', fetch)
+    expect(await fetchMe({ getIdToken } as unknown as User, 'supervisor')).toEqual({ me })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(getIdToken).not.toHaveBeenCalledWith(true)
+  })
+
+  it('does not refresh claims after rejected registration', async () => {
+    const getIdToken = vi.fn().mockResolvedValue('token')
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'role_missing' } }), { status: 403 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'forbidden' } }), { status: 403 }))
+    vi.stubGlobal('fetch', fetch)
+    expect(await fetchMe({ getIdToken } as unknown as User, 'supervisor')).toMatchObject({ error: { code: 'forbidden' } })
+    expect(getIdToken).not.toHaveBeenCalledWith(true)
   })
 })

@@ -51,7 +51,7 @@ function text(lang: 'id' | 'en', value: { id: string; en: string }) {
 
 export function VolunteerCreateAccountScreen() {
   const { user, me, status, signOut, refreshMe } = useAuth()
-  const { busy, message, onGoogle } = useSignIn(true)
+  const { busy, message, onGoogle } = useSignIn('volunteer')
   const registered = status === 'ready' && me?.role === 'volunteer'
   const { lang, language } = useLanguage()
   const { perms, asking, request } = usePermissions()

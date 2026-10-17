@@ -3,14 +3,14 @@ import { Link } from 'react-router-dom'
 import { t } from '../pwa/i18n'
 import { useLanguage } from '../pwa/language'
 import { copy } from './copy'
-import { CREATE_ACCOUNT_PATH } from './paths'
+import { CREATE_ACCOUNT_PATH, SUPERVISOR_CREATE_ACCOUNT_PATH } from './paths'
 import { useSignIn } from './useSignIn'
 import { SignInAlert, VolunteerAuthShell } from './VolunteerAuthShell'
 
 /** The PWA's sign-in page and its pending and error states. */
 export function VolunteerSignIn() {
   const { lang } = useLanguage()
-  const { busy, message, onGoogle } = useSignIn(true)
+  const { busy, message, onGoogle } = useSignIn('volunteer')
 
   return (
     <VolunteerAuthShell variant="welcome" footer="demo" flat={busy || Boolean(message)}>
@@ -22,6 +22,7 @@ export function VolunteerSignIn() {
       {!busy && !message ? <>
         <div className="vauth-divider">{t(lang, copy.volunteer.newToEmber)}</div>
         <Link className="vauth-secondary" to={CREATE_ACCOUNT_PATH}>{t(lang, copy.volunteer.createAccount)}</Link>
+        <Link className="vauth-supervisor-link" to={SUPERVISOR_CREATE_ACCOUNT_PATH}>{t(lang, copy.supervisorSignup.join)} <span aria-hidden="true">↗</span></Link>
       </> : null}
       {busy ? <p className="vauth-sr" role="status">{t(lang, copy.signIn.waiting)}</p> : null}
     </VolunteerAuthShell>

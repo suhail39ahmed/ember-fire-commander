@@ -100,6 +100,51 @@
   line-height: 1.45;
 }
 
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  color: #6b645c;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.login-divider::before,
+.login-divider::after { content: ''; flex: 1; height: 1px; background: #ddd6ca; }
+
+.login-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 12px 20px;
+  border: 1px solid #c9c1b5;
+  border-radius: 999px;
+  background: transparent;
+  color: #1c1917;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.4;
+  text-align: center;
+  text-decoration: none;
+}
+
+.login-secondary:hover { background: #f5f2ec; }
+.login-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: 16px;
+  color: #6b645c;
+  font-size: 14px;
+  text-underline-offset: 4px;
+}
+.login-secondary:focus-visible,
+.login-back:focus-visible { outline: 2px solid #e2531b; outline-offset: 3px; }
+
 .google-button,
 .action-button,
 .text-button,
@@ -350,15 +395,16 @@
 @media (max-width: 800px) {
   .login-screen {
     grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
     min-height: 100svh;
   }
 
   /* Compact brand strip so the sign-in button sits above the fold on short phones. */
   .login-brand {
-    min-height: auto;
+    min-height: clamp(200px, 30svh, 280px);
     gap: 12px;
     padding: 24px;
-    justify-content: flex-start;
+    justify-content: flex-end;
   }
 
   .lockup {

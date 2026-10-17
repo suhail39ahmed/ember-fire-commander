@@ -5,6 +5,8 @@ import { NotFound } from './NotFound'
 import { PageBoundary } from './PageBoundary'
 import { RoleChoice } from './RoleChoice'
 import { RequireRole } from './RoleHome'
+import { SupervisorCreateAccountScreen } from './SupervisorCreateAccountScreen'
+import { SUPERVISOR_CREATE_ACCOUNT_PATH } from './paths'
 
 // Each signed-in page is its own chunk, fetched only after the role check passes,
 // so volunteers never download the console and supervisors never download the volunteer app.
@@ -22,6 +24,7 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<RoleChoice />} />
+      <Route path={SUPERVISOR_CREATE_ACCOUNT_PATH} element={<SupervisorCreateAccountScreen />} />
       <Route
         path="/pwa/*"
         element={
