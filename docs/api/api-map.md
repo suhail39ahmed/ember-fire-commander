@@ -95,6 +95,15 @@ Incident list and detail responses use `INCIDENT_FIELDS`: `id`, `name`, `area`, 
 | POST | `/tasks/{id}/reject` | supervisor | console | none | `200` `{ task, auditId }`. `proposed` → `rejected`. `withdraw` is `409` |
 | POST | `/tasks/{id}/edit` | supervisor | console | `{ "instruction": string }` max 500 characters | `200` `{ task, auditId }`. Replaces `instruction` only. A withdraw instruction is `409` |
 | POST | `/incidents/{id}/verify` | supervisor | console | none | `200` `{ incident, auditId }`. Status must be `open` or `held` |
+| POST | `/incidents/{id}/extinguish` | supervisor | console | none | `200` `{ incident, auditId }`. `409` when already extinguished or when `withdraw.active` is true |
+| POST | `/incidents/{id}/severity` | supervisor | console | `{ "severity": ... }` | `200` `{ incident, auditId }`. Must be strictly lower than current |
+| POST | `/incidents/{id}/withdraw` | supervisor | console | `{ volunteerIds, instruction, reasons? }` | `200` `{ incident, auditId }`. Approved tasks created and pushed immediately |
+| POST | `/incidents/{id}/withdraw/safe` | supervisor | console | `{ "volunteerId": string, "sessionId"?: string }` | `200` `{ incident, auditId }`. Adds one volunteer to `safeVolunteerIds`. Never changes `active` |
+| POST | `/incidents/{id}/withdraw/clear` | supervisor | console | `{ reason, sessionId, force?: boolean }` | `200` `{ incident, auditId }`. Sets `active: false`, closes `withdraw` tasks. Without `force`, requires all volunteers confirmed safe. With `force: true`, bypasses that check and writes `withdraw.force_clear` audit with `unconfirmedIds` |
+| POST | `/incidents/{id}/withdraw/help` | supervisor | console | `{ volunteerId, helperId, sessionId, instruction? }` | `200` `{ task, auditId }`. Assigns a safe volunteer to physically assist a stuck one |
+| GET | `/withdraw/events` | any role (volunteer-scoped) | PWA | — | SSE stream. Sends `data: changed\n\n` when any incident the caller is in changes. No document content. Times out at 50 s; client reconnects |
+| POST | `/incidents/{id}/withdraw/answer` | volunteer | PWA | `{ state, sessionId?, lat?, lng?, accuracyM? }` | `200`. Records the volunteer's safe/stuck answer for this session. Never changes `withdraw.active` |
+| POST | `/incidents/{id}/withdraw/location` | volunteer | PWA | `{ sessionId?, lat?, lng?, accuracyM? }` | `200`. Location update only; never changes safe state |
 | POST | `/incidents/{id}/extinguish` | supervisor | **not called by the console** | none | `200` `{ incident, auditId }`. `409` if already extinguished |
 | POST | `/incidents/{id}/severity` | supervisor | **not called by the console** | `{ "severity": "none" \| "smoke" \| "small_flame" \| "large_flame" }` | `200` `{ incident, auditId }` only when the new value is strictly lower. `unknown` is rejected |
 | POST | `/incidents/{id}/withdraw` | supervisor | **not called by the console** | `{ volunteerIds, instruction, reasons? }` | `200` `{ incident, auditId }`. Sets `withdraw`, creates one approved `withdraw` task per id, pushes after commit. Each id must already have an observation or a task on the incident |

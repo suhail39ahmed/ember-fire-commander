@@ -60,6 +60,15 @@ export const stateCopy = {
     id: 'ember-api tidak bisa menyimpan ini dan belum ada yang berubah. MUNDUR tetap berlaku. Coba lagi.',
     en: 'ember-api could not save this and nothing changed. WITHDRAW is still in force. Try again.',
   },
+  forceClearBtn: { id: 'Paksa cabut', en: 'Force clear' },
+  forceClearTitle: { id: 'Paksa cabut WITHDRAW?', en: 'Force-clear the WITHDRAW?' },
+  forceClearWarning: {
+    id: 'Belum semua relawan dikonfirmasi aman. Nama relawan yang belum dikonfirmasi, alasan Anda, dan waktu akan dicatat dalam log audit.',
+    en: 'Not all volunteers have confirmed safe. The unconfirmed names, your reason, and the time will be written to the audit log.',
+  },
+  forceClearUnconfirmed: { id: 'Belum dikonfirmasi aman:', en: 'Not yet confirmed safe:' },
+  forceClearConfirmBtn: { id: 'Paksa cabut', en: 'Force clear' },
+  forceClearCancelling: { id: 'Mencabut…', en: 'Clearing…' },
 } as const
 
 export type SafeFailure = 'network' | 'already' | 'no_withdraw' | 'unknown' | 'session' | 'gone' | 'server'

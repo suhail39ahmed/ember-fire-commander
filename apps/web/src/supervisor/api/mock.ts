@@ -392,6 +392,17 @@ export function createMockSupervisorApi(
       for (const task of d.tasks) if (task.type === 'withdraw') task.status = 'rejected'
       return { incident: structuredClone(d.incident), auditId: append('withdraw.clear', id) }
     },
+    async forceWithdraw(id, reason, sessionId) {
+      await wait()
+      const d = details.find((x) => x.incident.id === id)
+      if (!d) throw notFound()
+      const w = d.incident.withdraw
+      if (!w?.active || sessionId !== (w.id ?? w.sentAt)) throw conflictError('This withdrawal has changed')
+      if (!reason.trim()) throw new ApiError('validation_error', 'Reason is required', 400, false)
+      d.incident.withdraw = { ...w, active: false, clearedAt: new Date().toISOString(), clearedBy: actorId, clearReason: reason }
+      for (const task of d.tasks) if (task.type === 'withdraw') task.status = 'rejected'
+      return { incident: structuredClone(d.incident), auditId: append('withdraw.force_clear', id) }
+    },
     async requestWithdrawHelp(id, volunteerId, helperId, instruction) {
       await wait()
       const d = details.find((x) => x.incident.id === id)

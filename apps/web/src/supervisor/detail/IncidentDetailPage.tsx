@@ -75,6 +75,12 @@ export function IncidentDetailPage() {
         await refresh()
         return result
       }}
+      forceWithdraw={async (reason) => {
+        const w = open?.incident.withdraw
+        const result = await api.forceWithdraw(incidentId, reason, w?.id ?? w?.sentAt)
+        await refresh()
+        return result
+      }}
       requestHelp={async (volunteerId, helperId, instruction) => {
         const w = open?.incident.withdraw
         const result = await api.requestWithdrawHelp(incidentId, volunteerId, helperId, instruction, w?.id ?? w?.sentAt)

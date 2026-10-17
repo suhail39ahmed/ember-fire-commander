@@ -76,6 +76,7 @@ export interface IncidentDetailViewProps {
   /** POST /incidents/{id}/withdraw/safe, then a fresh read. Resolves with the route's answer. */
   markSafe(volunteerId: string): Promise<IncidentDecision>
   clearWithdraw?(reason: string): Promise<IncidentDecision>
+  forceWithdraw?(reason: string): Promise<IncidentDecision>
   requestHelp?(volunteerId: string, helperId: string, instruction: string): Promise<unknown>
   /** POST /incidents/{id}/volunteers/{volunteerId}/instruct, then a fresh read. Resolves with the route's answer and throws its refusal. */
   sendInstruction(volunteerId: string, instruction: string): Promise<TaskDecision>
@@ -161,7 +162,7 @@ function Stat({ label, value, note, tone }: { label: string; value: string; note
   )
 }
 
-function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask' | 'sendInstruction' | 'photoUrl' | 'makeLive' | 'retryLive' | 'assist' | 'clearWithdraw' | 'requestHelp'> }) {
+function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask' | 'sendInstruction' | 'photoUrl' | 'makeLive' | 'retryLive' | 'assist' | 'clearWithdraw' | 'forceWithdraw' | 'requestHelp'> }) {
   const { incident, conflict } = detail
   const { actorName, sendWithdraw, lowerSeverity, markSafe, resendTask, serverNow, sendInstruction, photoUrl, makeLive, retryLive, assist } = view
   const [dialog, setDialog] = useState<'withdraw' | 'severity' | 'extinguish' | null>(null)
@@ -246,7 +247,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
 
       <NeedHelpBanner lang={lang} requests={help} offline={offline} onReply={(id) => setPopupId(id)} />
 
-      {wd && <WithdrawPanel lang={lang} state={wd} now={serverNow} offline={offline} markSafe={markSafe} clearWithdraw={view.clearWithdraw} requestHelp={view.requestHelp} nameOf={(id) => nameOf(detail, id, lang)} />}
+      {wd && <WithdrawPanel lang={lang} state={wd} now={serverNow} offline={offline} markSafe={markSafe} clearWithdraw={view.clearWithdraw} forceWithdraw={view.forceWithdraw} requestHelp={view.requestHelp} nameOf={(id) => nameOf(detail, id, lang)} />}
 
       <LiveDropBanner lang={lang} seat={detail.liveSeat} />
 

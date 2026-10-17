@@ -262,7 +262,7 @@ describe('the route and the mock', () => {
 
   it('provides the clear-withdraw operation', () => {
     const api = createMockSupervisorApi('sup_1', 'withdraw', 0)
-    expect(Object.keys(api).filter((k) => /clear|cancel|^end|stop/i.test(k))).toEqual(['clearWithdraw'])
+    expect(Object.keys(api).filter((k) => /clear|cancel|^end|stop|force/i.test(k))).toEqual(['clearWithdraw', 'forceWithdraw'])
   })
 
   it('marks safe in the mock, audits it, counts it, and keeps the withdraw active', async () => {
@@ -277,5 +277,54 @@ describe('the route and the mock', () => {
   it('refuses in the mock when no withdraw is active', async () => {
     const api = createMockSupervisorApi('sup_1', 'conflict', 0)
     await expect(api.markWithdrawSafe('inc_demo_01', 'uid_dedi')).rejects.toMatchObject({ status: 409 })
+  })
+})
+
+describe('force clear', () => {
+  it('shows the Force clear button when someone is unconfirmed and forceWithdraw is provided', () => {
+    const html = view(withdrawn({ safe: ['uid_sari'] }), 'en', { forceWithdraw: async () => decision })
+    expect(html).toContain('Force clear')
+  })
+
+  it('does not show the Force clear button when all volunteers are safe', () => {
+    const html = view(withdrawn({ safe: ['uid_sari', 'uid_dedi'] }), 'en', { forceWithdraw: async () => decision })
+    expect(html).not.toContain('Force clear')
+  })
+
+  it('does not show the Force clear button when forceWithdraw is not provided', () => {
+    const html = view(withdrawn({ safe: ['uid_sari'] }))
+    expect(html).not.toContain('Force clear')
+  })
+
+  it('shows the Force clear button in Bahasa', () => {
+    const html = view(withdrawn({ safe: [] }), 'id', { forceWithdraw: async () => decision })
+    expect(html).toContain('Paksa cabut')
+  })
+
+  it('posts with force: true via the mock and audits withdraw.force_clear', async () => {
+    const api = createMockSupervisorApi('sup_1', 'withdraw', 0)
+    const w = fixture('withdraw').incident.withdraw!
+    const result = await api.forceWithdraw('inc_demo_01', 'Crew unreachable', w.sentAt)
+    expect(result.incident.withdraw).toMatchObject({ active: false, clearReason: 'Crew unreachable' })
+    expect(api.mock.audit.map((a) => a.action)).toContain('withdraw.force_clear')
+  })
+
+  it('force-clears in the mock even when not all are safe', async () => {
+    const api = createMockSupervisorApi('sup_1', 'withdraw', 0)
+    const w = fixture('withdraw').incident.withdraw!
+    await expect(api.clearWithdraw('inc_demo_01', 'Crew safe', w.sentAt)).rejects.toMatchObject({ status: 409 })
+    await expect(api.forceWithdraw('inc_demo_01', 'Crew unreachable', w.sentAt)).resolves.toMatchObject({ incident: { withdraw: { active: false } } })
+  })
+
+  it('posts force=true to the clear route via the HTTP client', async () => {
+    const calls: Array<[string, RequestInit]> = []
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      calls.push([url, init])
+      return new Response(JSON.stringify(decision), { status: 200 })
+    }) as unknown as typeof fetch
+    const api = createHttpSupervisorApi(async () => ({ Authorization: 'Bearer t', 'X-Request-Id': 'r' }), 'https://api.example', fetchImpl)
+    await api.forceWithdraw('inc_demo_01', 'Crew unreachable', 'sess_1')
+    expect(calls[0][0]).toBe('https://api.example/incidents/inc_demo_01/withdraw/clear')
+    expect(JSON.parse(String(calls[0][1].body))).toMatchObject({ reason: 'Crew unreachable', sessionId: 'sess_1', force: true })
   })
 })

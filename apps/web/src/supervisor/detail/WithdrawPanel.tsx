@@ -19,6 +19,12 @@ export interface WithdrawPanelProps {
   offline: boolean
   markSafe: (volunteerId: string) => Promise<IncidentDecision>
   clearWithdraw?: (reason: string) => Promise<IncidentDecision>
+  /**
+   * Force-clears the withdraw without requiring all volunteers to be confirmed safe.
+   * Supervisor-only and audited as `withdraw.force_clear`. Only shown when someone
+   * is still unconfirmed.
+   */
+  forceWithdraw?: (reason: string) => Promise<IncidentDecision>
   requestHelp?: (volunteerId: string, helperId: string, instruction: string) => Promise<unknown>
   /** The reporter's name as the API gave it, else a short code. */
   nameOf: (volunteerId: string) => string
@@ -57,7 +63,7 @@ function Progress({ lang, state }: { lang: Lang; state: WithdrawState }) {
  * "Mark found safe". When everyone is marked safe it is the plain banner. There is no control that
  * clears the order until every recipient is safe. No approval step is required.
  */
-export function WithdrawPanel({ lang, state, now, offline, markSafe, nameOf, clearWithdraw, requestHelp }: WithdrawPanelProps) {
+export function WithdrawPanel({ lang, state, now, offline, markSafe, nameOf, clearWithdraw, forceWithdraw, requestHelp }: WithdrawPanelProps) {
   const [tick, setTick] = useState(() => now())
   const [asking, setAsking] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -66,6 +72,9 @@ export function WithdrawPanel({ lang, state, now, offline, markSafe, nameOf, cle
   const [clearing, setClearing] = useState(false)
   const [reason, setReason] = useState('')
   const [note, setNote] = useState('')
+  const [forcing, setForcing] = useState(false)
+  const [forceReason, setForceReason] = useState('')
+  const [forceNote, setForceNote] = useState('')
   const [helpFor, setHelpFor] = useState<string | null>(null)
   const [helperId, setHelperId] = useState('')
   const text = (en: string, id: string) => lang === 'en' ? en : id
@@ -73,6 +82,13 @@ export function WithdrawPanel({ lang, state, now, offline, markSafe, nameOf, cle
     if (!clearWithdraw || !state.allSafe || !reason || (reason === 'Other' && !note.trim()) || busy) return
     setBusy('clear')
     try { await clearWithdraw(reason === 'Other' ? note.trim() : reason); setClearing(false) }
+    catch (error) { setResult({ ok: false, text: error instanceof Error ? error.message : text('Could not clear. Try again.', 'Gagal mencabut. Coba lagi.') }) }
+    finally { setBusy(null) }
+  }
+  async function forceClear() {
+    if (!forceWithdraw || !forceReason || (forceReason === 'Other' && !forceNote.trim()) || busy) return
+    setBusy('force')
+    try { await forceWithdraw(forceReason === 'Other' ? forceNote.trim() : forceReason); setForcing(false) }
     catch (error) { setResult({ ok: false, text: error instanceof Error ? error.message : text('Could not clear. Try again.', 'Gagal mencabut. Coba lagi.') }) }
     finally { setBusy(null) }
   }
@@ -115,6 +131,11 @@ export function WithdrawPanel({ lang, state, now, offline, markSafe, nameOf, cle
         {text('Clear withdraw', 'Cabut withdraw')}
       </button>
       {state.allSafe && <p className="wd-note">{t(lang, stateCopy.allSafe)}</p>}
+      {!state.allSafe && forceWithdraw && (
+        <button type="button" className="wd-btn wd-force-clear" disabled={offline || busy !== null} onClick={() => { setResult(null); setForcing(true) }} data-testid="withdraw-force-clear">
+          {t(lang, stateCopy.forceClearBtn)}
+        </button>
+      )}
       <ul className="wd-people">
           {open.map((person) => {
             const name = nameOf(person.id)
@@ -171,6 +192,17 @@ export function WithdrawPanel({ lang, state, now, offline, markSafe, nameOf, cle
         <p>{text('BEFORE YOU CLEAR', 'SEBELUM MENCABUT')}: {state.confirmed} / {state.total} {text('safe. Your name, reason and time will be logged.', 'aman. Nama, alasan, dan waktu akan dicatat.')}</p>
         {unconfirmed(state).length > 0 && <p role="alert">{unconfirmed(state).map((p) => nameOf(p.id)).join(', ')}</p>}
         <div className="inc-modal-actions"><button className="wd-btn" disabled={busy !== null} onClick={() => setClearing(false)}>{text('Cancel', 'Batal')}</button><button className="wd-btn wd-call" disabled={!state.allSafe || !reason || (reason === 'Other' && !note.trim()) || busy !== null || offline} onClick={() => void clear()}>{busy ? text('Clearing…', 'Mencabut…') : text('Clear withdraw', 'Cabut withdraw')}</button></div>
+        {result && !result.ok && <p role="alert">{result.text}</p>}
+      </Modal>}
+      {forcing && <Modal title={t(lang, stateCopy.forceClearTitle)} onClose={() => setForcing(false)} dismissible={busy === null}>
+        <p role="alert">{t(lang, stateCopy.forceClearWarning)}</p>
+        {unconfirmed(state).length > 0 && <p><strong>{t(lang, stateCopy.forceClearUnconfirmed)}</strong> {unconfirmed(state).map((p) => nameOf(p.id)).join(', ')}</p>}
+        <fieldset className="wd-reasons"><legend>{text('WHY ARE YOU CLEARING IT? (REQUIRED)', 'ALASAN PENCABUTAN (WAJIB)')}</legend>
+          {['Wind steady, smoke cleared', 'Fire died down', 'Crew moved to a safe spot', 'Agency took over', 'Other'].map((value, index) => <label key={value}><input type="radio" name="force-reason" checked={forceReason === value} onChange={() => setForceReason(value)} />{lang === 'en' ? value : ['Angin stabil, asap hilang', 'Api mereda', 'Tim pindah ke tempat aman', 'Instansi mengambil alih', 'Lainnya'][index]}</label>)}
+        </fieldset>
+        {forceReason === 'Other' && <label>{text('Add a note', 'Tambahkan catatan')}<textarea maxLength={500} value={forceNote} onChange={(e) => setForceNote(e.target.value)} /></label>}
+        <p>{text('Your name, reason and time will be logged.', 'Nama, alasan, dan waktu akan dicatat.')}</p>
+        <div className="inc-modal-actions"><button className="wd-btn" disabled={busy !== null} onClick={() => setForcing(false)}>{text('Cancel', 'Batal')}</button><button className="wd-btn wd-force-call" disabled={!forceReason || (forceReason === 'Other' && !forceNote.trim()) || busy !== null || offline} onClick={() => void forceClear()} data-testid="withdraw-force-clear-confirm">{busy === 'force' ? t(lang, stateCopy.forceClearCancelling) : t(lang, stateCopy.forceClearConfirmBtn)}</button></div>
         {result && !result.ok && <p role="alert">{result.text}</p>}
       </Modal>}
       {helpFor && <Modal title={`${text('Ask someone to help', 'Minta bantuan untuk')} ${nameOf(helpFor)}`} onClose={() => setHelpFor(null)} dismissible={busy === null}>

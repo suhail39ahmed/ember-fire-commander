@@ -39,6 +39,7 @@ export const timelineCopy = {
     'task.resend': { id: 'mengirim ulang instruksi', en: 'sent an instruction again' },
     'task.withdraw': { id: 'mengirim MUNDUR', en: 'sent WITHDRAW' },
     'withdraw.clear': { id: 'Withdraw dicabut', en: 'Withdraw cleared' },
+    'withdraw.force_clear': { id: 'Withdraw dicabut paksa', en: 'Withdraw force-cleared' },
     'withdraw.help': { id: 'Bantuan diminta', en: 'Help requested' },
     'withdraw.safe': { id: 'menandai relawan aman', en: 'marked a volunteer safe' },
     'incident.verify': { id: 'memverifikasi insiden', en: 'verified the incident' },

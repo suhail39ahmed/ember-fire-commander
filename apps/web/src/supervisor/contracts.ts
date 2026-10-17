@@ -341,6 +341,7 @@ export type AuditAction =
   | 'task.withdraw'
   | 'withdraw.safe'
   | 'withdraw.clear'
+  | 'withdraw.force_clear'
   | 'withdraw.help'
   | 'incident.verify'
   | 'incident.extinguish'

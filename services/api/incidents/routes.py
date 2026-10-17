@@ -427,7 +427,7 @@ def _volunteer_linked_without_member(uid, incident_id, data):
 
 # Supervisor decisions ------------------------------------------------------
 
-def _commit_with_audit(transaction, target_ref, changes, action, target_id, subject_id=None):
+def _commit_with_audit(transaction, target_ref, changes, action, target_id, subject_id=None, audit_detail=None):
     audit_ref = store.db().collection(store.AUDIT).document()
     if changes:
         transaction.update(target_ref, changes)
@@ -435,8 +435,10 @@ def _commit_with_audit(transaction, target_ref, changes, action, target_id, subj
     withdraw = (changes or {}).get("withdraw") or {}
     if withdrawal.key(withdraw):
         record["sessionId"] = withdrawal.key(withdraw)
-    if action == "withdraw.clear":
+    if action in ("withdraw.clear", "withdraw.force_clear"):
         record["reason"] = withdraw.get("clearReason")
+    if audit_detail:
+        record.update(audit_detail)
     transaction.set(audit_ref, record)
     return audit_ref.id
 
@@ -811,6 +813,7 @@ def clear_withdraw(incident_id):
     reason = body.get("reason")
     if not isinstance(reason, str) or not reason.strip() or len(reason) > 500:
         raise validation("reason", "required, at most 500 characters")
+    force = bool(body.get("force"))
 
     def run(transaction):
         ref = _ref(store.INCIDENTS, incident_id)
@@ -831,13 +834,17 @@ def clear_withdraw(incident_id):
             row = answer.to_dict() or {}
             if row.get("state") == "safe" and withdrawal.belongs(row, current):
                 safe.add(uid)
-        if not current.get("volunteerIds") or not set(current["volunteerIds"]).issubset(safe):
+        unconfirmed_ids = sorted(set(current.get("volunteerIds") or []) - safe)
+        if unconfirmed_ids and not force:
             raise conflict("Every volunteer must be safe before clearing")
+        action = "withdraw.force_clear" if unconfirmed_ids else "withdraw.clear"
         task_refs = [_ref(store.TASKS, snap.id) for snap in store.where(store.TASKS, "incidentId", "==", incident_id)
                      if (snap.to_dict() or {}).get("type") == "withdraw"]
         closed = dict(current, active=False, clearedAt=rules.now_iso(), clearedBy=g.user["id"],
                       clearedByName=g.user.get("displayName"), clearReason=reason.strip())
-        audit_id = _commit_with_audit(transaction, ref, {"withdraw": closed}, "withdraw.clear", incident_id)
+        audit_detail = {"unconfirmedIds": unconfirmed_ids} if unconfirmed_ids else None
+        audit_id = _commit_with_audit(transaction, ref, {"withdraw": closed}, action, incident_id,
+                                      audit_detail=audit_detail)
         for task_ref in task_refs:
             transaction.update(task_ref, {"status": "rejected", "closedAt": closed["clearedAt"]})
         incident.update(withdraw=closed, id=incident_id)

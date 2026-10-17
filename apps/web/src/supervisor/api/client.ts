@@ -94,6 +94,7 @@ export function createHttpSupervisorApi(
     verifyIncident: (id) => post<IncidentDecision>(SUPERVISOR_ENDPOINTS.verify(id)),
     withdrawIncident: (id, request: WithdrawRequest) => post<IncidentDecision>(SUPERVISOR_ENDPOINTS.withdraw(id), request),
     clearWithdraw: (id, reason, sessionId) => post<IncidentDecision>(`${SUPERVISOR_ENDPOINTS.withdraw(id)}/clear`, { reason, sessionId }),
+    forceWithdraw: (id, reason, sessionId) => post<IncidentDecision>(`${SUPERVISOR_ENDPOINTS.withdraw(id)}/clear`, { reason, sessionId, force: true }),
     requestWithdrawHelp: (id, volunteerId, helperId, instruction, sessionId) => post<TaskDecision>(`${SUPERVISOR_ENDPOINTS.withdraw(id)}/help`, { volunteerId, helperId, instruction, sessionId }),
     markWithdrawSafe: (id, volunteerId, sessionId) => post<IncidentDecision>(SUPERVISOR_ENDPOINTS.withdrawSafe(id), { volunteerId, sessionId }),
     sendInstruction: (id, volunteerId, instruction) => post<TaskDecision>(SUPERVISOR_ENDPOINTS.instruct(id, volunteerId), { instruction }),

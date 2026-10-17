@@ -32,5 +32,8 @@
 .inc-vol-where { margin: 4px 0 0; font-size: 12px; font-variant-numeric: tabular-nums; }
 
 .wd-clear { align-self: flex-end; }
+.wd-force-clear { align-self: flex-end; background: #fff3cd; border-color: #c8991a; color: #7a5c00; }
+.wd-force-clear:hover:not(:disabled) { background: #ffe8a0; }
+.wd-force-call { background: #7a5c00; border-color: #7a5c00; color: #fff; }
 .wd-reasons { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; border: 0; padding: 0; }
 .wd-reasons label { display: flex; align-items: center; gap: 8px; }

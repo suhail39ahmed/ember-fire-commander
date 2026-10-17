@@ -56,6 +56,12 @@ export interface SupervisorApi {
   /** Records that a supervisor found a withdrawn volunteer safe. Audited. It never clears the withdraw. */
   markWithdrawSafe(id: string, volunteerId: string, sessionId?: string): Promise<IncidentDecision>
   clearWithdraw(id: string, reason: string, sessionId?: string): Promise<IncidentDecision>
+  /**
+   * Force-clears the withdraw when not all volunteers have confirmed safe. Supervisor-only and audited
+   * as `withdraw.force_clear` with the list of unconfirmed volunteer ids. Use only when a volunteer is
+   * unreachable; the normal `clearWithdraw` is preferred once everyone is confirmed.
+   */
+  forceWithdraw(id: string, reason: string, sessionId?: string): Promise<IncidentDecision>
   requestWithdrawHelp(id: string, volunteerId: string, helperId: string, instruction: string, sessionId?: string): Promise<TaskDecision>
   /**
    * Sends one free-text instruction to one volunteer, now. Creates an `instruct` task, pushes it and writes an audit row.
