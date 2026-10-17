@@ -14,7 +14,7 @@ interface AuthState {
   user: User | null
   me: Me | null
   message: string | null
-  signIn: (options?: { registerVolunteer?: boolean }) => Promise<void>
+  signIn: (options?: { registerRole?: Me['role'] }) => Promise<void>
   signOut: () => Promise<void>
   /**
    * Re-run GET /me for the signed-in Firebase user (no-access "Check again").
@@ -37,11 +37,11 @@ async function loadMe(
   setMessage: (message: string | null) => void,
   setStatus: (status: Status) => void,
   quiet = false,
-  registerVolunteer = false,
+  registerRole: Me['role'] | undefined = undefined,
 ) {
   // Only an already authenticated volunteer can reopen their own cached field
   // data offline. Online failures always retain the normal authentication checks.
-  const cached = !registerVolunteer && typeof navigator !== 'undefined' && navigator.onLine === false ? readOfflineProfile(next.uid) : null
+  const cached = !registerRole && typeof navigator !== 'undefined' && navigator.onLine === false ? readOfflineProfile(next.uid) : null
   if (cached) {
     setMe(cached)
     setMessage(null)
@@ -50,7 +50,7 @@ async function loadMe(
   }
   if (!quiet) setStatus('loading')
   try {
-    const result = await fetchMe(next, registerVolunteer)
+    const result = await fetchMe(next, registerRole)
     if ('error' in result) {
       setMe(null)
       setStatus(
@@ -68,7 +68,7 @@ async function loadMe(
     // Some phones still report "online" while mobile data is unreachable.
     // A rejected API response is handled above and never uses this fallback.
     const code = (err as { code?: string } | null)?.code
-    const offline = !registerVolunteer && (err instanceof TypeError || code === 'auth/network-request-failed') ? readOfflineProfile(next.uid) : null
+    const offline = !registerRole && (err instanceof TypeError || code === 'auth/network-request-failed') ? readOfflineProfile(next.uid) : null
     if (offline) {
       setMe(offline)
       setMessage(null)
@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const same = next !== null && next.uid === userRef.current?.uid
       userRef.current = next
       setUser(next)
-      // Registration owns the /me check until the server has assigned the volunteer claim.
+      // Registration owns the /me check until the server has assigned the requested role claim.
       if (next && registeringRef.current) return
       if (!next) {
         setMe(null)
@@ -129,14 +129,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     message,
     signIn: async (options) => {
       setMessage(null)
-      const registering = options?.registerVolunteer === true
+      const registerRole = options?.registerRole
+      const registering = Boolean(registerRole)
       registeringRef.current = registering
       try {
         const next = registering && user ? user : (await signInWithPopup(auth, googleProvider)).user
         if (registering) {
           userRef.current = next
           setUser(next)
-          await loadMe(next, setMe, setMessage, setStatus, false, true)
+          await loadMe(next, setMe, setMessage, setStatus, false, registerRole)
           return
         }
         // The same user signing in again does not fire onAuthStateChanged with a new user, so check /me here.

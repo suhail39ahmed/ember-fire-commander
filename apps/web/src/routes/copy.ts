@@ -29,6 +29,14 @@ export const copy = {
     en: 'Firefighters in orange uniforms spraying water on a smoky hillside',
   },
   footnote: { id: 'Demo simulasi · tanpa data relawan nyata', en: 'Simulated demo · no real volunteer data' },
+  supervisorSignup: {
+    join: { id: 'Bergabung sebagai Supervisor', en: 'Join as Supervisor' },
+    title: { id: 'Buat akun supervisor', en: 'Create a supervisor account' },
+    body: { id: 'Daftar dengan Google untuk mendapatkan peran supervisor dan membuka konsol.', en: 'Sign up with Google to receive the supervisor role and open the console.' },
+    google: { id: 'Daftar dengan Google', en: 'Sign up with Google' },
+    back: { id: 'Kembali ke halaman masuk', en: 'Back to sign in' },
+    changeAccount: { id: 'Gunakan akun Google lain', en: 'Use another Google account' },
+  },
   signIn: {
     volunteer: {
       title: { id: 'Masuk ke EMBER', en: 'Sign in to EMBER' },
@@ -36,8 +44,8 @@ export const copy = {
     supervisor: {
       title: { id: 'Masuk ke Konsol Supervisor', en: 'Sign in to the Supervisor Console' },
       sub: {
-        id: 'Untuk supervisor BPBD yang diundang. Akun Anda harus memiliki peran supervisor.',
-        en: 'For invited BPBD supervisors. Your account needs the supervisor role.',
+        id: 'Masuk atau buat akun supervisor BPBD.',
+        en: 'Sign in or create a BPBD supervisor account.',
       },
     },
     button: { id: 'Masuk dengan Google', en: 'Sign in with Google' },

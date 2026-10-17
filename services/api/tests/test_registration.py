@@ -52,3 +52,36 @@ def test_registration_requires_google_identity_and_rejects_role_input(registrati
     claims["firebase"]["sign_in_provider"] = "password"
     assert client.post("/volunteers/register", headers=headers).status_code == 403
     assert not writes
+
+
+def test_google_user_can_opt_in_to_supervisor_registration(registration):
+    client, claims, record, writes = registration
+    headers = {"Authorization": "Bearer valid"}
+    response = client.post("/supervisors/register", headers=headers)
+    assert response.status_code == 200
+    assert response.json == {"id": record.uid, "displayName": "New Volunteer", "role": "supervisor"}
+    assert writes == [(record.uid, {"other": "preserved", "role": "supervisor"})]
+    claims["role"] = "supervisor"
+    record.custom_claims["role"] = "supervisor"
+    assert client.post("/supervisors/register", headers=headers).status_code == 200
+    assert len(writes) == 1
+
+
+@pytest.mark.parametrize("token_role,server_role", [("volunteer", "volunteer"), ("volunteer", None), (None, "volunteer"), (None, "unknown")])
+def test_supervisor_registration_preserves_existing_roles(registration, token_role, server_role):
+    client, claims, record, writes = registration
+    if token_role:
+        claims["role"] = token_role
+    record.custom_claims["role"] = server_role
+    assert client.post("/supervisors/register", headers={"Authorization": "Bearer valid"}).status_code == 403
+    assert not writes
+
+
+def test_supervisor_registration_requires_google_and_rejects_role_input(registration):
+    client, claims, record, writes = registration
+    assert client.post("/supervisors/register").status_code == 401
+    headers = {"Authorization": "Bearer valid"}
+    assert client.post("/supervisors/register", headers=headers, json={"role": "supervisor"}).status_code == 400
+    claims["firebase"]["sign_in_provider"] = "password"
+    assert client.post("/supervisors/register", headers=headers).status_code == 403
+    assert not writes

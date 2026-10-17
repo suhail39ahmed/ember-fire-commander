@@ -1,8 +1,9 @@
+import { Link } from 'react-router-dom'
 import { t } from '../pwa/i18n'
 import { useLanguage } from '../pwa/language'
 import { AuthShell } from './AuthShell'
 import { copy, signInErrorText } from './copy'
-import { type Audience } from './paths'
+import { SUPERVISOR_CREATE_ACCOUNT_PATH, type Audience } from './paths'
 import { useSignIn } from './useSignIn'
 import { VolunteerSignIn } from './VolunteerSignIn'
 
@@ -27,6 +28,10 @@ function SupervisorSignIn() {
           {busy ? <span className="spinner" aria-hidden="true" /> : null}
           {t(lang, busy ? copy.signIn.busy : copy.signIn.button)}
         </button>
+        {!busy ? <>
+          <div className="login-divider">{t(lang, copy.volunteer.newToEmber)}</div>
+          <Link className="login-secondary" to={SUPERVISOR_CREATE_ACCOUNT_PATH}>{t(lang, copy.supervisorSignup.title)}</Link>
+        </> : null}
         {message ? <p className="error" role="alert">{signInErrorText(message, lang)}</p> : null}
         {busy ? (
           <p className="note waiting" role="status">

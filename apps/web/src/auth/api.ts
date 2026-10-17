@@ -67,8 +67,8 @@ async function appCheckHeader(): Promise<string | null> {
   }
 }
 
-export async function fetchMe(user: User, registerVolunteer = false): Promise<{ me: Me } | { error: MeFailure }> {
-  if (registerVolunteer) {
+export async function fetchMe(user: User, registerRole: Me['role'] | undefined = undefined): Promise<{ me: Me } | { error: MeFailure }> {
+  if (registerRole) {
     const existing = await fetchMe(user)
     // Existing accounts keep their role; only a roleless Google identity needs registration.
     if (!('error' in existing) || existing.error.code !== 'role_missing') return existing
@@ -80,8 +80,8 @@ export async function fetchMe(user: User, registerVolunteer = false): Promise<{ 
   if (appCheckToken) {
     headers['X-Firebase-AppCheck'] = appCheckToken
   }
-  const response = await fetch(`${apiUrl}${registerVolunteer ? '/volunteers/register' : '/me'}`, {
-    headers, method: registerVolunteer ? 'POST' : 'GET',
+  const response = await fetch(`${apiUrl}${registerRole ? `/${registerRole}s/register` : '/me'}`, {
+    headers, method: registerRole ? 'POST' : 'GET',
   })
   if (!response.ok) {
     const body = await response.json().catch(() => null) as { error?: { code?: string; message?: string } } | null
@@ -94,6 +94,6 @@ export async function fetchMe(user: User, registerVolunteer = false): Promise<{ 
     }
   }
   const me = await response.json() as Me
-  if (registerVolunteer) await user.getIdToken(true)
+  if (registerRole) await user.getIdToken(true)
   return { me }
 }

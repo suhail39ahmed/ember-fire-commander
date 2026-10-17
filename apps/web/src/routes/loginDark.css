@@ -13,6 +13,12 @@
 [data-theme='dark'] .sign-out { background: #faf7f2; color: #1c1917; }
 [data-theme='dark'] .google-button:disabled { opacity: 0.85; }
 [data-theme='dark'] .text-button { color: #faf7f2; }
+[data-theme='dark'] .login-secondary { color: #faf7f2; border-color: #71685d; }
+[data-theme='dark'] .login-secondary:hover { background: #2b2621; }
+[data-theme='dark'] .login-back,
+[data-theme='dark'] .login-divider { color: #cfc6ba; }
+[data-theme='dark'] .login-divider::before,
+[data-theme='dark'] .login-divider::after { background: #3a352f; }
 [data-theme='dark'] .role-card { background: #141210; border-color: #3a352f; }
 [data-theme='dark'] .error { color: #ef5b5b; }
 [data-theme='dark'] .login-brand { background: #0c0b0a; color: #faf7f2; }

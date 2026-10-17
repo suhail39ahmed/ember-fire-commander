@@ -237,6 +237,24 @@
   color: var(--vauth-ink);
 }
 
+.vauth-supervisor-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 8px;
+  color: var(--vauth-ink);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  border-radius: 8px;
+}
+
+.vauth-supervisor-link:hover { background: rgba(255, 255, 255, 0.08); }
+.vauth-supervisor-link:focus-visible { outline: 2px solid #f4a07a; outline-offset: 2px; }
+
 .vauth-primary:disabled {
   cursor: wait;
 }

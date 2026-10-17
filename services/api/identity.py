@@ -101,7 +101,7 @@ def user_from_token(token, check_revoked=False, allow_registration=False):
         check_not_revoked(claims)
     if allow_registration:
         if claims.get("firebase", {}).get("sign_in_provider") != "google.com":
-            raise AuthError(403, "forbidden", "Volunteer registration requires Google sign-in")
+            raise AuthError(403, "forbidden", "Registration requires Google sign-in")
         if not claims.get("role"):
             return {"id": claims["uid"], "displayName": claims.get("name") or "", "role": None}
     return user_from_claims(claims)

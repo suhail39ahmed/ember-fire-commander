@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { useLocation } from 'react-router-dom'
-import { CREATE_ACCOUNT_PATH } from './paths'
+import { Link, useLocation } from 'react-router-dom'
+import { CREATE_ACCOUNT_PATH, SUPERVISOR_CREATE_ACCOUNT_PATH } from './paths'
 
 import { useAuth } from '../auth/AuthProvider'
 import type { Me } from '../auth/api'
@@ -67,6 +67,7 @@ export function RequireRole({ role, children }: { role: Me['role']; children: Re
           <h1>{t(lang, copy.noAccess.title)}</h1>
           <p className="sub">{fill(t(lang, copy.noAccess[role]), { email })}</p>
           <p className="status-code">{t(lang, copy.noAccess.code)}</p>
+          <Link className="login-secondary" to={SUPERVISOR_CREATE_ACCOUNT_PATH}>{t(lang, copy.supervisorSignup.join)}</Link>
           <button className="action-button" type="button" onClick={() => { void refreshMe() }}>
             {t(lang, copy.noAccess.checkAgain)}
           </button>

@@ -101,17 +101,28 @@ def profile_of(uid):
 @volunteer_bp.route("/volunteers/register", methods=["POST"])
 def register_volunteer():
     """Opt-in Google registration. The only role this endpoint can assign is volunteer."""
+    return _register_role("volunteer")
+
+
+@volunteer_bp.route("/supervisors/register", methods=["POST"])
+def register_supervisor():
+    """Opt-in Google registration for a new supervisor account."""
+    return _register_role("supervisor")
+
+
+def _register_role(role):
     record = firebase_auth.get_user(g.user["id"])
     claims = dict(record.custom_claims or {})
-    # Read the current server claims as well as the token, so a stale token can never replace a supervisor role.
-    if g.user.get("role") not in (None, "volunteer") or claims.get("role") not in (None, "", "volunteer"):
+    # Check current server claims too: a stale token cannot replace an existing role.
+    if g.user.get("role") not in (None, role) or claims.get("role") not in (None, "", role):
         raise AuthError(403, "forbidden", "This account already has another role")
     if request.get_data():
         raise validation("body", "registration does not accept profile or role fields")
-    if claims.get("role") != "volunteer":
-        firebase_auth.set_custom_user_claims(record.uid, claims | {"role": "volunteer"})
-    body = dict(g.user) | {"role": "volunteer"}
-    body.update(profile_of(g.user["id"]))
+    if claims.get("role") != role:
+        firebase_auth.set_custom_user_claims(record.uid, claims | {"role": role})
+    body = dict(g.user) | {"role": role}
+    if role == "volunteer":
+        body.update(profile_of(g.user["id"]))
     return jsonify(body), 200
 
 
