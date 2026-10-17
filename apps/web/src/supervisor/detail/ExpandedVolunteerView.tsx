@@ -4,7 +4,7 @@ import { formatTime, formatTimeZone } from '../../pwa/formatTime'
 import { chipText } from '../../pwa/report/chips'
 import { t, type Lang } from '../../pwa/i18n'
 import { ApiError } from '../../pwa/api/types'
-import type { AskAnswer, IncidentDetail, PhotoUrl, TaskDecision } from '../contracts'
+import type { AskAnswer, IncidentDetail, PhotoUrl, VideoUrl, TaskDecision } from '../contracts'
 import { screenStrings } from '../../pwa/screens/strings'
 import { severityName, taskCopy } from './copy'
 import { expandedCopy } from './expandedCopy'
@@ -222,18 +222,63 @@ function PhotoLightbox({ lang, url, onClose }: { lang: Lang; url: string; onClos
   )
 }
 
+/** Inline video player for a video report clip. Fetches a short-lived read URL and renders it in a <video> element. */
+function ClipPlayer({ lang, incidentId, observationId, capturedAt, name, load }: {
+  lang: Lang
+  incidentId: string
+  observationId: string
+  capturedAt: string
+  name: string
+  load(incidentId: string, observationId: string): Promise<VideoUrl>
+}) {
+  type State = { kind: 'loading' } | { kind: 'ready'; url: string } | { kind: 'failed' }
+  const [state, setState] = useState<State>({ kind: 'loading' })
+  const loader = useRef(load)
+  loader.current = load
+  useEffect(() => {
+    let live = true
+    loader.current(incidentId, observationId).then(
+      (r) => { if (live) setState({ kind: 'ready', url: r.url }) },
+      () => { if (live) setState({ kind: 'failed' }) },
+    )
+    return () => { live = false }
+  }, [incidentId, observationId])
+
+  return (
+    <li className="exp-snap exp-clip">
+      {state.kind === 'ready' ? (
+        <video
+          className="exp-snap-thumb exp-clip-video"
+          src={state.url}
+          controls
+          playsInline
+          preload="metadata"
+          aria-label={`${t(lang, expandedCopy.snapshot)} · ${name} · ${formatTime(capturedAt)}`}
+        />
+      ) : (
+        <span className="exp-snap-thumb" role={state.kind === 'failed' ? 'alert' : 'status'}>
+          {state.kind === 'failed' ? t(lang, photoCopy.failed) : t(lang, photoCopy.loading)}
+        </span>
+      )}
+      <span className="exp-snap-cap">{formatTime(capturedAt)} · {name}</span>
+    </li>
+  )
+}
+
 /** Saved snapshots: a row of small thumbnails, four across, with time and name under each. A click opens one larger. */
-function SnapshotsArea({ lang, popup, incidentId, photoUrl }: {
+function SnapshotsArea({ lang, popup, incidentId, photoUrl, videoUrl }: {
   lang: Lang
   popup: Popup
   incidentId: string
   photoUrl(incidentId: string, observationId: string): Promise<PhotoUrl>
+  videoUrl?(incidentId: string, observationId: string): Promise<VideoUrl>
 }) {
   const [open, setOpen] = useState<string | null>(null)
+  const hasMedia = popup.photos.length > 0 || popup.videos.length > 0
   return (
     <div className="exp-section" aria-label={t(lang, expandedCopy.snapshots)}>
       <p className="exp-eyebrow">{t(lang, expandedCopy.snapshots)}</p>
-      {popup.photos.length === 0 ? (
+      {!hasMedia ? (
         <p className="exp-muted">{t(lang, expandedCopy.noSnapshots)}</p>
       ) : (
         <ul className="exp-snaps">
@@ -255,6 +300,17 @@ function SnapshotsArea({ lang, popup, incidentId, photoUrl }: {
               </li>
             )
           })}
+          {videoUrl && popup.videos.map((o) => (
+            <ClipPlayer
+              key={o.id}
+              lang={lang}
+              incidentId={incidentId}
+              observationId={o.id}
+              capturedAt={o.capturedAt}
+              name={popup.profile.name}
+              load={videoUrl}
+            />
+          ))}
         </ul>
       )}
       {open && <PhotoLightbox lang={lang} url={open} onClose={() => setOpen(null)} />}
@@ -614,6 +670,8 @@ export interface ExpandedVolunteerViewProps {
   sendInstruction(volunteerId: string, instruction: string): Promise<TaskDecision>
   /** GET /incidents/{id}/photos/{observationId}: a short-lived signed read link. */
   photoUrl(incidentId: string, observationId: string): Promise<PhotoUrl>
+  /** GET /incidents/{id}/videos/{observationId}: a short-lived signed read link for a recorded clip. */
+  videoUrl?(incidentId: string, observationId: string): Promise<VideoUrl>
   /** Ask EMBER and English translations. Without it, the right pane shows the chat is not connected. */
   assist?: AssistActions
   /** Talk and video to this volunteer. Nothing supplies one yet, so the controls stay disabled. */
@@ -625,7 +683,7 @@ export interface ExpandedVolunteerViewProps {
  * behind the backdrop. Left: live video placeholder and field reports. Right: full Ask EMBER chat.
  * Nothing is sent without an explicit supervisor choice. WITHDRAW is never delayed or blocked here.
  */
-export function ExpandedVolunteerView({ lang, detail, volunteerId, onClose, offline, sendInstruction, photoUrl, assist, liveChannel }: ExpandedVolunteerViewProps) {
+export function ExpandedVolunteerView({ lang, detail, volunteerId, onClose, offline, sendInstruction, photoUrl, videoUrl, assist, liveChannel }: ExpandedVolunteerViewProps) {
   const panel = useRef<HTMLDivElement>(null)
   const closeRef = useRef(onClose)
   closeRef.current = onClose
@@ -694,7 +752,7 @@ export function ExpandedVolunteerView({ lang, detail, volunteerId, onClose, offl
             <VideoArea lang={lang} detail={detail} name={profile.name} channel={liveChannel} />
             <LatestMessage lang={lang} popup={popup} />
             <DeclinedArea lang={lang} popup={popup} />
-            <SnapshotsArea lang={lang} popup={popup} incidentId={detail.incident.id} photoUrl={photoUrl} />
+            <SnapshotsArea lang={lang} popup={popup} incidentId={detail.incident.id} photoUrl={photoUrl} videoUrl={videoUrl} />
             <SentArea lang={lang} popup={popup} />
           </div>
 

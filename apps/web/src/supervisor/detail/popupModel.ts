@@ -47,6 +47,8 @@ export interface Popup {
   reports: Observation[]
   /** Photo reports, newest first. Their images are private and no route returns one yet. */
   photos: Observation[]
+  /** Video reports, newest first. */
+  videos: Observation[]
   /** Instructions for this volunteer in the order the API returned them. */
   tasks: Task[]
   /** True when the volunteer has a withdraw task or is on the incident's active withdraw. */
@@ -138,6 +140,7 @@ export function popupFor(detail: IncidentDetail, volunteerId: string, lang: Lang
     },
     reports,
     photos: reports.filter((o) => o.source === 'photo'),
+    videos: reports.filter((o) => o.source === 'video'),
     tasks,
     withdrawn: onWithdraw || tasks.some((t) => t.type === 'withdraw'),
     suggestions: tasks.filter((t) => t.status === 'proposed'),

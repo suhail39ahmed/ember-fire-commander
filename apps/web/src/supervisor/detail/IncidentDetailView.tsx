@@ -5,7 +5,7 @@ import { formatTime, formatTimeZone } from '../../pwa/formatTime'
 import { chipText } from '../../pwa/report/chips'
 import { t, type Lang } from '../../pwa/i18n'
 import { incidentLabel } from '../../pwa/incidentName'
-import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, PhotoUrl, TaskDecision, WithdrawRequest } from '../contracts'
+import type { Incident, IncidentDecision, IncidentDetail, LowerableSeverity, PhotoUrl, VideoUrl, TaskDecision, WithdrawRequest } from '../contracts'
 import { conflictPair, taskControls } from '../view'
 import { crewDots } from '../map/markers'
 import { windReading } from '../map/wind'
@@ -81,6 +81,8 @@ export interface IncidentDetailViewProps {
   sendInstruction(volunteerId: string, instruction: string): Promise<TaskDecision>
   /** GET /incidents/{id}/photos/{observationId}: a short-lived signed read link for a photo report. */
   photoUrl(incidentId: string, observationId: string): Promise<PhotoUrl>
+  /** GET /incidents/{id}/videos/{observationId}: a short-lived signed read link for a video report. */
+  videoUrl?(incidentId: string, observationId: string): Promise<VideoUrl>
   /** POST /incidents/{id}/live/make-live, then a fresh read (#102). */
   makeLive?(volunteerId: string): Promise<void>
   /** POST /incidents/{id}/live/retry, then a fresh read (#102). */
@@ -161,9 +163,9 @@ function Stat({ label, value, note, tone }: { label: string; value: string; note
   )
 }
 
-function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask' | 'sendInstruction' | 'photoUrl' | 'makeLive' | 'retryLive' | 'assist' | 'clearWithdraw' | 'requestHelp'> }) {
+function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask' | 'sendInstruction' | 'photoUrl' | 'videoUrl' | 'makeLive' | 'retryLive' | 'assist' | 'clearWithdraw' | 'requestHelp'> }) {
   const { incident, conflict } = detail
-  const { actorName, sendWithdraw, lowerSeverity, markSafe, resendTask, serverNow, sendInstruction, photoUrl, makeLive, retryLive, assist } = view
+  const { actorName, sendWithdraw, lowerSeverity, markSafe, resendTask, serverNow, sendInstruction, photoUrl, videoUrl, makeLive, retryLive, assist } = view
   const [dialog, setDialog] = useState<'withdraw' | 'severity' | 'extinguish' | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [popupId, setPopupId] = useState<string | null>(null)
@@ -373,6 +375,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
           now={clock}
           sendInstruction={sendInstruction}
           photoUrl={photoUrl}
+          videoUrl={videoUrl}
           assist={assist}
         />
       )}

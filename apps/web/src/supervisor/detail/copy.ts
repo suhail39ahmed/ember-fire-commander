@@ -47,6 +47,7 @@ export const detailCopy = {
     text: { id: 'teks', en: 'text' },
     photo: { id: 'foto', en: 'photo' },
     live: { id: 'suara langsung', en: 'live voice' },
+    video: { id: 'video', en: 'video clip' },
   },
 
   conflictTitle: { id: 'Laporan berbeda', en: 'Reports disagree' },
