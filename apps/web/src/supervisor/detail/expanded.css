@@ -443,26 +443,37 @@
 }
 .exp-ai-tag { margin-right: 8px; }
 
-/* Chat thread */
+/* Chat thread: a compact bordered card sized by its messages, capped in height, scrolling inside when long */
+.exp-thread-zone {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 42vh;
+  display: flex;
+  flex-direction: column;
+}
+
 .exp-thread {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
-  padding: 14px 14px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   background: #fff;
+  border: 1px solid var(--line);
   border-radius: 12px;
 }
 
+/* No messages yet: the same card, one line tall */
 .exp-thread-empty {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px 16px;
+  margin: 0;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
   color: var(--ink-muted);
-  font-size: 13px;
+  font-size: 12px;
   text-align: center;
 }
 
@@ -581,11 +592,14 @@
 
 .exp-proposal-q { margin: 2px 0 0; font-size: 14px; font-weight: 700; }
 
-.exp-proposal-empty {
+/* No draft yet: a single quiet line instead of a card */
+.exp-proposal-hint {
   margin: 0;
-  font-size: 13px;
+  padding: 2px 4px;
+  font-size: 12px;
   color: var(--ink-muted);
   font-style: italic;
+  flex-shrink: 0;
 }
 
 .exp-proposal-actions {

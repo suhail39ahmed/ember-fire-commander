@@ -3,7 +3,6 @@ import { StaticRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
 import type { ConflictContext, IncidentDetail, Observation, TimelineEntry } from '../contracts'
-import { AgencyInCharge } from '../detail/AgencyInCharge'
 import { IncidentDetailView, type IncidentDetailViewProps } from '../detail/IncidentDetailView'
 import { fixture } from '../fixtures'
 import type { IncidentActions } from '../IncidentView'
@@ -14,7 +13,7 @@ function actions(): IncidentActions {
   return { busyId: null, outcomes: {}, onApprove: () => undefined, onReject: () => undefined, saveEdit: async () => ({ task: fixture('normal').tasks[0], auditId: 'aud_1' } as never), onVerify: () => undefined }
 }
 
-function view(detail: IncidentDetail, lang: 'id' | 'en' = 'en', yourAgency?: string | null) {
+function view(detail: IncidentDetail, lang: 'id' | 'en' = 'en') {
   const props: IncidentDetailViewProps = {
     lang,
     incidentId: detail.incident.id,
@@ -36,7 +35,6 @@ function view(detail: IncidentDetail, lang: 'id' | 'en' = 'en', yourAgency?: str
     photoUrl: async () => ({ url: 'https://photo.example/x.jpg', expiresAt: '2026-10-17T03:15:00Z' }),
     markSafe: async () => ({ incident: detail.incident, auditId: 'aud_1' }),
     resendTask: async () => ({ auditId: 'aud_3' }),
-    yourAgency,
   }
   return renderToStaticMarkup(
     <StaticRouter location="/console/incidents/inc_demo_01">
@@ -147,47 +145,16 @@ describe('reports disagree: dispatch proposals', () => {
   })
 })
 
-describe('agency in charge', () => {
-  it('shows the agency stored on the incident', () => {
-    const html = view(conflictWith(null, { agencyInCharge: 'BPBD Kepulauan Meranti' }))
-    expect(html).toContain('Agency in charge')
-    expect(html).toContain('<p class="agency-name">BPBD Kepulauan Meranti</p>')
-    expect(html).not.toContain('Not recorded')
-  })
-
-  it('shows the marked empty state when none is stored: null, blank or absent', () => {
-    for (const agencyInCharge of [null, '   ', undefined]) {
-      const html = view(conflictWith(null, { agencyInCharge }))
-      expect(html).toContain('Agency in charge')
-      expect(html).toContain('agency-name agency-empty">Not recorded')
-      expect(html).toContain('No agency has been recorded as in charge of this incident.')
+describe('incident detail has no agency card', () => {
+  it('leaves out "Agency in charge" in both languages, with or without a stored agency', () => {
+    for (const lang of ['en', 'id'] as const) {
+      for (const detail of [fixture('normal'), conflictWith(null, { agencyInCharge: 'BPBD Kepulauan Meranti' })]) {
+        const html = view(detail, lang)
+        expect(html).not.toContain('Agency in charge')
+        expect(html).not.toContain('Instansi penanggung jawab')
+        expect(html).not.toContain('No agency has been recorded')
+        expect(html).not.toContain('class="agency-name')
+      }
     }
-  })
-
-  it('shows the supervisor’s own agency apart, labelled as theirs, and never as the one in charge', () => {
-    const html = view(conflictWith(null, { agencyInCharge: null }), 'en', 'BPBD Kepulauan Meranti')
-    expect(html).toContain('Your agency (from your profile): BPBD Kepulauan Meranti')
-    expect(html).toContain('Not recorded')
-    expect(html).not.toContain('<p class="agency-name">BPBD')
-  })
-
-  it('leaves out the own-agency line when the profile has none', () => {
-    expect(view(fixture('normal'), 'en', null)).not.toContain('Your agency')
-    expect(view(fixture('normal'), 'en', '  ')).not.toContain('Your agency')
-  })
-
-  it('is on every incident, with or without a conflict, and speaks Bahasa', () => {
-    const html = view(fixture('normal'), 'id', 'BPBD Meranti')
-    expect(html).toContain('Instansi penanggung jawab')
-    expect(html).toContain('Belum tercatat')
-    expect(html).toContain('Belum ada instansi yang tercatat sebagai penanggung jawab insiden ini.')
-    expect(html).toContain('Instansi Anda (dari profil)')
-  })
-
-  it('has no hand-off control: nothing here sends an incident to an agency', () => {
-    const html = view(conflictWith(null, { agencyInCharge: 'BPBD Kepulauan Meranti' }), 'en', 'BPBD Kepulauan Meranti')
-    expect(html).not.toMatch(/hand ?off|hand over|serahkan|packet/i)
-    const card = renderToStaticMarkup(<AgencyInCharge lang="en" agency={null} yours={null} />)
-    expect(card).not.toContain('<button')
   })
 })

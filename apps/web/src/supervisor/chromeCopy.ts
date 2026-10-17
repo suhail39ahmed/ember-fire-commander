@@ -12,7 +12,6 @@ export const chromeCopy = {
   title: { id: 'Konsol Supervisor', en: 'Supervisor Console' },
   onDuty: { id: 'Sedang bertugas', en: 'On duty' },
   account: { id: 'Akun', en: 'Account' },
-  noAgency: { id: 'Instansi belum tercatat', en: 'No agency on file' },
   failed: {
     id: 'Jam server atau jumlah persetujuan tidak bisa dimuat.',
     en: 'Could not load the clock or approvals count.',

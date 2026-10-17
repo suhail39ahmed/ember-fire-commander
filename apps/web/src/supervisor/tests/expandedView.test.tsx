@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import type { IncidentDetail, Observation } from '../contracts'
 import { fixture } from '../fixtures'
 import type { IncidentActions } from '../IncidentView'
-import { ExpandedVolunteerView } from '../detail/ExpandedVolunteerView'
+import { AskThread, ExpandedVolunteerView, ProposalCard, type ChatEntry } from '../detail/ExpandedVolunteerView'
 import { IncidentDetailView } from '../detail/IncidentDetailView'
 import { expandedCopy } from '../detail/expandedCopy'
 import type { AssistActions } from '../detail/assistModel'
@@ -190,7 +190,7 @@ describe('expanded view: AI labels', () => {
     expect(expanded(withTranslation(fixture('conflict')), 'uid_sari')).toContain('AI translation')
     expect(html).toContain('Ask EMBER AI about Sari')
     expect(html).toContain('Asks before it sends')
-    expect(html).toContain('AI draft')
+    expect(renderToStaticMarkup(<ProposalCard lang="en" name="Sari" draft="x" offline={false} onSendOnly={async () => undefined} />)).toContain('AI draft')
   })
 
   it('labels a model reply with an AI chip and the supervisor question with none', () => {
@@ -231,33 +231,80 @@ describe('expanded view: right pane — Ask EMBER', () => {
     expect(html).toMatch(/<input[^>]*aria-label="Ask EMBER AI about this volunteer…"/)
   })
 
-  it('shows the proposal card with placeholder when no answer yet', () => {
+  it('shows one hint line, not a card, while there is no draft', () => {
     const html = expanded(fixture('conflict'), 'uid_sari', 'en', true)
-    expect(html).toContain(expandedCopy.proposalTitle.en)
     expect(html).toContain(expandedCopy.proposalEmpty.en)
+    expect(html).toContain('exp-proposal-hint')
+    expect(html).not.toContain('class="exp-proposal"')
+    expect(html).not.toContain(expandedCopy.proposalTitle.en)
+    expect(html).not.toContain(expandedCopy.sendBoth.en)
+    expect(html).not.toContain(`${expandedCopy.sendOnly.en} Sari`)
   })
 
-  it('has "Send both now" and "Only to Sari" buttons', () => {
-    const html = expanded(fixture('conflict'), 'uid_sari', 'en', true)
+  it('shows the draft card with both choices once a draft exists', () => {
+    const html = renderToStaticMarkup(<ProposalCard lang="en" name="Sari" draft="Hold the north side." offline={false} onSendOnly={async () => undefined} />)
+    expect(html).toContain('class="exp-proposal"')
+    expect(html).toContain('AI draft')
+    expect(html).toContain(expandedCopy.proposalTitle.en)
+    expect(html).toContain('Hold the north side.')
     expect(html).toContain(expandedCopy.sendBoth.en)
     expect(html).toContain(`${expandedCopy.sendOnly.en} Sari`)
+    expect(html).not.toContain('exp-proposal-hint')
   })
 
   it('"Send both now" is always disabled — no route yet for first pickup', () => {
-    const html = expanded(fixture('conflict'), 'uid_sari', 'en', true)
+    const html = renderToStaticMarkup(<ProposalCard lang="en" name="Sari" draft="Hold the north side." offline={false} onSendOnly={async () => undefined} />)
     const match = html.match(new RegExp(`<button[^>]*>${expandedCopy.sendBoth.en}</button>`))
     expect(match?.[0]).toMatch(/disabled=""/)
   })
 
-  it('"Only to Sari" is disabled when there is no draft yet', () => {
-    const html = expanded(fixture('conflict'), 'uid_sari', 'en', true)
-    const match = html.match(new RegExp(`<button[^>]*>${expandedCopy.sendOnly.en} Sari</button>`))
-    expect(match?.[0]).toMatch(/disabled=""/)
+  it('"Only to Sari" is enabled with a draft and disabled offline', () => {
+    const live = renderToStaticMarkup(<ProposalCard lang="en" name="Sari" draft="Hold the north side." offline={false} onSendOnly={async () => undefined} />)
+    expect(live.match(new RegExp(`<button[^>]*>${expandedCopy.sendOnly.en} Sari</button>`))?.[0]).not.toMatch(/disabled=""/)
+    const off = renderToStaticMarkup(<ProposalCard lang="en" name="Sari" draft="Hold the north side." offline onSendOnly={async () => undefined} />)
+    expect(off.match(new RegExp(`<button[^>]*>${expandedCopy.sendOnly.en} Sari</button>`))?.[0]).toMatch(/disabled=""/)
   })
 
-  it('states WITHDRAW is never held up by this chat', () => {
+  it('states WITHDRAW is never held up by this chat, once', () => {
     const html = expanded(fixture('conflict'), 'uid_sari')
-    expect(html).toContain(expandedCopy.withdrawRule.en)
+    expect(html.split(expandedCopy.withdrawRule.en).length - 1).toBe(1)
+  })
+
+  it('does not repeat the WITHDRAW line when a draft card is showing', () => {
+    const card = renderToStaticMarkup(<ProposalCard lang="en" name="Sari" draft="Hold the north side." offline={false} onSendOnly={async () => undefined} />)
+    expect(card).not.toContain('WITHDRAW')
+  })
+
+  describe('Ask thread layout', () => {
+    const entry = (id: number): ChatEntry => ({ id, question: `Question ${id}`, answer: { answer: `Answer ${id}`, enoughData: true, at: '2026-10-17T03:10:00Z' } })
+    const css = readFileSync(resolve(__dirname, '../detail/expanded.css'), 'utf8')
+
+    it('renders no empty box while there are no messages, only a hint line', () => {
+      const html = renderToStaticMarkup(<AskThread lang="en" entries={[]} />)
+      expect(html).toContain(expandedCopy.chatNote.en)
+      expect(html).not.toContain('class="exp-thread"')
+    })
+
+    it('renders the thread column once there are messages', () => {
+      const html = renderToStaticMarkup(<AskThread lang="en" entries={[entry(0), entry(1), entry(2)]} />)
+      expect(html).toContain('class="exp-thread"')
+      expect(html).toContain('Question 2')
+      expect(html).toContain('Answer 2')
+      expect(html).toContain('2 earlier messages')
+      expect(html).not.toContain(expandedCopy.chatNote.en)
+    })
+
+    it('sizes the thread by its content and scrolls it when it overflows', () => {
+      const rule = css.match(/\.exp-thread \{[^}]*\}/)?.[0] ?? ''
+      expect(rule).toMatch(/flex:\s*1 1 auto/)
+      expect(rule).toMatch(/min-height:\s*0/)
+      expect(rule).toMatch(/overflow-y:\s*auto/)
+      expect(rule).toMatch(/border:\s*1px solid/)
+      expect(rule).toMatch(/border-radius:\s*12px/)
+      const zone = css.match(/\.exp-thread-zone \{[^}]*\}/)?.[0] ?? ''
+      expect(zone).toMatch(/flex:\s*0 1 auto/)
+      expect(zone).toMatch(/max-height:\s*42vh/)
+    })
   })
 
   it('marks the WITHDRAW-sent volunteer and says the rule applies', () => {

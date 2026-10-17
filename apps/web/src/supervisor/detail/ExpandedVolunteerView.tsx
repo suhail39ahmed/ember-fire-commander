@@ -18,7 +18,7 @@ import './expanded.css'
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 /** One Q&A pair in the chat thread. */
-interface ChatEntry {
+export interface ChatEntry {
   id: number
   question: string
   answer: AskAnswer
@@ -225,7 +225,7 @@ function SentArea({ lang, popup }: { lang: Lang; popup: Popup }) {
 }
 
 /** The inline proposal card: draft from the latest Ask answer, explicit send choices. */
-function ProposalCard({
+export function ProposalCard({
   lang,
   name,
   draft,
@@ -255,21 +255,19 @@ function ProposalCard({
     }
   }
 
+  if (!draft) {
+    return <p className="exp-proposal-hint" role="note">{t(lang, expandedCopy.proposalEmpty)}</p>
+  }
+
   return (
     <div className="exp-proposal" aria-label={t(lang, expandedCopy.proposalTitle)} role="region">
       <p className="exp-proposal-title">
         <span className="exp-ai-tag">{t(lang, expandedCopy.aiDraft)}</span>
         {t(lang, expandedCopy.proposalTitle)}
       </p>
-      {draft ? (
-        <>
-          <p className="exp-proposal-to">{t(lang, expandedCopy.toName)} {name}</p>
-          <p className="exp-proposal-draft">{draft}</p>
-          <p className="exp-proposal-q">{t(lang, expandedCopy.sendThis)}</p>
-        </>
-      ) : (
-        <p className="exp-proposal-empty">{t(lang, expandedCopy.proposalEmpty)}</p>
-      )}
+      <p className="exp-proposal-to">{t(lang, expandedCopy.toName)} {name}</p>
+      <p className="exp-proposal-draft">{draft}</p>
+      <p className="exp-proposal-q">{t(lang, expandedCopy.sendThis)}</p>
       <div className="exp-proposal-actions">
         {/* Send to everyone needs a separate route — not in first pickup scope */}
         <button
@@ -284,7 +282,7 @@ function ProposalCard({
         <button
           type="button"
           className="exp-proposal-btn primary"
-          disabled={!draft || busy || offline}
+          disabled={busy || offline}
           onClick={() => void handleSendOnly()}
           aria-label={`${t(lang, expandedCopy.sendOnly)} ${name}`}
         >
@@ -297,7 +295,6 @@ function ProposalCard({
           {result.text}
         </p>
       )}
-      <p className="exp-proposal-note">{t(lang, expandedCopy.withdrawRule)}</p>
     </div>
   )
 }
@@ -354,6 +351,24 @@ function EarlierMessages({ lang, entries }: { lang: Lang; entries: ChatEntry[] }
   )
 }
 
+/** The chat thread: a hint line while empty, otherwise a column as tall as its messages that scrolls once they outgrow the pane. */
+export function AskThread({ lang, entries, threadRef }: { lang: Lang; entries: ChatEntry[]; threadRef?: React.Ref<HTMLDivElement> }) {
+  const earlier = entries.length > 1 ? entries.slice(0, entries.length - 1) : []
+  const latest = entries.length > 0 ? entries[entries.length - 1] : null
+  return (
+    <div className="exp-thread-zone" aria-live="polite" aria-label={t(lang, expandedCopy.chatTitle)}>
+      {latest === null ? (
+        <p className="exp-thread-empty">{t(lang, expandedCopy.chatNote)}</p>
+      ) : (
+        <div className="exp-thread" ref={threadRef}>
+          <EarlierMessages lang={lang} entries={earlier} />
+          <ChatPair lang={lang} entry={latest} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 /** The right pane: chat thread + proposal card + input. The entire pane is Ask EMBER. */
 function AskEmberPane({
   lang,
@@ -378,7 +393,6 @@ function AskEmberPane({
   const trimmed = question.trim()
   const tooLong = trimmed.length > ASK_MAX
 
-  const earlier = entries.length > 1 ? entries.slice(0, entries.length - 1) : []
   const latest = entries.length > 0 ? entries[entries.length - 1] : null
   const proposalDraft = latest?.answer.answer ?? null
 
@@ -412,21 +426,8 @@ function AskEmberPane({
         <h3 className="exp-ask-title">{t(lang, expandedCopy.chatTitle)} {t(lang, expandedCopy.chatAbout)} {name}</h3>
         <span className="exp-tag">{t(lang, expandedCopy.asksBeforeSend)}</span>
       </div>
-      {/* Thread */}
-      <div className="exp-thread" ref={threadRef} aria-live="polite" aria-label={t(lang, expandedCopy.chatTitle)}>
-        {entries.length === 0 ? (
-          <p className="exp-thread-empty">{t(lang, expandedCopy.chatNote)}</p>
-        ) : (
-          <>
-            <EarlierMessages lang={lang} entries={earlier} />
-            {latest && (
-              <>
-                <ChatPair lang={lang} entry={latest} />
-              </>
-            )}
-          </>
-        )}
-      </div>
+      {/* Thread: only as tall as its messages, scrolls once they outgrow the pane */}
+      <AskThread lang={lang} entries={entries} threadRef={threadRef} />
 
       {/* Proposal card */}
       <ProposalCard

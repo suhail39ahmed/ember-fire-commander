@@ -2,7 +2,6 @@
 export const assistCopy = {
   title: { id: 'SARAN AI', en: 'AI SUGGESTED' },
   titleRules: { id: 'SARAN', en: 'SUGGESTIONS' },
-  note: { id: 'ditulis AI dari data tersimpan · hanya saran, orang yang memutuskan', en: 'written by AI from stored data · advice only, people decide' },
   make: { id: 'Buat saran AI', en: 'Make AI suggestions' },
   refresh: { id: 'Perbarui saran AI', en: 'Refresh AI suggestions' },
   working: { id: 'Menyusun…', en: 'Working…' },

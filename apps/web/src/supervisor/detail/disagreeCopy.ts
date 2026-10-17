@@ -31,17 +31,6 @@ export const disagreeCopy = {
   },
 } as const
 
-/** Copy for "Agency in charge" on the incident detail. Bahasa is a draft that needs native-speaker review. */
-export const agencyCopy = {
-  title: { id: 'Instansi penanggung jawab', en: 'Agency in charge' },
-  notRecorded: { id: 'Belum tercatat', en: 'Not recorded' },
-  emptyBody: {
-    id: 'Belum ada instansi yang tercatat sebagai penanggung jawab insiden ini.',
-    en: 'No agency has been recorded as in charge of this incident.',
-  },
-  yours: { id: 'Instansi Anda (dari profil)', en: 'Your agency (from your profile)' },
-} as const
-
 export const factorName = {
   severity: { id: 'Tingkat', en: 'Severity' },
   corroboration: { id: 'Dukungan', en: 'Corroboration' },
