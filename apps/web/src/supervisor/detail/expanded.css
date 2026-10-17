@@ -219,9 +219,17 @@
   border: 1px solid var(--line);
   background: #fff;
   color: var(--ink);
-  opacity: 0.5;
-  cursor: not-allowed;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
+.exp-ctrl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.exp-ctrl-btn:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+.exp-ctrl-on { background: var(--ember); border-color: var(--ember); color: #fff; }
+.exp-level { align-self: center; width: 64px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.exp-level > span { display: block; height: 100%; background: var(--ember); }
+.exp-controls-note { margin: 6px 0 0; font-size: 11px; line-height: 1.4; color: var(--ink-muted); }
 
 /* Wind chip over the video */
 .exp-wind-chip {
@@ -295,6 +303,7 @@
 
 /* Snapshots: small thumbnails, four across */
 .exp-snaps {
+  position: relative;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -363,6 +372,31 @@
   overflow: hidden;
 }
 .exp-snap-ai b { color: #2f5fd0; }
+
+/* The full photo read, shown on hover or keyboard focus. It sits above the row so the left pane never clips it. */
+.exp-snap-tip {
+  display: none;
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 20;
+  width: min(360px, 100%);
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #1b1815;
+  color: #f1ece3;
+  font-size: 12px;
+  line-height: 1.45;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.exp-snap-tip b { display: block; margin-bottom: 2px; color: #7aa2ff; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+.exp-snap-tip-meta { display: block; margin-bottom: 4px; font-size: 10px; color: #b9b2a6; }
+.exp-snap:hover .exp-snap-tip,
+.exp-snap:focus .exp-snap-tip,
+.exp-snap:focus-within .exp-snap-tip { display: block; }
+.exp-snap:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; border-radius: 6px; }
 
 .exp-lightbox {
   position: fixed;
