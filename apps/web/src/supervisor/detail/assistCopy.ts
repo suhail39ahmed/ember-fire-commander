@@ -1,0 +1,51 @@
+/** Labels for the model-written help: suggestions, Ask EMBER and English translations. Bahasa is DRAFT and needs native-speaker review. */
+export const assistCopy = {
+  title: { id: 'SARAN', en: 'SUGGESTIONS' },
+  note: { id: 'ditulis model dari data tersimpan · hanya saran, orang yang memutuskan', en: 'written by a model from stored data · advice only, people decide' },
+  make: { id: 'Buat saran', en: 'Make suggestions' },
+  refresh: { id: 'Perbarui saran', en: 'Refresh suggestions' },
+  working: { id: 'Menyusun…', en: 'Working…' },
+  none: { id: 'Belum ada saran untuk insiden ini.', en: 'No suggestions have been made for this incident yet.' },
+  empty: { id: 'Data tersimpan belum cukup untuk saran.', en: 'The stored data does not support a suggestion yet.' },
+  why: { id: 'Alasan', en: 'Why' },
+  madeAt: { id: 'Dibuat', en: 'Made' },
+  fromModel: { id: 'dari model', en: 'from the model' },
+  fromRules: { id: 'daftar aturan sederhana, model tidak tersedia', en: 'simple rule list, the model was not available' },
+  decide: {
+    id: 'Untuk mengirim, tulis instruksi di jendela relawan. Saran ini tidak mengirim apa pun.',
+    en: 'To send something, write the instruction in the volunteer window. A suggestion sends nothing.',
+  },
+
+  askNote: { id: 'dijawab dari data tersimpan', en: 'answered from stored data' },
+  askBtn: { id: 'Tanya', en: 'Ask' },
+  asking: { id: 'Menjawab…', en: 'Answering…' },
+  askLabel: { id: 'Pertanyaan untuk EMBER', en: 'Question for EMBER' },
+  askPlaceholder: { id: 'Tanya EMBER tentang relawan ini…', en: 'Ask EMBER about this volunteer…' },
+  askLimit: { id: 'karakter tersisa', en: 'characters left' },
+  answer: { id: 'Jawaban', en: 'Answer' },
+  notEnough: { id: 'Data tersimpan tidak cukup untuk menjawab penuh.', en: 'The stored data is not enough for a full answer.' },
+  askRule: {
+    id: 'Jawaban hanya teks saran. Tidak ada yang dikirim, dan tingkat insiden tidak berubah.',
+    en: 'An answer is advice text only. Nothing is sent and the incident severity does not change.',
+  },
+
+  translate: { id: 'Terjemahkan ke bahasa Inggris', en: 'Translate to English' },
+  translating: { id: 'Menerjemahkan…', en: 'Translating…' },
+  english: { id: 'Inggris', en: 'English' },
+  translatedFrom: { id: 'dari', en: 'from' },
+
+  errUnavailable: { id: 'Layanan agents atau model sedang tidak tersedia. Tidak ada yang tersimpan. Coba lagi nanti.', en: 'The agents service or the model is not available. Nothing was stored. Try again later.' },
+  errSession: { id: 'Sesi ini bukan supervisor. Masuk lagi.', en: 'This session is not a supervisor. Sign in again.' },
+  errGone: { id: 'Insiden atau laporan ini sudah tidak ada.', en: 'This incident or report no longer exists.' },
+  errInvalid: { id: 'Pertanyaan tidak valid.', en: 'The question is not valid.' },
+  errNetwork: { id: 'Tidak bisa menghubungi ember-api. Periksa koneksi lalu coba lagi.', en: 'Could not reach ember-api. Check the connection and try again.' },
+} as const
+
+/** The ISO 639-1 codes the console names. Any other code is shown as is, and `und` as unknown. */
+export const languageNames: Record<string, { id: string; en: string }> = {
+  id: { id: 'Indonesia', en: 'Indonesian' },
+  en: { id: 'Inggris', en: 'English' },
+  jv: { id: 'Jawa', en: 'Javanese' },
+  ms: { id: 'Melayu', en: 'Malay' },
+  und: { id: 'tidak diketahui', en: 'unknown' },
+}

@@ -400,6 +400,19 @@ export function createMockSupervisorApi(
       d.incident.status = 'extinguished'
       return { incident: structuredClone(d.incident), auditId: append('incident.extinguish', id) }
     },
+    // The mock has no model, so these answer like ember-api does when agents is not configured.
+    async suggestIncident() {
+      await wait()
+      throw new ApiError('agents_unavailable', 'The agents service is not available right now', 503, true)
+    },
+    async askIncident() {
+      await wait()
+      throw new ApiError('agents_unavailable', 'The agents service is not available right now', 503, true)
+    },
+    async translateObservation() {
+      await wait()
+      throw new ApiError('agents_unavailable', 'The agents service is not available right now', 503, true)
+    },
     async makeLive(incidentId, volunteerId) {
       await wait()
       return assignLive(details, incidentId, volunteerId, 'live.make', append)

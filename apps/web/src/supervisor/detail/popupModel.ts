@@ -3,7 +3,7 @@
  * answer. A region whose data no route returns is not given invented content: see `popupCopy.gaps`.
  */
 import type { Lang } from '../../pwa/i18n'
-import type { CardDevice, EvidenceFactor, IncidentDetail, Observation, PhotoRead, Task } from '../contracts'
+import type { CardDevice, EvidenceFactor, IncidentDetail, Observation, PhotoRead, Task, Translation } from '../contracts'
 import { screenStrings } from '../../pwa/screens/strings'
 import { incidentLabel } from '../../pwa/incidentName'
 import { cardOf, distanceLine, placeLine } from './cardModel'
@@ -59,6 +59,8 @@ export interface Popup {
   factors: EvidenceFactor[]
   /** The advisory read of each photo report, by observation id. `{}` when none was read or from an older API. */
   photoReads: Record<string, PhotoRead>
+  /** The stored English translation of each report's text, by observation id. `{}` when none or from an older API. */
+  translations: Record<string, Translation>
 }
 
 const NETWORK_NAME = { '2g': '2G', '3g': '3G', '4g': '4G', wifi: 'Wi-Fi', unknown: '' } as const
@@ -142,5 +144,6 @@ export function popupFor(detail: IncidentDetail, volunteerId: string, lang: Lang
     hasConflict: detail.conflict !== null,
     factors: detail.evidenceFactors ?? [],
     photoReads: detail.photoReads ?? {},
+    translations: detail.translations ?? {},
   }
 }

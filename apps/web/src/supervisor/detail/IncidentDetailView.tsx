@@ -21,6 +21,8 @@ import { extinguishCopy } from './extinguishCopy'
 import { LowerSeverityDialog } from './LowerSeverityDialog'
 import { disagreeCopy, factorName } from './disagreeCopy'
 import { AgencyInCharge } from './AgencyInCharge'
+import { IncidentSuggestions } from './AssistBlocks'
+import type { AssistActions } from './assistModel'
 import { ConflictExtras } from './ConflictExtras'
 import { conditionsCopy } from './conditionsCopy'
 import { airNote, airValue, weatherNote, windValue } from './conditionsModel'
@@ -82,6 +84,8 @@ export interface IncidentDetailViewProps {
   makeLive?(volunteerId: string): Promise<void>
   /** POST /incidents/{id}/live/retry, then a fresh read (#102). */
   retryLive?(volunteerId: string): Promise<void>
+  /** Suggestions, Ask EMBER and English translations from ember-api. Left out, those parts are not shown. */
+  assist?: AssistActions
   mapsKey?: string
 }
 
@@ -156,9 +160,9 @@ function Stat({ label, value, note, tone }: { label: string; value: string; note
   )
 }
 
-function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask' | 'sendInstruction' | 'photoUrl' | 'yourAgency' | 'makeLive' | 'retryLive'> }) {
+function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: IncidentDetail; link: LinkState; actions: IncidentActions; view: Pick<IncidentDetailViewProps, 'actorName' | 'serverNow' | 'sendWithdraw' | 'lowerSeverity' | 'extinguish' | 'markSafe' | 'resendTask' | 'sendInstruction' | 'photoUrl' | 'yourAgency' | 'makeLive' | 'retryLive' | 'assist'> }) {
   const { incident, conflict } = detail
-  const { actorName, sendWithdraw, lowerSeverity, markSafe, resendTask, serverNow, sendInstruction, photoUrl, makeLive, retryLive } = view
+  const { actorName, sendWithdraw, lowerSeverity, markSafe, resendTask, serverNow, sendInstruction, photoUrl, makeLive, retryLive, assist } = view
   const [dialog, setDialog] = useState<'withdraw' | 'severity' | 'extinguish' | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [popupId, setPopupId] = useState<string | null>(null)
@@ -314,6 +318,8 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         </section>
       )}
 
+      {assist && <IncidentSuggestions lang={lang} suggestions={detail.suggestions} assist={assist} offline={offline} />}
+
       <section aria-labelledby="inc-field-title">
         <h2 className="inc-h2" id="inc-field-title">
           {t(lang, detailCopy.fieldTitle)}
@@ -358,7 +364,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         {paused && <p className="wd-paused">{t(lang, stateCopy.paused)}</p>}
         <p className="inc-callout">{t(lang, detailCopy.withdrawRule)}</p>
       </section>
-      {popupId !== null && <VolunteerPopup lang={lang} detail={detail} volunteerId={popupId} onClose={() => setPopupId(null)} offline={offline} now={clock} onResend={resendTask} sendInstruction={sendInstruction} photoUrl={photoUrl} />}
+      {popupId !== null && <VolunteerPopup lang={lang} detail={detail} volunteerId={popupId} onClose={() => setPopupId(null)} offline={offline} now={clock} onResend={resendTask} sendInstruction={sendInstruction} photoUrl={photoUrl} assist={assist} />}
       {toasts[0] && <HeardToast lang={lang} event={toasts[0]} name={nameOf(detail, toasts[0].volunteerId, lang)} onClose={dismiss} />}
       {dialog === 'withdraw' && (
         <SendWithdrawDialog

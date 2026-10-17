@@ -5,6 +5,8 @@ import { chipText } from '../../pwa/report/chips'
 import { t, type Lang } from '../../pwa/i18n'
 import type { IncidentDetail, PhotoUrl, TaskDecision } from '../contracts'
 import { severityName, taskCopy } from './copy'
+import { AskBox, TranslationLine } from './AssistBlocks'
+import type { AssistActions } from './assistModel'
 import { DeliveryLine } from './DeliveryLine'
 import { factorName } from './disagreeCopy'
 import { instructionCopy, photoCopy, profileCopy, suggestCopy, visionCopy } from './instructionCopy'
@@ -14,6 +16,7 @@ import { INSTRUCTION_MAX } from './withdrawModel'
 import { Modal } from './Modal'
 import { answerLine, batteryText, languageText, networkText, popupFor, visionLine, type Popup } from './popupModel'
 import { popupCopy, popupNeeds } from './popupCopy'
+import { assistCopy } from './assistCopy'
 import './popup.css'
 
 /** A region whose data no ember-api route returns yet. It says so, and says what is missing. */
@@ -52,7 +55,7 @@ function Video({ lang }: { lang: Lang }) {
   )
 }
 
-function Transcript({ lang, popup }: { lang: Lang; popup: Popup }) {
+function Transcript({ lang, popup, assist, offline }: { lang: Lang; popup: Popup; assist?: AssistActions; offline: boolean }) {
   return (
     <Region title={t(lang, popupCopy.transcript)} note={t(lang, popupCopy.transcriptNote)}>
       {popup.reports.length === 0 ? (
@@ -67,11 +70,12 @@ function Transcript({ lang, popup }: { lang: Lang; popup: Popup }) {
                 {o.source === 'photo' && ` · ${t(lang, popupCopy.photoReport)}`}
               </p>
               <p className="pop-line-text">{o.text ? `“${o.text}”` : t(lang, popupCopy.noText)}</p>
+              <TranslationLine lang={lang} translation={popup.translations[o.id]} observationId={o.id} hasText={Boolean(o.text)} assist={assist} offline={offline} />
             </li>
           ))}
         </ul>
       )}
-      <p className="pop-gap">{t(lang, popupCopy.translation)}</p>
+      {!assist && <p className="pop-gap">{t(lang, popupCopy.translation)}</p>}
     </Region>
   )
 }
@@ -154,7 +158,7 @@ function Profile({ lang, popup }: { lang: Lang; popup: Popup }) {
   )
 }
 
-function Suggestions({ lang, popup }: { lang: Lang; popup: Popup }) {
+function Suggestions({ lang, popup, withModel }: { lang: Lang; popup: Popup; withModel: boolean }) {
   return (
     <Region title={t(lang, popupCopy.suggestions)}>
       {popup.suggestions.length === 0 ? (
@@ -184,7 +188,7 @@ function Suggestions({ lang, popup }: { lang: Lang; popup: Popup }) {
           </ul>
         </>
       )}
-      <p className="pop-gap">{t(lang, suggestCopy.limit)}</p>
+      <p className="pop-gap">{t(lang, withModel ? suggestCopy.limitWithModel : suggestCopy.limit)}</p>
     </Region>
   )
 }
@@ -232,15 +236,21 @@ function SendForm({ lang, popup, detail, offline, send }: { lang: Lang; popup: P
   )
 }
 
-function Side({ lang, popup, detail, offline, send }: { lang: Lang; popup: Popup; detail: IncidentDetail; offline: boolean; send: (instruction: string) => Promise<TaskDecision> }) {
+function Side({ lang, popup, detail, offline, send, assist }: { lang: Lang; popup: Popup; detail: IncidentDetail; offline: boolean; send: (instruction: string) => Promise<TaskDecision>; assist?: AssistActions }) {
   return (
     <>
       <Profile lang={lang} popup={popup} />
-      <Suggestions lang={lang} popup={popup} />
-      <Region title={`${t(lang, popupCopy.ask)} ${popup.profile.name}`} note={t(lang, popupCopy.askBefore)}>
-        <Gap lang={lang} need={popupNeeds.ask} />
-        <p className="pop-muted">{t(lang, popupCopy.askGap)}</p>
-        <input className="pop-input" disabled placeholder={t(lang, popupCopy.askPlaceholder)} aria-label={t(lang, popupCopy.askPlaceholder)} />
+      <Suggestions lang={lang} popup={popup} withModel={assist !== undefined} />
+      <Region title={`${t(lang, popupCopy.ask)} ${popup.profile.name}`} note={assist ? t(lang, assistCopy.askNote) : t(lang, popupCopy.askBefore)}>
+        {assist ? (
+          <AskBox lang={lang} volunteerId={popup.profile.id} assist={assist} offline={offline} />
+        ) : (
+          <>
+            <Gap lang={lang} need={popupNeeds.ask} />
+            <p className="pop-muted">{t(lang, popupCopy.askGap)}</p>
+            <input className="pop-input" disabled placeholder={t(lang, popupCopy.askPlaceholder)} aria-label={t(lang, popupCopy.askPlaceholder)} />
+          </>
+        )}
       </Region>
       <SendForm lang={lang} popup={popup} detail={detail} offline={offline} send={send} />
     </>
@@ -262,13 +272,15 @@ export interface VolunteerPopupProps {
   sendInstruction(volunteerId: string, instruction: string): Promise<TaskDecision>
   /** GET /incidents/{id}/photos/{observationId}: a short-lived signed read link. */
   photoUrl(incidentId: string, observationId: string): Promise<PhotoUrl>
+  /** Ask EMBER and English translations. Left out, the pop-up says the chat is not connected. */
+  assist?: AssistActions
 }
 
 /**
  * One volunteer, over the incident detail. The incident behind it stays as it is. Every region of the
  * frame is here; the ones ember-api cannot fill yet say so in place instead of showing made-up content.
  */
-export function VolunteerPopup({ lang, detail, volunteerId, onClose, offline, now, onResend, sendInstruction, photoUrl }: VolunteerPopupProps) {
+export function VolunteerPopup({ lang, detail, volunteerId, onClose, offline, now, onResend, sendInstruction, photoUrl, assist }: VolunteerPopupProps) {
   const popup = popupFor(detail, volunteerId, lang)
   if (!popup) {
     return (
@@ -291,12 +303,12 @@ export function VolunteerPopup({ lang, detail, volunteerId, onClose, offline, no
       <div className="pop-grid">
         <div className="pop-col">
           <Video lang={lang} />
-          <Transcript lang={lang} popup={popup} />
+          <Transcript lang={lang} popup={popup} assist={assist} offline={offline} />
           <Snapshots lang={lang} popup={popup} incidentId={detail.incident.id} photoUrl={photoUrl} />
           <Sent lang={lang} popup={popup} now={now} onResend={onResend} />
         </div>
         <div className="pop-col">
-          <Side lang={lang} popup={popup} detail={detail} offline={offline} send={(instruction) => sendInstruction(volunteerId, instruction)} />
+          <Side lang={lang} popup={popup} detail={detail} offline={offline} send={(instruction) => sendInstruction(volunteerId, instruction)} assist={assist} />
         </div>
       </div>
       <div className="inc-modal-actions">

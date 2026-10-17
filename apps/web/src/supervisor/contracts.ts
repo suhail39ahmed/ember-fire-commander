@@ -228,6 +228,35 @@ export interface PhotoRead {
   at: string | null
 }
 
+/** One suggestion a model wrote from stored facts (section 6.3). Advisory text only. */
+export interface DetailSuggestion {
+  text: string
+  rationale: string | null
+}
+
+/** The last suggestions stored for an incident (section 6.3). `model`, or `template` when the model was not available. */
+export interface DetailSuggestions {
+  items: DetailSuggestion[]
+  source: 'model' | 'template' | null
+  generatedAt: string | null
+}
+
+/** The stored English translation of one report's text (section 6.3). The original text is never changed. */
+export interface Translation {
+  english: string
+  /** Lowercase language code of the original, `und` when it could not be told. */
+  sourceLanguage: string | null
+  at: string | null
+}
+
+/** Answer of POST /incidents/{id}/ask (section 6.13). Advisory text only. */
+export interface AskAnswer {
+  answer: string
+  /** False when the model said the stored facts do not hold what the question needs. Null when it did not say. */
+  enoughData: boolean | null
+  at: string
+}
+
 /** GET /incidents/{id} (section 6.3). */
 export interface IncidentDetail {
   incident: Incident
@@ -256,6 +285,10 @@ export interface IncidentDetail {
   photoReads?: Record<string, PhotoRead>
   /** Supervisor read only: live camera seat, drop event, and per-volunteer media (#102). */
   liveSeat?: LiveSeat
+  /** Supervisor read only. Null until suggestions were made for the incident. Absent from an older API. */
+  suggestions?: DetailSuggestions | null
+  /** Supervisor read only. English translations by observation id, `{}` when none is stored. Absent from an older API. */
+  translations?: Record<string, Translation>
 }
 
 /** Task decisions (section 6.5). */

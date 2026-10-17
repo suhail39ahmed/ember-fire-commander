@@ -104,6 +104,19 @@ export function IncidentDetailPage() {
         }
       }}
       photoUrl={(id, observationId) => api.getPhotoUrl(id, observationId)}
+      assist={{
+        suggest: async () => {
+          const result = await api.suggestIncident(incidentId)
+          await refresh()
+          return result
+        },
+        ask: (question, volunteerId) => api.askIncident(incidentId, question, volunteerId),
+        translate: async (observationId) => {
+          const result = await api.translateObservation(incidentId, observationId)
+          await refresh()
+          return result
+        },
+      }}
       extinguish={async () => {
         try {
           const result = await api.extinguishIncident(incidentId)
