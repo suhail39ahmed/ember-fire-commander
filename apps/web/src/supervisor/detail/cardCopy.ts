@@ -18,8 +18,9 @@ export const cardCopy = {
 
 export const summaryCopy = {
   title: { id: 'RINGKASAN', en: 'SUMMARY' },
+  titleModel: { id: 'RINGKASAN AI', en: 'AI SUMMARY' },
   note: { id: 'bersifat saran · bukan tingkat insiden', en: 'advisory · not the incident severity' },
-  model: { id: 'ditulis ulang model', en: 'reworded by a model' },
+  model: { id: 'ditulis ulang AI', en: 'reworded by AI' },
   template: { id: 'templat dari fakta', en: 'template from the facts' },
 } as const
 

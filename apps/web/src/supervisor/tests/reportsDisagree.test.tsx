@@ -135,7 +135,7 @@ describe('reports disagree: the proposals', () => {
     expect(html.match(/<li class="prop /g)).toHaveLength(3)
     expect(html).toContain('VERIFY · PROPOSED · DEDI')
     expect(html).toContain('VERIFY · PROPOSED · SARI')
-    expect(html).toContain('DISPATCH · PROPOSED · DEDI')
+    expect(html).toContain('DISPATCH · AI SUGGESTED · DEDI')
     expect(html.match(/>Edit<\/button>/g)).toHaveLength(3)
     expect(html.match(/>Reject<\/button>/g)).toHaveLength(3)
     expect(html.match(/>Approve<\/button>/g)).toHaveLength(3)

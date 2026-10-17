@@ -125,9 +125,21 @@ describe('suggestions on the incident detail', () => {
     const html = renderToStaticMarkup(<IncidentSuggestions lang="en" suggestions={stored} assist={assist} offline={false} />)
     expect(html).toContain('Ask Sari for a photo.')
     expect(html).toContain('Why: No photo is stored.')
-    expect(html).toContain('from the model')
-    expect(html).toContain('Refresh suggestions')
+    expect(html).toContain('from AI')
+    expect(html).toContain('Refresh AI suggestions')
     expect(html).toContain('A suggestion sends nothing.')
+  })
+
+  it('keeps the AI SUGGESTED heading without the side note, in both languages', () => {
+    const en = renderToStaticMarkup(<IncidentSuggestions lang="en" suggestions={stored} assist={assist} offline={false} />)
+    expect(en).toContain('AI SUGGESTED')
+    expect(en).not.toContain('advice only, people decide')
+    expect(en).not.toContain('written by AI from stored data')
+    expect(en).not.toContain('inc-h2-note')
+    const id = renderToStaticMarkup(<IncidentSuggestions lang="id" suggestions={stored} assist={assist} offline={false} />)
+    expect(id).toContain('SARAN AI')
+    expect(id).not.toContain('hanya saran, orang yang memutuskan')
+    expect(id).not.toContain('inc-h2-note')
   })
 
   it('says when they come from the plain rule list', () => {
@@ -138,7 +150,7 @@ describe('suggestions on the incident detail', () => {
   it('offers to make the first ones and says nothing is made yet', () => {
     const html = renderToStaticMarkup(<IncidentSuggestions lang="en" suggestions={null} assist={assist} offline={false} />)
     expect(html).toContain('No suggestions have been made for this incident yet.')
-    expect(html).toContain('Make suggestions')
+    expect(html).toContain('Make AI suggestions')
   })
 
   it('says the data does not support one rather than showing an empty list', () => {
@@ -147,7 +159,7 @@ describe('suggestions on the incident detail', () => {
   })
 
   it('turns the button off while offline', () => {
-    expect(renderToStaticMarkup(<IncidentSuggestions lang="en" suggestions={null} assist={assist} offline />)).toMatch(/<button[^>]*disabled=""[^>]*>Make suggestions/)
+    expect(renderToStaticMarkup(<IncidentSuggestions lang="en" suggestions={null} assist={assist} offline />)).toMatch(/<button[^>]*disabled=""[^>]*>Make AI suggestions/)
   })
 
   it('is part of the detail only when ember-api provides the calls', () => {

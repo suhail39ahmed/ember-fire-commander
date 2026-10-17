@@ -50,6 +50,7 @@ export const photoCopy = {
   loading: { id: 'Memuat foto…', en: 'Loading photo…' },
   failed: { id: 'Foto tidak bisa dibaca sekarang.', en: 'The photo cannot be read right now.' },
   alt: { id: 'Foto dari relawan', en: 'Photo from the volunteer' },
+  open: { id: 'Buka foto lebih besar', en: 'Open photo larger' },
   note: {
     id: 'Foto dibuka lewat tautan baca singkat yang hanya bisa dibuat supervisor.',
     en: 'Photos open through a short-lived read link that only a supervisor can request.',
@@ -81,7 +82,7 @@ export const answerCopy = {
 
 /** What the advisory photo read says under a snapshot. Bahasa is DRAFT. It describes the picture and states no severity. */
 export const visionCopy = {
-  title: { id: 'Bacaan foto (saran)', en: 'Photo read (advisory)' },
+  title: { id: 'Cek foto AI', en: 'AI photo check' },
   note: { id: 'Menggambarkan foto, bukan tingkat insiden.', en: 'Describes the picture, not the incident severity.' },
   smoke: { id: 'asap terlihat', en: 'smoke visible' },
   noSmoke: { id: 'tidak ada asap', en: 'no smoke' },

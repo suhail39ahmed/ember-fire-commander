@@ -11,6 +11,7 @@ export const disagreeCopy = {
   original: { id: 'LAPORAN ASLI · TIDAK DIUBAH', en: 'ORIGINAL REPORT · UNCHANGED' },
   proposals: { id: 'Usulan', en: 'Proposals' },
   proposedWord: { id: 'USULAN', en: 'PROPOSED' },
+  aiProposedWord: { id: 'SARAN AI', en: 'AI SUGGESTED' },
   heldLine: { id: '409 · Dispatch tidak bisa disetujui selama laporan berbeda', en: '409 · Can’t approve dispatch while reports disagree' },
   factorsTitle: { id: 'Mengapa bukti bernilai', en: 'Why evidence is' },
   factorsEmpty: { id: 'Belum ada rincian bukti dari ember-api.', en: 'ember-api has not sent the evidence factors.' },
@@ -28,17 +29,6 @@ export const disagreeCopy = {
     id: 'Agen belum mencatat usulan dispatch (investigasi) untuk insiden ini.',
     en: 'The agents have not recorded a dispatch (investigate) proposal for this incident.',
   },
-} as const
-
-/** Copy for "Agency in charge" on the incident detail. Bahasa is a draft that needs native-speaker review. */
-export const agencyCopy = {
-  title: { id: 'Instansi penanggung jawab', en: 'Agency in charge' },
-  notRecorded: { id: 'Belum tercatat', en: 'Not recorded' },
-  emptyBody: {
-    id: 'Belum ada instansi yang tercatat sebagai penanggung jawab insiden ini.',
-    en: 'No agency has been recorded as in charge of this incident.',
-  },
-  yours: { id: 'Instansi Anda (dari profil)', en: 'Your agency (from your profile)' },
 } as const
 
 export const factorName = {

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { StaticRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
@@ -5,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import type { IncidentDetail, Observation } from '../contracts'
 import { fixture } from '../fixtures'
 import type { IncidentActions } from '../IncidentView'
-import { ExpandedVolunteerView } from '../detail/ExpandedVolunteerView'
+import { AskThread, ExpandedVolunteerView, ProposalCard, type ChatEntry } from '../detail/ExpandedVolunteerView'
 import { IncidentDetailView } from '../detail/IncidentDetailView'
 import { expandedCopy } from '../detail/expandedCopy'
 import type { AssistActions } from '../detail/assistModel'
@@ -152,9 +154,13 @@ describe('expanded view: left pane — field regions', () => {
     expect(html).toContain(expandedCopy.noSnapshots.en)
   })
 
-  it('lists sent instructions with heard/done status', () => {
-    const html = expanded(fixture('conflict'), 'uid_sari')
-    expect(html).toContain('Verify')
+  it('lists sent instructions on one line each with a status', () => {
+    const d = fixture('conflict')
+    const mine = d.tasks.find((task) => task.volunteerId === 'uid_sari')!
+    const html = expanded({ ...d, tasks: d.tasks.map((task) => (task.id === mine.id ? { ...task, sentAt: '2026-10-17T03:05:00Z', heardAt: '2026-10-17T03:06:00Z' } : task)) }, 'uid_sari')
+    expect(html).toContain('exp-sent-line')
+    expect(html).toContain(mine.instruction as string)
+    expect(html).toContain(`${expandedCopy.heard.en} ✓`)
   })
 
   it('says no instructions when none are stored', () => {
@@ -175,6 +181,38 @@ describe('expanded view: left pane — field regions', () => {
   })
 })
 
+describe('expanded view: AI labels', () => {
+  it('names the model on every place its output shows', () => {
+    const detail = { ...withPhoto(fixture('conflict')), photoReads: { obs_photo: { smokeVisible: true, flameVisible: 'small', burnScarVisible: false, notes: null, at: null } } }
+    const html = expanded(detail, 'uid_sari', 'en', true)
+    expect(html).toContain('AI read the frame · check it yourself')
+    expect(html).toContain('AI photo check')
+    expect(expanded(withTranslation(fixture('conflict')), 'uid_sari')).toContain('AI translation')
+    expect(html).toContain('Ask EMBER AI about Sari')
+    expect(html).toContain('Asks before it sends')
+    expect(renderToStaticMarkup(<ProposalCard lang="en" name="Sari" draft="x" offline={false} onSendOnly={async () => undefined} />)).toContain('AI draft')
+  })
+
+  it('labels a model reply with an AI chip and the supervisor question with none', () => {
+    expect(expandedCopy.ember.en).toBe('AI')
+    expect(expandedCopy.you.en).toBe('You')
+  })
+})
+
+describe('expanded view: snapshots are a row of small thumbnails', () => {
+  it('lays the saved snapshots out four across, each with a time and the volunteer name under it', () => {
+    const d = withPhoto(fixture('conflict'))
+    const html = expanded(d, 'uid_sari')
+    expect(html).toContain('class="exp-snaps"')
+    expect(html).toContain('class="exp-snap-thumb"')
+    expect(html).not.toContain('pop-snap-img')
+    expect(html).toMatch(/<span class="exp-snap-cap">[^<]*· Sari<\/span>/)
+    const css = readFileSync(resolve(__dirname, '../detail/expanded.css'), 'utf8')
+    expect(css).toMatch(/\.exp-snaps \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/)
+    expect(css).toMatch(/\.exp-snap \.exp-snap-thumb \{[^}]*aspect-ratio: 16 \/ 9[^}]*object-fit: cover/)
+  })
+})
+
 describe('expanded view: right pane — Ask EMBER', () => {
   it('shows the chat thread region', () => {
     const html = expanded(fixture('conflict'), 'uid_sari')
@@ -190,36 +228,83 @@ describe('expanded view: right pane — Ask EMBER', () => {
 
   it('shows the Ask input when assist is provided', () => {
     const html = expanded(fixture('conflict'), 'uid_sari', 'en', true)
-    expect(html).toMatch(/<input[^>]*aria-label="Ask EMBER about this volunteer…"/)
+    expect(html).toMatch(/<input[^>]*aria-label="Ask EMBER AI about this volunteer…"/)
   })
 
-  it('shows the proposal card with placeholder when no answer yet', () => {
+  it('shows one hint line, not a card, while there is no draft', () => {
     const html = expanded(fixture('conflict'), 'uid_sari', 'en', true)
-    expect(html).toContain(expandedCopy.proposalTitle.en)
     expect(html).toContain(expandedCopy.proposalEmpty.en)
+    expect(html).toContain('exp-proposal-hint')
+    expect(html).not.toContain('class="exp-proposal"')
+    expect(html).not.toContain(expandedCopy.proposalTitle.en)
+    expect(html).not.toContain(expandedCopy.sendBoth.en)
+    expect(html).not.toContain(`${expandedCopy.sendOnly.en} Sari`)
   })
 
-  it('has "Send both now" and "Only to Sari" buttons', () => {
-    const html = expanded(fixture('conflict'), 'uid_sari', 'en', true)
+  it('shows the draft card with both choices once a draft exists', () => {
+    const html = renderToStaticMarkup(<ProposalCard lang="en" name="Sari" draft="Hold the north side." offline={false} onSendOnly={async () => undefined} />)
+    expect(html).toContain('class="exp-proposal"')
+    expect(html).toContain('AI draft')
+    expect(html).toContain(expandedCopy.proposalTitle.en)
+    expect(html).toContain('Hold the north side.')
     expect(html).toContain(expandedCopy.sendBoth.en)
     expect(html).toContain(`${expandedCopy.sendOnly.en} Sari`)
+    expect(html).not.toContain('exp-proposal-hint')
   })
 
   it('"Send both now" is always disabled — no route yet for first pickup', () => {
-    const html = expanded(fixture('conflict'), 'uid_sari', 'en', true)
+    const html = renderToStaticMarkup(<ProposalCard lang="en" name="Sari" draft="Hold the north side." offline={false} onSendOnly={async () => undefined} />)
     const match = html.match(new RegExp(`<button[^>]*>${expandedCopy.sendBoth.en}</button>`))
     expect(match?.[0]).toMatch(/disabled=""/)
   })
 
-  it('"Only to Sari" is disabled when there is no draft yet', () => {
-    const html = expanded(fixture('conflict'), 'uid_sari', 'en', true)
-    const match = html.match(new RegExp(`<button[^>]*>${expandedCopy.sendOnly.en} Sari</button>`))
-    expect(match?.[0]).toMatch(/disabled=""/)
+  it('"Only to Sari" is enabled with a draft and disabled offline', () => {
+    const live = renderToStaticMarkup(<ProposalCard lang="en" name="Sari" draft="Hold the north side." offline={false} onSendOnly={async () => undefined} />)
+    expect(live.match(new RegExp(`<button[^>]*>${expandedCopy.sendOnly.en} Sari</button>`))?.[0]).not.toMatch(/disabled=""/)
+    const off = renderToStaticMarkup(<ProposalCard lang="en" name="Sari" draft="Hold the north side." offline onSendOnly={async () => undefined} />)
+    expect(off.match(new RegExp(`<button[^>]*>${expandedCopy.sendOnly.en} Sari</button>`))?.[0]).toMatch(/disabled=""/)
   })
 
-  it('states WITHDRAW is never held up by this chat', () => {
+  it('states WITHDRAW is never held up by this chat, once', () => {
     const html = expanded(fixture('conflict'), 'uid_sari')
-    expect(html).toContain(expandedCopy.withdrawRule.en)
+    expect(html.split(expandedCopy.withdrawRule.en).length - 1).toBe(1)
+  })
+
+  it('does not repeat the WITHDRAW line when a draft card is showing', () => {
+    const card = renderToStaticMarkup(<ProposalCard lang="en" name="Sari" draft="Hold the north side." offline={false} onSendOnly={async () => undefined} />)
+    expect(card).not.toContain('WITHDRAW')
+  })
+
+  describe('Ask thread layout', () => {
+    const entry = (id: number): ChatEntry => ({ id, question: `Question ${id}`, answer: { answer: `Answer ${id}`, enoughData: true, at: '2026-10-17T03:10:00Z' } })
+    const css = readFileSync(resolve(__dirname, '../detail/expanded.css'), 'utf8')
+
+    it('renders no empty box while there are no messages, only a hint line', () => {
+      const html = renderToStaticMarkup(<AskThread lang="en" entries={[]} />)
+      expect(html).toContain(expandedCopy.chatNote.en)
+      expect(html).not.toContain('class="exp-thread"')
+    })
+
+    it('renders the thread column once there are messages', () => {
+      const html = renderToStaticMarkup(<AskThread lang="en" entries={[entry(0), entry(1), entry(2)]} />)
+      expect(html).toContain('class="exp-thread"')
+      expect(html).toContain('Question 2')
+      expect(html).toContain('Answer 2')
+      expect(html).toContain('2 earlier messages')
+      expect(html).not.toContain(expandedCopy.chatNote.en)
+    })
+
+    it('sizes the thread by its content and scrolls it when it overflows', () => {
+      const rule = css.match(/\.exp-thread \{[^}]*\}/)?.[0] ?? ''
+      expect(rule).toMatch(/flex:\s*1 1 auto/)
+      expect(rule).toMatch(/min-height:\s*0/)
+      expect(rule).toMatch(/overflow-y:\s*auto/)
+      expect(rule).toMatch(/border:\s*1px solid/)
+      expect(rule).toMatch(/border-radius:\s*12px/)
+      const zone = css.match(/\.exp-thread-zone \{[^}]*\}/)?.[0] ?? ''
+      expect(zone).toMatch(/flex:\s*0 1 auto/)
+      expect(zone).toMatch(/max-height:\s*42vh/)
+    })
   })
 
   it('marks the WITHDRAW-sent volunteer and says the rule applies', () => {
