@@ -24,6 +24,10 @@ export const copy = {
       en: 'One safety agent for communities at both ends of the smoke.',
     },
   },
+  photoAlt: {
+    id: 'Petugas pemadam berseragam oranye menyemprotkan air di lereng yang berasap',
+    en: 'Firefighters in orange uniforms spraying water on a smoky hillside',
+  },
   footnote: { id: 'Demo simulasi · tanpa data relawan nyata', en: 'Simulated demo · no real volunteer data' },
   signIn: {
     volunteer: {

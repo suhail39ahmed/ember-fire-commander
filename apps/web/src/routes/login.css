@@ -303,6 +303,50 @@
   padding: 14px 16px;
 }
 
+/* Supervisor sign-in: a field photo fills the brand panel, with a dark overlay under the text. */
+.login-brand.has-photo {
+  position: relative;
+  overflow: hidden;
+  background: #1c1917;
+  color: #faf7f2;
+}
+
+.login-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+  z-index: 0;
+}
+
+.login-brand.has-photo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(to top, rgba(20, 18, 16, 0.92) 0%, rgba(20, 18, 16, 0.7) 38%, rgba(20, 18, 16, 0.2) 70%, rgba(20, 18, 16, 0.35) 100%);
+}
+
+.login-brand.has-photo > :not(.login-photo) {
+  position: relative;
+  z-index: 2;
+}
+
+.login-brand.has-photo .lockup,
+.login-brand.has-photo .tagline {
+  color: #faf7f2;
+}
+
+.login-brand.has-photo .eyebrow {
+  color: #f4a07a;
+}
+
+.login-brand.has-photo .footnote {
+  color: #d6cfc4;
+}
+
 @media (max-width: 800px) {
   .login-screen {
     grid-template-columns: 1fr;
