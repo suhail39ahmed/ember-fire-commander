@@ -163,7 +163,8 @@ describe('incident detail: default', () => {
     expect(html).toContain('>Approve<')
     expect(html).toContain('>Reject<')
     expect(html).toContain('Reports disagree')
-    expect(html).toContain('409 · Can’t approve dispatch while reports disagree')
+    // Approve is enabled upfront; the API returns 409 and OutcomeLine shows plain language.
+    expect(html).not.toContain('409 ·')
   })
 
   it('shows the withdraw banner and marks the volunteers it went to', () => {

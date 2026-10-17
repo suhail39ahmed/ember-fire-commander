@@ -141,29 +141,34 @@ describe('reports disagree: the proposals', () => {
     expect(html.match(/>Approve<\/button>/g)).toHaveLength(3)
   })
 
-  it('keeps Approve on the verify proposals and turns it off on the dispatch while the conflict is open', () => {
+  it('leaves Approve enabled on all proposals so ember-api returns its refusal directly', () => {
     const html = view()
     const rows = html.split('<li class="prop ').slice(1)
-    const dispatch = rows.find((r) => r.startsWith('investigate'))!
-    const verify = rows.filter((r) => r.startsWith('verify'))
-    expect(dispatch).toMatch(/<button[^>]*disabled=""[^>]*>Approve</)
-    for (const row of verify) expect(row).not.toMatch(/<button[^>]*disabled=""[^>]*>Approve</)
+    // No row pre-disables Approve; the API returns 409 and OutcomeLine shows it in plain language.
+    for (const row of rows) expect(row).not.toMatch(/<button[^>]*disabled=""[^>]*>Approve</)
   })
 
-  it('shows the 409 inline on the blocked dispatch only, as the frame prints it', () => {
-    const html = view()
+  it('shows the API refusal on the dispatch via OutcomeLine when ember-api returns 409', () => {
+    const outcome: Outcome = { kind: 'error', text: 'x', reason: 'held' }
+    const html = view({ actions: actions({ outcomes: { task_demo_investigate: outcome } }) })
     const rows = html.split('<li class="prop ').slice(1)
-    expect(rows.filter((r) => r.includes('409 · Can’t approve dispatch while reports disagree'))).toHaveLength(1)
-    expect(rows.find((r) => r.startsWith('investigate'))).toContain('409 · Can’t approve dispatch')
+    // Plain-language refusal appears under the blocked dispatch row only.
+    const investigateRow = rows.find((r) => r.startsWith('investigate'))!
+    expect(investigateRow).toContain('Dispatch can’t be approved while the reports disagree')
+    for (const row of rows.filter((r) => r.startsWith('verify'))) {
+      expect(row).not.toContain('Dispatch can’t be approved')
+    }
   })
 
-  it('offers Approve on the dispatch once the conflict is resolved', () => {
-    const detail = fixture('conflict')
-    detail.conflict!.status = 'resolved'
-    const html = view({ detail })
-    expect(html).not.toContain('409 ·')
+  it('Approve is always enabled regardless of conflict state; the API is the arbiter', () => {
+    const html = view()
     const dispatch = html.split('<li class="prop ').slice(1).find((r) => r.startsWith('investigate'))!
     expect(dispatch).not.toMatch(/<button[^>]*disabled=""[^>]*>Approve</)
+    const detail = fixture('conflict')
+    detail.conflict!.status = 'resolved'
+    const html2 = view({ detail })
+    const dispatch2 = html2.split('<li class="prop ').slice(1).find((r) => r.startsWith('investigate'))!
+    expect(dispatch2).not.toMatch(/<button[^>]*disabled=""[^>]*>Approve</)
   })
 
   it('does not offer decisions on a withdraw task, and keeps it in the instructions list', () => {
