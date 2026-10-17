@@ -92,7 +92,6 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
         onAudio: (b64) => pttRef.current?.sendAudio(b64),
         onError: (err) => void err, // non-fatal; the session can continue without audio
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   )
   const player = useMemo(() => new AudioPlayer(), [])
