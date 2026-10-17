@@ -5,7 +5,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    host: true
+    strictPort: true,
+    host: true,
+    allowedHosts:['0.0.0.0', '127.0.0.1', 'localhost']
   },
   build: {
     rollupOptions: {

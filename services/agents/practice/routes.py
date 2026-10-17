@@ -19,8 +19,6 @@ def practice():
         return jsonify({"error": {"code": "validation_error", "message": "Unknown lesson"}}), 400
     try:
         return jsonify(coach_module.coach({key: body.get(key) for key in ("message", "lang", "index", "lessonId")}))
-    except LookupError:
-        return jsonify({"error": {"code": "practice_grounding_unconfigured", "message": "Practice guidance is not configured"}}), 503
     except Exception:
         logger.warning("Practice coach unavailable", exc_info=True)
         return jsonify({"error": {"code": "practice_unavailable", "message": "Practice is unavailable"}}), 503

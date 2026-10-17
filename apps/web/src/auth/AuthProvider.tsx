@@ -115,6 +115,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await loadMe(next, setMe, setMessage, setStatus, true)
         }
       } catch (err) {
+        if (import.meta.env.DEV && err instanceof Error && /appCheck\//i.test(err.message)) {
+          console.error('App Check rejected Google sign-in. Register this browser\'s App Check debug token in Firebase Console → App Check → Apps → Manage debug tokens. See README.md for local setup.')
+        }
         setMessage(err instanceof Error ? err.message : 'Google sign-in failed')
       } finally {
         registeringRef.current = false

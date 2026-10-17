@@ -231,6 +231,10 @@ npm install && npm run dev                  # http://localhost:5173
 
 Values in `.env` (the Firebase web config, the reCAPTCHA site key, the restricted Maps browser key) are public by design, but are still kept out of Git. Server secrets live only in Secret Manager. For App Check on localhost, register a debug token in the Firebase console.
 
+For local Google sign-in, open the browser developer console and find the App Check debug token printed when the first account check runs. Register it under Firebase Console → App Check → Apps → the web app's menu → Manage debug tokens. To reuse a registered development token across ports or incognito sessions, set `VITE_FIREBASE_APPCHECK_DEBUG_TOKEN` in `apps/web/.env.local` and restart Vite. Treat this token as a secret and never commit it. This setting is only used in development.
+
+An unregistered debug token causes `appCheck/fetch-status-error` (HTTP 403). Because App Check initializes on the first API account check, the initial Google popup can work while subsequent sign-ins fail before opening a popup. Refreshing temporarily resets that initialization; registering the debug token fixes the configuration. Do not disable App Check enforcement to work around it. See the [Firebase debug-provider setup](https://firebase.google.com/docs/app-check/web/debug-provider).
+
 ## Roadmap
 
 - Native app (**React Native**) for reliable background GPS and audio

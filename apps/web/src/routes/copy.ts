@@ -76,6 +76,13 @@ export const copy = {
         title: { id: 'Tidak bisa masuk saat ini', en: "We couldn't sign you in" },
         body: { id: 'Periksa koneksi Anda lalu coba lagi.', en: 'Check your connection and try again.' },
       },
+      deviceVerification: {
+        title: { id: 'Kami tidak dapat memverifikasi perangkat ini', en: "We couldn't verify this device" },
+        body: {
+          id: 'Verifikasi keamanan gagal. Jika terus terjadi, beri tahu supervisor Anda.',
+          en: 'The security check failed. If this keeps happening, tell your supervisor.',
+        },
+      },
     },
     deviceNotVerified: {
       title: { id: 'Kami tidak dapat memverifikasi perangkat ini', en: "We couldn't verify this device" },
@@ -193,7 +200,9 @@ export function signInErrorText(message: string, lang: Lang): string {
 /** The volunteer sees a titled card, never the raw message: a pop-up error is mapped, anything else gets the generic one. */
 export function volunteerSignInError(message: string, lang: Lang): { title: string; body: string } {
   const text = copy.volunteer.signInError
-  const card = /popup-blocked/.test(message)
+  const card = /appCheck\//i.test(message)
+    ? text.deviceVerification
+    : /popup-blocked/.test(message)
     ? text.blocked
     : /popup-closed-by-user|cancelled-popup-request|user-cancelled/.test(message)
       ? text.cancelled

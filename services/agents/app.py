@@ -32,5 +32,6 @@ def healthz():
     }), 200
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', '8080'))
+    # Cloud Run supplies PORT; local agents use their own port by default.
+    port = int(os.getenv('PORT') or os.getenv('EMBER_AGENTS_PORT', '8082'))
     app.run(host='0.0.0.0', port=port)

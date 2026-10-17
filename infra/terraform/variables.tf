@@ -313,7 +313,7 @@ variable "training_video_url" {
 }
 
 variable "practice_search_datastore" {
-  description = "Fully qualified Vertex AI Search datastore containing services/agents/practice/guidance. Empty disables live practice."
+  description = "Optional Vertex AI Search datastore containing services/agents/practice/guidance. Empty uses the bundled authored guidance with Gemini."
   type        = string
   default     = ""
 }

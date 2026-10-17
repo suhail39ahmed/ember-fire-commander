@@ -129,6 +129,17 @@ describe('sign-in errors', () => {
     expect(html).not.toContain('auth/popup-closed-by-user')
   })
 
+  it('identifies an App Check rejection instead of suggesting a connection problem', () => {
+    state.status = 'signed-out'
+    state.message = 'AppCheck: Fetch server returned an HTTP error status. HTTP status: 403. (appCheck/fetch-status-error).'
+    const html = render()
+    expect(html).toContain('We couldn&#x27;t verify this device')
+    expect(html).toContain('The security check failed.')
+    expect(html).not.toContain('Check your connection')
+    expect(html).not.toContain('appCheck/fetch-status-error')
+    expect(volunteerSignInError(state.message, 'id').title).toBe('Kami tidak dapat memverifikasi perangkat ini')
+  })
+
   it('never prints a raw failure message to the volunteer', () => {
     state.status = 'signed-out'
     state.message = 'HTTP 500'
