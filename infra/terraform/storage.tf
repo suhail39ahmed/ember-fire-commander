@@ -27,13 +27,25 @@ resource "google_storage_bucket" "photos" {
     }
   }
 
-  # INTENDED CHANGE: not live yet. Needed so the PWA can PUT photos to
-  # signed URLs from the browser.
+  # INTENDED CHANGE: not live yet. Needed so the PWA can PUT photos and
+  # video clips to signed URLs from the browser.
   cors {
     origin          = local.photo_origins
     method          = ["PUT"]
     response_header = ["Content-Type"]
     max_age_seconds = 3600
+  }
+
+  # Videos keep a shorter lifecycle than photos because clips are evidence aids,
+  # not the primary record. Adjust var.video_retention_days as needed (default 7).
+  lifecycle_rule {
+    condition {
+      age            = var.video_retention_days
+      matches_prefix = ["videos/"]
+    }
+    action {
+      type = "Delete"
+    }
   }
 
   depends_on = [time_sleep.wait_for_apis]

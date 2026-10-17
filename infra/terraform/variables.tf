@@ -119,6 +119,12 @@ variable "photo_retention_days" {
   default     = 14
 }
 
+variable "video_retention_days" {
+  description = "Delete video clip objects (videos/ prefix) older than this many days. Clips are short evidence aids; 7 days is the default."
+  type        = number
+  default     = 7
+}
+
 variable "photo_cors_origins" {
   description = "Origins allowed to PUT photos via signed URLs. Empty = http://localhost:5173 plus the default Firebase Hosting domains."
   type        = list(string)
