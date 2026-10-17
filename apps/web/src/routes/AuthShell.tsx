@@ -17,10 +17,15 @@ function Shield() {
   )
 }
 
+/** The supervisor sign-in's field photo, served from /public. If it cannot load, the plain panel shows instead. */
+export const LOGIN_PHOTO = '/brand/login-field.jpg'
+
 /** Two-pane frame for every signed-out screen: brand on one side, the card on the other. */
 export function AuthShell({ audience, children }: { audience: 'volunteer' | 'supervisor' | 'general'; children: ReactNode }) {
   const { lang } = useLanguage()
   const [demoMode, setDemoMode] = useState(false)
+  const [photoFailed, setPhotoFailed] = useState(false)
+  const photo = audience === 'supervisor' && !photoFailed
 
   useEffect(() => {
     let cancelled = false
@@ -32,7 +37,16 @@ export function AuthShell({ audience, children }: { audience: 'volunteer' | 'sup
 
   return (
     <main className="login-screen">
-      <section className="login-brand">
+      <section className={photo ? 'login-brand has-photo' : 'login-brand'}>
+        {photo && (
+          <img
+            className="login-photo"
+            src={LOGIN_PHOTO}
+            alt={t(lang, copy.photoAlt)}
+            decoding="async"
+            onError={() => setPhotoFailed(true)}
+          />
+        )}
         <div className="login-brand-main">
           <div className="lockup"><Shield /> EMBER</div>
           <p className="eyebrow">{t(lang, copy.eyebrow[audience])}</p>

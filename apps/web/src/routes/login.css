@@ -39,6 +39,7 @@
 }
 
 .eyebrow {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   letter-spacing: 0.12em;
   font-size: 13px;
   font-weight: 700;
@@ -79,15 +80,15 @@
 }
 
 .login-card {
-  width: min(420px, 100%);
+  width: min(560px, 100%);
   background: #fff;
+  border: 1px solid #ddd6ca;
   border-radius: 20px;
   padding: 36px 32px;
-  box-shadow: 0 16px 48px rgba(20, 18, 16, 0.08);
 }
 
 .login-card h1 {
-  font-size: 28px;
+  font-size: 26px;
   line-height: 1.2;
   margin-bottom: 10px;
   font-weight: 750;
@@ -164,6 +165,17 @@
 
 .note {
   color: #6b645c;
+}
+
+.note:not(.waiting)::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #c23b1a;
+  vertical-align: 2px;
 }
 
 .note.waiting {
@@ -289,6 +301,50 @@
   background: transparent;
   color: #1c1917;
   padding: 14px 16px;
+}
+
+/* Supervisor sign-in: a field photo fills the brand panel, with a dark overlay under the text. */
+.login-brand.has-photo {
+  position: relative;
+  overflow: hidden;
+  background: #1c1917;
+  color: #faf7f2;
+}
+
+.login-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+  z-index: 0;
+}
+
+.login-brand.has-photo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(to top, rgba(20, 18, 16, 0.92) 0%, rgba(20, 18, 16, 0.7) 38%, rgba(20, 18, 16, 0.2) 70%, rgba(20, 18, 16, 0.35) 100%);
+}
+
+.login-brand.has-photo > :not(.login-photo) {
+  position: relative;
+  z-index: 2;
+}
+
+.login-brand.has-photo .lockup,
+.login-brand.has-photo .tagline {
+  color: #faf7f2;
+}
+
+.login-brand.has-photo .eyebrow {
+  color: #f4a07a;
+}
+
+.login-brand.has-photo .footnote {
+  color: #d6cfc4;
 }
 
 @media (max-width: 800px) {

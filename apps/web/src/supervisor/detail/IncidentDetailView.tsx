@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { formatTimeZone } from '../../pwa/formatTime'
+import { formatTime, formatTimeZone } from '../../pwa/formatTime'
 import { chipText } from '../../pwa/report/chips'
 import { t, type Lang } from '../../pwa/i18n'
 import { incidentLabel } from '../../pwa/incidentName'
@@ -38,7 +38,7 @@ import { elapsedSince, unconfirmed, withdrawState } from './withdrawState'
 import { countText, stateCopy } from './withdrawStateCopy'
 import { VolunteerPopup } from './VolunteerPopup'
 import { actionText, actorOf, subjectOf, summarySourceText, summaryText } from './cardModel'
-import { summaryCopy, timelineCopy } from './cardCopy'
+import { summaryCopy } from './cardCopy'
 import { HeardToast } from './HeardToast'
 import { heardEvents, needsClock, type HeardEvent } from './deliveryModel'
 import { sentText } from './withdrawModel'
@@ -321,9 +321,9 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
       {assist && <IncidentSuggestions lang={lang} suggestions={detail.suggestions} assist={assist} offline={offline} />}
 
       <section aria-labelledby="inc-field-title">
-        <h2 className="inc-h2" id="inc-field-title">
+        <h2 className="inc-h2 inc-h2-stack" id="inc-field-title">
           {t(lang, detailCopy.fieldTitle)}
-          <span className="inc-h2-note">{volunteers.length} · {t(lang, detailCopy.fieldNote)}</span>
+          <span className="inc-h2-mono">{volunteers.length} {t(lang, detailCopy.fieldSub)}</span>
         </h2>
         {volunteers.length === 0 ? (
           <p className="inc-muted">{t(lang, detailCopy.fieldEmpty)}</p>
@@ -362,7 +362,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
         )}
         {offline && <p className="inc-muted">{t(lang, detailCopy.offlineSend)}</p>}
         {paused && <p className="wd-paused">{t(lang, stateCopy.paused)}</p>}
-        <p className="inc-callout">{t(lang, detailCopy.withdrawRule)}</p>
+        <p className="inc-callout"><span className="inc-callout-dot" aria-hidden="true" />{t(lang, detailCopy.withdrawRule)}</p>
       </section>
       {popupId !== null && <VolunteerPopup lang={lang} detail={detail} volunteerId={popupId} onClose={() => setPopupId(null)} offline={offline} now={clock} onResend={resendTask} sendInstruction={sendInstruction} photoUrl={photoUrl} assist={assist} />}
       {toasts[0] && <HeardToast lang={lang} event={toasts[0]} name={nameOf(detail, toasts[0].volunteerId, lang)} onClose={dismiss} />}
@@ -436,7 +436,6 @@ function Rail({ lang, detail, queue, onSelect, mapsKey }: Pick<IncidentDetailVie
       )}
       <section className="inc-card" aria-labelledby="inc-timeline-title">
         <h2 className="inc-h2" id="inc-timeline-title">{t(lang, detailCopy.timeline)}</h2>
-        <p className="inc-muted">{history ? t(lang, timelineCopy.note) : t(lang, detailCopy.timelineNote)}</p>
         {detail && history ? (
           history.length === 0 ? (
             <p className="inc-muted">{t(lang, detailCopy.timelineEmpty)}</p>
@@ -444,15 +443,15 @@ function Rail({ lang, detail, queue, onSelect, mapsKey }: Pick<IncidentDetailVie
             <ol className="inc-timeline">
               {history.map((e) => (
                 <li key={`${e.kind}-${e.id}`}>
-                  <time dateTime={e.at}>{formatTimeZone(e.at)}</time>
+                  <time dateTime={e.at} title={formatTimeZone(e.at)}>{formatTime(e.at)}</time>
                   {e.kind === 'report' ? (
                     <span>
-                      {e.volunteerId ? nameOf(detail, e.volunteerId, lang) : '—'} · {e.chip ? chipText(e.chip, lang) : t(lang, severityName[e.severity ?? 'unknown'])}
+                      <span className="inc-actor">{e.volunteerId ? nameOf(detail, e.volunteerId, lang) : '—'}</span> · {e.chip ? chipText(e.chip, lang) : t(lang, severityName[e.severity ?? 'unknown'])}
                       {e.text ? ` · “${e.text}”` : ''}
                     </span>
                   ) : (
                     <span>
-                      {actorOf(detail, e, lang)} · {actionText(lang, e)}
+                      <span className="inc-actor">{actorOf(detail, e, lang)}</span> · {actionText(lang, e)}
                       {subjectOf(detail, e, lang) && ` · ${subjectOf(detail, e, lang)}`}
                     </span>
                   )}
@@ -466,9 +465,9 @@ function Rail({ lang, detail, queue, onSelect, mapsKey }: Pick<IncidentDetailVie
           <ol className="inc-timeline">
             {events.map((o) => (
               <li key={o.id}>
-                <time dateTime={o.capturedAt}>{formatTimeZone(o.capturedAt)}</time>
+                <time dateTime={o.capturedAt} title={formatTimeZone(o.capturedAt)}>{formatTime(o.capturedAt)}</time>
                 <span>
-                  {detail ? nameOf(detail, o.volunteerId, lang) : o.volunteerId} · {o.chip ? chipText(o.chip, lang) : t(lang, severityName[o.severity])}
+                  <span className="inc-actor">{detail ? nameOf(detail, o.volunteerId, lang) : o.volunteerId}</span> · {o.chip ? chipText(o.chip, lang) : t(lang, severityName[o.severity])}
                   {o.text ? ` · “${o.text}”` : ''}
                 </span>
               </li>

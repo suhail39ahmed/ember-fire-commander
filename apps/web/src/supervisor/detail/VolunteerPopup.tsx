@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 
-import { formatTimeZone } from '../../pwa/formatTime'
+import { formatTime, formatTimeZone } from '../../pwa/formatTime'
 import { chipText } from '../../pwa/report/chips'
 import { t, type Lang } from '../../pwa/i18n'
 import type { IncidentDetail, PhotoUrl, TaskDecision } from '../contracts'
@@ -14,10 +14,21 @@ import { instructionProblem, sendBlock, submitInstruction, type InstructionResul
 import { SnapshotImage } from './SnapshotImage'
 import { INSTRUCTION_MAX } from './withdrawModel'
 import { Modal } from './Modal'
+import { accuracyText } from './cardModel'
 import { answerLine, batteryText, languageText, networkText, popupFor, visionLine, type Popup } from './popupModel'
 import { popupCopy, popupNeeds } from './popupCopy'
 import { assistCopy } from './assistCopy'
 import './popup.css'
+
+const PROMPTS = [popupCopy.promptNext, popupCopy.promptRecap, popupCopy.promptAll] as const
+
+/** "32 m from the incident centre · 4G 64%": the facts stored for this volunteer, in the order the frame reads them. */
+function statusParts(popup: Popup): string[] {
+  const p = popup.profile
+  const net = networkText(p)
+  const battery = batteryText(p.device)
+  return [p.distance, [net, battery].filter(Boolean).join(' ') || null].filter((part): part is string => Boolean(part))
+}
 
 /** A region whose data no ember-api route returns yet. It says so, and says what is missing. */
 function Gap({ lang, need }: { lang: Lang; need?: { id: string; en: string } }) {
@@ -90,7 +101,7 @@ function Snapshots({ lang, popup, incidentId, photoUrl }: { lang: Lang; popup: P
           {popup.photos.map((o) => (
             <li key={o.id} className="pop-snap">
               <SnapshotImage lang={lang} observationId={o.id} load={(observationId) => photoUrl(incidentId, observationId)} />
-              <span>{formatTimeZone(o.capturedAt)} · {popup.profile.name}</span>
+              <span>{formatTime(o.capturedAt)} · {popup.profile.name.toUpperCase()}</span>
               {visionLine(lang, popup.photoReads[o.id]) && (
                 <p className="pop-line-text pop-vision">
                   <b>{t(lang, visionCopy.title)}</b> · {visionLine(lang, popup.photoReads[o.id])}
@@ -134,7 +145,7 @@ function Profile({ lang, popup }: { lang: Lang; popup: Popup }) {
     [t(lang, popupCopy.role), p.role ?? none],
     [t(lang, profileCopy.crew), p.crew ?? none],
     [t(lang, popupCopy.incident), p.incidentName ?? '—'],
-    [t(lang, popupCopy.position), p.position ? `${p.position}${p.accuracyM !== null ? ` · ±${p.accuracyM} m` : ''}` : none],
+    [t(lang, popupCopy.position), p.position ? [p.position, accuracyText(p.accuracyM)].filter(Boolean).join(' · ') : none],
     [t(lang, popupCopy.distance), p.distance ?? none],
     [t(lang, popupCopy.firstReport), p.firstReportAt ? formatTimeZone(p.firstReportAt) : none],
     [t(lang, popupCopy.lastReport), p.lastReportAt ? formatTimeZone(p.lastReportAt) : none],
@@ -145,10 +156,12 @@ function Profile({ lang, popup }: { lang: Lang; popup: Popup }) {
     [t(lang, popupCopy.lastHeard), p.lastHeardAt ? formatTimeZone(p.lastHeardAt) : none],
     [t(lang, profileCopy.device), p.pushReady === null ? none : t(lang, p.pushReady ? profileCopy.deviceYes : profileCopy.deviceNo)],
   ]
+  // A field nothing stored is left out, not drawn as a dash.
+  const known = rows.filter(([, value]) => value !== none)
   return (
     <Region title={t(lang, popupCopy.profile)}>
       <dl className="pop-profile">
-        {rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+        {known.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
       </dl>
       <p className="pop-gap">
         {p.device && p.device.at ? `${t(lang, profileCopy.deviceNote)} ${formatTimeZone(p.device.at)}` : t(lang, profileCopy.deviceNone)}
@@ -248,6 +261,11 @@ function Side({ lang, popup, detail, offline, send, assist }: { lang: Lang; popu
           <>
             <Gap lang={lang} need={popupNeeds.ask} />
             <p className="pop-muted">{t(lang, popupCopy.askGap)}</p>
+            <div className="pop-prompts">
+              {PROMPTS.map((label) => (
+                <button key={label.en} type="button" className="pop-btn" disabled>{t(lang, label)}</button>
+              ))}
+            </div>
             <input className="pop-input" disabled placeholder={t(lang, popupCopy.askPlaceholder)} aria-label={t(lang, popupCopy.askPlaceholder)} />
           </>
         )}
@@ -294,10 +312,11 @@ export function VolunteerPopup({ lang, detail, volunteerId, onClose, offline, no
   }
   const { profile } = popup
   return (
-    <Modal title={profile.name} onClose={onClose} wide>
+    <Modal title={profile.role ? `${profile.name} · ${profile.role}` : profile.name} onClose={onClose} wide closeLabel={t(lang, popupCopy.close)}>
       <p className="pop-sub">
         <span className="inc-avatar" aria-hidden="true">{profile.initials}</span>
-        {profile.incidentName}
+        {statusParts(popup).length > 0 && <span className="pop-status">{statusParts(popup).join(' · ')}</span>}
+        <span>{profile.incidentName}</span>
         {popup.withdrawn && <span className="inc-pill inc-pill-red">{t(lang, popupCopy.withdrawn)}</span>}
       </p>
       <div className="pop-grid">
