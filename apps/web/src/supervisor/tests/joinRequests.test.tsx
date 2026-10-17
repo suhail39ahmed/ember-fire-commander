@@ -9,6 +9,18 @@ import { ApprovalsView } from '../ApprovalsPage'
 import type { PendingJoinRequest } from '../contracts'
 import type { IncidentActions } from '../IncidentView'
 
+vi.mock('../../auth/AuthProvider', () => ({
+  useAuth: () => ({
+    status: 'ready',
+    user: null,
+    me: { id: 'uid_maya', displayName: 'Bu Maya', role: 'supervisor' as const },
+    message: null,
+    signIn: async () => undefined,
+    signOut: async () => undefined,
+    refreshMe: async () => undefined,
+  }),
+}))
+
 const actions: IncidentActions = {
   busyId: null,
   outcomes: {},

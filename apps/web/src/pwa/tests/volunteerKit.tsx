@@ -45,6 +45,9 @@ export function outboxHandle(over: Partial<OutboxHandle> = {}): OutboxHandle {
 export function volunteerValue(over: Partial<VolunteerValue> = {}): VolunteerValue {
   return {
     api: fakeApi(),
+    updateMe: () => undefined,
+    settingsSaving: false,
+    settingsError: false,
     me: { id: 'vol_1', displayName: 'Pak Dedi', role: 'volunteer', crewName: 'Regu Tohor' },
     volunteerId: 'vol_1',
     digest: digest(),

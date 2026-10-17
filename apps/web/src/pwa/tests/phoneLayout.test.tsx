@@ -96,18 +96,44 @@ describe('Home (#127)', () => {
 })
 
 describe('Profile (#152)', () => {
+  it('hides the header and top simulated badge on Profile only', () => {
+    const html = layout('/pwa/profile')
+    expect(html).not.toContain('vol-header')
+    expect(html).not.toContain('vol-simulated')
+    expect(layout('/pwa')).toContain('vol-header')
+  })
+
+  it('shows the API profile details and links training to Guide', () => {
+    const html = layout('/pwa/profile', { me: { id: 'one', displayName: 'Sari Putri', role: 'volunteer', crewName: 'Regu Tohor', roleLabel: 'Pump team', supervisorName: 'Maya', phoneMasked: '•••• 1234', trainingDone: 0, trainingTotal: 5, shareMyLocationWithCrew: false, demoMode: true } })
+    expect(html).toContain('>SP</span>')
+    expect(html).toContain('Regu Tohor · Pump team')
+    expect(html).toContain('Maya')
+    expect(html).toContain('•••• 1234')
+    expect(html).toMatch(/href="\/pwa\/guide"[^>]*>0 of 5 lessons/)
+    expect(html).toContain('aria-checked="false"')
+    expect(html).toContain('SIMULATED DEMO · PERSONAS ARE FICTIONAL')
+    expect(html).toContain('±10 m')
+  })
+
+  it('omits absent profile lines and the footer outside demo mode', () => {
+    const html = layout('/pwa/profile')
+    expect(html).not.toContain('Phone for SMS')
+    expect(html).not.toContain('>Training<')
+    expect(html).not.toContain('>Supervisor<')
+    expect(html).not.toContain('profile-demo')
+  })
   it('shows the name, the crew, the language switch, appearance, permissions and sign out', () => {
     const html = layout('/pwa/profile')
     expect(html).toContain('Pak Dedi')
     expect(html).toContain('data-testid="profile-crew">Regu Tohor')
-    expect(html).toContain('class="lang-toggle"')
+    expect(html).toContain('class="lang-menu"')
     expect(html).toContain('theme-switch')
     expect(html).toContain('data-testid="perm-location"')
     expect(html).toContain('Sign out')
   })
 
-  it('says no crew is set when /me has none', () => {
+  it('omits the crew when /me has none', () => {
     const html = layout('/pwa/profile', { me: { id: 'vol_1', displayName: 'Pak Dedi', role: 'volunteer' } })
-    expect(html).toContain('No crew set yet')
+    expect(html).not.toContain('data-testid="profile-crew"')
   })
 })

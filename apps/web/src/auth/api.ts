@@ -9,7 +9,17 @@ export interface Me {
   role: 'volunteer' | 'supervisor'
   /** The volunteer's crew, from GET /me. Absent or null when no crew is set. */
   crewName?: string | null
+  roleLabel?: string | null
+  supervisorName?: string | null
+  phoneMasked?: string | null
+  trainingDone?: number | null
+  trainingTotal?: number | null
+  language?: 'id' | 'en' | 'jv' | 'su' | 'ms' | null
+  shareMyLocationWithCrew?: boolean
+  demoMode?: boolean
 }
+
+export type MePatch = { language?: 'id' | 'en' | 'jv' | 'su' | 'ms'; shareMyLocationWithCrew?: boolean }
 
 export interface MeFailure {
   status: number

@@ -1,0 +1,25 @@
+.profile-screen { display: flex; flex-direction: column; gap: 16px; }
+.profile-title { font-size: 28px; line-height: 36px; font-weight: 700; margin: 0; }
+.profile-screen .card { border: 1px solid var(--line); border-radius: 18px; }
+.profile-identity { display: flex; align-items: center; gap: 12px; }
+.profile-identity > div { min-width: 0; }
+.profile-avatar { display: grid; place-items: center; width: 48px; height: 48px; flex: none; border-radius: 50%; background: var(--paper); font-weight: 600; }
+.profile-details { display: flex; flex-direction: column; gap: 12px; font-size: 13px; margin: 4px 0 0; }
+.profile-details:empty { display: none; }
+.profile-details > div { display: flex; justify-content: space-between; gap: 16px; }
+.profile-details dt { color: var(--ink-muted); flex: none; }
+.profile-details dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.profile-details a { color: var(--ember); }
+.profile-screen .profile-setting { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; min-height: 72px; box-sizing: border-box; text-align: left; }
+.profile-setting > div:first-child { min-width: 0; }
+.profile-screen .profile-setting h3 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+.profile-setting .theme-switch, .profile-setting .lang-menu { flex: none; }
+.profile-setting .theme-switch-option { padding: 0 10px; }
+.profile-switch { flex: none; width: 52px; height: 32px; border: 0; border-radius: 999px; background: var(--ink-muted); padding: 4px; cursor: pointer; }
+.profile-switch span { display: block; width: 24px; height: 24px; border-radius: 50%; background: #fff; }
+.profile-switch[aria-checked='true'] { background: var(--safe); }
+.profile-switch[aria-checked='true'] span { transform: translateX(20px); }
+.profile-switch:disabled { opacity: .65; cursor: wait; }
+.profile-screen .profile-signout { border-radius: 999px; background: var(--surface); }
+.profile-demo { color: var(--ink-muted); font: 10px/1.5 monospace; letter-spacing: .06em; }
+@media (max-width: 360px) { .profile-screen .profile-setting { flex-wrap: wrap; } }

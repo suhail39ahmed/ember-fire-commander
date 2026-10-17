@@ -4,9 +4,11 @@ import type { PermKey, PermState, Platform } from './permState'
 type Leaf = { readonly id: string; readonly en: string }
 
 export const permStrings = {
+  title: { id: 'Izin', en: 'Permissions' },
   asking: { id: 'Meminta…', en: 'Asking' },
   allowed: { id: '✓ Diizinkan', en: '✓ Allowed' },
   blocked: { id: 'Diblokir', en: 'Blocked' },
+  notAllowed: { id: 'Belum diizinkan', en: 'Not allowed' },
   notSupported: { id: 'Tidak didukung', en: 'Not supported' },
   /** Second line of each row, by permission and state. Denied rows show the steps instead. */
   hint: {

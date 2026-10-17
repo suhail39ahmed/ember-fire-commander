@@ -29,42 +29,40 @@ export function PermissionsPanel({
   onRequest,
   asking = {},
   platform,
+  accuracyM,
 }: {
   perms: Perms
   lang: Lang
   onRequest: (k: PermKey) => void
   asking?: Asking
   platform?: Platform
+  accuracyM?: number | null
 }) {
   const os = platform ?? detectPlatform()
-  const ready = PERM_KEYS.filter((k) => perms[k] === 'granted').length
-  const pushOff = perms.notifications === 'denied' || perms.notifications === 'unsupported'
-  const summary = t(lang, permStrings.summary(ready, PERM_KEYS.length)) + (pushOff ? ` · ${t(lang, permStrings.pushOff)}` : '')
 
   return (
-    <section className="card perms" aria-labelledby="perms-title">
-      <h3 id="perms-title" className="section-label">
-        {t(lang, strings.permissionsTitle)}
-      </h3>
+    <section className="perms" aria-labelledby="perms-title">
+      <div className="perms-heading"><h3 id="perms-title">
+        {t(lang, permStrings.title)}
+      </h3><span className="section-label">LIVE</span></div>
       <ul>
-        {PERM_KEYS.map((k) => {
+        {(['location', ...PERM_KEYS.filter((key) => key !== 'location')] as PermKey[]).map((k) => {
           const state = perms[k]
           const live = asking[k] && state !== 'granted' ? 'asking' : state
           const name = t(lang, strings[k])
           return (
             <li key={k} className={`perm perm-${live}`} data-testid={`perm-${k}`} data-state={live}>
+              {live === 'prompt' && <button type="button" className="perm-row-action" aria-label={t(lang, permStrings.allowLabel(name))} onClick={() => onRequest(k)} />}
               <PermIcon perm={k} />
               <span className="perm-text">
                 <span className="perm-name">{name}</span>
                 <span className="perm-hint" aria-live="polite">
-                  {t(lang, permHint(k, live, os))}
+                  {k === 'location' && live === 'granted' && accuracyM != null && Number.isFinite(accuracyM) && accuracyM >= 0 ? `±${Math.round(accuracyM)} m` : t(lang, permHint(k, live, os))}
                 </span>
               </span>
               <span className="perm-end">
                 {live === 'prompt' && (
-                  <button type="button" className="perm-btn" aria-label={t(lang, permStrings.allowLabel(name))} onClick={() => onRequest(k)}>
-                    {t(lang, strings.allow)}
-                  </button>
+                  <span className="perm-badge">{t(lang, permStrings.notAllowed)}</span>
                 )}
                 {live === 'asking' && (
                   <button type="button" className="perm-btn" disabled aria-busy="true">
@@ -80,9 +78,6 @@ export function PermissionsPanel({
           )
         })}
       </ul>
-      <p className="perms-summary" aria-live="polite">
-        {summary}
-      </p>
     </section>
   )
 }

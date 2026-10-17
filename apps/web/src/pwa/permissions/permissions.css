@@ -12,8 +12,16 @@
 .perm-badge { font-size: 12px; font-weight: 600; color: var(--ink-muted); white-space: nowrap; }
 .perm-granted .perm-badge { color: var(--safe); }
 .perm-granted .perm-icon { color: var(--safe); }
-.perm-denied { border-color: var(--danger); background: #fdf1f0; }
-.perm-denied .perm-icon, .perm-denied .perm-badge, .perm-denied .perm-hint { color: var(--danger); }
+.perm-denied, .perm-prompt, .perm-asking { border-color: var(--danger); }
+:is(.perm-denied, .perm-prompt, .perm-asking) :is(.perm-icon, .perm-badge, .perm-hint) { color: var(--danger); }
+.perm { position: relative; background: var(--surface, #fff); }
+.perm-row-action { position: absolute; inset: 0; width: 100%; height: 100%; background: transparent; border: 0; border-radius: inherit; cursor: pointer; }
+.perm-row-action:focus-visible { outline-offset: 3px; }
+.perm-denied { height: auto; min-height: 72px; padding-top: 12px; padding-bottom: 12px; }
+.perm-denied .perm-hint { display: block; overflow: visible; }
+.perms-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.perms-heading h3 { font-size: 18px; font-weight: 600; margin: 0; }
+.perms ul { gap: 16px; }
 .perm-unsupported { opacity: 0.7; }
 .perms-summary { font-size: 13px; color: var(--ink-muted); min-height: 2.8em; }
 @keyframes perm-spin { to { transform: rotate(360deg); } }
