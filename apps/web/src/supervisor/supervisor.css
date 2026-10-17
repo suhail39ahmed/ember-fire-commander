@@ -373,4 +373,11 @@
 .approvals-group { display: flex; flex-direction: column; gap: 8px; }
 .approvals-incident { margin: 0; font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
 .approvals-incident a { color: inherit; }
+.join-block { display: flex; flex-direction: column; gap: 6px; }
+.join-incident { margin: 0; font-size: 13px; color: var(--ink-muted); overflow-wrap: anywhere; }
+.join-incident a { color: inherit; }
+.join-label { display: block; margin-top: 10px; font-size: 13px; font-weight: 600; }
+.join-instruction { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 12px; font: inherit; min-height: 64px; resize: vertical; background: #fff; color: var(--ink); }
+.join-instruction:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+[data-theme='dark'] .join-instruction { background: var(--surface); color: var(--ink); }
 .dash-updated { margin: 0; font-size: 13px; color: var(--ink-muted); }

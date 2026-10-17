@@ -8,7 +8,7 @@ import { useLanguage } from '../language'
 import { FlagReportScreen } from '../screens/FlagReportScreen'
 import { GuideScreen } from '../screens/GuideScreen'
 import { HomeScreen } from '../screens/HomeScreen'
-import { JoinedScreen } from '../screens/JoinedScreen'
+import { ApprovedJoinedScreen, DirectJoinedScreen } from '../screens/JoinedScreen'
 import { PracticeScreen } from '../screens/PracticeScreen'
 import { IncidentDetailScreen } from '../screens/IncidentDetailScreen'
 import { IncidentsScreen } from '../screens/IncidentsScreen'
@@ -36,7 +36,7 @@ import { useVolunteer } from './volunteerContext'
 export function PhoneLayout() {
   const { lang } = useLanguage()
   const v = useVolunteer()
-  const { api, me, volunteerId, digest, digestStatus, lastSyncAt, refresh, outbox, mock } = v
+  const { api, me, volunteerId, digest, digestStatus, lastSyncAt, refresh, position, outbox, mock } = v
 
   const task = currentTask(digest)
   usePushNavigation()
@@ -73,13 +73,15 @@ export function PhoneLayout() {
                 api={api}
                 volunteerId={volunteerId}
                 onRefresh={refresh}
+                position={position}
               />
             }
           />
           <Route path="report" element={<ReportScreen />} />
-          <Route path="joined/:id" element={<JoinedScreen />} />
+          <Route path="joined/:id" element={<DirectJoinedScreen />} />
           <Route path="incidents" element={<IncidentsScreen />} />
           <Route path="incidents/:id" element={<IncidentDetailScreen />} />
+          <Route path="incidents/:id/joined" element={<ApprovedJoinedScreen />} />
           <Route path="incidents/:id/flag/:obsId" element={<FlagReportScreen />} />
           <Route path="task/:id" element={<TaskScreen />} />
           <Route path="task/:id/decline" element={<DeclineScreen />} />
@@ -104,6 +106,16 @@ export function PhoneLayout() {
             <button type="button" className="btn small" onClick={() => { mock.closeLead(); refresh() }}>
               Simulate lead closed
             </button>
+            {(digest?.myJoinRequests ?? []).filter((r) => r.status === 'pending').slice(0, 1).map((r) => (
+              <div key={r.incidentId} className="task-actions">
+                <button type="button" className="btn small" onClick={() => { mock.approveJoin(r.incidentId); refresh() }}>
+                  Supervisor approves join
+                </button>
+                <button type="button" className="btn small" onClick={() => { mock.declineJoin(r.incidentId); refresh() }}>
+                  Supervisor declines join
+                </button>
+              </div>
+            ))}
             <button type="button" className="btn small" onClick={() => mock.failNext('network')}>
               Fail next send (network)
             </button>

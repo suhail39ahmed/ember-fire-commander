@@ -39,11 +39,21 @@ describe('VolunteerHeader', () => {
     expect(render('id', null)).toContain('<strong>EMBER</strong>')
   })
 
-  it('uses the shared ID | EN toggle and marks the current language', () => {
+  it('uses the same language dropdown as the sign-in screen and shows the current language', () => {
     const en = render('en')
-    expect(en).toContain('class="lang-toggle"')
-    expect(en).toMatch(/aria-pressed="true"[^>]*>EN</)
-    expect(render('id')).toMatch(/aria-pressed="true"[^>]*>ID</)
+    expect(en).toContain('class="lang-menu"')
+    expect(en).toContain('aria-haspopup="menu"')
+    expect(en).toMatch(/class="lang-menu-button"[^>]*aria-label="Language: English"[^>]*>.*?>EN</)
+    expect(render('id')).toMatch(/aria-label="Bahasa: Bahasa Indonesia"/)
+    expect(en).not.toContain('lang-toggle')
+  })
+
+  it('keeps the dropdown closed until it is tapped', () => {
+    expect(render('en')).not.toContain('role="menu"')
+  })
+
+  it('shows the 32px emblem', () => {
+    expect(render('en')).toMatch(/<img src="\/brand\/ember-emblem.svg" alt="" width="32" height="32"\/>/)
   })
 
   it('does not carry the simulated badge, which would squeeze the toggle on a phone', () => {

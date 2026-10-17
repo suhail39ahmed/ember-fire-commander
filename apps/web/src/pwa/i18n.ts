@@ -3,20 +3,36 @@
  * Bahasa copy is DRAFT and needs native-speaker review before the demo.
  * Chip labels live in report/chips.ts. Only the labels change with the language; the values sent to the API do not.
  */
-/** Every language the UI can show. A new language is one more entry here and one more string per copy bundle. */
+/**
+ * Every language the volunteer can pick. `text` is the language whose copy is shown for it. Javanese,
+ * Sundanese and Malay have no translated copy yet, so they show English. When a copy bundle gains a
+ * translation, add the code to `Lang` and to the bundles, and point `text` at it.
+ */
 export const LANGUAGES = [
-  { code: 'id', short: 'ID', name: 'Bahasa Indonesia' },
-  { code: 'en', short: 'EN', name: 'English' },
+  { code: 'id', short: 'ID', name: 'Bahasa Indonesia', text: 'id' },
+  { code: 'en', short: 'EN', name: 'English', text: 'en' },
+  { code: 'jv', short: 'JV', name: 'Basa Jawa', text: 'en' },
+  { code: 'su', short: 'SU', name: 'Basa Sunda', text: 'en' },
+  { code: 'ms', short: 'MS', name: 'Bahasa Melayu', text: 'en' },
 ] as const
 
-export type Lang = (typeof LANGUAGES)[number]['code']
+/** A language the volunteer can choose. */
+export type LanguageCode = (typeof LANGUAGES)[number]['code']
+
+/** A language with a full copy bundle: every `{ id, en }` string is written in it. */
+export type Lang = 'id' | 'en'
 
 export const LANG_KEY = 'ember.lang'
 export const DEFAULT_LANG: Lang = 'id'
 
 /** Reads a stored language code; anything unknown falls back to the default. */
-export function parseLang(value: string | null | undefined): Lang {
+export function parseLang(value: string | null | undefined): LanguageCode {
   return LANGUAGES.find((language) => language.code === value)?.code ?? DEFAULT_LANG
+}
+
+/** The copy language shown for a chosen language. */
+export function textLang(code: LanguageCode): Lang {
+  return LANGUAGES.find((language) => language.code === code)?.text ?? DEFAULT_LANG
 }
 
 const strings = {

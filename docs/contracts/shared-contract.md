@@ -300,6 +300,9 @@ The display fields never carry a raw id. `actorName` is the stored `actorName`, 
 | `task.decline` | A volunteer said Can't do it (§6.11). `targetId` is the task id |
 | `withdraw.answer` | A volunteer answered an active withdraw (§6.11). `targetId` is the incident id, `subjectId` the volunteer |
 | `observation.flag` | A volunteer flagged someone else's report as wrong (§6.11). `targetId` is the observation id |
+| `join.request` | A volunteer asked to join an incident (§6.12). `actorId` and `subjectId` are the volunteer, `targetId` the incident id |
+| `join.approve` | A supervisor added the requesting volunteer (§6.12). `targetId` is the join request id, `subjectId` the volunteer. The same commit also writes `task.instruct` for the first task |
+| `join.decline` | A supervisor declined a join request (§6.12). `targetId` is the join request id, `subjectId` the volunteer |
 | `task.withdraw` | Code or a supervisor issued a withdraw instruction. `targetId` is the incident id. Code writes one per intake that adds a volunteer or a reason |
 | `incident.verify` | A supervisor verified the incident |
 | `incident.extinguish` | A supervisor extinguished the incident |
@@ -323,22 +326,23 @@ One current picture for Live context, REST polling, and the `digest` WebSocket m
 | `updatedAt` | string | |
 | `incidents` | incident summary[] | `id`, `name`, `area`, `status`, `severity`, `withdraw`, `lat`, `lng`. No `evidenceScore` and no `conflictId` |
 | `myTasks` | task[] | Every task whose `volunteerId` is the caller, in any status (`proposed`, `approved`, `rejected`). Empty for a supervisor |
-| `nearby` | nearby incident[] | Volunteer only. Live incidents (`open`, `held`, `verified`) within `EMBER_NEARBY_RADIUS_M` (default 5000 m) that the caller is not already on. Empty when the request has no usable `lat`/`lng` query pair, and omitted on a supervisor digest. Sorted by `distanceM`, then `id` |
+| `nearby` | nearby incident[] | Volunteer only. Live incidents (`open`, `held`, `verified`) within `EMBER_NEARBY_RADIUS_M` (default 5000 m) that the caller is not already linked to by a task, report, withdraw, or membership. Empty when the request has no position, and omitted on a supervisor digest. Sorted by `distanceM`, then `id` |
 | `sentToday` | sent report[], optional | Volunteer only, and only when the request carries `sentSince` (§6.4). The caller's own reports since that time, oldest first, at most 50 |
 | `seasonStats` | object, optional | Volunteer only. `{ checksDone, falseAlarmsCleared }` counts of this volunteer's `verify` tasks and those with `closedAt`. Omitted when the volunteer has no `verify` task |
+| `myJoinRequests` | join request summary[] | **Volunteer only, REST only.** The caller's own join requests (§6.12): `incidentId`, `status`, `createdAt`. Absent for a supervisor |
 
-Each nearby row is an incident summary plus:
+Each nearby row is an incident summary plus `distanceM` (straight-line metres from the phone), `bearingDeg` (0 to 359, compass bearing from the phone to the incident), `crewOnSite` (distinct volunteers with a report or an approved task on it) and `reporterName` (the first reporter's display name, or `null`). It is listed when its status is `open`, `held` or `verified`, the caller is not linked to it, and it is within `EMBER_NEARBY_RADIUS_M` (default 5000 m). The list is nearest first and holds at most 5. **Not returned, because no service stores a source:** wind at the incident and what a supervisor asked for. The phone's position comes from the request (§6.4) and is never stored.
+
+The digest is built on request. A volunteer receives every incident, in any status including `extinguished`, that has one of their tasks, lists them in `withdraw.volunteerIds`, has one of their observations in its `observationIds` or one of its conflicts, or has an `incident_members` row for them (§5.7). A supervisor receives incidents whose status is `open`, `held`, or `verified`. Both lists are sorted by `id`, which is not chronological.
 
 | Field | Type | Notes |
 |---|---|---|
 | `distanceM` | number | Straight-line metres from the phone's `lat`/`lng` to the incident |
-| `bearingDeg` | number or null | Initial bearing from the phone to the incident, 0 = north |
-| `crewOnSite` | number | Distinct volunteers linked by a join, a task, or a report on that incident |
-| `ask` | string or null | What the supervisor asked for. `null` until a stored field exists; the phone omits the line |
+| `bearingDeg` | number | Initial bearing from the phone to the incident, 0 = north |
+| `crewOnSite` | number | Distinct volunteers with a report or an approved task on the incident |
+| `reporterName` | string or null | Display name of the first reporter, or `null` |
 
 Each `sentToday` row is `{ id, capturedAt, receivedAt, source, chip, text, accuracyM, join }`, plus `clientId` when the report had one. `join` is the object in §6.2, or `null` when agents have not placed the report (or the join could not be read). The phone matches a row to its own report by `capturedAt`, because its outbox does not keep the create response.
-
-The digest is built on request. A volunteer receives every incident, in any status including `extinguished`, that has one of their tasks, lists them in `withdraw.volunteerIds`, has one of their observations in its `observationIds`, has one of their observations in one of its conflicts, or has an `incident_members` join for them (§5.7). A supervisor receives incidents whose status is `open`, `held`, or `verified`. Both lists are sorted by `id`, which is not chronological.
 
 `ember-api` (`GET /digest`) and `voice-gateway` (the `digest` message and the Live tools) build the digest with separate code (`services/api/incidents/routes.py`, `services/voice-gateway/live/digest.py`) that follows the same rules.
 
@@ -436,6 +440,19 @@ Written by `ember-api` (`POST /observations/{id}/flag`, §6.11). One document pe
 | `reason` | string | `no_fire`, `duplicate`, `old_photo`, `wrong_place` or `fake` |
 | `photoPath` | string or null | A path issued to the flagging volunteer by `/photos/upload-url`, or `null` |
 | `at` | string | |
+
+#### `joinRequests`
+
+Written by `ember-api` (`POST /incidents/{id}/join-requests`, §6.12). One document per volunteer and incident, with `{incidentId}__{volunteerId}` as the document id, so a repeat request is the same document. The supervisor routes in §6.12 read and decide it.
+
+| Field | Type | Notes |
+|---|---|---|
+| `incidentId`, `volunteerId` | string | |
+| `volunteerName` | string or null | The display name on the volunteer's token when they asked |
+| `status` | string | `pending`, `approved` or `declined` |
+| `createdAt` | string | |
+| `decidedAt`, `decidedBy` | string or null | When a supervisor decided it, and which supervisor |
+| `taskId` | string or null | The `instruct` task an approval created |
 
 #### `incident_summaries`
 
@@ -862,6 +879,8 @@ Returns the §5.6 digest for the caller. The two web apps poll `GET /digest` (vo
 
 Optional query `sentSince`: an ISO-8601 time with a zone (for example the phone's local start of day, URL-encoded). A volunteer's digest then adds `sentToday` (§5.6), the caller's reports received or captured since that time. A value that is missing, unreadable, has no zone or lies in the future means the last 24 hours, and a value more than 48 hours back is held to 48 hours. A supervisor's digest ignores it. The list is built only when asked, and a failure to read it leaves the digest without the key rather than failing the digest.
 
+A volunteer's phone may add its position: `GET /digest?lat=1.48&lng=102.11`. `lat` is -90 to 90 and `lng` is -180 to 180, and they go together (`400` with `fields.lat` or `fields.lng` otherwise). With a position the volunteer's `nearby` list is filled (§5.6); without one it is `[]`. A supervisor's request ignores both. The position is used for this read only and is not stored.
+
 ### 6.5 Approval and human incident actions
 
 `GET /tasks?status=proposed` (supervisor only) lists the tasks waiting for a decision, sorted by `incidentId` and then `id`. `status=proposed` is the only filter: another value, or none, is `400` with `fields.status`. A volunteer is `403`. Each item is:
@@ -981,6 +1000,7 @@ Supervisor only. A volunteer receives `403 forbidden`. This is the summary the c
   "agency": "BPBD Kepulauan Meranti",
   "serverTime": "2026-10-16T07:46:00Z",
   "approvalsCount": 2,
+  "joinRequestsCount": 1,
   "updatedAt": "2026-10-16T07:46:00Z",
   "nextSatellitePass": null,
   "liveFires": [
@@ -1040,6 +1060,7 @@ Supervisor only. A volunteer receives `403 forbidden`. This is the summary the c
 | `agency` | string or null | `volunteers/{uid}.agency` for the caller, trimmed. `null` when the document is missing, the field is not a string, or the value is blank |
 | `serverTime` | string | Server time when the response is built. ISO-8601 UTC, the same format as stored timestamps |
 | `approvalsCount` | number | How many `tasks` have `status: proposed`. A task has no supervisor id, so this counts every proposed task, not one person's queue. `0` when none are waiting. The tasks themselves are not returned |
+| `joinRequestsCount` | number | How many `joinRequests` have `status: pending` (§6.12). Counted apart from `approvalsCount`, which stays equal to the `GET /tasks?status=proposed` list. The console adds the two for the Approvals badge. `0` when none are waiting |
 | `updatedAt` | string | Same instant as `serverTime`. The live banner shows it as the time this picture was built |
 | `nextSatellitePass` | null | No stored source. The banner shows the empty treatment. A pass time is not invented here |
 | `liveFires` | array | Incidents whose `status` is `open`, `held`, or `verified`, sorted by `id`. Extinguished incidents are omitted. `[]` when none are live |
@@ -1153,6 +1174,19 @@ Supervisor-only (a volunteer is `403`). Each route calls a private agents route 
 `question` is required, not blank, and at most 500 characters (`400` with `fields.question` otherwise). `volunteerId` is a non-blank string when sent. `404 not_found` for an unknown incident, for an observation that is not one of the incident's (or its conflict's) reports, and for a `volunteerId` that is not on the incident. `400` when the report has no text. When agents or the model is not available the answer is `502 agents_unavailable` (or `503` when `EMBER_AGENTS_URL` is empty) and nothing is stored. Suggestions are the one exception to "nothing stored on failure": when only the model fails, agents store the rule-based list and answer `200` with `source: template`. These routes make one model call each, with a 40 second limit, and are never called on a timer: the console calls them only when a supervisor asks.
 
 After `ember-api` stores a report it also starts model work for it on a background thread, which never delays or fails the report: a `photo` report is sent to the triage route (§8.1), and a report with text to the translate route. A failure is logged and leaves no record. `EMBER_ASSIST_BACKGROUND=off` turns these calls off (§11.1). Reports the voice gateway stores (`live`) are not sent; a supervisor can ask for their translation with the route above. Cloud Run is configured with `cpu_idle = true`, so CPU is only guaranteed during a request and the background call may finish late.
+
+### 6.12 Join requests
+
+A volunteer who sees a live fire near them (`nearby`, §5.6) can ask to join it. A supervisor decides. Approval adds the volunteer through the normal instruction path, so nothing else in the digest rules changes: the volunteer becomes part of the incident because they now have a task on it.
+
+| Route | Who | Body | Result |
+|---|---|---|---|
+| `POST /incidents/{id}/join-requests` | volunteer | none | Writes `joinRequests/{incidentId}__{volunteerId}` as `pending` and appends `join.request`. `201 { "joinRequest": {}, "auditId": "aud_01" }`. A repeat while still `pending` is `200` with the first request and `auditId: null`. `404` for an unknown incident. `409` when the incident is `extinguished`, when the caller already has a task, report or withdraw entry on it, or when the request was already `declined` |
+| `GET /join-requests?status=pending` | supervisor | none | `200` `[ { "request": {}, "incident": {}, "volunteerName": "Sari" } ]`, oldest first. `incident` is a summary or `null` if it is gone. `status` is required and only `pending` is accepted (`400` on `fields.status`) |
+| `POST /join-requests/{id}/approve` | supervisor | `{ "instruction": "Meet at the north gate" }` | `instruction` is required, at most 500 characters (`400` on `fields.instruction`). In one commit the request becomes `approved` (`decidedAt`, `decidedBy`, `taskId`), an `approved` `instruct` task is created for the volunteer and `join.approve` and `task.instruct` are appended. The push goes out after the commit like any other approved task. `200 { "joinRequest": {}, "task": {}, "auditId": "aud_01" }`. `404` unknown id, `409` when the request is not `pending` or the incident is `extinguished` |
+| `POST /join-requests/{id}/decline` | supervisor | none | The request becomes `declined` and `join.decline` is appended. `200 { "joinRequest": {}, "auditId": "aud_01" }`. `404` unknown id, `409` when the request is not `pending` |
+
+A volunteer asking for a supervisor route, or a supervisor asking for the volunteer route, is `403`. The voice gateway's digest is separate code and does not return `nearby` or `myJoinRequests`.
 
 ## 7. WebSocket
 
@@ -1523,6 +1557,7 @@ Issues #62, #63, #67, #68, and #70 were delivered in PR #83, one commit per issu
 - 2026-10-15 · #85: new incidents store `area`, and the console groups the queue by it (§5.2).
 - 2026-10-15 · #86 (`Naushad/N06`): `.env.example` moved from `apps/web/` to the repository root, with more variables, and `.gitignore` now ignores `/.env.local` and `/.local` (§11.5).
 - 2026-10-15 · #87: `voice-gateway` relays Gemini Live and writes `live` observations (§7), adds the Live-minute caps, and sets `EMBER_AGENTS_URL` for the gateway in Terraform.
+- 2026-10-16 · Volunteer home and join-and-help: a volunteer's `GET /digest` accepts `lat` and `lng` and returns `nearby` and `myJoinRequests` (§5.6, §6.4). New routes `POST /incidents/{id}/join-requests`, `GET /join-requests`, `POST /join-requests/{id}/approve` and `.../decline` (§6.12), new `joinRequests` collection (§5.7) and audits `join.request`, `join.approve`, `join.decline` (§5.5). Wind and "supervisor asked for" are not returned because nothing stores them.
 - 2026-10-16 · #102: `liveSeats/{incidentId}` holds the live-camera seat, last drop, and per-volunteer signal/media. A supervisor's `GET /incidents/{id}` returns `liveSeat`. `POST .../live/make-live` and `.../live/retry` assign the seat when signal is 3G+. The gateway updates signal from `location.signal` and writes `live.drop` (§5.5, §5.7, §6.3, §6.5, §7).
 - 2026-10-16 · #108: `GET /dashboard` returns `agency`, `serverTime`, and `approvalsCount` for the supervisor console chrome (§5.7, §6.9).
 - 2026-10-16 · #95: a supervisor's `GET /incidents/{id}` adds `volunteerName` on each observation that has one and an `evidenceFactors` list (§5.2, §6.3). Both are optional additions; a volunteer's read is unchanged.

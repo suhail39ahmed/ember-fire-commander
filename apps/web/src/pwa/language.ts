@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 
-import { DEFAULT_LANG, LANG_KEY, parseLang, type Lang } from './i18n'
+import { DEFAULT_LANG, LANG_KEY, parseLang, textLang, type Lang, type LanguageCode } from './i18n'
 
 /** The pieces of the browser the language store touches, injectable for tests. */
 export interface LanguageEnv {
@@ -9,8 +9,9 @@ export interface LanguageEnv {
 }
 
 export interface LanguageStore {
-  get: () => Lang
-  set: (lang: Lang) => void
+  /** The language the volunteer chose. Use `textLang` for the copy language it shows. */
+  get: () => LanguageCode
+  set: (language: LanguageCode) => void
   subscribe: (listener: () => void) => () => void
 }
 
@@ -20,13 +21,14 @@ export interface LanguageStore {
  */
 export function createLanguageStore({ storage = null, root = null }: LanguageEnv = {}): LanguageStore {
   const listeners = new Set<() => void>()
-  let current: Lang = DEFAULT_LANG
+  let current: LanguageCode = DEFAULT_LANG
   try {
     current = parseLang(storage?.getItem(LANG_KEY))
   } catch {
     current = DEFAULT_LANG
   }
-  if (root) root.lang = current
+  // The page `lang` names the language the text is written in, which is English for a language without copy yet.
+  if (root) root.lang = textLang(current)
 
   return {
     get: () => current,
@@ -38,7 +40,7 @@ export function createLanguageStore({ storage = null, root = null }: LanguageEnv
       } catch {
         // Storage can be unavailable (private mode); the choice then lasts for this visit only.
       }
-      if (root) root.lang = next
+      if (root) root.lang = textLang(next)
       listeners.forEach((listener) => listener())
     },
     subscribe: (listener) => {
@@ -68,8 +70,11 @@ export function getAppLanguageStore(): LanguageStore {
 }
 
 export interface LanguageValue {
+  /** The language the screen's copy is written in. Pass it to `t()`. */
   lang: Lang
-  setLang: (lang: Lang) => void
+  /** The language the volunteer chose. Equals `lang` unless that language has no copy yet. */
+  language: LanguageCode
+  setLang: (language: LanguageCode) => void
 }
 
 export const LanguageContext = createContext<LanguageValue | null>(null)

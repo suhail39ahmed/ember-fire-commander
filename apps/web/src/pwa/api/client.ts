@@ -4,28 +4,16 @@
  * see ../gateway/). No Firestore or Cloud Storage SDK is used in the browser.
  * The one exception is the photo PUT to a signed URL that ember-api issued (see ../photo/).
  */
-import type {
-  DeclineReason,
-  Digest,
-  DigestOptions,
-  DigestPosition,
-  ErrorBody,
-  FlagRequest,
-  IncidentDetail,
-  IncidentMembership,
-  Observation,
-  ObservationRequest,
-  PracticeResponse,
-  TrainingPayload,
-  UploadUrl,
-  WithdrawAnswerRequest,
-} from '../contracts/types'
+import type { DeclineReason, Digest, DigestOptions, DigestPosition, ErrorBody, FlagRequest, IncidentDetail, IncidentMembership, JoinRequestSummary, Observation, ObservationRequest, PracticeResponse, TrainingPayload, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
 import type { AuthHeadersProvider } from './authHeaders'
 import { API_BASE_URL } from './config'
 import { ApiError, type EmberApi } from './types'
 
 export const ENDPOINTS = {
   digest: '/digest',
+  // About 1 m of precision is plenty for "how far is that fire", and keeps the URL free of exponent forms.
+  digestAt: (position: DigestPosition) => `/digest?lat=${position.lat.toFixed(5)}&lng=${position.lng.toFixed(5)}`,
+  joinRequest: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}/join-requests`,
   incident: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}`,
   join: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}/join`,
   enRoute: (incidentId: string) => `/incidents/${encodeURIComponent(incidentId)}/en-route`,
@@ -44,8 +32,8 @@ export const ENDPOINTS = {
 function digestPath(position?: DigestPosition | null, options?: DigestOptions): string {
   const q = new URLSearchParams()
   if (position) {
-    q.set('lat', String(position.lat))
-    q.set('lng', String(position.lng))
+    q.set('lat', position.lat.toFixed(5))
+    q.set('lng', position.lng.toFixed(5))
   }
   // URLSearchParams encodes the "+" of a zone offset, so the server reads it back as a plus.
   if (options?.sentSince) q.set('sentSince', options.sentSince)
@@ -87,6 +75,11 @@ export function createHttpApi(
 
   return {
     getDigest: (position, options) => request<Digest>(digestPath(position, options)),
+    requestJoin: async (incidentId) => {
+      const body = await request<{ joinRequest: JoinRequestSummary }>(ENDPOINTS.joinRequest(incidentId), { method: 'POST' })
+      const { incidentId: id, status, createdAt } = body.joinRequest
+      return { incidentId: id, status, createdAt }
+    },
     getIncident: (incidentId) => request<IncidentDetail>(ENDPOINTS.incident(incidentId)),
     createObservation: (body: ObservationRequest) =>
       request<Observation>(ENDPOINTS.observations, { method: 'POST', body: JSON.stringify(body) }),

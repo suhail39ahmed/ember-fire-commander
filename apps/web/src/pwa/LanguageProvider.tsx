@@ -1,13 +1,13 @@
 import { useMemo, useSyncExternalStore, type ReactNode } from 'react'
 
-import { t, type Lang } from './i18n'
+import { t, textLang, type Lang } from './i18n'
 import { getAppLanguageStore, LanguageContext, useLanguage, type LanguageStore, type LanguageValue } from './language'
 import './language.css'
 
 export function LanguageProvider({ children, store }: { children: ReactNode; store?: LanguageStore }) {
   const source = useMemo(() => store ?? getAppLanguageStore(), [store])
-  const lang = useSyncExternalStore(source.subscribe, source.get, source.get)
-  const value = useMemo<LanguageValue>(() => ({ lang, setLang: source.set }), [lang, source])
+  const language = useSyncExternalStore(source.subscribe, source.get, source.get)
+  const value = useMemo<LanguageValue>(() => ({ lang: textLang(language), language, setLang: source.set }), [language, source])
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>
 }
 

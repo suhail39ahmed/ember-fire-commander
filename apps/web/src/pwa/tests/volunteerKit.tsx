@@ -51,6 +51,7 @@ export function volunteerValue(over: Partial<VolunteerValue> = {}): VolunteerVal
     digestStatus: 'ready',
     lastSyncAt: '2026-10-16T08:00:00Z',
     refresh: () => undefined,
+    position: { kind: 'ok', lat: 1.5, lng: 102.1, accuracyM: 10 },
     outbox: outboxHandle(),
     upload: async () => undefined,
     perms: { microphone: 'granted', camera: 'prompt', location: 'granted', notifications: 'denied' },

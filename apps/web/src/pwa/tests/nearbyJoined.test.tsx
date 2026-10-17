@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { HomeScreen } from '../screens/HomeScreen'
-import { JoinedView } from '../screens/JoinedScreen'
+import { DirectJoinedView } from '../screens/JoinedScreen'
 import { NearbyPrompt } from '../screens/NearbyPrompt'
 import { dismissNearby, isNearbyDismissed } from '../screens/nearbyDismiss'
 import type { NearbyIncident } from '../contracts/types'
@@ -14,7 +14,7 @@ const nearby: NearbyIncident = {
   distanceM: 1400,
   bearingDeg: 45,
   crewOnSite: 4,
-  ask: null,
+  reporterName: null,
 }
 
 describe('nearby dismiss (#134)', () => {
@@ -85,7 +85,7 @@ describe('HomeScreen nearby (#134)', () => {
 describe('JoinedView (#135)', () => {
   it('shows the first instruction, omits missing meet/route, and keeps en-route label', () => {
     const html = renderVolunteer(
-      <JoinedView
+      <DirectJoinedView
         lang="en"
         detail={{
           incident: { ...incident({ id: 'inc_near' }), evidenceScore: null, conflictId: null },

@@ -51,7 +51,7 @@ Error body:
 | Severity | `none`, `smoke`, `small_flame`, `large_flame`, `unknown` |
 | Severity order (low to high) | `none`, `smoke`, `small_flame`, `large_flame`. `unknown` does not raise or lower a known severity |
 | Incident status | `open`, `held`, `verified`, `extinguished` |
-| Task type | `verify`, `withdraw`, `investigate` |
+| Task type | `verify`, `withdraw`, `investigate`, `instruct` |
 | Task status | `proposed`, `approved`, `rejected` |
 | Conflict status | `open`, `resolved` |
 | Chip → stored severity | `asap` → `smoke`, `api` → `small_flame`, `aman` → `none`, `butuh_bantuan` → `unknown`. `text` and `photo` store `unknown` |
@@ -69,7 +69,7 @@ Incident list and detail responses use `INCIDENT_FIELDS`: `id`, `name`, `area`, 
 | GET | `/healthz` | public | probes | — | `200` `{ status, service, firestore_database }` |
 | GET | `/config` | public | sign-in / console chrome | — | `200` `{ demoMode }`. `demoMode` comes from `ops/config` in ember-db, else `DEMO_MODE` env (default false) |
 | GET | `/me` | any role | both apps, after sign-in | — | `200` `{ id, displayName, role }` |
-| GET | `/dashboard` | supervisor | console chrome, live banner, season impact, charts, and re-ignition alert, every 15 s | — | `200` `{ agency, serverTime, approvalsCount, updatedAt, nextSatellitePass, liveFires, seasonImpact, charts, reignitionAlert }`. `reignitionAlert` is `null` or `{ id, incidentId, code: null, distanceM, extinguishedAt, message, taskId }`. No lead id. A volunteer is `403` |
+| GET | `/dashboard` | supervisor | console chrome, live banner, season impact, charts, and re-ignition alert, every 15 s | — | `200` `{ agency, serverTime, approvalsCount, joinRequestsCount, updatedAt, nextSatellitePass, liveFires, seasonImpact, charts, reignitionAlert }`. The two counts are proposed tasks and pending join requests. `reignitionAlert` is `null` or `{ id, incidentId, code: null, distanceM, extinguishedAt, message, taskId }`. No lead id. A volunteer is `403` |
 | POST | `/sites/{incidentId}/alerts/{alertId}/dismiss` | supervisor | console re-ignition alert | `{ "reason": string }` | `200` `{ dismissed, auditId }`. Marks the alert dismissed. Incident stays extinguished |
 | POST | `/sites/{incidentId}/alerts/{alertId}/recheck` | supervisor | console re-ignition alert | none | `200` `{ task, auditId, alert }`. Proposed `verify` on the extinguished incident. Incident stays extinguished |
 | GET | `/audit` | supervisor | console audit log | optional `targetId`, `cursor`, `limit` | `200` `{ items, nextCursor }`. Each item is `id`, `at`, `actorId`, `actorName`, `action`, `targetId`, `target`, `detail`, `incidentId`. Newest first. `actorId` `code` is shown as `AI`. A volunteer is `403`. Clients never write |
@@ -77,15 +77,19 @@ Incident list and detail responses use `INCIDENT_FIELDS`: `id`, `name`, `area`, 
 | PUT, PATCH, DELETE | `/observations` and `/observations/{id}` | any role | nobody | — | `409` `conflict`, observations are immutable |
 | POST | `/photos/upload-url` | volunteer | PWA | `{ "contentType": "image/jpeg" \| "image/webp" }` | `201` `{ uploadUrl, method: "PUT", headers, photoPath, expiresAt }` |
 | GET | `/incidents` | any role, scoped | console | — | `200` incident array. Supervisor: status `open`, `held`, or `verified`. Volunteer: incidents linked to their observations, tasks, or withdraw |
-| GET | `/incidents/{id}` | any role, scoped | console | — | `200` `{ incident, observations, conflict, tasks }`. A supervisor's body also has `evidenceFactors`, `volunteers`, `timeline`, `summary`, `conflictContext`, `agencyInCharge`, and `liveSeat` (§6.3). A volunteer not on the incident gets `404`, and only their own tasks |
+| GET | `/incidents/{id}` | any role, scoped | console / PWA | — | `200` `{ incident, observations, conflict, tasks }`. A volunteer not on the incident gets `404` and sees only their own tasks; a volunteer membership is included when present. Supervisors also receive `evidenceFactors`, `volunteers`, `timeline`, `summary`, `conflictContext`, `agencyInCharge`, and `liveSeat` (§6.3) |
 | POST | `/incidents/{id}/live/make-live` | supervisor | console live seat | `{ volunteerId }` | `200` `{ liveSeat, auditId }`. Holds the seat when signal is 3G+. `409` when held or signal too weak |
 | POST | `/incidents/{id}/live/retry` | supervisor | console live seat | `{ volunteerId }` | `200` `{ liveSeat, auditId }`. Retry after a drop when signal is 3G+. `409` when signal too weak (seat stays free) |
-| GET | `/digest` | any role, scoped | PWA (polls every 5 s; sends `lat`/`lng` when known) | — | `200` `{ updatedAt, incidents, myTasks, nearby? }` plus optional volunteer `seasonStats` (§5.6). Tasks may carry optional lead-closed fields (§5.3). `nearby` is volunteer-only (empty without position). `myTasks` is empty for a supervisor |
+| GET | `/digest` | any role, scoped | PWA (polls every 5 s; sends `lat`/`lng` when known) | optional `lat` + `lng` together and volunteer-only `sentSince` (ISO time with zone) | `200` `{ updatedAt, incidents, myTasks }`; volunteer responses also include `nearby` and `myJoinRequests`, optional `seasonStats`, and `sentToday` when `sentSince` is supplied. Nearby rows include `reporterName`; nearby and sent history are omitted for supervisors. `myTasks` is empty for a supervisor |
 | POST | `/incidents/{id}/join` | volunteer | PWA Join now | none | `200` `{ membership, auditId }`. Immediate join; no approval |
 | POST | `/incidents/{id}/en-route` | volunteer | PWA I'm on my way | none | `200` `{ membership, auditId }`. Sets `enRouteAt` once |
 | GET | `/training` | volunteer | PWA Guide | — | `200` training video, lessons, ask chips, safety lines, and progress (§6.12) |
 | POST | `/training/progress` | volunteer | PWA Guide | `{ videoProgressSec?, lessonId?, status?, score? }` | `200` `{ ok: true }` |
 | POST | `/training/practice` | volunteer | PWA Practice | `{ message, lessonId?, optionId? }` | `200` practice reply. Never creates an observation or opens live voice |
+| POST | `/incidents/{id}/join-requests` | volunteer | PWA | none | `201` `{ joinRequest, auditId }`, or `200` with `auditId: null` for a repeat. `404` unknown, `409` extinguished, already on the incident, or already declined |
+| GET | `/join-requests?status=pending` | supervisor | console | — | `200` `[ { request, incident, volunteerName } ]`, oldest first |
+| POST | `/join-requests/{id}/approve` | supervisor | console | `{ "instruction": string }` max 500 characters | `200` `{ joinRequest, task, auditId }`. Creates an approved `instruct` task and pushes after commit. `409` when not pending |
+| POST | `/join-requests/{id}/decline` | supervisor | console | none | `200` `{ joinRequest, auditId }`. `409` when not pending |
 | POST | `/tasks/{id}/approve` | supervisor | console | none | `200` `{ task, auditId }`. `proposed` → `approved`. `investigate` is `409` while a conflict is open. `withdraw` is `409` |
 | POST | `/tasks/{id}/reject` | supervisor | console | none | `200` `{ task, auditId }`. `proposed` → `rejected`. `withdraw` is `409` |
 | POST | `/tasks/{id}/edit` | supervisor | console | `{ "instruction": string }` max 500 characters | `200` `{ task, auditId }`. Replaces `instruction` only. A withdraw instruction is `409` |

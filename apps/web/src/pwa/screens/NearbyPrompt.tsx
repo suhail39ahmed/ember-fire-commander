@@ -74,7 +74,6 @@ export function NearbyPrompt({ lang, api, volunteerId, nearby, you, onDismissed,
         {t(lang, screenStrings.severity[nearby.severity])}
         {' · '}
         {crew}
-        {nearby.ask ? ` · ${nearby.ask}` : ''}
       </p>
       {you && (
         <div className="nearby-map">

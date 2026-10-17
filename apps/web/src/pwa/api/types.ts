@@ -1,19 +1,4 @@
-import type {
-  DeclineReason,
-  Digest,
-  DigestOptions,
-  DigestPosition,
-  FlagRequest,
-  IncidentDetail,
-  IncidentMembership,
-  Observation,
-  ObservationRequest,
-  PhotoContentType,
-  PracticeResponse,
-  TrainingPayload,
-  UploadUrl,
-  WithdrawAnswerRequest,
-} from '../contracts/types'
+import type { DeclineReason, Digest, DigestOptions, DigestPosition, FlagRequest, IncidentDetail, IncidentMembership, JoinRequestSummary, Observation, ObservationRequest, PhotoContentType, PracticeResponse, TrainingPayload, UploadUrl, WithdrawAnswerRequest } from '../contracts/types'
 
 /** Error surfaced to the UI. `retryable` is true for network failures, 429 and 5xx. */
 export class ApiError extends Error {
@@ -31,8 +16,10 @@ export class ApiError extends Error {
 
 /** The ember-api operations the volunteer PWA uses. */
 export interface EmberApi {
-  /** GET /digest. Pass the phone position when known so `nearby` can be filled (#134). */
+  /** GET /digest. With the phone's position the answer also lists live incidents near it (`nearby`). The position is not stored. */
   getDigest(position?: DigestPosition | null, options?: DigestOptions): Promise<Digest>
+  /** POST /incidents/{id}/join-requests: ask a supervisor to add this volunteer to a fire. A repeat returns the first request. */
+  requestJoin(incidentId: string): Promise<JoinRequestSummary>
   /** GET /incidents/{id}: one incident this volunteer is on. A volunteer who is not on it gets `not_found` (404). */
   getIncident(incidentId: string): Promise<IncidentDetail>
   createObservation(body: ObservationRequest): Promise<Observation>

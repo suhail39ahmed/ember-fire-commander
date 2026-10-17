@@ -25,12 +25,16 @@
   text-align: left;
   font-size: 15px;
 }
-.vol-header { box-sizing: border-box; height: 64px; display: flex; align-items: center; gap: 10px; padding: 0 16px; background: var(--night); color: var(--paper); position: sticky; top: 0; z-index: 2; }
+/* App header (Figma): 64px, emblem 32, name 15/600 over crew 13/400, and the 106 x 44 language pill. */
+.vol-header { box-sizing: border-box; height: 64px; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: var(--paper); color: var(--ink); position: sticky; top: 0; z-index: 4; }
 .vol-header img { flex: none; }
-.vol-title { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.25; }
+.vol-title { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .vol-title strong, .vol-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vol-sub { color: #bdb5aa; font-size: 12px; }
-.vol-header .lang-toggle { flex: none; }
+.vol-title strong { font-size: 15px; line-height: 22px; font-weight: 600; }
+.vol-sub { color: var(--ink-muted); font-size: 13px; line-height: 18px; }
+.vol-header .lang-menu { flex: none; }
+.vol-header .lang-menu-button { min-width: 106px; justify-content: center; padding: 0 18px; border-color: rgba(10, 9, 8, 0.2); font-size: 12px; font-weight: 600; letter-spacing: 0; }
+.vol-header .lang-menu-list { max-height: 60vh; overflow-y: auto; }
 .vol-simulated { align-self: flex-start; }
 .badge-simulated { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; background: var(--haze-strong); color: #fff; border-radius: 999px; padding: 3px 8px; white-space: nowrap; }
 .badge-simulated.on-dark { background: rgba(255,255,255,0.15); margin-top: 16px; align-self: center; }
@@ -70,7 +74,7 @@
 
 /* Keyboard and screen-reader focus (#159): one visible ring on every control, white where the surface is dark or red. */
 .vol :focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
-.vol-header :focus-visible, .withdraw :focus-visible { outline-color: #fff; }
+.withdraw :focus-visible { outline-color: #fff; }
 
 /* Reduced motion (#159): nothing in the volunteer app animates or eases when the phone asks for less motion. */
 @media (prefers-reduced-motion: reduce) {

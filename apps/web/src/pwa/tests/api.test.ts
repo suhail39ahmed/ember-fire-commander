@@ -49,6 +49,26 @@ describe('http api client', () => {
     ])
   })
 
+  it('sends the phone position on GET /digest, rounded, and only when there is one', async () => {
+    const digest = { updatedAt: '2026-10-17T03:00:00Z', incidents: [], myTasks: [], nearby: [], myJoinRequests: [] }
+    const fetchImpl = vi.fn(async () => json(digest, 200))
+    const api = createHttpApi(headers, 'https://api.example', fetchImpl as unknown as typeof fetch)
+    await api.getDigest({ lat: -1.849213456, lng: 110.0508 })
+    await api.getDigest(null)
+    const urls = (fetchImpl.mock.calls as unknown as [string][]).map((c) => c[0])
+    expect(urls).toEqual(['https://api.example/digest?lat=-1.84921&lng=110.05080', 'https://api.example/digest'])
+  })
+
+  it('POSTs a join request and returns its summary', async () => {
+    const stored = { id: 'inc_1__uid', incidentId: 'inc_1', volunteerId: 'uid', status: 'pending', createdAt: '2026-10-17T03:00:00Z' }
+    const fetchImpl = vi.fn(async () => json({ joinRequest: stored, auditId: 'aud_1' }, 201))
+    const api = createHttpApi(headers, 'https://api.example', fetchImpl as unknown as typeof fetch)
+    await expect(api.requestJoin('inc_1')).resolves.toEqual({ incidentId: 'inc_1', status: 'pending', createdAt: '2026-10-17T03:00:00Z' })
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('https://api.example/incidents/inc_1/join-requests')
+    expect(init.method).toBe('POST')
+  })
+
   it('maps a 400 validation_error envelope to a non-retryable error with fields', async () => {
     const envelope = { error: { code: 'validation_error', message: 'chip is not a known value', fields: { chip: 'use asap, api, aman, or butuh_bantuan' } } }
     const api = createHttpApi(headers, 'https://api.example', (async () => json(envelope, 400)) as unknown as typeof fetch)
@@ -91,6 +111,29 @@ describe('mock api', () => {
     const digest = await api.getDigest()
     expect(digest.incidents[0].withdraw?.volunteerIds).toEqual(['uid_dedi'])
     expect(digest.myTasks.some((t) => t.type === 'withdraw' && t.status === 'approved')).toBe(true)
+  })
+
+  it('lists fires near the phone only when it has a position, and not the ones the volunteer is on', async () => {
+    const api = createMockApi('uid_dedi', 0)
+    expect((await api.getDigest()).nearby).toEqual([])
+    const near = (await api.getDigest({ lat: -1.849, lng: 110.051 })).nearby ?? []
+    expect(near.map((i) => i.id)).toEqual(['inc_near_01', 'inc_near_02'])
+    expect(near[0].distanceM).toBeLessThan(near[1].distanceM)
+    expect(near[0]).toMatchObject({ crewOnSite: 3, reporterName: 'Sari' })
+  })
+
+  it('keeps a join request pending until a supervisor answers, and repeats return the first', async () => {
+    const api = createMockApi('uid_dedi', 0)
+    const first = await api.requestJoin('inc_near_01')
+    expect(first.status).toBe('pending')
+    expect(await api.requestJoin('inc_near_01')).toEqual(first)
+    expect((await api.getDigest()).myJoinRequests).toEqual([first])
+    api.mock.approveJoin('inc_near_01')
+    const after = await api.getDigest({ lat: -1.849, lng: 110.051 })
+    expect(after.myJoinRequests?.[0].status).toBe('approved')
+    expect(after.incidents.some((i) => i.id === 'inc_near_01')).toBe(true)
+    expect(after.myTasks.some((t) => t.incidentId === 'inc_near_01' && t.type === 'instruct')).toBe(true)
+    expect(after.nearby?.some((i) => i.id === 'inc_near_01')).toBe(false)
   })
 
   it('rejects a body without coordinates with 400', async () => {

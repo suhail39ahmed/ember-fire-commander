@@ -56,7 +56,7 @@ describe('asking for today’s sent list', () => {
     const fetchImpl = vi.fn(async () => json(digest))
     const api = createHttpApi(headers, 'https://api.example', fetchImpl as unknown as typeof fetch)
     await api.getDigest({ lat: 1.5, lng: 102 }, { sentSince: '2026-10-17T00:00:00+05:30' })
-    expect((fetchImpl.mock.calls[0] as unknown as [string])[0]).toBe('https://api.example/digest?lat=1.5&lng=102&sentSince=2026-10-17T00%3A00%3A00%2B05%3A30')
+    expect((fetchImpl.mock.calls[0] as unknown as [string])[0]).toBe('https://api.example/digest?lat=1.50000&lng=102.00000&sentSince=2026-10-17T00%3A00%3A00%2B05%3A30')
     await api.getDigest(null, { sentSince: '2026-10-17T00:00:00Z' })
     expect((fetchImpl.mock.calls[1] as unknown as [string])[0]).toBe('https://api.example/digest?sentSince=2026-10-17T00%3A00%3A00Z')
     await api.getDigest()

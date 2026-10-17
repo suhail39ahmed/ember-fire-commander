@@ -54,6 +54,7 @@ def test_dashboard_returns_agency_clock_and_proposed_count(client, monkeypatch):
         "agency": "BPBD Kepulauan Meranti",
         "serverTime": "2026-10-16T07:46:00Z",
         "approvalsCount": 2,
+        "joinRequestsCount": 0,
         "updatedAt": "2026-10-16T07:46:00Z",
         "nextSatellitePass": None,
         "liveFires": [],
@@ -107,6 +108,19 @@ def test_dashboard_agency_missing_is_null(client, monkeypatch):
     assert body["agency"] is None
     assert body["approvalsCount"] == 1
     assert body["serverTime"].endswith("Z")
+
+
+def test_dashboard_counts_pending_join_requests_apart_from_approvals(client, monkeypatch):
+    fake = FakeFirestore()
+    monkeypatch.setattr(store, "db", lambda: fake)
+    _as(monkeypatch)
+    _task(fake, "task_proposed", "proposed")
+    for name, status in (("a", "pending"), ("b", "pending"), ("c", "approved"), ("d", "declined")):
+        fake.add("joinRequests", f"inc__{name}", {"incidentId": "inc", "volunteerId": name, "status": status})
+
+    body = client.get("/dashboard", headers=AUTH).get_json()
+    assert body["approvalsCount"] == 1
+    assert body["joinRequestsCount"] == 2
 
 
 def test_dashboard_without_a_profile_document(client, monkeypatch):

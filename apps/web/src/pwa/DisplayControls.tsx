@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { LANGUAGES, t, type Lang } from './i18n'
+import { LANGUAGES, t, type LanguageCode } from './i18n'
 import { useLanguage } from './language'
 import { THEMES, useTheme, type Theme, type ThemeStore } from './theme'
 import './displayControls.css'
@@ -41,12 +41,12 @@ function SunIcon() {
  * Language dropdown. It lists every entry of LANGUAGES, so a new language is one more entry there and no layout change.
  * `defaultOpen` is for tests and screenshots.
  */
-export function LanguageDropdown({ defaultOpen = false }: { defaultOpen?: boolean }) {
-  const { lang, setLang } = useLanguage()
+export function LanguageDropdown({ defaultOpen = false, placement = 'down' }: { defaultOpen?: boolean; placement?: 'down' | 'up' }) {
+  const { lang, language: chosen, setLang } = useLanguage()
   const [open, setOpen] = useState(defaultOpen)
   const root = useRef<HTMLDivElement>(null)
   const button = useRef<HTMLButtonElement>(null)
-  const current = LANGUAGES.find((language) => language.code === lang) ?? LANGUAGES[0]
+  const current = LANGUAGES.find((language) => language.code === chosen) ?? LANGUAGES[0]
 
   useEffect(() => {
     if (!open) return
@@ -57,7 +57,7 @@ export function LanguageDropdown({ defaultOpen = false }: { defaultOpen?: boolea
     return () => document.removeEventListener('pointerdown', onPointer)
   }, [open])
 
-  const choose = (code: Lang) => {
+  const choose = (code: LanguageCode) => {
     setLang(code)
     setOpen(false)
     button.current?.focus()
@@ -65,7 +65,7 @@ export function LanguageDropdown({ defaultOpen = false }: { defaultOpen?: boolea
 
   return (
     <div
-      className="lang-menu"
+      className={placement === 'up' ? 'lang-menu lang-menu-up' : 'lang-menu'}
       ref={root}
       onKeyDown={(event) => {
         if (event.key === 'Escape' && open) {
@@ -94,7 +94,7 @@ export function LanguageDropdown({ defaultOpen = false }: { defaultOpen?: boolea
               <button
                 type="button"
                 role="menuitemradio"
-                aria-checked={language.code === lang}
+                aria-checked={language.code === chosen}
                 lang={language.code}
                 className="lang-menu-item"
                 onClick={() => choose(language.code)}

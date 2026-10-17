@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from flask import Blueprint, g, jsonify, request
 
 from identity import AuthError
-from incidents import detail as incident_detail, live_seat, members, rules, sent, store
+from incidents import detail as incident_detail, live_seat, members, nearby, rules, sent, store
 from incidents.errors import ApiError, conflict, error_response, not_found, validation
 from notifications.send import deliver_task
 from photos import paths as photo_paths, signing
@@ -251,7 +251,6 @@ def digest():
     scoped = _scoped_incidents()
     incidents = [rules.to_record(s, rules.SUMMARY_FIELDS) for s in scoped]
     my_tasks = []
-    nearby = []
     season_stats = None
     if user["role"] == "volunteer":
         my_tasks = sorted(
@@ -259,16 +258,21 @@ def digest():
             key=lambda t: t["id"],
         )
         # Nearby fires the volunteer has not joined (#134). Needs the phone's lat/lng; otherwise [].
-        position = members.parse_position(request.args)
+        position = nearby.parse_position(request.args)
         if position is not None:
-            nearby = members.nearby_for(user["id"], position[0], position[1], {s.id for s in scoped})
+            nearby_rows = nearby.nearby_incidents(position, {s.id for s in scoped})
+        else:
+            nearby_rows = []
         # Season counts for the lead-closed thank-you (#140). Omitted until there is a verify task.
         checks = [t for t in my_tasks if t.get("type") == "verify"]
         cleared = [t for t in checks if t.get("closedAt")]
         season_stats = {"checksDone": len(checks), "falseAlarmsCleared": len(cleared)} if checks else None
     body = {"updatedAt": rules.now_iso(), "incidents": incidents, "myTasks": my_tasks}
     if user["role"] == "volunteer":
-        body["nearby"] = nearby
+        body["nearby"] = nearby_rows
+        body["myJoinRequests"] = nearby.join_request_summaries(
+            store.where(store.JOIN_REQUESTS, "volunteerId", "==", user["id"])
+        )
     if season_stats is not None:
         body["seasonStats"] = season_stats
     if user["role"] == "volunteer" and "sentSince" in request.args:
@@ -278,7 +282,6 @@ def digest():
         except Exception:
             logger.warning("sent today could not be read", exc_info=True)
     return jsonify(body), 200
-
 
 @incidents_bp.route("/incidents/<incident_id>/join", methods=["POST"])
 def join_incident(incident_id):
@@ -376,6 +379,7 @@ def _volunteer_linked_without_member(uid, incident_id, data):
         if mine & set((snap.to_dict() or {}).get("observationIds") or []):
             return True
     return False
+
 
 
 # Supervisor decisions ------------------------------------------------------

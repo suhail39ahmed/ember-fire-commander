@@ -8,13 +8,12 @@ The REST API is the main backend for both the volunteer PWA and the supervisor c
 
 - Manages sessions and roles (volunteer, supervisor) via Firebase ID token verification
 - Issues short-lived signed upload URLs for photo uploads to Cloud Storage
-- Proxies Maps and Weather API calls (so the browser never directly calls them)
 - Handles approvals: supervisor can approve, edit, or reject proposed tasks
 - Provides incident and digest reads for the UI
 - Sends FCM push notifications (task dispatch, WITHDRAW alerts)
 - Writes to an append-only audit log in Firestore
 
-All client access to Firestore and Storage goes through `ember-api`. The browser has no direct Firestore listeners and never calls the Maps or Weather APIs directly.
+All client access to Firestore and Storage goes through `ember-api`. The browser has no direct Firestore listeners. Map tiles use the referrer-restricted Maps key; this service has no Maps or weather proxy route.
 
 ## Architecture
 
@@ -69,9 +68,11 @@ Routes follow `docs/contracts/shared-contract.md` §6.3 to §6.5, and `GET /dash
 | Route | Who | Result |
 |---|---|---|
 | `GET /incidents` | both roles | Supervisor: incidents that are `open`, `held` or `verified`. Volunteer: incidents linked to their observations, tasks or a withdraw instruction |
-| `GET /incidents/{id}` | both roles | `incident`, `observations`, `conflict`, `tasks`. A volunteer not on the incident gets `404` and sees only their own tasks. A supervisor also gets `header`, `conditions`, `photoReads`, volunteer cards (with crew, team role and device) and `conflictContext` (`incidents/detail.py`, §6.3) |
-| `GET /digest` | both roles | `updatedAt`, `incidents` (summaries), `myTasks` (empty for a supervisor). A volunteer who sends `?sentSince=<ISO time with zone>` also gets `sentToday`, their own reports since then with the join agents recorded for each (`incidents/sent.py`) |
-| `GET /dashboard` | supervisor | `agency` (or `null`), `serverTime`, `approvalsCount` of `proposed` tasks, the live banner (`updatedAt`, `nextSatellitePass`, `liveFires`), `seasonImpact`, `charts`, and `reignitionAlert`. Figures are computed on read from stored incidents, observations, tasks, audit rows, leads, device records, and `weather/current`. Cameras, photo cadence, distance to risk, injuries, and the median target are `null` |
+| `GET /incidents/{id}` | both roles | `incident`, `observations`, `conflict`, `tasks`. A volunteer not on the incident gets `404` and sees only their own tasks; their membership is included when present. A supervisor also gets `header`, `conditions`, `photoReads`, volunteer cards (with crew, team role and device) and `conflictContext` (`incidents/detail.py`, §6.3) |
+| `GET /digest` | both roles | `updatedAt`, `incidents` (summaries), `myTasks` (empty for a supervisor). Volunteers may send `?lat=&lng=` for `nearby` and `myJoinRequests`, and `?sentSince=<ISO time with zone>` for `sentToday`; the phone position is not stored. `seasonStats` is optional |
+| `GET /dashboard` | supervisor | `agency` (or `null`), `serverTime`, `approvalsCount` of `proposed` tasks, `joinRequestsCount` of pending requests, the live banner (`updatedAt`, `nextSatellitePass`, `liveFires`), `seasonImpact`, `charts`, and `reignitionAlert`. Figures are computed on read from stored incidents, observations, tasks, audit rows, leads, device records, and `weather/current`. Cameras, photo cadence, distance to risk, injuries, and the median target are `null` |
+| `POST /incidents/{id}/join-requests` | volunteer | Asks to join a live fire. Idempotent per volunteer and incident (`join_routes.py`) |
+| `GET /join-requests?status=pending`, `POST /join-requests/{id}/approve`, `/decline` | supervisor | Approval creates an approved `instruct` task (so the volunteer is linked and pushed the normal way). Audits `join.request`, `join.approve`, `join.decline` |
 | `POST /sites/{id}/alerts/{id}/dismiss` | supervisor | Body `{ reason }`. Marks the alert dismissed and writes `site.dismiss`. Incident stays extinguished |
 | `POST /sites/{id}/alerts/{id}/recheck` | supervisor | Creates a proposed `verify` task, writes `site.recheck`. Incident stays extinguished |
 | `POST /tasks/{id}/approve`, `/reject`, `/edit` | supervisor | Proposed task decided. `investigate` approval is `409` while the incident has an open conflict. Withdraw tasks are never approved, rejected or edited |

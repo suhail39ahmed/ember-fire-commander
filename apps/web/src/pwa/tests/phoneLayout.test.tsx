@@ -61,7 +61,7 @@ describe('Home (#127)', () => {
     expect(html).toContain('aria-busy="true"')
   })
 
-  it('shows the waiting task and the counts from the digest', () => {
+  it('shows the waiting task and the incidents from the digest', () => {
     const html = layout('/pwa', { digest: digest({ incidents: [incident()], myTasks: [task()] }), outbox: outboxHandle({ items: [] }) })
     expect(html).toContain('/pwa/task/task_1')
     expect(html).toContain('Cek tepi kanal')
@@ -69,15 +69,16 @@ describe('Home (#127)', () => {
     expect(html).toContain('SEE ALL')
   })
 
-  it('hides the list and SEE ALL when there are no incidents', () => {
+  it('hides the lists and SEE ALL when there are no incidents', () => {
     const html = layout('/pwa', { digest: digest() })
-    expect(html).toContain('data-testid="home-no-incidents"')
     expect(html).not.toContain('SEE ALL')
+    expect(html).not.toContain('home-incidents-title')
+    expect(html).not.toContain('near-section')
   })
 
-  it('keeps one Report button and no wind card', () => {
+  it('keeps one Report tile and no wind card', () => {
     const html = layout('/pwa', { digest: digest({ incidents: [incident()] }) })
-    expect(html.match(/report-cta/g)).toHaveLength(1)
+    expect(html.match(/class="report-tile"/g)).toHaveLength(1)
     expect(html).not.toMatch(/wind|angin/i)
   })
 
@@ -85,7 +86,7 @@ describe('Home (#127)', () => {
     const html = layout('/pwa', { outbox: outboxHandle({ online: false, items: [{ id: 'a' } as never, { id: 'b' } as never] }) })
     expect(html).toContain('data-testid="home-offline"')
     expect(html).toContain('Last synced')
-    expect(html).toMatch(/<strong>2<\/strong><span>waiting to send/)
+    expect(html).toMatch(/data-testid="home-queued"><strong>2<\/strong> waiting to send/)
   })
 
   it('offline before any sync says the time is unavailable instead of inventing one', () => {

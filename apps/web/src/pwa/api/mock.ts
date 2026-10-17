@@ -10,6 +10,7 @@ import {
   type Digest,
   type IncidentDetail,
   type IncidentMembership,
+  type JoinRequestSummary,
   type NearbyIncident,
   type Observation,
   type ObservationJoin,
@@ -17,8 +18,8 @@ import {
   type PracticeResponse,
   type TrainingPayload,
 } from '../contracts/types'
-import { ApiError, type EmberApi } from './types'
 import { bearingDeg, distanceM } from '../screens/geo'
+import { ApiError, type EmberApi } from './types'
 
 export interface MockControls {
   /** Simulate the backend safety rule firing (code WITHDRAW). */
@@ -27,6 +28,9 @@ export interface MockControls {
   clearWithdraw(): void
   /** Simulate supervisor verify closing open verify tasks (#140). */
   closeLead(): void
+  /** Simulate a supervisor approving or declining this volunteer's join request for a nearby fire. */
+  approveJoin(incidentId: string): void
+  declineJoin(incidentId: string): void
   /** Make the next createObservation call fail. */
   failNext(kind: 'network' | 'validation'): void
   reset(): void
@@ -35,23 +39,7 @@ export interface MockControls {
 
 const INCIDENT_ID = 'inc_demo_01'
 const INCIDENT_NAME = 'Ketapang, Kalimantan Barat · Pak Dedi · #1'
-const NEARBY_ID = 'inc_demo_near'
 const WITHDRAW_TEXT = 'MUNDUR sekarang ke titik kumpul di arah datangnya angin. Jangan padamkan sendiri.'
-
-const NEARBY_BASE: NearbyIncident = {
-  id: NEARBY_ID,
-  name: 'TOHOR-3 · Peat field behind SDN 2',
-  area: 'Peat field behind SDN 2',
-  status: 'open',
-  severity: 'small_flame',
-  withdraw: null,
-  lat: -1.84,
-  lng: 110.06,
-  distanceM: 1400,
-  bearingDeg: 45,
-  crewOnSite: 4,
-  ask: null,
-}
 
 function validationError(field: string, hint: string): ApiError {
   return new ApiError('validation_error', `${field} is not valid`, 400, false, { [field]: hint })
@@ -114,6 +102,12 @@ const mockTraining: TrainingPayload = {
   safetyLines: [{ id: 'Jaga jarak aman.', en: 'Keep a safe distance.' }],
 }
 
+/** Two fires a few hundred metres from wherever the phone is, so the nearby list shows on any desktop or phone. */
+const NEARBY_FIXTURES = [
+  { id: 'inc_near_01', name: 'Ketapang, Kalimantan Barat · Sari · #2', area: 'Ketapang, Kalimantan Barat', severity: 'small_flame', north: 0.0035, east: 0.0012, crewOnSite: 3, reporterName: 'Sari' },
+  { id: 'inc_near_02', name: 'Ketapang, Kalimantan Barat · Rizal · #3', area: 'Ketapang, Kalimantan Barat', severity: 'smoke', north: -0.012, east: 0.02, crewOnSite: 4, reporterName: 'Rizal' },
+] as const
+
 function validate(body: ObservationRequest, volunteerId: string): void {
   if (body.source !== 'chip' && body.source !== 'text' && body.source !== 'photo') throw validationError('source', 'use chip, text or photo')
   if (typeof body.lat !== 'number' || body.lat < -90 || body.lat > 90) throw validationError('lat', 'required, -90 to 90')
@@ -136,7 +130,9 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
   const observations: Observation[] = []
   const joins = new Map<string, ObservationJoin>()
   const memberships = new Map<string, IncidentMembership>()
-  let nearbyAvailable = true
+  const joinRequests: JoinRequestSummary[] = []
+  /** The last phone position sent with a digest read. Nearby fires sit relative to it, so an approved one must too. */
+  let lastPosition: { lat: number; lng: number } | null = null
 
   const reset = () => {
     digest = {
@@ -159,21 +155,45 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
     observations.length = 0
     joins.clear()
     memberships.clear()
-    nearbyAvailable = true
+    lastPosition = null
     mockTraining.video.progressSec = 80
     mockTraining.lessons.forEach((lesson, i) => {
       lesson.status = i < 2 ? 'done' : 'not_started'
       lesson.score = i < 2 ? 3 : null
     })
     mockTraining.doneCount = 2
+    joinRequests.length = 0
   }
   reset()
 
   const wait = () => new Promise((r) => setTimeout(r, latencyMs))
 
+  const nearbyFor = (position: { lat: number; lng: number }): NearbyIncident[] =>
+    NEARBY_FIXTURES.map((f) => {
+      const lat = position.lat + f.north
+      const lng = position.lng + f.east
+      return {
+        id: f.id,
+        name: f.name,
+        area: f.area,
+        status: 'open' as const,
+        severity: f.severity,
+        withdraw: null,
+        lat,
+        lng,
+        distanceM: Math.round(distanceM(position, { lat, lng })),
+        bearingDeg: Math.round(bearingDeg(position, { lat, lng })) % 360,
+        crewOnSite: f.crewOnSite,
+        reporterName: f.reporterName,
+      }
+    })
+      .filter((i) => !digest.incidents.some((mine) => mine.id === i.id))
+      .sort((a, b) => a.distanceM - b.distanceM)
+
   return {
     async getDigest(position, options) {
       await wait()
+      if (position) lastPosition = position
       const next = structuredClone(digest)
       if (options?.sentSince) {
         const since = Date.parse(options.sentSince)
@@ -191,17 +211,17 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
             join: joins.get(o.id) ?? null,
           }))
       }
-      if (position && nearbyAvailable && !digest.incidents.some((i) => i.id === NEARBY_ID)) {
-        const distance = distanceM(position, { lat: NEARBY_BASE.lat, lng: NEARBY_BASE.lng })
-        next.nearby = [{
-          ...NEARBY_BASE,
-          distanceM: Math.round(distance),
-          bearingDeg: Math.round(bearingDeg(position, { lat: NEARBY_BASE.lat, lng: NEARBY_BASE.lng })),
-        }]
-      } else {
-        next.nearby = []
-      }
+      next.nearby = position ? nearbyFor(position) : []
+      next.myJoinRequests = joinRequests.map((row) => ({ ...row }))
       return next
+    },
+    async requestJoin(incidentId) {
+      await wait()
+      const existing = joinRequests.find((r) => r.incidentId === incidentId)
+      if (existing) return { ...existing }
+      const created: JoinRequestSummary = { incidentId, status: 'pending', createdAt: new Date().toISOString() }
+      joinRequests.push(created)
+      return { ...created }
     },
     async getIncident(incidentId) {
       await wait()
@@ -272,7 +292,8 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
       await wait()
       const existing = memberships.get(incidentId)
       if (existing) return structuredClone(existing)
-      if (incidentId !== NEARBY_ID && !digest.incidents.some((i) => i.id === incidentId)) {
+      const fixture = NEARBY_FIXTURES.find((row) => row.id === incidentId)
+      if (!fixture && !digest.incidents.some((i) => i.id === incidentId)) {
         throw new ApiError('not_found', 'incident id is unknown', 404, false)
       }
       const membership: IncidentMembership = {
@@ -290,23 +311,21 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
         meetNote: null,
       }
       memberships.set(incidentId, membership)
-      nearbyAvailable = false
       if (!digest.incidents.some((i) => i.id === incidentId)) {
-        // Only the mock nearby fire is joinable when it is not already in incidents.
-        const source = incidentId === NEARBY_ID ? NEARBY_BASE : null
-        if (!source) throw new ApiError('not_found', 'incident id is unknown', 404, false)
+        if (!fixture) throw new ApiError('not_found', 'incident id is unknown', 404, false)
+        const position = lastPosition ?? { lat: -1.849, lng: 110.051 }
         digest = {
           ...digest,
           updatedAt: new Date().toISOString(),
           incidents: [...digest.incidents, {
             id: incidentId,
-            name: source.name,
-            area: source.area,
+            name: fixture.name,
+            area: fixture.area,
             status: 'open',
-            severity: source.severity,
+            severity: fixture.severity,
             withdraw: null,
-            lat: source.lat,
-            lng: source.lng,
+            lat: position.lat + fixture.north,
+            lng: position.lng + fixture.east,
           }],
           nearby: [],
         }
@@ -440,6 +459,25 @@ export function createMockApi(volunteerId: string, latencyMs = 300): EmberApi & 
             falseAlarmsCleared: digest.myTasks.filter((row) => row.type === 'verify').length,
           },
         }
+      },
+      approveJoin(incidentId) {
+        const fixture = NEARBY_FIXTURES.find((f) => f.id === incidentId)
+        const request = joinRequests.find((r) => r.incidentId === incidentId)
+        if (!fixture || !request) return
+        request.status = 'approved'
+        digest = {
+          ...digest,
+          updatedAt: new Date().toISOString(),
+          incidents: [...digest.incidents, { id: fixture.id, name: fixture.name, area: fixture.area, status: 'open', severity: fixture.severity, withdraw: null, lat: (lastPosition?.lat ?? -1.849) + fixture.north, lng: (lastPosition?.lng ?? 110.051) + fixture.east }],
+          myTasks: [
+            ...digest.myTasks,
+            { id: `task_join_${fixture.id}`, incidentId: fixture.id, volunteerId, type: 'instruct', status: 'approved', instruction: 'Bantu di titik kumpul utara. Bawa air.', sentAt: new Date().toISOString() },
+          ],
+        }
+      },
+      declineJoin(incidentId) {
+        const request = joinRequests.find((r) => r.incidentId === incidentId)
+        if (request) request.status = 'declined'
       },
       failNext(kind) {
         failure = kind

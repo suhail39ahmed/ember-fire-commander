@@ -281,15 +281,6 @@ export interface WithdrawAnswerRequest {
   accuracyM?: number | null
 }
 
-/** Nearby live incident on a volunteer's digest (section 5.6). */
-export interface NearbyIncident extends IncidentSummary {
-  distanceM: number
-  bearingDeg: number | null
-  crewOnSite: number
-  /** What the supervisor asked for. Null until stored — the phone omits the line. */
-  ask: string | null
-}
-
 /** Optional phone position for `GET /digest?lat=&lng=` so nearby can be computed. */
 export interface DigestPosition {
   lat: number
@@ -297,6 +288,29 @@ export interface DigestPosition {
 }
 
 /** GET /digest (section 6.4). */
+/** A live incident near the phone that this volunteer is not on yet (section 5.6). Wind and "supervisor asked for" are not sent. */
+export interface NearbyIncident extends IncidentSummary {
+  /** Straight line from the phone, whole metres. */
+  distanceM: number
+  /** Compass bearing from the phone to the incident, 0 to 359. */
+  bearingDeg: number
+  /** Volunteers with a report or an approved task on it. */
+  crewOnSite: number
+  /** The first name on the first report, or null. */
+  reporterName: string | null
+}
+
+export const JOIN_REQUEST_STATUSES = ['pending', 'approved', 'declined'] as const
+export type JoinRequestStatus = (typeof JOIN_REQUEST_STATUSES)[number]
+
+/** One of the caller's own join requests (section 6.12). */
+export interface JoinRequestSummary {
+  incidentId: string
+  status: JoinRequestStatus
+  createdAt: string
+}
+
+/** GET /digest (section 6.4). `nearby` and `myJoinRequests` are volunteer-only, so they are optional here. */
 export interface Digest {
   updatedAt: string
   incidents: IncidentSummary[]
@@ -307,6 +321,7 @@ export interface Digest {
   seasonStats?: SeasonStats | null
   /** Volunteer only, and only when the request carried `sentSince` (section 6.4). Oldest first, at most 50. */
   sentToday?: SentReport[]
+  myJoinRequests?: JoinRequestSummary[]
 }
 
 /** Optional parts of the digest request. */

@@ -148,7 +148,9 @@ describe('InstallBanner', () => {
 
   it('hides the iOS steps while a Not now is in force', () => {
     vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (iPhone)', platform: 'iPhone', maxTouchPoints: 5 })
-    vi.stubGlobal('localStorage', { getItem: () => new Date().toISOString(), setItem: () => undefined })
+    // A moment ago, fixed up front: a clock read inside getItem can land after `now` and look like the future.
+    const dismissedAt = new Date(Date.now() - 1000).toISOString()
+    vi.stubGlobal('localStorage', { getItem: () => dismissedAt, setItem: () => undefined })
     expect(renderToStaticMarkup(<InstallBanner lang="id" />)).toBe('')
   })
 })

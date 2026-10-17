@@ -22,12 +22,13 @@ const isActive = () =>
 /**
  * The volunteer's digest, kept fresh while the app is visible and online (see DigestPoller).
  * `onSynced` runs after every successful read, with the phone time it arrived.
- * `getPosition` supplies lat/lng for nearby fires on each poll (#134).
+ * `position` is the phone's latest fix, sent with each read so the answer lists fires near it. It is read at poll
+ * time, so a new fix never restarts the poll; the first fix asks for one read straight away.
  */
 export function useDigest(
   api: EmberApi,
   onSynced?: (digest: Digest, receivedAt: Date) => void,
-  getPosition?: () => DigestPosition | null,
+  position: DigestPosition | null = null,
 ): DigestState {
   const [digest, setDigest] = useState<Digest | null>(null)
   const [status, setStatus] = useState<DigestStatus>('loading')
@@ -35,12 +36,13 @@ export function useDigest(
   const poller = useRef<DigestPoller | null>(null)
   const synced = useRef(onSynced)
   synced.current = onSynced
-  const positionOf = useRef(getPosition)
-  positionOf.current = getPosition
+  const latest = useRef(position)
+  latest.current = position
+  const hasPosition = position !== null
 
   useEffect(() => {
     const instance = new DigestPoller({
-      fetchDigest: () => api.getDigest(positionOf.current?.() ?? null),
+      fetchDigest: () => api.getDigest(latest.current),
       onDigest: (next, receivedAt) => {
         setDigest(next)
         setStatus('ready')
@@ -64,6 +66,10 @@ export function useDigest(
       poller.current = null
     }
   }, [api])
+
+  useEffect(() => {
+    if (hasPosition) void poller.current?.refresh()
+  }, [hasPosition])
 
   const refresh = useCallback(() => {
     void poller.current?.refresh()

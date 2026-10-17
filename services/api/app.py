@@ -2,7 +2,7 @@
 
 GET /me verifies a Firebase ID token and returns the signed-in user.
 GET /config returns public runtime flags such as demoMode.
-POST /observations stores one immutable chip or text observation.
+POST /observations stores one immutable chip, text, or photo observation.
 POST /photos/upload-url issues a short-lived signed PUT URL for one photo.
 GET /incidents, GET /digest and the supervisor decision routes live in incidents/.
 POST /incidents/{id}/suggestions, /ask and /observations/{id}/translate live in assist/ (advisory text from ember-agents).
@@ -30,6 +30,7 @@ from audit_routes import audit_bp
 from sites_routes import sites_bp
 import volunteer_routes
 from training_routes import training_bp
+import join_routes
 
 app = Flask(__name__)
 
@@ -55,6 +56,7 @@ app.register_blueprint(audit_bp)
 app.register_blueprint(sites_bp)
 app.register_blueprint(volunteer_routes.volunteer_bp)
 app.register_blueprint(training_bp)
+app.register_blueprint(join_routes.join_bp)
 
 
 def error_body(code, message):

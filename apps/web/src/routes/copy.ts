@@ -32,10 +32,6 @@ export const copy = {
   signIn: {
     volunteer: {
       title: { id: 'Masuk ke EMBER', en: 'Sign in to EMBER' },
-      sub: {
-        id: 'Aplikasi relawan. Paling nyaman di ponsel; pasang di Layar Utama untuk menerima peringatan.',
-        en: 'Volunteer app. Works best on a phone: install it to your Home Screen for alerts.',
-      },
     },
     supervisor: {
       title: { id: 'Masuk ke Konsol Supervisor', en: 'Sign in to the Supervisor Console' },
@@ -54,6 +50,61 @@ export const copy = {
       en: 'Your browser blocked the sign-in pop-up. Allow pop-ups for this site and try again.',
     },
     note: { id: 'Anda akan kembali ke halaman yang Anda buka.', en: "You'll come back to the page you opened." },
+    tryAgain: { id: 'Coba lagi', en: 'Try again' },
+  },
+  /** The volunteer sign-in frame (02 Sign in) and the states drawn on the same shell. */
+  volunteer: {
+    tagline: {
+      id: 'Laporkan kebakaran lewat suara, kamera, atau satu ketukan. Supervisor Anda melihatnya dan mengirim bantuan.',
+      en: 'Report fires by voice, camera or one tap. Your supervisor sees it and sends help.',
+    },
+    newToEmber: { id: 'BARU DI EMBER?', en: 'NEW TO EMBER?' },
+    createAccount: { id: 'Buat akun relawan', en: 'Create a volunteer account' },
+    demo: { id: 'Demo simulasi · tanpa data nyata', en: 'Simulated demo · no real data' },
+    languageLabel: { id: 'Bahasa / English', en: 'Bahasa / English' },
+    /** The red card under the tagline when Google sign-in did not finish (frame A1c). */
+    signInError: {
+      blocked: {
+        title: { id: 'Jendela masuk diblokir', en: 'Sign-in window was blocked' },
+        body: { id: 'Izinkan pop-up untuk situs ini, lalu coba lagi.', en: 'Allow pop-ups for this site, then try again.' },
+      },
+      cancelled: {
+        title: { id: 'Masuk dibatalkan', en: 'Sign-in was cancelled' },
+        body: { id: 'Ketuk Coba lagi untuk membuka jendela Google.', en: 'Tap Try again to open the Google window.' },
+      },
+      failed: {
+        title: { id: 'Tidak bisa masuk saat ini', en: "We couldn't sign you in" },
+        body: { id: 'Periksa koneksi Anda lalu coba lagi.', en: 'Check your connection and try again.' },
+      },
+    },
+    deviceNotVerified: {
+      title: { id: 'Kami tidak dapat memverifikasi perangkat ini', en: "We couldn't verify this device" },
+      body: {
+        id: 'Muat ulang aplikasi. Jika terus terjadi, beri tahu supervisor Anda — laporan tidak bisa dikirim sampai ini teratasi.',
+        en: "Reload the app. If it keeps happening, tell your supervisor — reports can't be sent until this clears.",
+      },
+      code: { id: '403 · APP CHECK', en: '403 · APP CHECK' },
+      action: { id: 'Muat ulang', en: 'Reload' },
+    },
+    sessionExpired: {
+      title: { id: 'Silakan masuk lagi', en: 'Please sign in again' },
+      body: {
+        id: 'Sesi Anda berakhir. Laporan yang antre tetap ada di ponsel ini dan terkirim setelah Anda masuk.',
+        en: 'Your session ended. Queued reports stay on this phone and send after you sign in.',
+      },
+      code: { id: '401 · UNAUTHORIZED', en: '401 · UNAUTHORIZED' },
+    },
+    accountCheckFailed: {
+      title: { id: 'Kami tidak dapat memeriksa akun Anda', en: "We couldn't check your account" },
+      body: {
+        id: 'Periksa koneksi Anda lalu coba lagi. Laporan yang antre tetap ada di ponsel ini.',
+        en: 'Check your connection and try again. Queued reports stay on this phone.',
+      },
+    },
+    notFoundBody: {
+      id: 'Tautan ini tidak mengarah ke mana pun di EMBER.',
+      en: "This link doesn't go anywhere in EMBER.",
+    },
   },
   roleChoice: {
     title: { id: 'Masuk sebagai siapa?', en: 'Who are you signing in as?' },
@@ -71,24 +122,21 @@ export const copy = {
     volunteerOnSupervisorPage: {
       title: { id: 'Halaman ini untuk supervisor', en: 'This page is for supervisors' },
       body: {
-        id: 'Akun {email} terdaftar sebagai relawan. Buka aplikasi relawan untuk melapor.',
-        en: 'Account {email} is registered as a volunteer. Open the volunteer app to report.',
+        id: 'Akun Anda terdaftar sebagai relawan. Buka aplikasi relawan untuk melapor.',
+        en: 'Your account is registered as a volunteer. Open the volunteer app to report.',
       },
       action: { id: 'Buka aplikasi relawan', en: 'Open the volunteer app' },
     },
     supervisorOnVolunteerPage: {
       title: { id: 'Halaman ini untuk relawan', en: 'This page is for volunteers' },
       body: {
-        id: 'Akun {email} terdaftar sebagai supervisor. Buka konsol untuk meninjau insiden.',
-        en: 'Account {email} is registered as a supervisor. Open the console to review incidents.',
+        id: 'Akun Anda terdaftar sebagai supervisor. Buka konsol untuk meninjau insiden.',
+        en: 'Your account is registered as a supervisor. Open the console to review incidents.',
       },
       action: { id: 'Buka konsol', en: 'Open the console' },
     },
-    code: { id: '403 · DILARANG', en: '403 · FORBIDDEN' },
-    langNote: {
-      id: 'Bahasa dipilih sebelumnya · tersimpan di perangkat ini',
-      en: 'Language chosen earlier · saved on this device',
-    },
+    /** Printed with the requested path, as in `403 · FORBIDDEN · /CONSOLE`. */
+    code: { id: '403 · FORBIDDEN', en: '403 · FORBIDDEN' },
   },
   noAccess: {
     title: { id: 'Anda sudah masuk, tetapi belum ditambahkan', en: "You're signed in, but not added yet" },
@@ -97,8 +145,8 @@ export const copy = {
       en: 'Ask a BPBD admin to give {email} the supervisor role, then check again.',
     },
     volunteer: {
-      id: 'Minta admin BPBD memberi peran relawan pada {email}, lalu periksa lagi.',
-      en: 'Ask a BPBD admin to give {email} the volunteer role, then check again.',
+      id: 'Minta supervisor BPBD Anda menambahkan {email} sebagai relawan. Lalu ketuk Periksa lagi.',
+      en: 'Ask your BPBD supervisor to add {email} as a volunteer. Then tap Check again.',
     },
     code: { id: '403 · ROLE_MISSING', en: '403 · ROLE_MISSING' },
     checkAgain: { id: 'Periksa lagi', en: 'Check again' },
@@ -139,4 +187,15 @@ export function signInErrorText(message: string, lang: Lang): string {
     return copy.signIn.blocked[lang]
   }
   return message
+}
+
+/** The volunteer sees a titled card, never the raw message: a pop-up error is mapped, anything else gets the generic one. */
+export function volunteerSignInError(message: string, lang: Lang): { title: string; body: string } {
+  const text = copy.volunteer.signInError
+  const card = /popup-blocked/.test(message)
+    ? text.blocked
+    : /popup-closed-by-user|cancelled-popup-request|user-cancelled/.test(message)
+      ? text.cancelled
+      : text.failed
+  return { title: card.title[lang], body: card.body[lang] }
 }

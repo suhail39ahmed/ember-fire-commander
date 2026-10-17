@@ -5,6 +5,7 @@ import { authHeadersFor } from '../api/authHeaders'
 import { createHttpApi } from '../api/client'
 import { GATEWAY_WSS_URL, USE_MOCK_API } from '../api/config'
 import { createMockApi, type MockControls } from '../api/mock'
+import { reportAuthFailures } from '../api/reportAuthFailures'
 import type { EmberApi } from '../api/types'
 import { recordDigestClock } from '../clock'
 import type { CoachState } from './volunteerContext'
@@ -29,7 +30,7 @@ const IDLE_COACH: CoachState = { phase: 'idle', replyText: null, receivedAt: nul
  * starting its own. Render it inside RequireRole role="volunteer", where `me` is set.
  */
 export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberApi; children: ReactNode }) {
-  const { user, me } = useAuth()
+  const { user, me, reportAuthFailure } = useAuth()
   const [session, setSession] = useState<SessionState>('idle')
   const [pttBlocked, setPttBlocked] = useState<'auth' | 'unavailable' | null>(null)
   const [transcript, setTranscript] = useState<string | null>(null)
@@ -38,28 +39,25 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
   const { perms, asking, request } = usePermissions()
   const getAuthHeaders = useMemo(() => authHeadersFor(user), [user])
   const volunteerId = me?.id ?? null
-  const api = useMemo<EmberApi>(
+  const baseApi = useMemo<EmberApi>(
     () => apiOverride ?? (USE_MOCK_API ? createMockApi(volunteerId ?? 'uid_mock') : createHttpApi(getAuthHeaders)),
     [apiOverride, getAuthHeaders, volunteerId],
   )
-  const mock = (api as EmberApi & { mock?: MockControls }).mock
+  // A 401 on any call swaps the page for the sign-in screen (session expired, or device not verified).
+  const api = useMemo<EmberApi>(
+    () => (reportAuthFailure ? reportAuthFailures(baseApi, reportAuthFailure) : baseApi),
+    [baseApi, reportAuthFailure],
+  )
+  const mock = (baseApi as EmberApi & { mock?: MockControls }).mock
   const upload = useMemo(() => (USE_MOCK_API ? createMockUpload() : createXhrUpload()), [])
   const outbox = useOutbox(api, upload)
 
   useEffect(() => registerServiceWorker(), [])
 
-  // Phone GPS for nearby distance on the digest (#134). Waiting/denied means nearby stays empty.
-  const devicePosition = useDevicePosition(true)
-  const getDigestPosition = () =>
-    devicePosition.kind === 'ok' ? { lat: devicePosition.lat, lng: devicePosition.lng } : null
-  const { digest, status: digestStatus, lastSyncAt, refresh } = useDigest(api, recordDigestClock, getDigestPosition)
-  // Re-read once the first fix arrives so nearby is not stuck empty until the next poll.
-  const hadFix = useRef(false)
-  useEffect(() => {
-    if (devicePosition.kind !== 'ok' || hadFix.current) return
-    hadFix.current = true
-    refresh()
-  }, [devicePosition.kind, refresh])
+  // The fix rides on the digest read so the home screen can list fires near the phone. Only while location is allowed.
+  const position = useDevicePosition(perms.location === 'granted')
+  const digestPosition = useMemo(() => (position.kind === 'ok' ? { lat: position.lat, lng: position.lng } : null), [position])
+  const { digest, status: digestStatus, lastSyncAt, refresh } = useDigest(api, recordDigestClock, digestPosition)
   usePushRegistration(user, perms.notifications, refresh)
 
   const ptt = useMemo(
@@ -121,6 +119,7 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
     digestStatus,
     lastSyncAt,
     refresh,
+    position,
     outbox,
     upload,
     perms,
