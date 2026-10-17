@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
-import { CoachReply } from '../gateway/CoachReply'
+import { CameraPanel } from '../camera/CameraPanel'
+import { useLiveCamera } from '../camera/useLiveCamera'
+import { CoachReceipt, CoachReply } from '../gateway/CoachReply'
 import { HoldToTalkPanel } from '../gateway/HoldToTalkPanel'
 import { gatewayStrings } from '../gateway/gatewayStrings'
 import { useLanguage } from '../language'
@@ -16,14 +18,25 @@ import { t } from '../i18n'
 import { incidentLabelById } from '../incidentName'
 import { screenStrings } from './strings'
 
-/** The Report tab (#128 / #129 / #130): hold to talk, coach reply, chips, photo, outbox. */
+/** The Report tab (#128 / #129 / #130): live camera, hold to talk, coach reply, report cards, photo, outbox. */
 export function ReportScreen() {
   const { lang } = useLanguage()
-  const { api, volunteerId, outbox, upload, talk, digest, refresh } = useVolunteer()
+  const { api, volunteerId, outbox, upload, talk, digest, refresh, perms, position } = useVolunteer()
   const navigate = useNavigate()
   const state = useLocation().state as { chip?: ChipValue | null; n?: number; incidentId?: string; taskId?: string } | null
   const preset = state && state.chip !== undefined ? { chip: state.chip, n: state.n ?? 1 } : undefined
   const [voiceNote, setVoiceNote] = useState<string | null>(null)
+  const camera = useLiveCamera()
+
+  // The browser asks for the camera only from a tap. The one exception: when the volunteer already allowed it, the
+  // preview opens with the screen (no prompt). It is tried once, so turning it off or taking a photo keeps it off.
+  const autoStarted = useRef(false)
+  useEffect(() => {
+    if (autoStarted.current || perms.camera !== 'granted') return
+    autoStarted.current = true
+    camera.start()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- start is stable per screen; only the permission matters
+  }, [perms.camera])
 
   async function onRelease() {
     const text = talk.takeTranscript()
@@ -65,6 +78,16 @@ export function ReportScreen() {
 
   return (
     <>
+      <CameraPanel
+        lang={lang}
+        state={camera.state}
+        stream={camera.stream}
+        onToggle={camera.toggle}
+        accuracyM={position.kind === 'ok' ? position.accuracyM : null}
+        onBack={() => navigate('/pwa')}
+        // The browser cannot open the voice-gateway socket yet (contract section 7), so no frame leaves the phone.
+        framesToCoach={false}
+      />
       {state?.incidentId && (
         <p className="muted small" data-testid="report-context">
           {t(lang, screenStrings.report.forIncident)} {incidentLabelById(state.incidentId, digest?.incidents)}
@@ -75,6 +98,7 @@ export function ReportScreen() {
           {t(lang, screenStrings.report.forTask)} {digest?.myTasks.find((x) => x.id === state.taskId)?.instruction ?? ''}
         </p>
       )}
+      <CoachReply lang={lang} phase={talk.coach.phase} replyText={talk.coach.replyText} />
       <HoldToTalkPanel
         lang={lang}
         view={talk.view}
@@ -82,18 +106,12 @@ export function ReportScreen() {
         onPress={talk.onPress}
         onRelease={() => void onRelease()}
       />
+      <CoachReceipt lang={lang} phase={talk.coach.phase} receivedAt={talk.coach.receivedAt} incidentLabel={talk.coach.incidentLabel} />
       {voiceNote && (
         <p className="muted small" role="status" data-testid="voice-note">
           {voiceNote}
         </p>
       )}
-      <CoachReply
-        lang={lang}
-        phase={talk.coach.phase}
-        replyText={talk.coach.replyText}
-        receivedAt={talk.coach.receivedAt}
-        incidentLabel={talk.coach.incidentLabel}
-      />
       <ReportPanel
         api={api}
         lang={lang}
@@ -105,7 +123,7 @@ export function ReportScreen() {
         volunteerId={volunteerId}
         onDone={() => navigate('/pwa')}
       />
-      <PhotoPanel api={api} upload={upload} lang={lang} getPosition={getPosition} submit={outbox.submit} queuePhoto={outbox.queuePhoto} taskId={state?.taskId} />
+      <PhotoPanel api={api} upload={upload} lang={lang} getPosition={getPosition} submit={outbox.submit} queuePhoto={outbox.queuePhoto} taskId={state?.taskId} onBeforeCapture={camera.stop} />
       <OutboxPanel
         items={outbox.items}
         online={outbox.online}

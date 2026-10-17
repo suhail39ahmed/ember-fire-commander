@@ -6,6 +6,7 @@ import { outboxStrings } from '../outbox/strings'
 import type { PendingPhoto } from '../outbox/types'
 import { t, type Lang } from '../i18n'
 import type { Position } from '../report/buildObservation'
+import { openCapture } from './capture'
 import { isAcceptedImage, preparePhoto } from './preparePhoto'
 import { photoStrings as s } from './strings'
 import { UploadError, type UploadFn } from './upload'
@@ -42,6 +43,8 @@ interface Props {
   /** Keeps a photo whose upload failed on weak signal; the outbox uploads it later (#21). */
   queuePhoto?: (photo: PendingPhoto) => Promise<void>
   taskId?: string
+  /** Runs just before the camera app or picker opens, so a live preview can release the camera first. */
+  onBeforeCapture?: () => void
 }
 
 function describe(e: unknown, lang: Lang): { message: string; retryable: boolean } {
@@ -55,7 +58,7 @@ function describe(e: unknown, lang: Lang): { message: string; retryable: boolean
 }
 
 /** #20: take one still, upload it to a signed URL, then send `source: photo`. */
-export function PhotoPanel({ api, upload, lang, getPosition, submit, queuePhoto, taskId }: Props) {
+export function PhotoPanel({ api, upload, lang, getPosition, submit, queuePhoto, taskId, onBeforeCapture }: Props) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const deviceFacts = useDeviceFacts(lang)
   const [shot, setShot] = useState<Shot | null>(null)
@@ -143,7 +146,7 @@ export function PhotoPanel({ api, upload, lang, getPosition, submit, queuePhoto,
     abort.current?.abort()
     setShot(null)
     setStatus({ kind: 'idle' })
-    input.current?.click()
+    openCapture(() => input.current?.click(), onBeforeCapture)
   }
 
   const busy = status.kind === 'preparing' || status.kind === 'uploading' || status.kind === 'submitting'
@@ -220,7 +223,7 @@ export function PhotoPanel({ api, upload, lang, getPosition, submit, queuePhoto,
 
       <div className="photo-actions">
         {status.kind === 'idle' && (
-          <button type="button" className="btn primary" onClick={() => input.current?.click()}>
+          <button type="button" className="btn primary" onClick={() => openCapture(() => input.current?.click(), onBeforeCapture)}>
             {t(lang, s.take)}
           </button>
         )}

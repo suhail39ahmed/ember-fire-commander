@@ -23,20 +23,25 @@
   .talk .ptt-spinner, .talk .ptt-wave i { animation: none; }
 }
 
-/* Hold to talk frame (#129) and coach reply (#130) */
+/* Hold to talk (#129) and coach reply (#130), as the Report tab frames: no card around the button, a quote card for what
+   the volunteer said, a blue card for the AI coach. Scoped to .hold-panel so the Hold to talk on other screens is unchanged. */
 .hold-panel { display: flex; flex-direction: column; gap: 10px; }
-.hold-live .hold-camera {
-  position: relative; min-height: 160px; border-radius: 18px; background: #1a1a1a; color: #fff;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
-}
-.hold-camera-ring {
-  width: 72px; height: 72px; border-radius: 50%; border: 3px solid var(--ember);
-  box-shadow: 0 0 0 10px rgba(226, 83, 27, 0.2);
-}
-.hold-camera-label { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; }
+.hold-panel .talk { background: transparent; padding: 0; gap: 12px; }
+.hold-panel .talk .ptt { border-radius: 999px; height: 60px; }
+.hold-panel .talk .ptt-listening { background: #dc2626; }
+.hold-panel .talk .ptt-status { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-weight: 400; }
+.hold-panel .talk .ptt-status::before { content: ''; flex: none; width: 7px; height: 7px; margin-top: 0.45em; border-radius: 50%; background: var(--ink-muted); }
+.hold-panel .talk .ptt-status[data-state='listening']::before { display: none; }
 .hold-transcript {
-  margin: 0; padding: 12px 14px; border-radius: 14px; background: var(--surface-2);
-  font-size: 16px; line-height: 1.4; min-height: 3.2em;
+  box-sizing: border-box; min-height: 5.2em; padding: 12px 14px; border-radius: 14px; background: #fff; border: 1px solid var(--line);
 }
+.hold-transcript-label { margin: 0 0 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; letter-spacing: 0.08em; color: var(--ink-muted); }
+.hold-transcript-text { margin: 0; font-size: 16px; line-height: 1.4; }
+.hold-transcript-empty { color: var(--ink-muted); font-size: 15px; }
 .hold-hint { text-align: center; margin: 0; }
+.coach-reply { box-sizing: border-box; padding: 12px 14px; border-radius: 14px; background: #eef3ff; border: 1.5px solid var(--data); display: flex; flex-direction: column; gap: 4px; }
+.coach-label { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--data); }
 .coach-reply .coach-text { margin: 0; font-size: 16px; line-height: 1.45; }
+.coach-reply .coach-waiting { color: var(--ink-muted); }
+.coach-receipt { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-muted); }
+.coach-receipt svg { flex: none; color: var(--safe); }

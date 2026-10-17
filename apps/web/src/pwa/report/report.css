@@ -1,15 +1,18 @@
-/* Quick report chips (#57). 48 px tall, as in the Figma "Report chip" component. */
-.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Quick report cards (#57, #128): two per row, each with an icon, the label, the Bahasa word and a one-line description. */
+.chips { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .chip {
   --chip-dot: var(--ink-muted);
+  --chip-tint: #efeae2;
+  position: relative;
   box-sizing: border-box;
-  min-height: 48px;
-  max-width: 100%;
-  display: inline-flex;
-  align-items: center;
+  min-height: 112px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
-  padding: 0 16px 0 12px;
-  border-radius: 999px;
+  padding: 12px;
+  border-radius: 16px;
   background: #fff;
   border: 1.5px solid var(--line);
   color: var(--ink);
@@ -19,21 +22,33 @@
   text-align: left;
   cursor: pointer;
 }
-.chip[data-chip='asap'] { --chip-dot: var(--haze); }
-.chip[data-chip='api'] { --chip-dot: var(--ember); }
-.chip[data-chip='aman'] { --chip-dot: var(--safe); }
-.chip[data-chip='butuh_bantuan'] { --chip-dot: var(--danger); }
-.chip-mark { flex: none; width: 16px; height: 16px; border-radius: 50%; background: var(--chip-dot); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; line-height: 1; }
-.chip.selected { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-.chip.selected .chip-mark { background: transparent; color: var(--paper); }
+.chip[data-chip='asap'] { --chip-dot: var(--haze-strong); --chip-tint: #f7ead3; }
+.chip[data-chip='api'] { --chip-dot: var(--ember); --chip-tint: #fbe3d8; }
+.chip[data-chip='aman'] { --chip-dot: var(--safe); --chip-tint: var(--safe-tint); }
+.chip[data-chip='butuh_bantuan'] { --chip-dot: var(--danger); --chip-tint: #fbe0e0; }
+.chip-icon { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--chip-tint); color: var(--chip-dot); display: inline-flex; align-items: center; justify-content: center; }
+.chip-mark { position: absolute; top: 12px; right: 12px; flex: none; width: 22px; height: 22px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--line); background: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; line-height: 1; color: transparent; }
+.chip.selected { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.chip.selected .chip-mark { background: var(--ink); border-color: var(--ink); color: var(--paper); }
 .chip.invalid { border-color: var(--danger); }
 .chip:disabled { cursor: not-allowed; opacity: 0.55; }
-.chip-text { display: flex; flex-direction: column; min-width: 0; }
-.chip-secondary { font-size: 12px; font-weight: 500; opacity: 0.75; }
+.chip-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; max-width: 100%; }
+.chip-primary { font-size: 15px; font-weight: 700; }
+.chip-secondary { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-muted); }
+.chip-desc { font-size: 12.5px; font-weight: 400; line-height: 1.3; color: var(--ink-muted); }
+
+/* The report form on the Report tab sits on the page, not in a card. */
+.card.report { background: transparent; padding: 0; gap: 12px; }
+.card.report .section-label { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10.5px; letter-spacing: 0.08em; }
+.note-label { font-size: 13px; font-weight: 600; color: var(--ink); }
+.card.report .text-field { border-radius: 14px; }
+.card.report .btn.primary { height: 56px; border-radius: 999px; }
+.card.report .btn.primary:disabled { background: #ece6dc; color: var(--ink-muted); opacity: 1; }
 
 /* Status line under Send report (#73). Its height is reserved so a status change never moves the form. */
 .report-status { box-sizing: border-box; min-height: 40px; display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 20px; font-weight: 500; color: var(--ink-muted); }
 .report-status.error { color: var(--danger); }
+.report-status.muted::before { content: ''; flex: none; width: 7px; height: 7px; margin-top: 6.5px; border-radius: 50%; background: var(--ink-muted); }
 .report-spinner { flex: none; width: 14px; height: 14px; margin-top: 3px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: report-spin 0.9s linear infinite; }
 @keyframes report-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .report-spinner { animation: none; } }
