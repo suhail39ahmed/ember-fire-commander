@@ -73,7 +73,7 @@ export function downsample(input: Float32Array, sourceRate: number, targetRate: 
 
 export class MicCapture {
   private ctx: AudioContext | null = null
-  private stream: MediaStream | null = null
+  private _stream: MediaStream | null = null
   private source: MediaStreamAudioSourceNode | null = null
   private processor: ScriptProcessorNode | null = null
   private running = false
@@ -84,6 +84,11 @@ export class MicCapture {
     return this.running
   }
 
+  /** The raw MediaStream from getUserMedia, or null when the mic is not open. */
+  get stream(): MediaStream | null {
+    return this._stream
+  }
+
   async start(): Promise<void> {
     if (this.running) return
     const env = this.deps.env ?? browserEnv()
@@ -92,9 +97,9 @@ export class MicCapture {
       return
     }
     try {
-      this.stream = await env.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } })
+      this._stream = await env.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } })
       this.ctx = new env.AudioContext({ sampleRate: TARGET_SAMPLE_RATE })
-      this.source = this.ctx.createMediaStreamSource(this.stream)
+      this.source = this.ctx.createMediaStreamSource(this._stream)
       // ScriptProcessorNode is deprecated but widely supported; AudioWorklet
       // requires a separate JS file which complicates the Vite build.
       this.processor = this.ctx.createScriptProcessor(BUFFER_SIZE, 1, 1)
@@ -125,9 +130,9 @@ export class MicCapture {
       this.source.disconnect()
       this.source = null
     }
-    if (this.stream) {
-      for (const track of this.stream.getTracks()) track.stop()
-      this.stream = null
+    if (this._stream) {
+      for (const track of this._stream.getTracks()) track.stop()
+      this._stream = null
     }
     if (this.ctx) {
       void this.ctx.close().catch(() => undefined)

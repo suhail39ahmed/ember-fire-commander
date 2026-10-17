@@ -42,6 +42,7 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
   const [pttBlocked, setPttBlocked] = useState<'auth' | 'unavailable' | null>(null)
   const [transcript, setTranscript] = useState<string | null>(null)
   const [coach, setCoach] = useState<CoachState>(IDLE_COACH)
+  const [micStream, setMicStream] = useState<MediaStream | null>(null)
   const transcriptRef = useRef<string | null>(null)
   const { perms, asking, request } = usePermissions()
   const getAuthHeaders = useMemo(() => authHeadersFor(user), [user])
@@ -113,9 +114,10 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
         onState: (s) => {
           setSession(s)
           if (s === 'live') {
-            void mic.start()
+            void mic.start().then(() => setMicStream(mic.stream))
           } else if (s === 'idle' || s === 'lost') {
             mic.stop()
+            setMicStream(null)
           }
         },
         onMessage: (msg) => {
@@ -166,6 +168,7 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
   const onRelease = () => {
     pressed.current = false
     mic.stop()
+    setMicStream(null)
     if (ptt.isOpen) ptt.release()
   }
 
@@ -199,6 +202,7 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
         return text
       },
       coach,
+      micStream,
       beginCoach: (receipt) => {
         setCoach({
           phase: 'replying',

@@ -33,6 +33,11 @@ export interface TalkHandle {
    * Pass receipt fields only when the API or gateway already provided them.
    */
   beginCoach: (receipt?: { receivedAt?: string | null; incidentLabel?: string | null }) => void
+  /**
+   * The raw MediaStream from the microphone while Hold to Talk is active, null otherwise.
+   * Used by the video recorder to mix the volunteer's voice into the clip.
+   */
+  micStream: MediaStream | null
 }
 
 /**
