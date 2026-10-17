@@ -64,10 +64,17 @@ Tests: `pip install -r requirements-dev.txt && pytest`.
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-export PORT=8080
+export EMBER_AGENTS_PORT=8082
 export FIRESTORE_DATABASE=ember-db
 python app.py
 ```
+
+Local ports: web `5173`, ember-api `8080`, ember-agents `8082`.
+The agents app reads `PORT` first (for Cloud Run), then `EMBER_AGENTS_PORT`, and defaults to `8082`.
+The API reads `PORT`, then `EMBER_API_PORT`, and defaults to `8080`.
+Set `EMBER_AGENTS_URL=http://localhost:8082` in the API process so it can invoke the local agents.
+Use separate terminals for the Python services; a `PORT` value set in one terminal does not configure the other.
+Neither Python app loads `.env.local` automatically, so export those values before starting it.
 
 Test the health check:
 

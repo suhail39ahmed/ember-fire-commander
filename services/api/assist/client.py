@@ -9,6 +9,7 @@ import logging
 import os
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 
 from observations.notify import cloud_run_token
 
@@ -44,11 +45,18 @@ def post(path, payload=None, timeout=ASSIST_TIMEOUT_SECONDS):
         raise AgentsUnavailable("EMBER_AGENTS_URL is not set")
     data = json.dumps(payload).encode() if payload is not None else b""
     try:
+        headers = {"Content-Type": "application/json"}
+        target = urlsplit(base)
+        # The local Flask agents server has no Cloud Run IAM layer. Remote
+        # services always retain the audience-bound service identity token.
+        local = target.scheme == "http" and target.hostname in ("localhost", "127.0.0.1", "::1")
+        if not local:
+            headers["Authorization"] = f"Bearer {cloud_run_token(base)}"
         request = urllib.request.Request(
             f"{base}{path}",
             data=data,
             method="POST",
-            headers={"Authorization": f"Bearer {cloud_run_token(base)}", "Content-Type": "application/json"},
+            headers=headers,
         )
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return json.loads(response.read() or b"{}")

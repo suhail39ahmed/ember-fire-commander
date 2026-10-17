@@ -22,6 +22,8 @@ export const auth = import.meta.env.DEV && import.meta.env.VITE_AUTH_SESSION_ONL
   ? initializeAuth(firebaseApp, { persistence: browserSessionPersistence, popupRedirectResolver: browserPopupRedirectResolver })
   : getAuth(firebaseApp)
 export const googleProvider = new GoogleAuthProvider()
+// Google keeps its browser session after Firebase sign-out; always offer account selection.
+googleProvider.setCustomParameters({ prompt: 'select_account' })
 
 let appCheck: AppCheck | null = null
 
@@ -34,7 +36,10 @@ export function getAppCheck(): AppCheck | null {
     return null
   }
   if (import.meta.env.DEV) {
-    globalThis.FIREBASE_APPCHECK_DEBUG_TOKEN = true
+    // A registered token can be reused across localhost ports and incognito sessions.
+    globalThis.FIREBASE_APPCHECK_DEBUG_TOKEN = import.meta.env.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN?.trim()
+      || globalThis.FIREBASE_APPCHECK_DEBUG_TOKEN
+      || true
   }
   appCheck = initializeAppCheck(firebaseApp, {
     provider: new ReCaptchaEnterpriseProvider(siteKey),
