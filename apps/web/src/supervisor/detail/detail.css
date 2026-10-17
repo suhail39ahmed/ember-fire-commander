@@ -180,3 +180,25 @@
 .inc-help-text { font-style: italic; }
 .inc-vol.help, .rep.help { border-color: var(--danger); box-shadow: 0 0 0 2px #fde2e2; }
 .inc-meta { margin: 4px 0 0; }
+
+/* Console UI against the design (#185). */
+.inc-h2-stack { flex-direction: column; align-items: flex-start; gap: 4px; }
+.inc-h2-mono { font: 600 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-muted); }
+.inc-field { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 900px) { .inc-field { grid-template-columns: minmax(0, 1fr); } }
+.inc-vol.on-live { border-color: var(--ember); box-shadow: 0 0 0 1px var(--ember) inset; }
+.inc-vol-crew { margin: 0; }
+.inc-vol-link { flex: none; font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink-muted); white-space: nowrap; }
+.inc-callout { display: flex; align-items: center; gap: 8px; }
+.inc-callout-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+.inc-modal-x { position: absolute; top: 14px; right: 14px; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: #fff; color: var(--ink); font: inherit; font-size: 14px; line-height: 1; }
+.inc-modal-x[disabled] { opacity: 0.5; }
+.inc-modal { position: relative; }
+
+/* The right rail: sections stack without boxes, the timeline reads as monospace rows. */
+.inc-rail > .inc-card { background: transparent; border: 0; border-radius: 0; padding: 0; }
+.inc-rail > .inc-card + .inc-card { border-top: 1px solid var(--line); padding-top: 16px; }
+.inc-rail .inc-timeline { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; gap: 6px; }
+.inc-rail .inc-timeline li { grid-template-columns: 5ch minmax(0, 1fr); }
+.inc-rail .inc-timeline time { white-space: nowrap; }
+.inc-actor { text-transform: uppercase; font-weight: 700; }

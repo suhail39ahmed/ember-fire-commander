@@ -38,3 +38,5 @@ span.pop-snap-img { display: grid; place-items: center; text-align: center; padd
 .pop-result.pop-error { color: var(--danger); }
 .pop-vision { color: var(--ink-muted); }
 .pop-answer { font-weight: 600; }
+.pop-status { font: 600 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.04em; text-transform: uppercase; }
+.pop-prompts { display: flex; flex-wrap: wrap; gap: 6px; }

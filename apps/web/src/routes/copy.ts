@@ -16,8 +16,8 @@ export const copy = {
       en: 'Report fires by voice, camera or one tap. Your supervisor sees it and sends help.',
     },
     supervisor: {
-      id: 'Banyak mata, satu api. Relawan melapor; supervisor memverifikasi, menyetujui, dan mengirim bantuan. Aturan mundur ditulis dalam kode, bukan AI.',
-      en: 'Many eyes, one fire. Volunteers report; a supervisor verifies, approves and sends help. The withdraw rule is code, not AI.',
+      id: 'Setiap laporan penting. Verifikasi peringatan, koordinasikan bantuan, dan dukung relawan. Aturan mundur ditegakkan oleh kode. EMBER hanya menyarankan; manusia yang memutuskan.',
+      en: 'Every report matters. Verify alerts, coordinate help, and support volunteers. Withdrawal rules are enforced by code. EMBER only suggests; people decide.',
     },
     general: {
       id: 'Satu agen keselamatan untuk komunitas di kedua ujung asap.',

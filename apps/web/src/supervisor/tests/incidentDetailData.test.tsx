@@ -186,7 +186,7 @@ describe('incident detail with the supervisor extras', () => {
     const html = view(withExtras())
     expect(html).toContain('aria-label="Ayu"')
     expect(html).toContain('111 m from the incident centre')
-    expect(html).toContain('-1.850, 110.051')
+    expect(html).not.toContain('-1.850, 110.051')
     expect(html).toContain('Smoke')
   })
 
@@ -202,10 +202,10 @@ describe('incident detail with the supervisor extras', () => {
 
   it('draws the stored timeline: reports and actions, with who did them', () => {
     const html = view(withExtras())
-    expect(html).toContain('Reports and actions, from the stored records')
-    expect(html).toContain('Code · sent WITHDRAW')
-    expect(html).toContain('Bu Maya · marked a volunteer safe · Sari')
-    expect(html).toContain('Sari · instruction heard on device')
+    expect(html).not.toContain('Reports and actions, from the stored records')
+    expect(html).toContain('<span class="inc-actor">Code</span> · sent WITHDRAW')
+    expect(html).toContain('<span class="inc-actor">Bu Maya</span> · marked a volunteer safe · Sari')
+    expect(html).toContain('<span class="inc-actor">Sari</span> · instruction heard on device')
     expect(html).toContain('“Api kecil di parit”')
   })
 
@@ -226,7 +226,7 @@ describe('incident detail with the supervisor extras', () => {
 
   it('draws the same screen as before from an older API that sends none of it', () => {
     const html = view(fixture('withdraw'))
-    expect(html).toContain('From volunteer reports')
+    expect(html).not.toContain('From volunteer reports')
     expect(html).not.toContain('Reports and actions')
     expect(html).not.toContain('from the incident centre')
     expect(html).not.toContain('SUMMARY')
@@ -236,7 +236,7 @@ describe('incident detail with the supervisor extras', () => {
   it('writes in Bahasa too and adds no control that clears a withdraw', () => {
     const html = view(withExtras(), 'id')
     expect(html).toContain('111 m dari pusat insiden')
-    expect(html).toContain('Kode · mengirim MUNDUR')
+    expect(html).toContain('<span class="inc-actor">Kode</span> · mengirim MUNDUR')
     expect(html).not.toMatch(/cancel withdraw|clear withdraw|batalkan mundur/i)
   })
 })

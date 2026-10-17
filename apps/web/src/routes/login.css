@@ -39,6 +39,7 @@
 }
 
 .eyebrow {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   letter-spacing: 0.12em;
   font-size: 13px;
   font-weight: 700;
@@ -79,15 +80,15 @@
 }
 
 .login-card {
-  width: min(420px, 100%);
+  width: min(560px, 100%);
   background: #fff;
+  border: 1px solid #ddd6ca;
   border-radius: 20px;
   padding: 36px 32px;
-  box-shadow: 0 16px 48px rgba(20, 18, 16, 0.08);
 }
 
 .login-card h1 {
-  font-size: 28px;
+  font-size: 26px;
   line-height: 1.2;
   margin-bottom: 10px;
   font-weight: 750;
@@ -164,6 +165,17 @@
 
 .note {
   color: #6b645c;
+}
+
+.note:not(.waiting)::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #c23b1a;
+  vertical-align: 2px;
 }
 
 .note.waiting {
