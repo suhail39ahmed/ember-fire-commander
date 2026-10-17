@@ -10,6 +10,7 @@ COPY auth ./auth
 
 COPY observations ./observations
 COPY photos ./photos
+COPY videos ./videos
 COPY incidents ./incidents
 COPY notifications ./notifications
 COPY assist ./assist

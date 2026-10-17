@@ -1,9 +1,10 @@
-"""Validate a chip, text or photo observation before it is stored."""
+"""Validate a chip, text, photo or video observation before it is stored."""
 import math
 import re
 from datetime import datetime, timedelta, timezone
 
 from photos.paths import owner_of
+from videos.paths import owner_of as video_owner_of
 
 CHIPS = ("asap", "api", "aman", "butuh_bantuan")
 CHIP_SEVERITY = {
@@ -22,7 +23,7 @@ CLIENT_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 # for days, so capturedAt has to fall inside this window around receipt.
 MAX_FUTURE = timedelta(minutes=5)
 MAX_AGE = timedelta(days=7)
-SOURCES = ("chip", "text", "photo")
+SOURCES = ("chip", "text", "photo", "video")
 _REJECTED_SOURCES = ("live",)
 
 
@@ -68,6 +69,7 @@ def prepare_observation(body):
     accuracy = _accuracy(body, fields)
     chip, text = _chip_and_text(source, body, fields)
     photo_path = _photo_path(source, body, fields)
+    video_path = _video_path(source, body, fields)
     client_id = _client_id(body, fields)
     device = _device(body.get("device"))
 
@@ -85,6 +87,7 @@ def prepare_observation(body):
         "text": text,
         "severity": severity,
         "photoPath": photo_path,
+        "videoPath": video_path,
         "clientId": client_id,
         "device": device,
     }
@@ -203,9 +206,9 @@ def _chip_and_text(source, body, fields):
         if "text" not in fields and note is None:
             fields["text"] = "text is required"
         return None, note
-    if source == "photo":
+    if source in ("photo", "video"):
         if chip is not None:
-            fields["chip"] = "a photo report omits the chip"
+            fields["chip"] = f"a {source} report omits the chip"
         return None, note
     return None, note
 
@@ -219,6 +222,19 @@ def _photo_path(source, body, fields):
         return None
     if owner_of(path) is None:
         fields["photoPath"] = "photoPath must be a path issued by /photos/upload-url"
+        return None
+    return path
+
+
+def _video_path(source, body, fields):
+    if source != "video":
+        return None
+    path = body.get("videoPath")
+    if not isinstance(path, str) or not path:
+        fields["videoPath"] = "videoPath is required for a video report"
+        return None
+    if video_owner_of(path) is None:
+        fields["videoPath"] = "videoPath must be a path issued by /videos/upload-url"
         return None
     return path
 

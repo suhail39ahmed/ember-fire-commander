@@ -8,6 +8,7 @@ from assist import background as assist_background
 from incidents import store as incident_store
 from observations.notify import notify_observation, resend_pending
 from observations.photo import check_photo_path
+from observations.video import check_video_path
 from observations.store import assemble_record, get_store, utc_now_iso
 from observations.validate import ValidationError, prepare_observation
 
@@ -47,6 +48,8 @@ def create_observation():
 
     if prepared["source"] == "photo":
         check_photo_path(g.user["id"], prepared["photoPath"])
+    if prepared["source"] == "video":
+        check_video_path(g.user["id"], prepared["videoPath"])
 
     task_id = body.get("taskId") if isinstance(body, dict) else None
     if task_id is not None:

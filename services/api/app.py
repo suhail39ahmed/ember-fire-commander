@@ -21,6 +21,7 @@ from auth import install_auth
 from identity import AuthError
 from observations.routes import bp as observations_bp
 from photos import photos_bp
+from videos import videos_bp
 from assist import assist_bp
 from incidents import incidents_bp
 from notifications import notifications_bp
@@ -49,6 +50,7 @@ CORS(
 install_auth(app)
 app.register_blueprint(observations_bp)
 app.register_blueprint(photos_bp)
+app.register_blueprint(videos_bp)
 app.register_blueprint(incidents_bp)
 app.register_blueprint(assist_bp)
 app.register_blueprint(notifications_bp)

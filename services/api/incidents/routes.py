@@ -16,6 +16,7 @@ from incidents import detail as incident_detail, live_seat, members, nearby, rul
 from incidents.errors import ApiError, conflict, error_response, not_found, validation
 from notifications.send import deliver_task
 from photos import paths as photo_paths, signing
+from videos import paths as video_paths
 
 logger = logging.getLogger(__name__)
 
@@ -982,6 +983,36 @@ def incident_photo(incident_id, observation_id):
     except Exception:
         logger.exception("could not sign a read URL for observation %s", observation_id)
         raise ApiError(503, "unavailable", "The photo cannot be read right now")
+    expires = (datetime.now(timezone.utc) + timedelta(seconds=ttl)).replace(microsecond=0)
+    response = jsonify({"url": url, "expiresAt": expires.isoformat().replace("+00:00", "Z")})
+    response.headers["Cache-Control"] = "no-store"
+    return response, 200
+
+
+@incidents_bp.route("/incidents/<incident_id>/videos/<observation_id>", methods=["GET"])
+def incident_video(incident_id, observation_id):
+    """A short-lived signed read URL for one video report on this incident. Supervisor only; the object stays private."""
+    _require_supervisor()
+    snapshot = _get(store.INCIDENTS, incident_id)
+    if snapshot is None:
+        raise not_found("incident")
+    data = snapshot.to_dict() or {}
+    known = set(data.get("observationIds") or [])
+    if data.get("conflictId"):
+        con = _get(store.CONFLICTS, data["conflictId"])
+        if con is not None:
+            known.update((con.to_dict() or {}).get("observationIds") or [])
+    obs = _get(store.OBSERVATIONS, observation_id) if observation_id in known else None
+    obs_data = (obs.to_dict() or {}) if obs is not None else {}
+    path = obs_data.get("videoPath")
+    if not video_paths.is_owned_video_path(path, obs_data.get("volunteerId")):
+        raise not_found("video")
+    ttl = signing.read_ttl_seconds()
+    try:
+        url = signing.sign_get_url(signing.photo_bucket(), path, ttl)
+    except Exception:
+        logger.exception("could not sign a read URL for video observation %s", observation_id)
+        raise ApiError(503, "unavailable", "The video cannot be read right now")
     expires = (datetime.now(timezone.utc) + timedelta(seconds=ttl)).replace(microsecond=0)
     response = jsonify({"url": url, "expiresAt": expires.isoformat().replace("+00:00", "Z")})
     response.headers["Cache-Control"] = "no-store"
