@@ -104,7 +104,7 @@ describe('withdraw not confirmed: the banner', () => {
   it('shows who sent it and when, the reason, the count and the unconfirmed volunteer', () => {
     const html = view(withdrawn({ safe: ['uid_sari'] }))
     expect(html).toContain(`WITHDRAW IN FORCE · SENT BY CODE ${formatTimeZone('2026-10-17T03:08:00Z')}`)
-    expect(html).toContain('NO APPROVAL NEEDED · CANNOT BE CANCELLED HERE')
+    expect(html).toContain('NO APPROVAL NEEDED · YOU CLEAR IT ONCE EVERYONE IS SAFE')
     expect(html).toContain('<b>Reason:</b> large flame reported')
     expect(html).toContain('1 of 2 confirmed safe upwind')
     expect(html).toContain('Dedi · not confirmed · 2:00')
@@ -129,18 +129,18 @@ describe('withdraw not confirmed: the banner', () => {
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Call Dedi · No phone number on file<\/button>/)
   })
 
-  it('offers Mark found safe for each unconfirmed volunteer and nothing that cancels the withdraw', () => {
+  it('offers safety controls and keeps Clear disabled while anyone is unconfirmed', () => {
     const html = view(withdrawn({ safe: [] }))
     expect(html.match(/>Mark found safe</g)).toHaveLength(2)
-    expect(html).not.toMatch(/cancel withdraw|clear withdraw|\bend withdraw|stand down|batalkan mundur/i)
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Clear withdraw<\/button>/)
   })
 
   it('is the plain banner once everyone is marked safe, and says the withdraw stays in force', () => {
     const html = view(withdrawn({ safe: ['uid_sari', 'uid_dedi'] }))
     expect(html).toContain('2 of 2 confirmed safe upwind')
-    expect(html).toContain('stays in force until code clears it')
+    expect(html).toContain('Clear the withdraw when ready.')
     expect(html).not.toContain('>Mark found safe<')
-    expect(html).not.toContain('>Call ')
+    expect(html).toContain('>Call ')
     expect(html).toContain('>WITHDRAW<')
     expect(html).not.toContain('SAFE</span>')
   })
@@ -187,22 +187,22 @@ describe('withdraw not confirmed: the banner', () => {
     const html = view(d)
     expect(html).toContain('Last report')
     expect(html).toContain('-1.849, 110.051')
-    expect(html).not.toContain('Last contact not available yet')
+    expect(html).toContain('Last contact not available yet')
   })
 })
 
 describe('withdraw not confirmed: the rest of the screen', () => {
   it('pauses the instructions with the frame’s sentence while someone is unconfirmed', () => {
     const html = view(withdrawn({ safe: ['uid_sari'] }))
-    expect(html).toContain('Instructions are paused while WITHDRAW is in force. They resume when code clears it or you mark everyone safe.')
+    expect(html).toContain('Instructions are paused while WITHDRAW is in force. They resume once you clear it.')
     expect(html.match(/<button[^>]*disabled=""[^>]*>Approve<\/button>/g)).toHaveLength(3)
   })
 
-  it('lets the instructions resume once everyone is marked safe', () => {
+  it('keeps instructions paused until the supervisor clears', () => {
     const html = view(withdrawn({ safe: ['uid_sari', 'uid_dedi'] }))
-    expect(html).not.toContain('Instructions are paused')
-    // All Approve buttons are enabled; the API handles conflict checks when clicked.
-    expect(html.match(/<button[^>]*disabled=""[^>]*>Approve<\/button>/g)).toBeNull()
+    expect(html).toContain('Instructions are paused')
+    // Being safe does not end the withdrawal.
+    expect(html.match(/<button[^>]*disabled=""[^>]*>Approve<\/button>/g)?.length).toBeGreaterThan(0)
   })
 
   it('marks each volunteer card: confirmed, or not confirmed with the time since the send', () => {
@@ -260,9 +260,9 @@ describe('the route and the mock', () => {
     expect(JSON.parse(String(calls[0][1].body))).toEqual({ volunteerId: 'uid_dedi' })
   })
 
-  it('has no client call that clears a withdraw', () => {
+  it('provides the clear-withdraw operation', () => {
     const api = createMockSupervisorApi('sup_1', 'withdraw', 0)
-    expect(Object.keys(api).filter((k) => /clear|cancel|^end|stop/i.test(k))).toEqual([])
+    expect(Object.keys(api).filter((k) => /clear|cancel|^end|stop/i.test(k))).toEqual(['clearWithdraw'])
   })
 
   it('marks safe in the mock, audits it, counts it, and keeps the withdraw active', async () => {

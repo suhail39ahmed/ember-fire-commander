@@ -25,7 +25,7 @@ export interface LayerView {
 /** What each toggle does to the map. Pure, so it can be tested without a browser. */
 export function layerView(state: LayerState, incidents: Incident[], crews: CrewDot[], wind: WindReading | null): LayerView {
   const shownIncidents = state.showLayers && !state.firesOn ? [] : incidents
-  const shownCrews = state.showLayers && state.crewsOn ? crews : []
+  const shownCrews = !state.showLayers || state.crewsOn ? crews : []
   let empty: LayerView['empty'] = null
   if (state.showLayers && !state.firesOn && shownCrews.length === 0) empty = 'firesOff'
   else if (shownCrews.length === 0 && placeable(incidents).length === 0) empty = 'noPositions'

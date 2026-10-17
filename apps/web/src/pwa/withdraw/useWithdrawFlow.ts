@@ -49,12 +49,14 @@ interface BatteryManager {
  */
 export function useWithdrawFlow(input: { api: EmberApi; digest: Digest | null; volunteerId: string | null; task: Task | null }): WithdrawFlow {
   const { api, digest, volunteerId, task } = input
-  const memory = useMemo(() => new WithdrawMemory(), [])
+  const memory = useMemo(() => new WithdrawMemory(undefined, volunteerId ?? ''), [volunteerId])
   const active = useMemo(() => findWithdraw(digest, volunteerId, task), [digest, volunteerId, task])
   const key = active ? withdrawKey(active) : null
   const activeRef = useRef(active)
   activeRef.current = active
   const digestLoaded = digest !== null
+  const digestRef = useRef(digest)
+  digestRef.current = digest
 
   const [now, setNow] = useState(() => Date.now())
   const [answerState, setAnswerState] = useState<{ key: string; state: AnswerState; at: string } | null>(null)
@@ -92,13 +94,15 @@ export function useWithdrawFlow(input: { api: EmberApi; digest: Digest | null; v
       setCleared(null)
       return
     }
-    const clearedAtMs = stored.clearedAtMs ?? Date.now()
+    const closed = digestRef.current?.incidents.find((i) => i.id === stored.incidentId)?.withdraw
+    const clearedAtMs = closed?.clearedAt ? Date.parse(closed.clearedAt) : stored.clearedAtMs ?? Date.now()
     if (stored.clearedAtMs === undefined) memory.saveShown({ ...stored, clearedAtMs })
-    setCleared({ ...stored, clearedAtMs })
+    setCleared({ ...stored, clearedAtMs, clearedByName: closed?.clearedByName, clearReason: closed?.clearReason })
   }, [key, digestLoaded, memory])
 
-  const answerHere = answerState && answerState.key === key ? answerState.state : null
-  const answeredAt = answerState && answerState.key === key ? answerState.at : null
+  const remoteAnswer = volunteerId ? active?.withdraw?.answers?.[volunteerId] : null
+  const answerHere = remoteAnswer?.state ?? (answerState && answerState.key === key ? answerState.state : null)
+  const answeredAt = remoteAnswer?.answeredAt ?? remoteAnswer?.at ?? (answerState && answerState.key === key ? answerState.at : null)
   const supervisorSafe = volunteerId !== null && (active?.withdraw?.safeVolunteerIds ?? []).includes(volunteerId)
   const ticking = active !== null && answerHere === null && !supervisorSafe
   useEffect(() => {
@@ -118,19 +122,22 @@ export function useWithdrawFlow(input: { api: EmberApi; digest: Digest | null; v
     return () => clearInterval(id)
   }, [step])
 
-  const position = useDevicePosition(step === 'confirm' || step === 'stuck')
+  const position = useDevicePosition(active !== null)
   const positionRef = useRef(position)
   positionRef.current = position
   const incidentId = active?.incidentId ?? null
 
   const body = useCallback((state: AnswerState) => {
     const p = positionRef.current
-    return p.kind === 'ok' ? { state, lat: p.lat, lng: p.lng, accuracyM: p.accuracyM } : { state }
+    const sessionId = activeRef.current?.withdraw?.id ?? activeRef.current?.withdraw?.sentAt
+    return p.kind === 'ok' ? { state, sessionId, lat: p.lat, lng: p.lng, accuracyM: p.accuracyM } : { state, sessionId }
   }, [])
 
+  const answering = useRef(false)
   const answer = useCallback(
     (state: AnswerState) => {
-      if (!incidentId || !key) return
+      if (!incidentId || !key || answering.current) return
+      answering.current = true
       setAction({ kind: 'busy' })
       api
         .answerWithdraw(incidentId, body(state))
@@ -141,18 +148,25 @@ export function useWithdrawFlow(input: { api: EmberApi; digest: Digest | null; v
           setAction({ kind: 'idle' })
         })
         .catch(() => setAction({ kind: 'failed' }))
+        .finally(() => { answering.current = false })
     },
     [api, incidentId, key, body, memory],
   )
 
-  // While "I can't get out" is on, say where the phone is, again and again.
+  // Location updates never change a volunteer's safety answer.
   useEffect(() => {
-    if (step !== 'stuck' || !incidentId) return
-    const id = setInterval(() => {
-      if (positionRef.current.kind === 'ok') api.answerWithdraw(incidentId, body('stuck')).catch(() => undefined)
-    }, SHARE_EVERY_MS)
+    if (!key || !incidentId || !api.shareWithdrawLocation) return
+    const share = () => {
+      const p = positionRef.current
+      if (p.kind === 'ok') void api.shareWithdrawLocation?.(incidentId, {
+        sessionId: activeRef.current?.withdraw?.id ?? activeRef.current?.withdraw?.sentAt,
+        lat: p.lat, lng: p.lng, accuracyM: p.accuracyM,
+      }).catch(() => undefined)
+    }
+    share()
+    const id = setInterval(share, step === 'safe' ? 60_000 : SHARE_EVERY_MS)
     return () => clearInterval(id)
-  }, [step, incidentId, api, body])
+  }, [key, incidentId, api, step])
 
   useEffect(() => {
     if (step !== 'stuck' || typeof navigator === 'undefined') return

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 
+import { useWithdrawUpdates } from '../pwa/withdraw/useWithdrawUpdates'
 import { useAuth } from '../auth/AuthProvider'
 import { authHeadersFor } from '../pwa/api/authHeaders'
 import { USE_MOCK_API } from '../pwa/api/config'
@@ -84,6 +85,8 @@ export function IncidentsShell({ api: apiOverride, children }: { api?: Superviso
       if (isNetworkError(e)) setLost(true)
     }
   }, [api])
+
+  useWithdrawUpdates(user, load, apiOverride === undefined)
 
   const loadDetail = useCallback(async (id: string | null) => {
     if (!id) {

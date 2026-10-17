@@ -33,7 +33,7 @@ export function ActionBar({ lang, incident, offline, busy, onVerify, onSendWithd
         </button>
       )}
       {incident.status !== 'extinguished' && (
-        <button type="button" className="inc-btn inc-btn-danger" disabled={blocked} onClick={onSendWithdraw}>
+        <button type="button" className="inc-btn inc-btn-danger" disabled={blocked || Boolean(incident.withdraw?.active)} onClick={onSendWithdraw}>
           {t(lang, withdrawCopy.open)}
         </button>
       )}
@@ -43,7 +43,7 @@ export function ActionBar({ lang, incident, offline, busy, onVerify, onSendWithd
         </button>
       )}
       {incident.status !== 'extinguished' && (
-        <button type="button" className="inc-btn" disabled={blocked} onClick={onExtinguish}>
+        <button type="button" className="inc-btn" disabled={blocked || Boolean(incident.withdraw?.active)} onClick={onExtinguish}>
           {t(lang, extinguishCopy.open)}
         </button>
       )}

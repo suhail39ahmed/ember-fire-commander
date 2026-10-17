@@ -85,10 +85,10 @@ describe('supervisor http client', () => {
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
-  it('offers no call that clears or cancels a withdraw, and keeps the calls the console has', () => {
+  it('offers supervisor clearing and keeps the existing console calls', () => {
     const api = createHttpSupervisorApi(headers, 'https://api.example', vi.fn() as unknown as typeof fetch)
     const names = Object.keys(api)
-    expect(names.filter((name) => /clear|cancel|remove|dismiss/i.test(name))).toEqual([])
+    expect(names.filter((name) => /clear|cancel|remove|dismiss/i.test(name))).toEqual(['clearWithdraw'])
     expect(names).toEqual(expect.arrayContaining(['approveTask', 'editTask', 'getIncident', 'listIncidents', 'rejectTask', 'verifyIncident']))
   })
 })

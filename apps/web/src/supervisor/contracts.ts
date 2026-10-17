@@ -99,6 +99,8 @@ export interface LiveSeat {
 
 /** What a supervisor's read says about one volunteer's withdraw (section 6.3). Every field is null until stored. */
 export interface VolunteerWithdraw {
+  answer?: 'safe' | 'stuck' | null
+  answeredAt?: string | null
   sentAt: string | null
   /** When the volunteer's app said it showed the instruction. No app calls the route yet. */
   heardAt: string | null
@@ -122,6 +124,7 @@ export interface VolunteerCardData {
   lastLat: number | null
   lastLng: number | null
   lastAccuracyM: number | null
+  locationAt?: string | null
   /** Metres from the incident's centre to their newest report. Not the distance to the flame edge. */
   distanceM: number | null
   /** The latest of their newest report arriving and their app showing a task. Null when neither exists. */
@@ -337,6 +340,8 @@ export type AuditAction =
   | 'task.resend'
   | 'task.withdraw'
   | 'withdraw.safe'
+  | 'withdraw.clear'
+  | 'withdraw.help'
   | 'incident.verify'
   | 'incident.extinguish'
   | 'incident.severity.lower'

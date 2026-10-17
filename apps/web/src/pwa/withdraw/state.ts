@@ -1,7 +1,7 @@
 import type { Digest, Task, Withdraw } from '../contracts/types'
 
 /** How long the phone shows the first WITHDRAW screen before it asks "Are you upwind and safe?". */
-export const CONFIRM_AFTER_MS = 30_000
+export const CONFIRM_AFTER_MS = 60_000
 /** While the volunteer is asked and has not answered, the phone repeats the alarm this often. */
 export const REMIND_EVERY_MS = 15_000
 /** While "I can't get out" is on, the phone sends its position again this often. */
@@ -28,16 +28,17 @@ export function findWithdraw(digest: Digest | null, volunteerId: string | null, 
       if (w?.active && w.volunteerIds.includes(volunteerId)) return { incidentId: incident.id, withdraw: w, instruction: w.instruction }
     }
   }
-  if (task?.type === 'withdraw') return { incidentId: task.incidentId, withdraw: null, instruction: task.instruction }
+  if (task?.type === 'withdraw' && !digest?.incidents.some((i) => i.id === task.incidentId && i.withdraw?.active === false)) return { incidentId: task.incidentId, withdraw: null, instruction: task.instruction }
   return null
 }
 
 /** One id per withdraw order, so an answer given to an earlier order is not reused for a later one. */
 export function withdrawKey(active: ActiveWithdraw): string {
-  return `${active.incidentId}@${active.withdraw?.sentAt ?? 'unsent'}`
+  return `${active.incidentId}@${active.withdraw?.id ?? active.withdraw?.sentAt ?? 'unsent'}`
 }
 
 export function stepOf(input: { answer: AnswerState | null; supervisorSafe: boolean; shownAtMs: number; nowMs: number }): WithdrawStep {
+  if (input.supervisorSafe) return 'safe'
   if (input.answer === 'stuck') return 'stuck'
   if (input.answer === 'safe' || input.supervisorSafe) return 'safe'
   return input.nowMs - input.shownAtMs >= CONFIRM_AFTER_MS ? 'confirm' : 'cover'
@@ -60,6 +61,8 @@ export interface ShownWithdraw {
   shownAtMs: number
   /** When this phone first saw the order gone from the digest. Absent while the order is still on. */
   clearedAtMs?: number
+  clearedByName?: string
+  clearReason?: string
 }
 
 type Store = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
@@ -81,7 +84,7 @@ function defaultStore(): Store | null {
  * missing or full only means the phone forgets; nothing here is sent.
  */
 export class WithdrawMemory {
-  constructor(private readonly store: Store | null = defaultStore()) {}
+  constructor(private readonly store: Store | null = defaultStore(), private readonly namespace = '') {}
 
   answer(key: string): { state: AnswerState; at: string } | null {
     const raw = this.read(ANSWER)
@@ -114,7 +117,7 @@ export class WithdrawMemory {
 
   clearShown(): void {
     try {
-      this.store?.removeItem(SHOWN)
+      this.store?.removeItem(this.namespace ? `${SHOWN}:${this.namespace}` : SHOWN)
     } catch {
       /* the phone forgets */
     }
@@ -122,7 +125,7 @@ export class WithdrawMemory {
 
   private read(name: string): Record<string, unknown> | null {
     try {
-      const text = this.store?.getItem(name)
+      const text = this.store?.getItem(this.namespace ? `${name}:${this.namespace}` : name)
       const value = text ? JSON.parse(text) : null
       return value && typeof value === 'object' ? value : null
     } catch {
@@ -132,7 +135,7 @@ export class WithdrawMemory {
 
   private write(name: string, value: unknown): void {
     try {
-      this.store?.setItem(name, JSON.stringify(value))
+      this.store?.setItem(this.namespace ? `${name}:${this.namespace}` : name, JSON.stringify(value))
     } catch {
       /* the phone forgets */
     }

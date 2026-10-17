@@ -38,6 +38,8 @@ export const timelineCopy = {
     'task.instruct': { id: 'mengirim instruksi ke satu relawan', en: 'sent an instruction to one volunteer' },
     'task.resend': { id: 'mengirim ulang instruksi', en: 'sent an instruction again' },
     'task.withdraw': { id: 'mengirim MUNDUR', en: 'sent WITHDRAW' },
+    'withdraw.clear': { id: 'Withdraw dicabut', en: 'Withdraw cleared' },
+    'withdraw.help': { id: 'Bantuan diminta', en: 'Help requested' },
     'withdraw.safe': { id: 'menandai relawan aman', en: 'marked a volunteer safe' },
     'incident.verify': { id: 'memverifikasi insiden', en: 'verified the incident' },
     'incident.extinguish': { id: 'menandai insiden padam', en: 'marked the incident extinguished' },

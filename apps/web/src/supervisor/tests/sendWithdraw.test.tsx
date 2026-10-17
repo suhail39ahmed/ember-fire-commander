@@ -228,10 +228,8 @@ describe('send withdraw: the route', () => {
     await expect(api.withdrawIncident('inc_demo_01', { volunteerIds: [], instruction: 'Mundur' })).rejects.toMatchObject({ status: 400 })
   })
 
-  it('adds recipients to an active withdraw and replaces its instruction, as the route does', async () => {
+  it('rejects another send while a withdrawal is active', async () => {
     const api = createMockSupervisorApi('sup_1', 'withdraw', 0)
-    const result = await api.withdrawIncident('inc_demo_01', { volunteerIds: ['uid_dedi'], instruction: 'Newer instruction' })
-    expect(result.incident.withdraw?.instruction).toBe('Newer instruction')
-    expect(result.incident.withdraw?.volunteerIds).toEqual(['uid_dedi', 'uid_sari'])
+    await expect(api.withdrawIncident('inc_demo_01', { volunteerIds: ['uid_dedi'], instruction: 'Newer instruction' })).rejects.toMatchObject({ status: 409 })
   })
 })

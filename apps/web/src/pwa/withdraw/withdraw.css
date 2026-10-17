@@ -1,0 +1,37 @@
+@font-face { font-family: 'Doto'; src: url('/fonts/doto-800.ttf') format('truetype'); font-weight: 800; font-display: swap; }
+.vol .withdraw {
+  background: #e0261b;
+  color: #fff;
+  padding: 24px 16px;
+  gap: 20px;
+  justify-content: flex-start;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 100dvh;
+  z-index: 100;
+}
+.vol .withdraw > svg { flex-shrink: 0; width: 32px; height: 32px; margin: 24px 0 10px; }
+.vol .withdraw-label { font-family: monospace; font-size: 10px; letter-spacing: 1px; color: inherit; }
+.vol .withdraw-order-title,
+.vol .withdraw-waiting h1 { font-family: 'Doto', monospace; font-size: 56px; line-height: 60px; font-weight: 800; margin: 0; }
+.vol .withdraw-command { font-size: 28px; line-height: 34px; margin: 0; }
+.vol .withdraw-instruction { font-size: 14px; line-height: 1.5; margin: 0; }
+.vol .withdraw-card { border-radius: 24px; background: #a71c14; padding: 16px; margin: 0; }
+.vol .withdraw-card p { margin: 4px 0 0; }
+.vol .withdraw-wind { display: flex; flex-direction: column; gap: 8px; }
+.vol .withdraw-wind strong { font-size: 22px; }
+.vol .withdraw-wind span { font-size: 13px; }
+.vol .withdraw-actions { margin-top: auto; padding-top: 20px; width: 100%; }
+.vol .withdraw-why, .vol .withdraw-actions > p { font-size: 13px; line-height: 1.5; }
+.vol .withdraw.soft { background: #fce9e8; color: #191817; gap: 16px; }
+.vol .withdraw.soft h1 { font-size: 28px; line-height: 34px; }
+.vol .withdraw.soft .withdraw-card { background: #fff; border: 1px solid #e0261b; border-radius: 16px; font-size: 14px; }
+.vol .withdraw.soft .withdraw-label { color: #e0261b; }
+.vol .withdraw .btn.answer { min-height: 72px; border-radius: 40px; padding: 16px; }
+.vol .withdraw .btn.answer.safe { background: #128439; color: #fff; }
+.vol .withdraw .btn.answer.stuck { background: #e0261b; color: #fff; }
+.vol .withdraw-translation { font: 700 10px/1.6 monospace; letter-spacing: 1px; }
+.vol .withdraw [role='status'] { flex-shrink: 0; }
+@media (min-width: 700px) {
+  .vol .withdraw { padding-left: max(24px, calc((100vw - 440px) / 2)); padding-right: max(24px, calc((100vw - 440px) / 2)); }
+}

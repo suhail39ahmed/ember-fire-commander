@@ -36,6 +36,7 @@ export interface EmberApi {
   /** POST /tasks/{id}/decline: Can't do it, with a reason key and an optional note. The instruction is not changed. */
   declineTask(taskId: string, reason: DeclineReason, note?: string): Promise<void>
   /** POST /incidents/{id}/withdraw/answer: safe upwind, or can't get out. The latest answer replaces the earlier one. */
+  shareWithdrawLocation?(incidentId: string, location: Omit<WithdrawAnswerRequest, 'state'>): Promise<void>
   answerWithdraw(incidentId: string, answer: WithdrawAnswerRequest): Promise<void>
   /** POST /observations/{id}/flag: someone else's report looks wrong. The report is not changed. */
   flagObservation(observationId: string, flag: FlagRequest): Promise<void>

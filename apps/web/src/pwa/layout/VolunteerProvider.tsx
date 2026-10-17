@@ -19,6 +19,7 @@ import { usePermissions } from '../permissions/usePermissions'
 import { createMockUpload, createXhrUpload } from '../photo/upload'
 import { usePushRegistration } from '../push/usePushRegistration'
 import { useDevicePosition } from '../screens/useDevicePosition'
+import { useWithdrawUpdates } from '../withdraw/useWithdrawUpdates'
 import { useDigest } from '../useDigest'
 import { VolunteerContext, type VolunteerValue } from './volunteerContext'
 import { LanguageContext, useLanguage } from '../language'
@@ -65,6 +66,7 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
   const position = useDevicePosition(perms.location === 'granted')
   const digestPosition = useMemo(() => (position.kind === 'ok' ? { lat: position.lat, lng: position.lng } : null), [position])
   const { digest, status: digestStatus, lastSyncAt, refresh } = useDigest(api, recordDigestClock, digestPosition)
+  useWithdrawUpdates(user, refresh, apiOverride === undefined)
   usePushRegistration(user, perms.notifications, refresh)
 
   const ptt = useMemo(

@@ -68,7 +68,7 @@ describe('the step the volunteer is on (#146, #147)', () => {
   it('stops asking once the volunteer answered, or a supervisor marked them safe', () => {
     expect(stepOf({ ...base, answer: 'safe', nowMs: 1e9 })).toBe('safe')
     expect(stepOf({ ...base, supervisorSafe: true, nowMs: 1e9 })).toBe('safe')
-    expect(stepOf({ ...base, answer: 'stuck', supervisorSafe: true, nowMs: 1e9 })).toBe('stuck')
+    expect(stepOf({ ...base, answer: 'stuck', supervisorSafe: true, nowMs: 1e9 })).toBe('safe')
   })
 })
 
@@ -141,7 +141,7 @@ describe('WITHDRAW step 2 (#147)', () => {
 
   it('asks the question and offers both answers', () => {
     const html = confirm()
-    expect(html).toContain('Are you somewhere safe?')
+    expect(html).toContain('Are you upwind and safe?')
     expect(html).toContain('STILL IN FORCE')
     expect(html).toContain("I&#x27;m safe")
     expect(html).toContain("I can&#x27;t get out")
@@ -193,7 +193,7 @@ describe("I can't get out (#148)", () => {
 describe('Withdraw lifted (#149)', () => {
   it('shows what the phone knows and no name or wind it was not given', () => {
     const html = render(<WithdrawCleared lang="en" sentAt={order.sentAt!} reasons={order.reasons} clearedAtMs={Date.parse('2026-10-16T07:58:00Z')} onDismiss={() => undefined} />)
-    expect(html).toContain('WITHDRAW LIFTED')
+    expect(html).toContain('WITHDRAW CLEARED')
     expect(html).toContain('Stay where you are.')
     expect(html).toContain('WITHDRAW SENT')
     expect(html).toContain('large flame reported')

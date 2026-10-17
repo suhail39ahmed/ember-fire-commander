@@ -351,6 +351,7 @@ export function createMockSupervisorApi(
       await wait()
       const d = details.find((x) => x.incident.id === id)
       if (!d) throw notFound()
+      if (d.incident.withdraw?.active) throw conflictError("This incident already has an active withdraw")
       const ids = [...new Set(request.volunteerIds)]
       if (ids.length === 0 || ids.some((v) => typeof v !== 'string' || !v)) {
         throw new ApiError('validation_error', 'volunteerIds is not valid', 400, false, { volunteerIds: 'required, a non-empty list of volunteer ids' })
@@ -378,6 +379,30 @@ export function createMockSupervisorApi(
       }
       return { incident: structuredClone(d.incident), auditId: append('task.withdraw', id) }
     },
+    async clearWithdraw(id, reason, sessionId) {
+      await wait()
+      const d = details.find((x) => x.incident.id === id)
+      if (!d) throw notFound()
+      const w = d.incident.withdraw
+      if (!w?.active || sessionId !== (w.id ?? w.sentAt)) throw conflictError('This withdrawal has changed')
+      if (!reason.trim()) throw new ApiError('validation_error', 'Reason is required', 400, false)
+      const safe = new Set([...(w.safeVolunteerIds ?? []), ...(w.selfSafeVolunteerIds ?? [])])
+      if (!w.volunteerIds.every((uid) => safe.has(uid))) throw conflictError('Every volunteer must be safe before clearing')
+      d.incident.withdraw = { ...w, active: false, clearedAt: new Date().toISOString(), clearedBy: actorId, clearReason: reason }
+      for (const task of d.tasks) if (task.type === 'withdraw') task.status = 'rejected'
+      return { incident: structuredClone(d.incident), auditId: append('withdraw.clear', id) }
+    },
+    async requestWithdrawHelp(id, volunteerId, helperId, instruction) {
+      await wait()
+      const d = details.find((x) => x.incident.id === id)
+      if (!d?.incident.withdraw?.active) throw conflictError('No active withdrawal')
+      const w = d.incident.withdraw
+      if (!w.volunteerIds.includes(helperId) || helperId === volunteerId) throw conflictError('Choose another volunteer')
+      w.helpers = { ...w.helpers, [volunteerId]: helperId }
+      const task: Task = { id: `help_${d.tasks.length}`, incidentId: id, volunteerId: helperId, type: 'instruct', status: 'approved', instruction }
+      d.tasks.push(task)
+      return { task: structuredClone(task), auditId: append('withdraw.help', id) }
+    },
     async markWithdrawSafe(id, volunteerId) {
       await wait()
       const d = details.find((x) => x.incident.id === id)
@@ -389,7 +414,7 @@ export function createMockSupervisorApi(
       }
       const safe = w.safeVolunteerIds ?? []
       if (safe.includes(volunteerId)) throw conflictError('This volunteer is already marked safe')
-      // The withdraw itself stays active: there is no call that clears it.
+      // Safety confirmation leaves the order active until the supervisor clears it.
       w.safeVolunteerIds = [...safe, volunteerId]
       return { incident: structuredClone(d.incident), auditId: append('withdraw.safe', id) }
     },

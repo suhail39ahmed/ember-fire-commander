@@ -30,3 +30,7 @@
 .wd-facts { margin: 0; font-size: 12px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
 .inc-vol-wd-facts { display: block; font-weight: 500; margin-top: 2px; }
 .inc-vol-where { margin: 4px 0 0; font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.wd-clear { align-self: flex-end; }
+.wd-reasons { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; border: 0; padding: 0; }
+.wd-reasons label { display: flex; align-items: center; gap: 8px; }
