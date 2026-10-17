@@ -52,5 +52,5 @@ def gateway():
 
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", "8080"))
+    port = int(os.getenv("PORT") or os.getenv("EMBER_VOICE_GATEWAY_PORT", "8084"))
     app.run(host="0.0.0.0", port=port)

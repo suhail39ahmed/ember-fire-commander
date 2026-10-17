@@ -68,7 +68,7 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
   // The fix rides on the digest read so the home screen can list fires near the phone. Only while location is allowed.
   const position = useDevicePosition(perms.location === 'granted')
   const digestPosition = useMemo(() => (position.kind === 'ok' ? { lat: position.lat, lng: position.lng } : null), [position])
-  const { digest, status: digestStatus, lastSyncAt, refresh } = useDigest(api, recordDigestClock, digestPosition)
+  const { digest, status: digestStatus, lastSyncAt, refresh } = useDigest(api, recordDigestClock, digestPosition, volunteerId ? `${USE_MOCK_API ? 'mock:' : ''}${volunteerId}` : null)
   useWithdrawUpdates(user, refresh, apiOverride === undefined)
   usePushRegistration(user, perms.notifications, refresh)
 

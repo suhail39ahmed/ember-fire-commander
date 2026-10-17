@@ -83,7 +83,8 @@ describe('Home (#127)', () => {
   })
 
   it('offline shows the last sync time and the queued count', () => {
-    const html = layout('/pwa', { outbox: outboxHandle({ online: false, items: [{ id: 'a' } as never, { id: 'b' } as never] }) })
+    const items = ['a', 'b'].map((id) => ({ id, body: null, photo: null, state: 'queued' as const, attempts: 0, lastError: null, queuedAt: '2026-10-16T08:00:00Z', sentAt: null, observationId: null }))
+    const html = layout('/pwa', { outbox: outboxHandle({ online: false, items }) })
     expect(html).toContain('data-testid="home-offline"')
     expect(html).toContain('Last synced')
     expect(html).toMatch(/data-testid="home-queued"><strong>2<\/strong> waiting to send/)

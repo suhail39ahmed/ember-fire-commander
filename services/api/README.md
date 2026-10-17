@@ -128,6 +128,14 @@ docker run -p 8080:8080 -e FIRESTORE_DATABASE=ember-db ember-api-test
 curl http://localhost:8080/healthz
 ```
 
+## Offline SMS contacts
+
+`GET /me` optionally includes `sms: { recipients, templates }` from the volunteer's server-managed `volunteers/{uid}.sms` field. Each recipient has `name`, an E.164 `phone`, and `role` (`crew_lead` or `duty_line`). The API supplies a stable `id`, removes invalid or duplicate entries, and excludes the volunteer's own phone. `PATCH /me` cannot change this configuration.
+
+Optional `templates.help`, `templates.safe`, and `templates.spreading` strings must contain all five placeholders: `{status}`, `{name}`, `{incidentCode}`, `{time}`, and `{location}`. Missing or invalid templates use the authored Bahasa template. No contact number is invented when configuration is absent: the native SMS composer lets the volunteer choose recipients manually.
+
+The browser caches the last successful volunteer profile and digest for that Firebase user and clears them on explicit sign-out. The phone fills the timestamp and available GPS coordinates when composing. Opening `sms:` does not call ember-api or confirm SMS delivery. SMS still needs cellular SMS service; it cannot send in a complete cellular outage. No inbound SMS or gateway is implemented.
+
 ## Deployment
 
 The `.github/workflows/deploy-api.yml` workflow builds from `services/api` and deploys to Cloud Run. It is **manual dispatch only** and runs only from the `main` branch.

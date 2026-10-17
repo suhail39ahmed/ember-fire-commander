@@ -50,13 +50,19 @@ An accepted upgrade waits for `session.start`, then relays audio and about one c
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-export PORT=8080
+export EMBER_VOICE_GATEWAY_PORT=8084
 export FIRESTORE_DATABASE=ember-db
 export APP_CHECK_ENFORCE=false
 # Optional: run services/agents on port 8082 so live observations reach intake.
 export EMBER_AGENTS_URL=http://localhost:8082
 python app.py
 ```
+
+Local ports are web `5173`, ember-api `8080`, ember-agents `8082`, and voice-gateway `8084`.
+The gateway reads Cloud Run's `PORT` first, then `EMBER_VOICE_GATEWAY_PORT`, and defaults to `8084` locally.
+Set `VITE_VOICE_GATEWAY_WSS_URL=ws://localhost:8084` in `apps/web/.env.local` (the file Vite actually loads).
+The repository-root `.env` and `.env.example` are not automatically loaded by the web app or Python service.
+The gateway needs Google Application Default Credentials with access to `ember-db` and Gemini Live.
 
 Tests cover rejected upgrades, a scripted push-to-talk session, and the Live-minute cap. The scripted session does not call Gemini:
 
@@ -68,7 +74,7 @@ pytest
 Test the health check:
 
 ```bash
-curl http://localhost:8080/healthz
+curl http://localhost:8084/healthz
 ```
 
 ## Docker build (local verification)

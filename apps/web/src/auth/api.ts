@@ -3,6 +3,18 @@ import type { User } from 'firebase/auth'
 
 import { getAppCheck } from './firebase'
 
+export interface SmsRecipient {
+  id: string
+  name: string
+  role: 'crew_lead' | 'duty_line'
+  phone: string
+}
+
+export interface SmsConfiguration {
+  recipients: SmsRecipient[]
+  templates: Record<'help' | 'safe' | 'spreading', string>
+}
+
 export interface Me {
   id: string
   displayName: string
@@ -20,6 +32,8 @@ export interface Me {
   language?: 'id' | 'en' | 'jv' | 'su' | 'ms' | null
   shareMyLocationWithCrew?: boolean
   demoMode?: boolean
+  /** Other people's contact numbers and message templates, retained for offline SMS. */
+  sms?: SmsConfiguration
 }
 
 export type MePatch = {
