@@ -91,6 +91,7 @@ Incident list and detail responses use `INCIDENT_FIELDS`: `id`, `name`, `area`, 
 | GET | `/join-requests?status=pending` | supervisor | console | — | `200` `[ { request, incident, volunteerName } ]`, oldest first |
 | POST | `/join-requests/{id}/approve` | supervisor | console | `{ "instruction": string }` max 500 characters | `200` `{ joinRequest, task, auditId }`. Creates an approved `instruct` task and pushes after commit. `409` when not pending |
 | POST | `/join-requests/{id}/decline` | supervisor | console | none | `200` `{ joinRequest, auditId }`. `409` when not pending |
+| POST | `/voice/ticket` | any role | PWA (before WebSocket open) | none | `201` `{ ticket, expiresAt }`. 60-second single-use ticket for the browser WebSocket handshake (§7, §6.14) |
 | POST | `/tasks/{id}/approve` | supervisor | console | none | `200` `{ task, auditId }`. `proposed` → `approved`. `investigate` is `409` while a conflict is open. `withdraw` is `409` |
 | POST | `/tasks/{id}/reject` | supervisor | console | none | `200` `{ task, auditId }`. `proposed` → `rejected`. `withdraw` is `409` |
 | POST | `/tasks/{id}/edit` | supervisor | console | `{ "instruction": string }` max 500 characters | `200` `{ task, auditId }`. Replaces `instruction` only. A withdraw instruction is `409` |
@@ -116,7 +117,13 @@ The PWA polls `GET /digest` and the console polls `GET /incidents` (and reloads 
 
 ## voice-gateway
 
-`GET /healthz` is public. The WebSocket is `GET /` upgraded to a socket (`services/voice-gateway/app.py`). The browser `WebSocket` API cannot set the auth headers, so the PWA keeps voice unavailable until a browser handshake exists. The service does not accept tokens on the query string.
+`GET /healthz` is public. The WebSocket is `GET /` upgraded to a socket (`services/voice-gateway/app.py`).
+
+Two upgrade paths:
+- **Native clients**: `Authorization: Bearer <Firebase ID token>` + `X-Firebase-AppCheck` headers, same as §2.
+- **Browser (PWA)**: `Sec-WebSocket-Protocol: <ticket>` where the ticket was issued by `POST /voice/ticket`. The gateway verifies and consumes the ticket atomically from Firestore (`voiceTickets/{ticket}` in `ember-db`). The browser requires the gateway to echo the same protocol value in the 101 response.
+
+The service does not accept tokens on the query string.
 
 Client → gateway: `session.start`, `location` (`lat`, `lng`, `capturedAt`, optional `accuracyM`), `audio` (base64), `frame` (base64, optional `capturedAt`), `session.stop`.
 
