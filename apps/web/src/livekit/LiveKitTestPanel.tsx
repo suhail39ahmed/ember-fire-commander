@@ -11,6 +11,7 @@ import { authHeadersFor } from '../pwa/api/authHeaders'
 import { API_BASE_URL } from '../pwa/api/config'
 import './livekitTest.css'
 import { CallTranscription } from './CallTranscription'
+import { readCallResponse } from './callResponse'
 
 interface Credentials { serverUrl: string; participantToken: string; callId: string; speakerId: string }
 
@@ -113,8 +114,7 @@ export default function LiveKitTestPanel({ role, initialVideo = true, variant }:
         method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ roomCode: roomCode.trim() }), signal: controller.signal,
       })
-      const body = await response.json()
-      if (!response.ok) throw new Error(body?.error?.message || `Token request failed (${response.status}).`)
+      const body = await readCallResponse<Credentials>(response)
       if (typeof body.serverUrl !== 'string' || typeof body.participantToken !== 'string' || typeof body.callId !== 'string' || typeof body.speakerId !== 'string') {
         throw new Error('The API returned incomplete LiveKit credentials.')
       }

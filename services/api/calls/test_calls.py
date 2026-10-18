@@ -1,5 +1,7 @@
 from datetime import timedelta
+from pathlib import PurePosixPath
 import threading
+from types import SimpleNamespace
 
 import jwt
 import pytest
@@ -24,7 +26,8 @@ def environment(monkeypatch):
         with mutex:
             return database.run_transaction(fn)
     monkeypatch.setattr(store, 'run_transaction', transaction)
-    monkeypatch.setattr(media, 'settings', lambda: {'LIVEKIT_URL': 'wss://test.livekit.cloud', 'LIVEKIT_API_KEY': 'test', 'LIVEKIT_API_SECRET': SECRET})
+    for key, value in {'LIVEKIT_URL': 'wss://test.livekit.cloud', 'LIVEKIT_API_KEY': 'test', 'LIVEKIT_API_SECRET': SECRET}.items():
+        monkeypatch.setenv(key, value)
     removed = []
     monkeypatch.setattr(media, 'terminate', lambda call: removed.append(call['id']))
     monkeypatch.setattr(routes, 'deliver_message', lambda *args: {'result': 'sent', 'attempts': 1})
@@ -48,6 +51,15 @@ def as_volunteer(actor):
     actor.update(uid='v', role='volunteer', name='Sari')
 
 
+def test_create_call_with_cloud_run_filesystem_layout(environment, monkeypatch):
+    client, _, _, _ = environment
+    monkeypatch.setattr(media, 'Path', lambda _: SimpleNamespace(resolve=lambda: PurePosixPath('/app/calls/media.py')))
+    call = create(client)
+    assert call['status'] == 'requested'
+    assert call['notification'] == 'sent'
+    assert call['joinCode'].startswith('CALL-')
+
+
 def test_supervisor_invites_target_accepts_and_role_scoped_tokens(environment):
     client, db, actor, removed = environment
     call = create(client)
@@ -66,6 +78,7 @@ def test_supervisor_invites_target_accepts_and_role_scoped_tokens(environment):
         actor.update(uid=uid, role=role)
         response = client.post(f'/calls/{call_id}/token', headers=AUTH)
         assert response.status_code == 201
+        assert response.get_json()['volunteerSpeakerId'] == db.data['calls'][call_id]['speakerIds']['v']
         claims = jwt.decode(response.get_json()['participantToken'], SECRET, algorithms=['HS256'], issuer='test')
         assert claims['video']['canPublishSources'] == sources
         assert claims['video']['room'] == 'ember-call-' + call_id
@@ -166,8 +179,10 @@ def test_code_allows_other_volunteer_with_real_identity_and_same_room(environmen
     assert result['volunteerId'] == 'tester' and result['volunteerName'] == 'Test Volunteer'
     assert result['requestedVolunteerId'] == 'v'
     assert client.get('/calls/current', headers=AUTH).get_json()['call']['id'] == call_id
-    claims = jwt.decode(client.post(f'/calls/{call_id}/token', headers=AUTH).get_json()['participantToken'], SECRET, algorithms=['HS256'])
+    credentials = client.post(f'/calls/{call_id}/token', headers=AUTH).get_json()
+    claims = jwt.decode(credentials['participantToken'], SECRET, algorithms=['HS256'])
     member = db.data[f'calls/{call_id}/members'][service.member_key('tester')]
+    assert credentials['volunteerSpeakerId'] == member['speakerId']
     assert claims['sub'] == member['speakerId'] and claims['name'] == 'Test Volunteer'
     assert claims['video']['room'] == 'ember-call-' + call_id
     assert set(db.data['calls'][call_id]['speakerIds']) == {'s', 'tester'}

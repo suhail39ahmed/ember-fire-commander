@@ -3,6 +3,7 @@ import type { User } from 'firebase/auth'
 import { useAuth } from '../auth/AuthProvider'
 import { authHeadersFor } from '../pwa/api/authHeaders'
 import { API_BASE_URL } from '../pwa/api/config'
+import { CallRequestError, readCallResponse } from './callResponse'
 
 export interface IncidentCall {
   id: string; incidentId: string; supervisorId: string; volunteerId: string
@@ -13,13 +14,9 @@ export interface IncidentCall {
   joinCode?: string; requestedVolunteerId?: string
   visualObservation?: { text: string; at: string }
 }
-export interface CallCredentials { serverUrl: string; participantToken: string; callId: string; speakerId: string }
+export interface CallCredentials { serverUrl: string; participantToken: string; callId: string; speakerId: string; volunteerSpeakerId?: string }
 export interface CallSnapshot { id: string; callId: string; volunteerId: string; requestedVolunteerId?: string; volunteerName: string; capturedAt: string; url: string }
 export const callIsOpen = (call: IncidentCall | null) => !!call && ['requested', 'connecting', 'active'].includes(call.status)
-
-class CallRequestError extends Error {
-  constructor(message: string, readonly status: number) { super(message) }
-}
 
 export async function callRequest<T>(user: User | null, path: string, method = 'GET', data?: unknown): Promise<T> {
   const headers = await authHeadersFor(user)()
@@ -30,9 +27,7 @@ export async function callRequest<T>(user: User | null, path: string, method = '
     body: data === undefined ? undefined : binary ? data : JSON.stringify(data),
     signal: AbortSignal.timeout(/\/(ask|suggestions|vision)$/.test(path) ? 60000 : 20000),
   })
-  const result = await response.json()
-  if (!response.ok) throw new CallRequestError(result?.error?.message || 'The call service could not complete this request.', response.status)
-  return result as T
+  return readCallResponse<T>(response)
 }
 
 /** Owns one popup/invitation session. Server state decides when media may connect. */
