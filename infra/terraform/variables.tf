@@ -100,6 +100,12 @@ variable "livekit_url" {
   }
 }
 
+variable "livekit_test_enabled" {
+  description = "Enable standalone LiveKit token and transcription tests on ember-api and voice-gateway. The Terraform workflow reads EMBER_LIVEKIT_TEST_ENABLED from GitHub variables/secrets."
+  type        = bool
+  default     = false
+}
+
 # ---------------------------------------------------------------------------
 # Data stores
 # ---------------------------------------------------------------------------

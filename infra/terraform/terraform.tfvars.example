@@ -23,6 +23,8 @@ live_model                   = "gemini-live-2.5-flash-native-audio"
 # Add LIVEKIT_API_KEY and LIVEKIT_API_SECRET versions in Secret Manager, then
 # set the real wss:// URL in terraform.tfvars and apply again. Never put keys here.
 livekit_url = "" # e.g. "wss://your-project.livekit.cloud"
+# The GitHub Terraform workflow reads EMBER_LIVEKIT_TEST_ENABLED automatically.
+# For a local apply only, optionally set: livekit_test_enabled = true
 
 # Firestore: location is PERMANENT.
 firestore_location          = "asia-southeast1"

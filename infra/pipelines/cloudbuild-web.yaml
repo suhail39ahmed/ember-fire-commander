@@ -20,6 +20,7 @@ substitutions:
   _FIREBASE_TOOLS: firebase-tools@15 # confirm: pin to the version you test with
   _VITE_EMBER_API_URL: ""
   _VITE_VOICE_GATEWAY_WSS_URL: ""
+  _VITE_LIVEKIT_TEST_ENABLED: "false"
   _VITE_FIREBASE_API_KEY: ""
   _VITE_FIREBASE_APP_ID: ""
   _VITE_FIREBASE_MESSAGING_SENDER_ID: ""
@@ -48,6 +49,7 @@ steps:
         VITE_MAPS_MAP_ID=${_VITE_MAPS_MAP_ID}
         VITE_EMBER_API_URL=${_VITE_EMBER_API_URL}
         VITE_VOICE_GATEWAY_WSS_URL=${_VITE_VOICE_GATEWAY_WSS_URL}
+        VITE_LIVEKIT_TEST_ENABLED=${_VITE_LIVEKIT_TEST_ENABLED}
         ENV
 
   - id: build
