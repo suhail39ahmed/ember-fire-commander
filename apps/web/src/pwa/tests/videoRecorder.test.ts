@@ -236,3 +236,162 @@ describe('VideoRecorder', () => {
     expect(() => recorder.stop()).not.toThrow()
   })
 })
+
+// ---------------------------------------------------------------------------
+// awaitClip — resolves after onstop fires asynchronously
+// ---------------------------------------------------------------------------
+
+/**
+ * A fake MediaRecorder whose stop() does NOT fire onstop synchronously.
+ * The caller receives `fireOnStop` and calls it when they want to simulate the
+ * browser delivering the onstop task. This exercises the real-browser race
+ * condition where onstop is queued asynchronously.
+ */
+function fakeAsyncMediaRecorder() {
+  let onDataAvailable: ((e: BlobEvent) => void) | null = null
+  let onStop: (() => void) | null = null
+  let fireOnStop: (() => void) | null = null
+
+  const recorder = {
+    state: 'inactive' as 'inactive' | 'recording' | 'paused',
+    start: vi.fn(() => { recorder.state = 'recording' }),
+    stop: vi.fn(() => {
+      recorder.state = 'inactive'
+      // Capture the callbacks registered by VideoRecorder.stop() and expose
+      // them through fireOnStop so the test can deliver them asynchronously.
+      fireOnStop = () => {
+        onDataAvailable?.({ data: new Blob(['async-video'], { type: 'video/mp4' }) } as BlobEvent)
+        onStop?.()
+        fireOnStop = null
+      }
+    }),
+    set ondataavailable(fn: ((e: BlobEvent) => void) | null) { onDataAvailable = fn },
+    set onstop(fn: (() => void) | null) { onStop = fn },
+    set onerror(_fn: unknown) {},
+  }
+
+  return {
+    recorder,
+    getFireOnStop: () => fireOnStop,
+  }
+}
+
+/** Like fakeAsyncMediaRecorder but stop() fires onstop without any data chunks. */
+function fakeAsyncEmptyMediaRecorder() {
+  let onStop: (() => void) | null = null
+  let fireOnStop: (() => void) | null = null
+
+  const recorder = {
+    state: 'inactive' as 'inactive' | 'recording' | 'paused',
+    start: vi.fn(() => { recorder.state = 'recording' }),
+    stop: vi.fn(() => {
+      recorder.state = 'inactive'
+      fireOnStop = () => { onStop?.(); fireOnStop = null }
+    }),
+    set ondataavailable(_fn: unknown) {},
+    set onstop(fn: (() => void) | null) { onStop = fn },
+    set onerror(_fn: unknown) {},
+  }
+
+  return { recorder, getFireOnStop: () => fireOnStop }
+}
+
+describe('awaitClip', () => {
+  it('resolves immediately with null when no recording was ever done', async () => {
+    const recorder = new VideoRecorder(makeEnv())
+    const clip = await recorder.awaitClip()
+    expect(clip).toBeNull()
+  })
+
+  it('resolves immediately when a clip is already available (synchronous onstop)', async () => {
+    const recorder = new VideoRecorder(makeEnv())
+    recorder.start(fakeStream().stream)
+    recorder.stop()
+    const clip = await recorder.awaitClip()
+    expect(clip).toBeInstanceOf(Blob)
+    // The clip was taken, so it is gone now.
+    expect(recorder.getSnapshot().clip).toBeNull()
+  })
+
+  it('resolves null when stop fires but produces no data (empty recording)', async () => {
+    const { recorder: asyncMr, getFireOnStop } = fakeAsyncEmptyMediaRecorder()
+    const MRCtor = vi.fn().mockReturnValue(asyncMr) as unknown as VideoRecorderEnv['MediaRecorder']
+    ;(MRCtor as unknown as Record<string, unknown>).isTypeSupported = (m: string) => m === 'video/mp4'
+    const recorderInst = new VideoRecorder({ MediaRecorder: MRCtor, AudioContext: (makeEnv().AudioContext), MediaStream: makeEnv().MediaStream })
+    recorderInst.start(fakeStream().stream)
+
+    const promise = recorderInst.awaitClip()
+    // awaitClip stops the recorder (still in 'recording' state before call).
+    expect(asyncMr.stop).toHaveBeenCalled()
+
+    // Fire onstop asynchronously.
+    getFireOnStop()!()
+
+    const clip = await promise
+    expect(clip).toBeNull()
+  })
+
+  it('waits for onstop to fire asynchronously — the race condition case', async () => {
+    // Simulate the real browser: onstop fires asynchronously after stop() returns.
+    const { recorder: asyncMr, getFireOnStop } = fakeAsyncMediaRecorder()
+    const MRCtor = vi.fn().mockReturnValue(asyncMr) as unknown as VideoRecorderEnv['MediaRecorder']
+    ;(MRCtor as unknown as Record<string, unknown>).isTypeSupported = (m: string) => m === 'video/mp4'
+    const recorderInst = new VideoRecorder({ MediaRecorder: MRCtor, AudioContext: makeEnv().AudioContext, MediaStream: makeEnv().MediaStream })
+
+    recorderInst.start(fakeStream().stream)
+    // Stop externally, like useLiveCamera does when the stream ends.
+    recorderInst.stop()
+    // onstop has NOT fired yet — clip is still null.
+    expect(recorderInst.getSnapshot().clip).toBeNull()
+    expect(recorderInst.getSnapshot().recording).toBe(true)
+
+    // Start awaiting the clip.
+    const promise = recorderInst.awaitClip()
+    let resolved = false
+    void promise.then(() => { resolved = true })
+
+    // Tick microtasks — promise must NOT be resolved yet.
+    await Promise.resolve()
+    expect(resolved).toBe(false)
+
+    // Deliver the async onstop event.
+    getFireOnStop()!()
+
+    const clip = await promise
+    expect(clip).toBeInstanceOf(Blob)
+    expect(resolved).toBe(true)
+  })
+
+  it('stops the recording and waits when called while still recording', async () => {
+    const { recorder: asyncMr, getFireOnStop } = fakeAsyncMediaRecorder()
+    const MRCtor = vi.fn().mockReturnValue(asyncMr) as unknown as VideoRecorderEnv['MediaRecorder']
+    ;(MRCtor as unknown as Record<string, unknown>).isTypeSupported = (m: string) => m === 'video/mp4'
+    const recorderInst = new VideoRecorder({ MediaRecorder: MRCtor, AudioContext: makeEnv().AudioContext, MediaStream: makeEnv().MediaStream })
+
+    recorderInst.start(fakeStream().stream)
+    expect(recorderInst.getSnapshot().recording).toBe(true)
+
+    // Call awaitClip while still recording — it must stop the recorder.
+    const promise = recorderInst.awaitClip()
+    expect(asyncMr.stop).toHaveBeenCalled()
+
+    // Still not resolved until onstop fires.
+    let resolved = false
+    void promise.then(() => { resolved = true })
+    await Promise.resolve()
+    expect(resolved).toBe(false)
+
+    getFireOnStop()!()
+    const clip = await promise
+    expect(clip).toBeInstanceOf(Blob)
+  })
+
+  it('second awaitClip returns null once the clip has been taken', async () => {
+    const recorder = new VideoRecorder(makeEnv())
+    recorder.start(fakeStream().stream)
+    recorder.stop()
+    await recorder.awaitClip() // takes the clip
+    const second = await recorder.awaitClip()
+    expect(second).toBeNull()
+  })
+})

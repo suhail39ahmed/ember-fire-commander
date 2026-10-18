@@ -91,11 +91,13 @@ export function ReportScreen() {
 
   /**
    * Wrap the outbox submit so the video clip is queued at the same time as the chip/text report.
-   * Taking the clip with takeClip() clears it from the recorder so it is not double-submitted
-   * even if the volunteer presses Send again (e.g. after a network failure and retry).
+   * awaitClip() waits for the MediaRecorder onstop event when the camera was just turned off,
+   * because onstop fires asynchronously and a synchronous takeClip() would return null.
+   * The clip is cleared from the recorder by awaitClip so it is not double-submitted even
+   * if the volunteer presses Send again (e.g. after a network failure and retry).
    */
   async function submitWithVideo(body: ObservationRequest): Promise<SubmitResult> {
-    const clip = camera.recorder.takeClip()
+    const clip = await camera.recorder.awaitClip()
     const result = await outbox.submit(body)
     if (clip && camera.recorderSnap.mimeType) {
       const pos = await getPosition()

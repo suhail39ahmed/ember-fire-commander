@@ -27,8 +27,8 @@ resource "google_storage_bucket" "photos" {
     }
   }
 
-  # INTENDED CHANGE: not live yet. Needed so the PWA can PUT photos and
-  # video clips to signed URLs from the browser.
+  # Allows the PWA to PUT photos and video clips to signed URLs from the browser.
+  # terraform apply is required to push this to the live bucket.
   cors {
     origin          = local.photo_origins
     method          = ["PUT"]

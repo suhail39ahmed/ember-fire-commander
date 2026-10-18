@@ -236,6 +236,36 @@ export class VideoRecorder {
     return clip
   }
 
+  /**
+   * Wait for the clip to be ready, then take and return it.
+   *
+   * MediaRecorder fires `onstop` asynchronously after `stop()` returns, so a
+   * synchronous `takeClip()` called immediately after stopping the camera may
+   * see null. This method subscribes to recorder state changes so it resolves
+   * only once `onstop` has fired and the clip blob is available.
+   *
+   * If the recorder is still active when this is called, it stops it.
+   * If no recording was ever made, resolves with null immediately.
+   */
+  awaitClip(): Promise<Blob | null> {
+    if (this.snap.clip) return Promise.resolve(this.takeClip())
+    if (!this.snap.recording && this.recorder === null) return Promise.resolve(null)
+    return new Promise<Blob | null>((resolve) => {
+      const unsub = this.subscribe(() => {
+        if (this.snap.clip !== null) {
+          unsub()
+          resolve(this.takeClip())
+        } else if (!this.snap.recording && this.recorder === null) {
+          unsub()
+          resolve(null)
+        }
+      })
+      if (this.recorder && this.recorder.state !== 'inactive') {
+        this.stop()
+      }
+    })
+  }
+
   /** Discard the clip without uploading (volunteer left the screen without submitting). */
   discard(): void {
     if (this.snap.clip) this.notify({ clip: null })
