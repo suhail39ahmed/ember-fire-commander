@@ -13,19 +13,21 @@
 
 ---
 
-## Demo
+## Quick links
 
-| | Link |
+| | |
 |---|---|
-| Live app | `https://ember-fire-commander.web.app` |
-| Demo video (< 3 min) | **TODO:** add link |
-| Pitch deck (PDF) | **TODO:** add link |
+| **Live app** | [ember-fire-commander.web.app](https://ember-fire-commander.web.app) |
+| **Demo video (3–4 min)** | [Demo video (3–4 min)](LINK_TBD) |
+| **Pitch deck** | [Pitch deck (PDF)](LINK_TBD) |
 
 ---
 
 ## 30-second pitch
 
-Village fire brigades in Indonesia's peatlands are unpaid volunteers on motorbikes. Each day they see thousands of satellite hotspots, and they can only reach a handful. EMBER gives each volunteer a hands-free, Bahasa-speaking AI commander on their phone. They talk, show the fire on camera, and get guidance back. Reports from many phones are fused into **one incident picture** for a supervisor, who verifies, resolves conflicts, and approves dispatch. The rule that tells volunteers to withdraw is written in code — it never waits for approval.
+Village fire brigades in Indonesia's peatlands are unpaid volunteers on motorbikes. Each day they face thousands of satellite hotspots and can only reach a handful. EMBER gives each volunteer a hands-free, Bahasa-speaking AI commander — press and hold to talk, show the fire on camera, and get guidance back in seconds. Records are clipped to video and stored with voice audio. Reports from many phones are fused into **one shared incident picture** for a human supervisor, who sees photos and video clips, resolves conflicts, and approves dispatch. Volunteers who cannot reach a cell tower get a pre-built SMS they can send from the phone's own messaging app. Supervisors sign in through a web console, no app store needed.
+
+The one rule that can never wait for approval — **WITHDRAW upwind** — is written in deterministic code. It fires immediately on large flames or high wind, before any model reply.
 
 EMBER helps scarce brigades decide **where to look first**. It does **not** forecast fire spread or haze, and it does not stop haze.
 
@@ -565,12 +567,12 @@ All settable names (never values in this file):
 
 ## Team
 
-| Name | Role |
-|---|---|
-| Suhail Ahmed | Solution Architect, AI & Automation |
-| Md Naushad ([@MdNaushad](https://github.com/MdNaushad)) | Lead Software Engineer |
-| Zeeshan ([@zeeshrocky](https://github.com/zeeshrocky)) | UI/UX Designer |
-| Aqib Pasha | Salesforce Solution Architect |
+| Name | Role | Company |
+|---|---|---|
+| [Suhail Ahmed](https://github.com/suhail39ahmed) | Solution Architect, AI & Automation | [Revantage](https://www.revantage.com/asiapacific/) |
+| [Md Naushad](https://github.com/MdNaushad) | Lead Software Engineer | Company TBD |
+| [Zeeshan](https://github.com/zeeshrocky) | UI/UX Designer | [Perfios](https://perfios.ai/) |
+| [Aqib Pasha](https://github.com/aqibpasha-20) | Salesforce Solution Architect | [Accenture](https://www.accenture.com/) |
 
 ---
 
