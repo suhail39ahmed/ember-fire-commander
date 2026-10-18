@@ -14,6 +14,30 @@ The supervisor can save a live frame to incident snapshots. Selected frames (at 
 
 Use the existing LiveKit settings below and the existing Gemini gateway configuration. API, voice gateway, and agents service code all need to be current. For local agents, point `EMBER_AGENTS_URL` at the local agents service; a previously deployed agents version will not have the new call context and frame endpoint. A two-device test is still required to verify camera, microphone, notifications, and network conditions on the actual demo devices.
 
+## Cloud Run configuration with Terraform
+
+Terraform creates empty `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` secrets and
+grants access only to `sa-ember-api`. Values are added separately and never enter
+Terraform state. The root `.env` configures local processes only.
+
+1. Merge the Terraform changes and run the existing Terraform apply workflow
+   from `main`, leaving `livekit_url = ""` in `infra/terraform/terraform.tfvars`.
+   This creates the secret containers without mounting empty secrets on Cloud Run.
+2. In Google Cloud Secret Manager, add an enabled version containing the real
+   value to each secret. Use the same LiveKit project as local testing.
+3. Set `livekit_url = "wss://your-project.livekit.cloud"` to the real server URL
+   in `infra/terraform/terraform.tfvars`, commit it, and run the apply workflow
+   again. Terraform sets `LIVEKIT_URL` and mounts both secrets' `latest` versions
+   on `ember-api`, after their access bindings are ready.
+4. Deploy the current API image through the existing deploy workflow. After
+   rotating secret values, deploy a new revision so all instances load them.
+
+The voice gateway and browser do not need these credentials. Incident calls
+work without the standalone test flags. To expose the optional connectivity
+tests in staging, also configure `EMBER_LIVEKIT_TEST_ENABLED=true` on API and
+gateway, and `VITE_LIVEKIT_TEST_ENABLED=true` for the web build; those flags
+remain off by default and are separate from the LiveKit credential wiring.
+
 ## Standalone prototype test
 
 For local photo/snapshot URLs with user ADC credentials, set `PHOTO_SIGNING_SERVICE_ACCOUNT` to the existing API service account; the user credential needs permission to sign as it. Cloud Run continues to use its runtime account. No private signing key is needed.

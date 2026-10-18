@@ -83,6 +83,27 @@ resource "google_cloud_run_v2_service" "ember_api" {
         name  = "EMBER_AGENTS_CALLER"
         value = google_service_account.runtime["ember-agents"].email
       }
+
+      # First create/populate the secrets, then set livekit_url to enable calls.
+      dynamic "env" {
+        for_each = var.livekit_url != "" ? [var.livekit_url] : []
+        content {
+          name  = "LIVEKIT_URL"
+          value = env.value
+        }
+      }
+      dynamic "env" {
+        for_each = var.livekit_url != "" ? toset(["LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"]) : toset([])
+        content {
+          name = env.value
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.this[env.value].secret_id
+              version = "latest"
+            }
+          }
+        }
+      }
     }
   }
 
@@ -94,7 +115,7 @@ resource "google_cloud_run_v2_service" "ember_api" {
     ]
   }
 
-  depends_on = [google_project_iam_member.runtime, google_firestore_database.default]
+  depends_on = [google_project_iam_member.runtime, google_firestore_database.default, google_secret_manager_secret_iam_member.accessor]
 }
 
 # ---------------- voice-gateway (WSS relay to Gemini Live)

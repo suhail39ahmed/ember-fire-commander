@@ -21,6 +21,9 @@ create_gemini_api_key_secret = false
 live_location                = "us-central1"
 live_model                   = "gemini-live-2.5-flash-native-audio"
 
+# Populate both LiveKit secrets before setting this URL and applying again.
+livekit_url = ""
+
 # Firestore: named database "ember-db". Location is PERMANENT.
 firestore_database_name     = "ember-db"
 firestore_location          = "asia-southeast1"
