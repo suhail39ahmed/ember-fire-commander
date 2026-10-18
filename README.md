@@ -17,8 +17,10 @@
 
 | | |
 |---|---|
-| **Live app** | [ember-fire-commander.web.app](https://ember-fire-commander.web.app) |
-| **Demo video (3–4 min)** | [Demo video (3–4 min)](LINK_TBD) |
+| **Live app** | [ember-fire-commander.web.app](https://ember-fire-commander.web.app) | 
+| **Volunteer (PWA)** | [ember-fire-commander.web.app/pwa](https://ember-fire-commander.web.app/pwa) |
+| **Supervisor (PWA)** | [ember-fire-commander.web.app/console](https://ember-fire-commander.web.app/console) |
+| **Demo video (3–4 min)** | [Demo video (3–4 min)](https://drive.google.com/drive/u/0/folders/1nd0fukEJE2RRce4mVcgjASWbp6R2Etfb)) |
 | **Pitch deck** | [Pitch deck (PDF)](LINK_TBD) |
 
 ---
