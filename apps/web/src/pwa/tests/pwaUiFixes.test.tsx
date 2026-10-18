@@ -172,8 +172,10 @@ describe('guide + practice (#153, #154)', () => {
 })
 
 describe('report voice path', () => {
-  it('keeps hold-to-talk on the report tab', () => {
+  it('uses uploads and notes on the report tab without the retired call panel', () => {
     const html = layout('/pwa/report', { outbox: outboxHandle() })
-    expect(html).toContain('data-testid="hold-to-talk"')
+    expect(html).not.toContain('data-testid="hold-to-talk"')
+    expect(html).toContain('Upload photos')
+    expect(html).toContain('Note (optional)')
   })
 })

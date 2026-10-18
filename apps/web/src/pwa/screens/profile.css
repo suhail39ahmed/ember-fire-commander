@@ -22,4 +22,13 @@
 .profile-switch:disabled { opacity: .65; cursor: wait; }
 .profile-screen .profile-signout { border-radius: 999px; background: var(--surface); }
 .profile-demo { color: var(--ink-muted); font: 10px/1.5 monospace; letter-spacing: .06em; }
+.profile-connectivity > ul > li { box-sizing: border-box; display: flex; gap: 12px; align-items: center; min-height: 72px; padding: 0 16px; border-radius: 16px; border: 1.5px solid var(--line); background: var(--surface); }
+.profile-connectivity > ul > li > svg { flex: none; color: var(--ink-muted); }
+.profile-connectivity > ul > li > div { flex: 1; min-width: 0; }
+.profile-connectivity > ul > li .btn { flex: none; border-radius: 999px; }
+.profile-connectivity-name { font-size: 15px; line-height: 20px; font-weight: 600; }
+.profile-connectivity > ul > li p { margin: 4px 0 0; }
+.profile-connectivity .livekit-test-panel-profile { padding: 16px; margin-top: 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--ink); }
+.profile-connectivity .livekit-test-directions button { background: var(--surface); color: var(--ink); border-color: var(--line); }
+.profile-connectivity .livekit-test-directions button[aria-pressed=true] { color: var(--ember); border-color: var(--ember); }
 @media (max-width: 360px) { .profile-screen .profile-setting { flex-wrap: wrap; } }

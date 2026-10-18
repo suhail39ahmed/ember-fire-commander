@@ -78,6 +78,8 @@
   outline-offset: 2px;
 }
 .console-account-menu {
+  display: grid;
+  gap: 8px;
   position: absolute;
   right: 0;
   top: calc(100% + 8px);
@@ -86,7 +88,7 @@
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 8px;
-  min-width: 140px;
+  min-width: 180px;
   box-shadow: 0 8px 24px rgba(28, 25, 23, 0.12);
 }
 .console-signout {

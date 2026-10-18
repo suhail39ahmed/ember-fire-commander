@@ -367,6 +367,7 @@ function Body({ lang, detail, link, actions, view }: { lang: Lang; detail: Incid
       </section>
       {popupId !== null && (
         <ExpandedVolunteerView
+          productCall
           lang={lang}
           detail={detail}
           volunteerId={popupId}

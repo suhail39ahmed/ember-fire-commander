@@ -40,7 +40,8 @@ def live_server():
     thread.join(timeout=5)
 
 
-def test_real_websocket_upgrade_reaches_the_handler_and_echoes_the_subprotocol(live_server, monkeypatch):
+@pytest.mark.parametrize('path', ['', 'transcription-test'])
+def test_real_websocket_upgrade_reaches_the_handler_and_echoes_the_subprotocol(live_server, monkeypatch, path):
     seen = {}
 
     def fake_handle_upgrade(ws, headers, session_factory):
@@ -50,7 +51,7 @@ def test_real_websocket_upgrade_reaches_the_handler_and_echoes_the_subprotocol(l
 
     monkeypatch.setattr(gateway_app, "handle_upgrade", fake_handle_upgrade)
 
-    client = Client.connect(live_server, subprotocols=["voice-ticket-abc"])
+    client = Client.connect(live_server + path, subprotocols=["voice-ticket-abc"])
     try:
         assert client.subprotocol == "voice-ticket-abc"
         assert json.loads(client.receive(timeout=5)) == {"type": "hello"}
@@ -58,6 +59,15 @@ def test_real_websocket_upgrade_reaches_the_handler_and_echoes_the_subprotocol(l
         with contextlib.suppress(ConnectionClosed):
             client.close()
     assert seen["protocol"] == "voice-ticket-abc"
+
+
+def test_transcription_socket_requires_authentication(live_server):
+    client = Client.connect(live_server + 'transcription-test')
+    try:
+        assert json.loads(client.receive(timeout=5)) == {"type": "session.closed", "reason": "unauthorized"}
+    finally:
+        with contextlib.suppress(ConnectionClosed):
+            client.close()
 
 
 def test_plain_get_on_the_gateway_route_is_not_an_upgrade():

@@ -41,6 +41,15 @@ Token verification uses the Firebase Admin SDK and `GOOGLE_CLOUD_PROJECT` (defau
 
 ## Voice ticket
 
+The opt-in `POST /livekit/test-token` also returns `callId` and `speakerId` and
+registers the signed-in user in `testCalls/{callId}/members`. The gateway checks
+this membership before delivering shared call transcripts. IDs come from the
+server; client-supplied identity or role fields are ignored. Members of the same
+test code share a call ID. Call access expires two hours after creation. Test
+transcript history is stored under `testCalls/{callId}/events`; expiry gates
+access but does not delete documents. See `docs/demo/livekit-test.md` for the
+protocol and test steps.
+
 `POST /voice/ticket` issues a short-lived (60-second), single-use voice ticket that the PWA uses to open the voice gateway WebSocket from a browser (§7 browser handshake).
 
 - Requires a valid Firebase ID token with an allowed role (`volunteer` or `supervisor`).

@@ -185,9 +185,9 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(note.title || data.title || 'EMBER', {
       body: note.body || data.body || '',
       icon: '/icons/icon-192.png',
-      tag: data.taskId || undefined,
+      tag: data.callId || data.taskId || undefined,
       data,
-      requireInteraction: withdraw,
+      requireInteraction: withdraw || data.type === 'call',
       vibrate: withdraw ? [400, 200, 400, 200, 400] : undefined,
     }),
   )
@@ -198,6 +198,7 @@ self.addEventListener('push', (event) => {
 // page is told what was tapped, so it refreshes and moves there now.
 function pushTarget(data) {
   if (data.type === 'withdraw') return '/pwa?push=withdraw'
+  if (data.type === 'call' && typeof data.callId === 'string' && /^[a-f0-9]{64}$/.test(data.callId)) return '/pwa?call=' + data.callId
   const id = typeof data.taskId === 'string' ? data.taskId.trim() : ''
   return id ? '/pwa/task/' + encodeURIComponent(id) : '/pwa'
 }

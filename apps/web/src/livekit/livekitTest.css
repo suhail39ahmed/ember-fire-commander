@@ -1,0 +1,22 @@
+.livekit-test-panel { padding: 16px; margin-top: 8px; border: 2px dashed #e2531b; border-radius: 12px; background: #18212b; color: #fff; max-width: 900px; }
+.livekit-test-panel h2 { margin: 0 0 8px; font-size: 20px; }
+.livekit-test-panel p { margin: 8px 0; }
+.livekit-test-panel label { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+.livekit-test-panel input { color: #17212b; background: #fff; border: 1px solid #aaa; padding: 8px; max-width: 100%; }
+.livekit-test-panel > button { padding: 10px; }
+.livekit-test-directions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.livekit-test-directions button { padding: 10px; border: 1px solid #aab4bf; border-radius: 6px; background: #263443; color: #fff; }
+.livekit-test-directions button[aria-pressed=true] { border-color: #ff935e; background: #64351e; }
+.livekit-test-panel [role=alert] { color: #ffb4a3; }
+.livekit-test-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 8px; }
+.livekit-test-grid .lk-participant-tile { min-height: 180px; aspect-ratio: 4 / 3; }
+.livekit-test-panel .lk-control-bar { flex-wrap: wrap; height: auto; }
+.call-transcription { margin-top: 16px; padding: 16px; border-top: 1px solid #475569; background: #111827; color: #f8fafc; }
+.call-transcription h3 { margin: 0; }
+.call-transcription button { padding: 10px 14px; border-radius: 999px; }
+.call-transcription .call-transcription-log { box-sizing: border-box; height: 240px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; list-style: none; padding: 8px; margin: 12px 0 0; border: 1px solid #475569; border-radius: 8px; background: #0f172a; font-size: 12px; line-height: 1.5; }
+.call-transcription-log li { display: block; min-height: 0; margin: 0; padding: 6px 4px; border: 0; border-radius: 0; background: transparent; color: #f8fafc; font-size: inherit; line-height: inherit; overflow-wrap: anywhere; }
+.call-transcription-log li + li { border-top: 1px solid #334155; }
+.call-transcription-log li .small { font-size: inherit; }
+.transcript-time { color: #cbd5e1; font-size: 11px; margin-right: 8px; }
+.call-transcription .muted, .call-transcription li .small { color: #cbd5e1; }

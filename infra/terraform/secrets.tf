@@ -11,6 +11,8 @@ locals {
       FIRMS_MAP_KEY       = ["ember-ingest"]
       DATA_GOV_SG_API_KEY = ["ember-ingest"]
       MAPS_SERVER_API_KEY = ["ember-api"]
+      LIVEKIT_API_KEY     = ["ember-api"]
+      LIVEKIT_API_SECRET  = ["ember-api"]
     },
     var.create_gemini_api_key_secret ? {
       # Only for Developer API (option b) / direct ephemeral-token fallback.
@@ -48,8 +50,9 @@ resource "google_secret_manager_secret_iam_member" "accessor" {
   member    = "serviceAccount:${google_service_account.runtime[each.value.sa].email}"
 }
 
-# NOTE: secrets are NOT mounted on Cloud Run yet (checklist: don't mount a
-# secret until it has a version, or the revision fails to start). When
+# LiveKit secrets are mounted only when livekit_url is configured. Populate
+# both secrets before setting that variable, or the revision fails to start.
+# Other secrets are NOT mounted on Cloud Run yet. When
 # MAPS_SERVER_API_KEY has a version, add to ember-api in cloud_run.tf:
 #
 #   env {

@@ -42,7 +42,10 @@ def read_ttl_seconds():
 def _signing_kwargs(credentials, base):
     if not isinstance(credentials, google_credentials.Signing):
         # Cloud Run metadata credentials: sign through IAM signBlob.
-        base["service_account_email"] = credentials.service_account_email
+        signer = getattr(credentials, 'service_account_email', None) or os.getenv('PHOTO_SIGNING_SERVICE_ACCOUNT', '').strip()
+        if not signer:
+            raise ValueError('Set PHOTO_SIGNING_SERVICE_ACCOUNT when using local user credentials for signed media URLs.')
+        base["service_account_email"] = signer
         base["access_token"] = credentials.token
     return base
 
@@ -76,8 +79,4 @@ def sign_put_url(bucket_name, object_path, content_type, ttl_seconds):
         "method": "PUT",
         "content_type": content_type,
     }
-    if not isinstance(credentials, google_credentials.Signing):
-        # Cloud Run metadata credentials: sign through IAM signBlob.
-        kwargs["service_account_email"] = credentials.service_account_email
-        kwargs["access_token"] = credentials.token
-    return blob.generate_signed_url(**kwargs)
+    return blob.generate_signed_url(**_signing_kwargs(credentials, kwargs))

@@ -2,12 +2,12 @@
 
 Lookup of the HTTP and WebSocket surface as the code serves it, and which client calls each route. Field rules, enums, and error codes are defined in [`docs/contracts/shared-contract.md`](../contracts/shared-contract.md). When this file and the contract disagree, the contract wins; the last section lists the places the code already differs.
 
-The browser talks only to `ember-api` (REST) and `voice-gateway` (WebSocket). It does not read Firestore. Photo and video `PUT`s go to signed Cloud Storage URLs that `ember-api` issued. Map tiles load in the browser with the referrer-restricted Maps key.
+The browser uses `ember-api` (REST), `voice-gateway` (WebSocket for Gemini assistance and call transcription), and LiveKit Cloud for human call media. It does not read Firestore. Photo and video `PUT`s go to signed Cloud Storage URLs that `ember-api` issued. LiveKit participant tokens are issued by `ember-api`. Map tiles load in the browser with the referrer-restricted Maps key.
 
 | Service | Code | Default local port |
 |---|---|---|
 | `ember-api` | `services/api/` | `8080` (`VITE_EMBER_API_URL`, `VITE_API_BASE_URL`) |
-| `voice-gateway` | `services/voice-gateway/` | `8084` (`VITE_VOICE_GATEWAY_WSS_URL`) |
+| `voice-gateway` | `services/voice-gateway/` | `8084` when run directly (`VITE_VOICE_GATEWAY_WSS_URL`); `PORT` overrides it |
 | `ember-agents` | `services/agents/` | `8082` (`EMBER_AGENTS_URL`, server-side only) |
 | `ember-ingest` | `jobs/ingest/` | Cloud Run job only (no local HTTP server) |
 
@@ -110,6 +110,27 @@ Incident list and detail responses use `INCIDENT_FIELDS`: `id`, `name`, `area`, 
 
 There is no route that clears `withdraw`, raises severity, sets incident status to `open` or `held`, or sets a conflict to `resolved`.
 
+### Incident calls and LiveKit tokens
+
+Handlers: `services/api/calls/routes.py`, `calls/service.py`, `calls/media.py`, and `livekit_test.py`. Clients: `apps/web/src/livekit/calls.ts`, `VolunteerCall.tsx`, `IncidentCallMedia.tsx`, `supervisor/detail/IncidentCallPopup.tsx`, and `pwa/screens/ProfileConnectivity.tsx`.
+
+| Method | Path | Access | Success |
+|---|---|---|---|
+| POST | `/incidents/{id}/calls` | Supervisor; `{ volunteerId }` | `201` call record, join code, notification outcome; 45-second invitation |
+| GET | `/calls/current` | Participant | `200` `{ call }`, null if none open |
+| POST | `/calls/join-code` | Volunteer; `{ code: "CALL-XXXX-XXXX" }` | `200` accepted call; first claimant takes it |
+| GET | `/calls/{callId}` | Participant | `200` current call record |
+| POST | `/calls/{callId}/accept` | Invited volunteer | `200` connecting state |
+| POST | `/calls/{callId}/end` | Participant; `{ reason }` | `200` terminal call record; closes LiveKit room |
+| POST | `/calls/{callId}/heartbeat` | Participant; `{ connected: boolean }` | `200` updated call record |
+| POST | `/calls/{callId}/token` | Participant in connecting/active call | `201` `{ serverUrl, participantToken, callId, speakerId }` |
+| POST | `/calls/{callId}/snapshots` | Call supervisor; raw JPEG, under 2 MB | `201` `{ id, capturedAt }` — saves snapshot to incident |
+| GET | `/incidents/{id}/call-snapshots` | Supervisor | `200` `{ items }` — latest 30 with signed URLs |
+| POST | `/calls/{callId}/vision` | Active call supervisor; JPEG under 1 MB | `200` `{ text, at }` — frame description; min 55 s between requests |
+| POST | `/livekit/test-token` | Volunteer/supervisor; `{ roomCode }` | `201` standalone 5-minute token; requires `EMBER_LIVEKIT_TEST_ENABLED=true` |
+
+`LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` are API-only. Terraform mounts key/secret from Secret Manager after `livekit_url` is set. The existing `POST /incidents/{id}/ask` and `/suggestions` accept optional `callId` to include bounded recent transcript and visual context.
+
 ### Photo bytes
 
 `POST /photos/upload-url` returns a short-lived V4 signed URL. The PWA `PUT`s the still to that URL with the returned `Content-Type`, then `POST /observations` with `source: "photo"` and the returned `photoPath`. The path is private. Upload records live in `photoUploads`. Client: `apps/web/src/pwa/photo/`.
@@ -140,6 +161,14 @@ Tools the model may call: `submit_observation` (`severity`, `text`), `get_common
 
 Caps: `LIVE_MINUTE_CAP_USER` (default 10) and `LIVE_MINUTE_CAP_OP` (default 60), counted per instance. Message shapes: contract §7 and `services/voice-gateway/README.md`.
 
+### Shared call transcription sockets
+
+`/calls/transcription` handles product calls; `/transcription-test` handles standalone connectivity tests. Both use a one-use voice ticket as `Sec-WebSocket-Protocol`; there are no credentials in the URL. Product call authorization uses `calls` membership; the test socket requires `EMBER_LIVEKIT_TEST_ENABLED`.
+
+Client → gateway: `session.start` (with `callId`, optional `afterSequence`), `audio.start`, `audio` (base64 PCM), `audio.stop`, `session.stop`. Gateway → client: `session.ready`, `audio.ready`, `audio.closed`, `session.closed`, `transcript.event`.
+
+Each transcript event carries `callId`, `speakerId`, `speakerName`, `eventId`, `segmentId`, call-wide `sequence`, `timestamp`, `text`, and `finished`. Partial updates replace the same segment; clients replay after `afterSequence` on reconnect. Each participant transcribes only their own unmuted microphone; this path does not write observations or send instructions.
+
 ## ember-agents
 
 Private. Only the `sa-ember-api` and `sa-voice-gateway` service accounts can invoke it. No Firebase user auth on these handlers.
@@ -154,6 +183,9 @@ Private. Only the `sa-ember-api` and `sa-voice-gateway` service accounts can inv
 | POST | `/internal/observations/{id}/translate` | none | `200` `observation_translations` record. `502` on model failure; stored translation is final on a repeat |
 | POST | `/internal/incidents/{id}/summary` | none | `200` `incident_summaries` record |
 | POST | `/internal/sites/scan` | none | `200` `{ sitesWatched, sitesRemembered, sitesExpired, alertsCreated }`. Run by Cloud Scheduler |
+| POST | `/internal/incidents/{id}/ask` | `{ question, volunteerId?, callContext? }` | `200` `{ answer, enoughData, at }` — advisory answer with optional call context |
+| POST | `/internal/incidents/{id}/suggestions` | optional `{ volunteerId, callContext }` | `200` stored suggestion record; no automatic delivery |
+| POST | `/internal/calls/describe-frame` | `{ image }` (base64 JPEG) | `200` `{ text, at }` — visual description only; `502` when model unavailable |
 | POST | `/internal/practice` | `{ message, lang, lessonId?, index: 1..3 }` | Grounded localized reply, allowlisted `ruleKey`, question, three options, `correctId` and right/wrong feedback. `503 practice_grounding_unconfigured` when no datastore is configured |
 
 `ember-api` calls intake with a 3-second timeout after storing an observation. A failed call stays in `intakePending` and is retried later, up to 20 attempts. The observation is not refused because agents is down.

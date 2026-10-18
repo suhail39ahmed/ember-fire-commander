@@ -418,7 +418,7 @@ export function createMockApi(volunteerId: string, latencyMs = 300, initialProfi
     async createVideoUploadUrl(contentType) {
       await wait()
       const id = Math.random().toString(16).slice(2).padEnd(12, '0')
-      const ext = contentType === 'video/mp4' ? 'mp4' : 'webm'
+      const ext = contentType === 'video/mp4' ? 'mp4' : contentType === 'video/quicktime' ? 'mov' : 'webm'
       return {
         uploadUrl: `mock-upload-video://${id}`,
         method: 'PUT',

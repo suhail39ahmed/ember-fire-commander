@@ -1,0 +1,16 @@
+.livekit-connectivity-dialog {
+  width: min(680px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  box-sizing: border-box;
+  padding: 20px;
+  border: 1px solid #e6dfd4;
+  border-radius: 20px;
+  background: #fff;
+  color: #221f1b;
+  box-shadow: 0 16px 64px #0003;
+}
+.livekit-connectivity-dialog::backdrop { background: #201b1570; }
+.livekit-connectivity-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.livekit-connectivity-dialog > header h2 { font-size: 18px; margin: 0; }
+.livekit-connectivity-dialog > header button { width: 32px; height: 32px; border: 1px solid #e6dfd4; border-radius: 50%; background: #faf8f4; color: #221f1b; cursor: pointer; font-size: 22px; }
+.livekit-connectivity-dialog button:focus-visible { outline: 2px solid #e2531b; outline-offset: 3px; }

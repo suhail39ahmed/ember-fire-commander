@@ -72,7 +72,7 @@ def tokens_for(volunteer_id):
 def _record(task, result, attempts):
     ref = store.db().collection(ATTEMPTS_COLLECTION).document()
     ref.set({
-        "kind": "withdraw" if task.get("type") == "withdraw" else "task",
+        "kind": task.get("type") if task.get("type") in ("withdraw", "call") else "task",
         "targetId": task.get("id"),
         "volunteerId": task.get("volunteerId"),
         "result": result,
@@ -108,6 +108,11 @@ def _drop(volunteer_id, token):
 def deliver_task(task, sender=None):
     """Push this task to the volunteer's stored tokens. Returns the record outcome."""
     message = message_for(task)
+    return deliver_message(task, message, sender)
+
+
+def deliver_message(task, message, sender=None):
+    """Deliver a committed task or call invitation through the same retry path."""
     tokens = tokens_for(task.get("volunteerId"))
     if not tokens:
         _record(task, "skipped", 0)

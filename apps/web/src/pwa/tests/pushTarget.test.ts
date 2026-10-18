@@ -3,6 +3,11 @@ import { describe, expect, it } from 'vitest'
 import { pushPath } from '../push/target'
 
 describe('pushPath (#133)', () => {
+  it('opens a validated call invitation without starting capture', () => {
+    const id = 'a'.repeat(64)
+    expect(pushPath({ type: 'call', callId: id })).toBe(`/pwa?call=${id}`)
+    expect(pushPath({ type: 'call', callId: '../other?token=secret' })).toBe('/pwa')
+  })
   it('opens WITHDRAW for a withdraw push, whatever else it carries', () => {
     expect(pushPath({ type: 'withdraw', taskId: 't2', incidentId: 'inc_1' })).toBe('/pwa?push=withdraw')
   })
