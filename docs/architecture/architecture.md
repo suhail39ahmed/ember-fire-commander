@@ -42,7 +42,7 @@ Integration: `apps/web/src/livekit/`, `supervisor/detail/IncidentCallPopup.tsx`,
 
 ## 2. Live voice and video path
 
-- **Gemini assistance relay.** PWA → `voice-gateway` (Cloud Run, WSS, 3600 s timeout, session affinity) → `gemini-live-2.5-flash-native-audio` (Vertex AI, `us-central1`), with audio plus about 1 fps camera frames, and replies both ways. The gateway verifies the voice ticket (via `Sec-WebSocket-Protocol`), enforces per-user and per-operation Live-minute caps, injects the shared digest, and writes observations from the model's `submit_observation` tool calls.
+- **Gemini assistance relay.** PWA → `voice-gateway` (Cloud Run, WSS, 3600 s timeout, session affinity) → `gemini-live-2.5-flash-native-audio` (Agent Platform, `us-central1`), with audio plus about 1 fps camera frames, and replies both ways. The gateway verifies the voice ticket (via `Sec-WebSocket-Protocol`), enforces per-user and per-operation Live-minute caps, injects the shared digest, and writes observations from the model's `submit_observation` tool calls.
 - **Call transcription.** Each participant in a LiveKit call also opens a separate voice-gateway WSS session at `/calls/transcription`. This session transcribes only that participant's own microphone through Gemini, writing to a shared ordered event log in Firestore. It does not relay video frames or produce Bahasa replies.
 - **Browser WebSocket auth (voice ticket):** browsers cannot send custom headers on WebSocket upgrades. The PWA calls `POST /voice/ticket` on `ember-api` to get a 60-second single-use ticket, then opens `new WebSocket(url, [ticket])`. The browser sends the ticket in `Sec-WebSocket-Protocol`. The gateway reads, verifies, and atomically consumes the ticket from Firestore, then echoes the same subprotocol value in the 101 response (browsers require this).
 - **Push-to-talk bursts:** a Gemini assistance session opens on button press, uses manual activity detection so wind and engine noise do not open a turn, and closes about 30 s after the reply.
@@ -60,13 +60,13 @@ Integration: `apps/web/src/livekit/`, `supervisor/detail/IncidentCallPopup.tsx`,
 | Cloud Run `voice-gateway` (public, WSS) | Voice ticket verification, Gemini Live relay, caps, observation writes, shared call transcription. `LIVE_MODEL=gemini-live-2.5-flash-native-audio`, `LIVE_LOCATION=us-central1` | live |
 | Cloud Run `ember-agents` (private) | Intake → fusion → conflict → score → WITHDRAW rules; Spotter (photo triage); Assist (suggestions/ask/translate/call-frame-describe); Summary; Practice coach; Sites scan. Only `sa-ember-api` and `sa-voice-gateway` can invoke it | live |
 | Cloud Run job `ember-ingest` + Cloud Scheduler | Hourly FIRMS hotspots, Open-Meteo weather, and data.gov.sg PSI. Writes `leads/`, `weather/current`, `psi/current` in Firestore | live |
-| LiveKit Cloud | Volunteer video and two-way call audio; supervisor publishes microphone audio only. Room-scoped tokens issued by `ember-api` | live; requires `livekit_url` and secret values |
+| LiveKit Cloud | Volunteer video and two-way call audio; supervisor publishes microphone audio only. Room-scoped tokens issued by `ember-api` | built; enabled through deployment configuration: set the `livekit_url` Terraform variable (empty in the committed `terraform.tfvars`) and add values to the `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` secrets |
 | Firestore Native `ember-db` | Shared incident state with point-in-time recovery and daily backups. Client access is deny-all | live |
 | Cloud Storage photo/video bucket | Private (uniform access, public access prevention). Photos deleted after 14 days, videos after 7 days. Signed-URL PUT uploads; signed-URL GET for supervisor playback | live |
-| Secret Manager | `FIRMS_MAP_KEY`, `DATA_GOV_SG_API_KEY`, `MAPS_SERVER_API_KEY`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` (last two scoped to `sa-ember-api`) | live |
+| Secret Manager | `FIRMS_MAP_KEY`, `DATA_GOV_SG_API_KEY`, `MAPS_SERVER_API_KEY` (reserved, not mounted or read by any service today), `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` (last two scoped to `sa-ember-api`) | live |
 | Artifact Registry `ember` | Images, with a cleanup policy | live |
-| Maps JS + Map ID / Weather API | Map display (browser key) and weather lookups (server key, through `ember-api`) | live |
-| Vertex AI (Agent Platform) | Gemini Live (`us-central1`) and Gemini Flash (`asia-southeast1`), service-account auth | live |
+| Maps JS + Map ID | Map display (browser key). Weather comes from Open-Meteo in the ingest job, not from a Google API | live |
+| Agent Platform | Gemini Live (`us-central1`) and Gemini Flash (`asia-southeast1`), service-account auth | live |
 | Workload Identity Federation | GitHub Actions auth for Terraform and deploys — no JSON keys | live |
 | Budgets, Logging | Cost alerts (alert-only); application logs | budget alerts live |
 

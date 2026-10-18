@@ -103,7 +103,7 @@ curl http://localhost:8080/healthz
 
 ## Live model
 
-`LIVE_MODEL` defaults to `gemini-live-2.5-flash-native-audio` on Vertex AI. `LIVE_LOCATION` defaults to `us-central1` — Gemini Live has no Asia endpoint, so voice sessions relay cross-region from Singapore. Latency measurement on a real device in the field is not yet done.
+`LIVE_MODEL` defaults to `gemini-live-2.5-flash-native-audio` on Agent Platform. `LIVE_LOCATION` defaults to `us-central1` — Gemini Live has no Asia endpoint, so voice sessions relay cross-region from Singapore. Latency measurement on a real device in the field is not yet done.
 
 ## Deployment
 
