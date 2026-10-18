@@ -2,12 +2,12 @@
 
 Lookup of the HTTP and WebSocket surface as the code serves it, and which client calls each route. Field rules, enums, and error codes are defined in [`docs/contracts/shared-contract.md`](../contracts/shared-contract.md). When this file and the contract disagree, the contract wins; the last section lists the places the code already differs.
 
-The browser talks only to `ember-api` (REST) and `voice-gateway` (WebSocket). It does not read Firestore. A photo `PUT` goes to a signed Cloud Storage URL that `ember-api` issued. Map tiles load in the browser with the referrer-restricted Maps key.
+Updated 18 Oct 2026 for incident calls, shared transcription and Report/Task media uploads. The browser uses `ember-api` (REST), `voice-gateway` (WebSocket), and LiveKit for human call media. It does not read Firestore. Photo/video transfers use signed Cloud Storage URLs issued by `ember-api`. Map tiles load with the restricted browser key.
 
 | Service | Code | Default local port |
 |---|---|---|
 | `ember-api` | `services/api/` | `8080` (`VITE_EMBER_API_URL`, `VITE_API_BASE_URL`) |
-| `voice-gateway` | `services/voice-gateway/` | `8080` (`VITE_VOICE_GATEWAY_WSS_URL`) |
+| `voice-gateway` | `services/voice-gateway/` | `8084` when run directly (`VITE_VOICE_GATEWAY_WSS_URL`); `PORT` overrides it |
 | `ember-agents` | `services/agents/` | `8082` (`EMBER_AGENTS_URL`, server-side only) |
 
 Clients:
@@ -46,7 +46,7 @@ Error body:
 | Name | Values |
 |---|---|
 | Role | `volunteer`, `supervisor` |
-| Observation source | `live`, `chip`, `text`, `photo` |
+| Observation source | `live`, `chip`, `text`, `photo`, `video` |
 | Chip | `asap`, `api`, `aman`, `butuh_bantuan` |
 | Severity | `none`, `smoke`, `small_flame`, `large_flame`, `unknown` |
 | Severity order (low to high) | `none`, `smoke`, `small_flame`, `large_flame`. `unknown` does not raise or lower a known severity |
@@ -76,7 +76,7 @@ Incident list and detail responses use `INCIDENT_FIELDS`: `id`, `name`, `area`, 
 | POST | `/observations` | any role | PWA | chip, text, photo, or video observation. Optional `clientId` (1–128 of `[A-Za-z0-9._-]`) and task-originated `taskId` | `201` stored observation, or `200` the first observation when `clientId` repeats. Internal task link is never returned |
 | PUT, PATCH, DELETE | `/observations` and `/observations/{id}` | any role | nobody | — | `409` `conflict`, observations are immutable |
 | POST | `/photos/upload-url` | volunteer | PWA | `{ "contentType": "image/jpeg" \| "image/webp" }` | `201` `{ uploadUrl, method: "PUT", headers, photoPath, expiresAt }` |
-| POST | `/videos/upload-url` | volunteer | PWA | `{ "contentType": "video/mp4" \| "video/webm" }` | `201` `{ uploadUrl, method: "PUT", headers, videoPath, expiresAt }`. Max 10 MB. Objects expire after `video_retention_days` (default 7 d). See §6.7.1 |
+| POST | `/videos/upload-url` | volunteer | PWA | `{ "contentType": "video/mp4" \| "video/webm" \| "video/quicktime" }` | `201` `{ uploadUrl, method: "PUT", headers, videoPath, expiresAt }`. Max 10 MB. Objects expire after `video_retention_days` (default 7 d). See §6.7.1 |
 | GET | `/incidents/{id}/videos/{observationId}` | supervisor | console expanded view | — | `200` `{ url, expiresAt }`. Short-lived signed GET URL for a video report. `404` when the observation has no `videoPath` or is not on the incident |
 | GET | `/incidents` | any role, scoped | console | — | `200` incident array. Supervisor: status `open`, `held`, or `verified`. Volunteer: incidents linked to their observations, tasks, or withdraw |
 | GET | `/incidents/{id}` | any role, scoped | console / PWA | — | `200` `{ incident, observations, conflict, tasks }`. A volunteer not on the incident gets `404` and sees only their own tasks; a volunteer membership is included when present. Volunteer detail includes safe presentation metadata and conflictSummary, and all incident/current-conflict reports with stored display names (#195, §6.3). Supervisors also receive `evidenceFactors`, `volunteers`, `timeline`, `summary`, `conflictContext`, `agencyInCharge`, and `liveSeat` (§6.3) |
@@ -109,9 +109,36 @@ Incident list and detail responses use `INCIDENT_FIELDS`: `id`, `name`, `area`, 
 
 There is no route that clears `withdraw`, raises severity, sets incident status to `open` or `held`, or sets a conflict to `resolved`.
 
-### Photo bytes
+### Incident calls and connectivity tests
+
+Handlers: `services/api/calls/routes.py`, `calls/service.py`, `calls/media.py`, and `livekit_test.py`. Clients: `apps/web/src/livekit/calls.ts`, `VolunteerCall.tsx`, `IncidentCallMedia.tsx`, `supervisor/detail/IncidentCallPopup.tsx`, and `pwa/screens/ProfileConnectivity.tsx`. All routes below use existing Firebase/App Check middleware; call-specific routes additionally enforce participant/role access.
+
+| Method | Path | Access / input | Success |
+|---|---|---|---|
+| POST | `/incidents/{id}/calls` | Supervisor; `{ volunteerId }` on the incident | `201` call record, join code and notification outcome; 45-second invitation |
+| GET | `/calls/current` | Signed-in participant | `200` `{ call }`, null if no open call |
+| POST | `/calls/join-code` | Volunteer; `{ code: "CALL-XXXX-XXXX" }` | `200` accepted call; first signed-in volunteer claims a pending code |
+| GET | `/calls/{callId}` | Call participant | `200` current call record |
+| POST | `/calls/{callId}/accept` | Invited volunteer | `200` call in connecting state |
+| POST | `/calls/{callId}/end` | Participant; `{ reason }`: `ended`, `declined`, `cancelled`, `permission_denied`, subject to role/state checks | `200` terminal call record; closes LiveKit room |
+| POST | `/calls/{callId}/heartbeat` | Participant; `{ connected: boolean }` | `200` updated call record |
+| POST | `/calls/{callId}/token` | Participant in connecting/active call | `201` `{ serverUrl, participantToken, callId, speakerId }`; room-scoped 60-second join token |
+| POST | `/calls/{callId}/snapshots` | Call supervisor; raw `image/jpeg`, under 2 MB | `201` `{ id, capturedAt }`; explicit incident snapshot |
+| GET | `/incidents/{id}/call-snapshots` | Supervisor | `200` `{ items }`; latest 30 records with signed image URLs |
+| POST | `/calls/{callId}/vision` | Active call supervisor; raw JPEG under 1 MB | `200` `{ text, at }`; at least 55 seconds between requests, `429` if too frequent |
+| POST | `/livekit/test-token` | Volunteer/supervisor; `{ roomCode }`, 8–48 letters/digits/hyphens | `201` `{ serverUrl, participantToken, callId, speakerId }`; standalone 5-minute join token, requires `EMBER_LIVEKIT_TEST_ENABLED=true` |
+
+Public call records include identity/name fields, incident ID, status, lifecycle timestamps, end reason, notification outcome, join code and optional visual observation. Open states are `requested`, `connecting`, `active`. The API owns a 30-minute call limit and 60-second participant timeout; reads/heartbeats enforce expiry. Token expiry limits initial join, so ending the room also terminates existing media participation. The manual join-code fallback changes the media participant, not the original written-instruction recipient.
+
+The existing supervisor `POST /incidents/{id}/ask` accepts `{ question, volunteerId?, callId? }`; `POST /incidents/{id}/suggestions` accepts optional `{ volunteerId, callId }`. The API verifies call context and forwards bounded recent transcript and visual evidence to the private agents service. Neither route sends instructions automatically; explicit Send uses the existing instruction flow.
+
+`LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` are API-only configuration. Terraform mounts the key/secret from Secret Manager after `livekit_url` is configured. See [deployment steps](../demo/livekit-test.md#cloud-run-configuration-with-terraform).
+
+### Photo and video bytes
 
 `POST /photos/upload-url` returns a short-lived V4 signed URL. The PWA `PUT`s the still to that URL with the returned `Content-Type`, then `POST /observations` with `source: "photo"` and the returned `photoPath`. The path is private. Upload records live in `photoUploads`. Client: `apps/web/src/pwa/photo/`.
+
+Report and Task share `pwa/report/ReportAttachments.tsx` and the same form: up to four photos, one video (10 MB), and an optional note. Notes alone are valid. Each attachment becomes a separate observation through the existing signed-upload endpoints; a selected chip is a separate observation. Task IDs, note, location and capture metadata accompany submissions. IndexedDB outbox entries retain stable IDs and uploaded paths across retries. File selection itself does not upload; unsent selections are in memory until Send. MOV uses `video/quicktime`.
 
 ### Polling
 
@@ -135,6 +162,14 @@ Tools the model may call: `submit_observation` (`severity`, `text`), `get_common
 
 Caps: `LIVE_MINUTE_CAP_USER` (default 10) and `LIVE_MINUTE_CAP_OP` (default 60), counted per instance. Message shapes: contract §7 and `services/voice-gateway/README.md`.
 
+### Shared call transcription sockets
+
+On **voice-gateway**, `/calls/transcription` handles product calls and `/transcription-test` handles opt-in standalone tests. Both reuse the one-use ticket from `POST /voice/ticket` as `Sec-WebSocket-Protocol`; there are no credentials in the URL. The test socket requires the test flag; product call authorization uses `calls` membership instead.
+
+Client messages: `session.start` with `callId` and optional nonnegative `afterSequence`, `audio.start`, `audio` (base64 PCM), `audio.stop`, and `session.stop`. Server messages include `session.ready`, `audio.ready`, `audio.closed`, `session.closed`, and `transcript.event`.
+
+Each transcript event includes `callId`, `speakerId`, `speakerName`, `eventId`, `segmentId`, call-wide `sequence`, `timestamp`, `text` and `finished`. The server derives speaker identity. Each event carries the full current segment text; clients replace that segment, ignore older/duplicate events, and replay after the sequence cursor on reconnect. Both screens consume the same Firestore event history through authorized gateway polling, about once per second. Publisher leases prevent duplicate audio publishing for one speaker. Each participant transcribes only their own unmuted microphone; this path does not write observations or issue instructions. Existing Gemini usage caps apply; standalone publishing is capped at two minutes, product publishing at up to 30 minutes.
+
 ## ember-agents
 
 Private. Only the `ember-api` and `voice-gateway` service accounts can invoke it. No Firebase user auth on these handlers.
@@ -146,6 +181,9 @@ Private. Only the `ember-api` and `voice-gateway` service accounts can invoke it
 | POST | `/internal/observations/{id}/triage` | optional `{ callerId }` | `200` `photo_triage` record |
 | POST | `/internal/incidents/{id}/summary` | none | `200` `incident_summaries` record |
 | POST | `/internal/sites/scan` | none | `200` `{ sitesWatched, sitesRemembered, sitesExpired, alertsCreated }` |
+| POST | `/internal/incidents/{id}/ask` | `{ question, volunteerId?, callContext? }` from API | `200` `{ answer, enoughData, at }`; advisory incident/call answer |
+| POST | `/internal/incidents/{id}/suggestions` | optional `{ volunteerId, callContext }` from API | `200` stored suggestion record; no automatic delivery |
+| POST | `/internal/calls/describe-frame` | `{ image }`, base64 JPEG | `200` `{ text, at }`; visual evidence only, `502` when model unavailable |
 | POST | `/internal/practice` | `{ message, lang, lessonId?, index: 1..3 }` | Grounded localized reply, allowlisted `ruleKey`, question, three options, `correctId` and right/wrong feedback. Private to backend service callers; `503 practice_grounding_unconfigured` when no datastore is configured |
 
 `ember-api` calls intake with a 3 second timeout after storing an observation. A failed call stays in `intakePending` and is retried later, up to 20 attempts. The observation is not refused because agents is down.
