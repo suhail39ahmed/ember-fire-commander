@@ -1,10 +1,12 @@
-import type { ObservationRequest, PhotoContentType, VideoContentType } from '../contracts/types'
+import type { ObservationDevice, ObservationRequest, PhotoContentType, VideoContentType } from '../contracts/types'
 import type { Position } from '../report/buildObservation'
 
 export type OutboxState = 'queued' | 'sending' | 'failed' | 'sent'
 
 /** A photo taken offline whose upload has not finished yet. */
 export interface PendingPhoto {
+  text?: string | null
+  device?: ObservationDevice
   taskId?: string
   blob: Blob
   contentType: PhotoContentType
@@ -14,6 +16,8 @@ export interface PendingPhoto {
 
 /** A video clip recorded offline whose upload has not finished yet. */
 export interface PendingVideo {
+  text?: string | null
+  device?: ObservationDevice
   taskId?: string
   blob: Blob
   contentType: VideoContentType
@@ -39,6 +43,9 @@ export interface OutboxItem {
   sentAt: string | null
   observationId: string | null
 }
+
+/** Stable ids let a partial batch resume without uploading or sending successful items again. */
+export type OutboxBatchEntry = Pick<OutboxItem, 'id' | 'body' | 'photo' | 'video'>
 
 export function capturedAtOf(item: OutboxItem): string {
   return item.body?.capturedAt ?? item.photo?.capturedAt ?? item.video?.capturedAt ?? item.queuedAt

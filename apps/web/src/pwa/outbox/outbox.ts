@@ -13,7 +13,7 @@ import { UploadError } from '../photo/upload'
 import { buildPhotoObservation } from '../photo/uploadPhoto'
 import { buildVideoObservation } from '../video/uploadVideo'
 import type { OutboxStore } from './store'
-import { capturedAtOf, type OutboxItem, type PendingPhoto, type PendingVideo } from './types'
+import { capturedAtOf, type OutboxBatchEntry, type OutboxItem, type PendingPhoto, type PendingVideo } from './types'
 
 export interface OutboxDeps {
   store: OutboxStore
@@ -106,6 +106,21 @@ export class Outbox {
     return this.add({ body: null, photo: null, video })
   }
 
+  /** Persist every attachment before uploading; a retry reuses the original ids and completed uploads. */
+  async submitBatch(entries: readonly OutboxBatchEntry[]): Promise<'sent' | 'queued'> {
+    await this.load()
+    for (const entry of entries) {
+      const previous = this.items.get(entry.id)
+      if (!previous) await this.add(entry, entry.id)
+      else if (previous.state === 'failed') await this.save({ ...previous, state: 'queued', lastError: null })
+    }
+    await this.flush()
+    const results = entries.map((entry) => this.items.get(entry.id)!)
+    const failed = results.find((item) => item.state === 'failed')
+    if (failed) throw this.errors.get(failed.id) ?? new ApiError('rejected', failed.lastError ?? 'Upload rejected', null, false)
+    return results.every((item) => item.state === 'sent') ? 'sent' : 'queued'
+  }
+
   /**
    * Stores the report, then tries to send everything queued. Resolves with the
    * item after that attempt (`sent` or `queued`). A report the API rejects on
@@ -168,17 +183,17 @@ export class Outbox {
       await this.save(item)
       try {
         if (!item.body && item.photo) {
-          const { blob, contentType, capturedAt, pos, taskId } = item.photo
+          const { blob, contentType, capturedAt, pos, taskId, text, device } = item.photo
           const photoPath = await this.deps.uploadPhoto(blob, contentType)
           // Keep the completed reference and drop the image bytes.
-          item = { ...item, body: buildPhotoObservation(photoPath, capturedAt, pos, '', undefined, taskId), photo: null }
+          item = { ...item, body: buildPhotoObservation(photoPath, capturedAt, pos, text ?? '', device, taskId), photo: null }
           await this.save(item)
         }
         if (!item.body && item.video) {
           if (!this.deps.uploadVideo) throw new Error('Outbox item has a video but no uploadVideo dependency')
-          const { blob, contentType, capturedAt, pos, taskId } = item.video
+          const { blob, contentType, capturedAt, pos, taskId, text, device } = item.video
           const videoPath = await this.deps.uploadVideo(blob, contentType)
-          item = { ...item, body: buildVideoObservation(videoPath, capturedAt, pos, undefined, taskId), video: null }
+          item = { ...item, body: { ...buildVideoObservation(videoPath, capturedAt, pos, device, taskId), text: text ?? null }, video: null }
           await this.save(item)
         }
         if (!item.body) throw new Error('Outbox item has nothing to send')
@@ -197,11 +212,11 @@ export class Outbox {
     return false
   }
 
-  private async add(fields: Pick<OutboxItem, 'body' | 'photo' | 'video'>): Promise<OutboxItem> {
+  private async add(fields: Pick<OutboxItem, 'body' | 'photo' | 'video'>, id = this.newId()): Promise<OutboxItem> {
     await this.load()
     const item: OutboxItem = {
-      id: this.newId(),
       ...fields,
+      id,
       state: 'queued',
       attempts: 0,
       lastError: null,

@@ -46,6 +46,14 @@ async function tap(listeners: Record<string, Listener>, data: unknown) {
 }
 
 describe('service worker push', () => {
+  it('opens the same call invitation as the foreground router', async () => {
+    const data = { type: 'call', callId: 'b'.repeat(64), incidentId: 'inc_1' }
+    const { listeners, showNotification, openWindow } = loadWorker()
+    await push(listeners, { notification: { title: 'Call', body: 'Join your supervisor' }, data })
+    expect(showNotification).toHaveBeenCalledWith('Call', expect.objectContaining({ tag: data.callId, requireInteraction: true }))
+    await tap(listeners, data)
+    expect(openWindow).toHaveBeenCalledWith(pushPath(data))
+  })
   it('shows a background push with the title and body from the payload', async () => {
     const { listeners, showNotification } = loadWorker()
     await push(listeners, {

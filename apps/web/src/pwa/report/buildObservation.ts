@@ -7,6 +7,7 @@ export interface Position {
 }
 
 export interface ReportDraft {
+  hasAttachments?: boolean
   chip: ChipValue | null
   text: string
   capturedAt: string
@@ -18,7 +19,7 @@ export type DraftError = 'empty' | 'too_long'
 export const MAX_NOTE_LENGTH = 280
 
 export function validateDraft(d: ReportDraft): DraftError | null {
-  if (!d.chip && !d.text.trim()) return 'empty'
+  if (!d.chip && !d.text.trim() && !d.hasAttachments) return 'empty'
   if (d.text.length > MAX_NOTE_LENGTH) return 'too_long'
   return null
 }

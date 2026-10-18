@@ -152,6 +152,12 @@ export function VolunteerProvider({ api: apiOverride, children }: { api?: EmberA
   const voice = useVoiceAvailability({ url: GATEWAY_WSS_URL, getAuthHeaders, createSocket: browserSocketFactory, getTicket })
   const pressed = useRef(false)
 
+  useEffect(() => {
+    const stopForCall = () => { pressed.current = false; mic.stop(); setMicStream(null); ptt.close(); player.close() }
+    window.addEventListener('ember-call-start', stopForCall)
+    return () => window.removeEventListener('ember-call-start', stopForCall)
+  }, [mic, ptt, player])
+
   const onPress = async () => {
     pressed.current = true
     transcriptRef.current = null

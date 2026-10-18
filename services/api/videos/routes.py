@@ -48,7 +48,7 @@ def create_video_upload_url():
         raise ValidationError("contentType", "send a JSON body with contentType")
     content_type = body.get("contentType")
     if content_type not in video_paths.CONTENT_TYPES:
-        raise ValidationError("contentType", "use video/mp4 or video/webm")
+        raise ValidationError("contentType", "use video/mp4, video/webm or video/quicktime")
 
     now = datetime.now(timezone.utc).replace(microsecond=0)
     ttl = signing.upload_ttl_seconds()

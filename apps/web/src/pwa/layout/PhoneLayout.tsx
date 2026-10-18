@@ -1,3 +1,4 @@
+import { lazy, Suspense, useState } from 'react'
 import { Navigate, Route, Routes, useMatch } from 'react-router-dom'
 
 import { InstallBanner } from '../install/InstallBanner'
@@ -30,11 +31,14 @@ import { USE_MOCK_API } from '../api/config'
 import { TabBar } from './TabBar'
 import { useVolunteer } from './volunteerContext'
 
+const VolunteerCall = lazy(() => import('../../livekit/VolunteerCall'))
+
 /**
  * The phone layout (#121): header, the content area and the bottom tabs. Only the content area changes between
  * screens. WITHDRAW is drawn over all of it, tabs included, so the volunteer cannot tab away from it.
  */
 export function PhoneLayout() {
+  const [callOpen, setCallOpen] = useState(false)
   const { lang } = useLanguage()
   const profileRoute = useMatch('/pwa/profile') !== null
   const smsRoute = useMatch('/pwa/sms') !== null
@@ -53,7 +57,7 @@ export function PhoneLayout() {
 
   return (
     <div className="vol">
-      <div className="vol-background" aria-hidden={withdraw || undefined} ref={(element) => { if (element) element.inert = withdraw }}>
+      <div className="vol-background" aria-hidden={withdraw || callOpen || undefined} ref={(element) => { if (element) element.inert = withdraw || callOpen }}>
       {!profileRoute && <VolunteerHeader name={me?.displayName} crew={me?.crewName} lang={lang} />}
 
       <main className={`vol-main${smsRoute || (homeRoute && !dataOnline) ? ' vol-main-field' : ''}`}>
@@ -140,6 +144,7 @@ export function PhoneLayout() {
       <TabBar lang={lang} />
       </div>
       {withdraw && <WithdrawScreen lang={lang} flow={flow} />}
+      {!USE_MOCK_API && <Suspense fallback={null}><VolunteerCall blocked={withdraw} onVisibility={setCallOpen} /></Suspense>}
     </div>
   )
 }

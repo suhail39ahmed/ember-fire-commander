@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import type { ChipValue, ObservationCreate, SentReport } from '../contracts/types'
 import type { EmberApi } from '../api/types'
 import { clockMessage, stampNow } from '../clock'
@@ -21,6 +21,13 @@ import { statusLine, type ReportStatus } from './status'
 interface Props {
   heading?: string
   photo?: ReactNode
+  media?: (disabled: boolean) => ReactNode
+  hasAttachments?: boolean
+  mediaBusy?: boolean
+  onMediaSent?: () => void
+  idleHint?: string
+  outbox?: ReactNode
+  sendButtonRef?: RefObject<HTMLButtonElement>
   api: EmberApi
   lang: Lang
   /** Asks the browser for the position. Waits while the permission prompt is open. */
@@ -42,7 +49,7 @@ const signatureOf = (chip: ChipValue | null, text: string) => `${chip ?? ''}|${t
 const EMPTY_SIGNATURE = signatureOf(null, '')
 
 /** #17: chip and text report. Works without Live voice. */
-export function ReportPanel({ heading, photo, api, lang, locate, onLocationGranted, preset, taskId, submit, volunteerId = null, onDone }: Props) {
+export function ReportPanel({ heading, photo, media, hasAttachments = false, mediaBusy = false, onMediaSent, idleHint, outbox, sendButtonRef, api, lang, locate, onLocationGranted, preset, taskId, submit, volunteerId = null, onDone }: Props) {
   // A draft left by this volunteer within the last hour comes back after a reload or a closed app (#160).
   const [restored] = useState(() => (volunteerId ? loadDraft(volunteerId) : null))
   const [chip, setChip] = useState<ChipValue | null>(restored?.chip ?? null)
@@ -114,13 +121,13 @@ export function ReportPanel({ heading, photo, api, lang, locate, onLocationGrant
   // Inputs lock while a report is in flight or awaiting retry, so a retry sends the same report.
   const busy = status.kind === 'locating' || status.kind === 'sending'
   const locked = busy || (status.kind === 'error' && status.retryable)
-  const hasDraft = chip !== null || text.trim() !== ''
+  const hasDraft = chip !== null || text.trim() !== '' || hasAttachments
   const errorId = 'report-error'
 
   async function send() {
-    if (busy) return
+    if (busy || mediaBusy) return
     const capturedAt = pending.current?.capturedAt ?? stampNow()
-    const draft = { chip, text, capturedAt, device: deviceFacts() }
+    const draft = { chip, text, capturedAt, device: deviceFacts(), hasAttachments }
     pending.current ??= { capturedAt }
     const outcome = await sendReport(draft, {
       locate,
@@ -148,6 +155,7 @@ export function ReportPanel({ heading, photo, api, lang, locate, onLocationGrant
         return
       case 'queued':
       case 'sent':
+        onMediaSent?.()
         // The success card takes the form's place and shows what was sent; the form starts empty again.
         {
           const at = new Date().toISOString()
@@ -196,7 +204,7 @@ export function ReportPanel({ heading, photo, api, lang, locate, onLocationGrant
     setStatus({ kind: 'idle' })
   }
 
-  const showChipError = status.kind === 'error' && !status.retryable && !status.location && !chip && !text.trim()
+  const showChipError = status.kind === 'error' && !status.retryable && !status.location && !hasDraft
   const line = statusLine(status, lang, hasDraft)
 
   const title = (
@@ -226,6 +234,7 @@ export function ReportPanel({ heading, photo, api, lang, locate, onLocationGrant
       />}
 
       {photo}
+      {media?.(locked || finished)}
 
       {!finished && <><label className="note-label" htmlFor="report-note">
         {t(lang, strings.noteLabel)}
@@ -240,8 +249,11 @@ export function ReportPanel({ heading, photo, api, lang, locate, onLocationGrant
         disabled={locked}
         onChange={(e) => setText(e.target.value)}
       />
+      </>}
 
-      <button type="button" className="btn primary" disabled={busy || !hasDraft} onClick={() => void send()}>
+      {outbox}
+
+      {!finished && <><button ref={sendButtonRef} type="button" className="btn primary" disabled={busy || mediaBusy || !hasDraft} onClick={() => void send()}>
         {status.kind === 'locating'
           ? t(lang, strings.waitingForLocation)
           : status.kind === 'sending'
@@ -252,7 +264,7 @@ export function ReportPanel({ heading, photo, api, lang, locate, onLocationGrant
       </button>
       <p id={errorId} className={`report-status ${line.tone}`} aria-live="polite">
         {line.tone === 'busy' && <span className="report-spinner" aria-hidden="true" />}
-        {line.text}
+        {status.kind === 'idle' && idleHint ? idleHint : line.text}
       </p>
       </>}
     </section>

@@ -14,6 +14,7 @@ import type { ConsoleMenu } from './paths'
 import { CONSOLE_PATHS } from './paths'
 import './supervisor.css'
 import './themeDark.css'
+import { LiveKitTestLauncher } from '../livekit/LiveKitTestLauncher'
 
 function EmberMark() {
   return (
@@ -84,6 +85,7 @@ function ConsoleFrame({ fallback }: { fallback: ReactNode }) {
           <details className="console-account">
             <summary aria-label={t(language, chromeCopy.account)}><ProfileIcon /></summary>
             <div className="console-account-menu">
+              <LiveKitTestLauncher role="supervisor" accountMenu />
               <button type="button" className="console-signout" onClick={() => { void signOut() }}>
                 {t(language, copy.signOut)}
               </button>

@@ -12,7 +12,7 @@ interface Props {
   lang: Lang
   onRetry: (id: string) => void
   onDiscard: (id: string) => void
-  onSendNow: () => void
+  onSendNow?: () => void
 }
 
 /** #21: queued, failed and sent reports. Shown only when the outbox has something or the phone is offline. */
@@ -58,7 +58,7 @@ export function OutboxPanel({ items, online, lang, onRetry, onDiscard, onSendNow
           ))}
         </ul>
       )}
-      {queued && online && (
+      {queued && online && onSendNow && (
         <button type="button" className="btn secondary" onClick={onSendNow}>
           {t(lang, s.sendNow)}
         </button>

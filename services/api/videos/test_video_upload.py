@@ -79,6 +79,16 @@ def test_webm_content_type_accepted(client, monkeypatch, saved, signed):
     assert body["videoPath"].endswith(".webm")
 
 
+def test_phone_mov_video_is_accepted_without_relabelling_it(client, monkeypatch, saved, signed):
+    _as(monkeypatch)
+    response = _post(client, {"contentType": "video/quicktime"})
+    assert response.status_code == 201
+    body = response.get_json()
+    assert body["videoPath"].endswith(".mov")
+    assert video_paths.is_owned_video_path(body["videoPath"], "uid_sari")
+    assert body["headers"]["Content-Type"] == "video/quicktime"
+
+
 def test_stores_object_path_not_url(client, monkeypatch, saved, signed):
     _as(monkeypatch)
     body = _post(client, {"contentType": "video/mp4"}).get_json()

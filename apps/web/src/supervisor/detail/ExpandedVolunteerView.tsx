@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 
 import { formatTime, formatTimeZone } from '../../pwa/formatTime'
 import { chipText } from '../../pwa/report/chips'
@@ -17,6 +17,8 @@ import { worthShowing, ASK_MAX } from './assistModel'
 import type { AssistActions } from './assistModel'
 import { SnapshotImage } from './SnapshotImage'
 import './expanded.css'
+
+const IncidentCallPopup = lazy(() => import('./IncidentCallPopup'))
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
@@ -363,7 +365,7 @@ function ClipPlayer({ lang, incidentId, observationId, capturedAt, name, load }:
 }
 
 /** Saved snapshots: a row of small thumbnails, four across, with time and name under each. A click opens one larger. */
-function SnapshotsArea({ lang, popup, incidentId, photoUrl, videoUrl }: {
+export function SnapshotsArea({ lang, popup, incidentId, photoUrl, videoUrl }: {
   lang: Lang
   popup: Popup
   incidentId: string
@@ -461,7 +463,7 @@ function DeclinedArea({ lang, popup }: { lang: Lang; popup: Popup }) {
 }
 
 /** "Sent to <name>": one line per instruction with a green dot and a tick once it is heard or done. */
-function SentArea({ lang, popup }: { lang: Lang; popup: Popup }) {
+export function SentArea({ lang, popup }: { lang: Lang; popup: Popup }) {
   return (
     <div className="exp-section" aria-label={`${t(lang, expandedCopy.sentTitle)} ${popup.profile.name}`}>
       <p className="exp-eyebrow">{t(lang, expandedCopy.sentTitle)} {popup.profile.name}</p>
@@ -770,6 +772,7 @@ function AskEmberPane({
 }
 
 export interface ExpandedVolunteerViewProps {
+  productCall?: boolean
   lang: Lang
   detail: IncidentDetail
   volunteerId: string
@@ -794,7 +797,12 @@ export interface ExpandedVolunteerViewProps {
  * behind the backdrop. Left: live video placeholder and field reports. Right: full Ask EMBER chat.
  * Nothing is sent without an explicit supervisor choice. WITHDRAW is never delayed or blocked here.
  */
-export function ExpandedVolunteerView({ lang, detail, volunteerId, onClose, offline, sendInstruction, photoUrl, videoUrl, assist, liveChannel }: ExpandedVolunteerViewProps) {
+export function ExpandedVolunteerView(props: ExpandedVolunteerViewProps) {
+  if (props.productCall) return <Suspense fallback={<div role="status">Opening volunteer…</div>}><IncidentCallPopup {...props} /></Suspense>
+  return <LegacyExpandedVolunteerView {...props} />
+}
+
+function LegacyExpandedVolunteerView({ lang, detail, volunteerId, onClose, offline, sendInstruction, photoUrl, videoUrl, assist, liveChannel }: ExpandedVolunteerViewProps) {
   const panel = useRef<HTMLDivElement>(null)
   const closeRef = useRef(onClose)
   closeRef.current = onClose

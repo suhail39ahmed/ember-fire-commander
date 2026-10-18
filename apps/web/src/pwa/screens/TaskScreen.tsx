@@ -197,6 +197,7 @@ export function TaskScreen() {
     )
   }
 
+  // The shared report form handles photos, video and notes with this task's ID.
   return <ReportScreen key={task.id} taskContext={{ taskId: task.id, incidentId: task.incidentId }} onBack={back}>
     {isSpotTask(task.type)
       ? <TaskDetailView embedded lang={lang} task={task} incident={incident} position={position} onBack={back} />

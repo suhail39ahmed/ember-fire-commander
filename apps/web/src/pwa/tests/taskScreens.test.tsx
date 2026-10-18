@@ -271,13 +271,15 @@ describe('task route', () => {
     expect(route('/pwa/task/task_2', { digest: d })).toContain('data-testid="doing-it"')
   })
 
-  it('keeps media controls on the task before and after acceptance without opening the camera', () => {
-    for (const acceptedAt of [null, '2026-10-18T09:00:00Z']) {
-      const d = digest({ incidents: [incident()], myTasks: [task({ type: 'instruct', acceptedAt })] })
+  it('shows the shared upload and notes form before and after acceptance without opening the camera', () => {
+    for (const type of ['verify', 'instruct'] as const) for (const acceptedAt of [null, '2026-10-18T09:00:00Z']) {
+      const d = digest({ incidents: [incident()], myTasks: [task({ type, acceptedAt })] })
       const html = route('/pwa/task/task_1', { digest: d })
-      expect(html).toContain('Live communication options')
-      expect(html).toContain('>Video</button>')
-      expect(html).toContain('>Call</button>')
+      expect(html).not.toContain('Live communication options')
+      expect(html).not.toContain('>Video</button>')
+      expect(html).not.toContain('>Call</button>')
+      for (const text of ['Upload video', 'Upload photos', 'Note (optional)', 'Send report']) expect(html).toContain(text)
+      expect(html).toContain('<div class="report-form-content report-upload-layout">')
       expect(html).toContain('class="report-live-panel" hidden=""')
       expect(html).toContain('data-camera="off"')
     }

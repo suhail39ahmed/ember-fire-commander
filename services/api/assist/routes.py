@@ -62,7 +62,13 @@ def _call(path, payload=None):
 def make_suggestions(incident_id):
     _require_supervisor()
     _incident(incident_id)
-    record = _call(f"/internal/incidents/{incident_id}/suggestions")
+    body = request.get_json(silent=True) or {}
+    payload = None
+    if isinstance(body, dict) and body.get('callId'):
+        from calls.context import context_for
+        payload = {'callContext': context_for(body['callId'], incident_id, body.get('volunteerId'), g.user),
+                   'volunteerId': body.get('volunteerId')}
+    record = _call(f"/internal/incidents/{incident_id}/suggestions", payload)
     # The same shape the supervisor's incident read carries as `suggestions`.
     items = [
         {"text": i.get("text"), "rationale": i.get("rationale")}
@@ -87,6 +93,9 @@ def ask(incident_id):
     payload = {"question": question.strip()}
     if volunteer_id:
         payload["volunteerId"] = volunteer_id.strip()
+    if body.get('callId'):
+        from calls.context import context_for
+        payload['callContext'] = context_for(body['callId'], incident_id, volunteer_id, g.user)
     record = _call(f"/internal/incidents/{incident_id}/ask", payload)
     return jsonify({k: record.get(k) for k in ("answer", "enoughData", "at")}), 200
 
