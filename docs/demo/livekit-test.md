@@ -34,9 +34,20 @@ Terraform state. The root `.env` configures local processes only.
 
 The voice gateway and browser do not need these credentials. Incident calls
 work without the standalone test flags. To expose the optional connectivity
-tests in staging, also configure `EMBER_LIVEKIT_TEST_ENABLED=true` on API and
-gateway, and `VITE_LIVEKIT_TEST_ENABLED=true` for the web build; those flags
-remain off by default and are separate from the LiveKit credential wiring.
+tests in staging, set these GitHub repository variables or secrets to `true`:
+
+- `VITE_LIVEKIT_TEST_ENABLED`: the deploy-web workflow passes this to Vite at
+  build time. Run deploy-web again; changing a GitHub setting alone cannot
+  change an already deployed bundle.
+- `EMBER_LIVEKIT_TEST_ENABLED`: the Terraform workflow passes this as
+  `TF_VAR_livekit_test_enabled`. Run Terraform apply to configure the flag on
+  both API and gateway. An explicit `livekit_test_enabled` in a tfvars file
+  takes precedence over this environment value.
+
+Repository variables take precedence over secrets of the same name. Both
+flags default to false. For the alternative Cloud Build web pipeline, pass
+`_VITE_LIVEKIT_TEST_ENABLED=true` as a substitution. These flags are separate
+from the LiveKit credential wiring; tokens still require configured credentials.
 
 ## Standalone prototype test
 

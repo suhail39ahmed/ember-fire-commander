@@ -6,6 +6,7 @@
 #   VITE_EMBER_API_URL, VITE_VOICE_GATEWAY_WSS_URL, VITE_FIREBASE_API_KEY,
 #   VITE_FIREBASE_APP_ID, VITE_FIREBASE_MESSAGING_SENDER_ID, VITE_FIREBASE_VAPID_KEY,
 #   VITE_RECAPTCHA_ENTERPRISE_SITE_KEY, VITE_MAPS_BROWSER_KEY, VITE_MAPS_MAP_ID
+#   VITE_LIVEKIT_TEST_ENABLED (optional; repository variable or secret)
 # These VITE_* values are public client identifiers baked into the bundle, so
 # repo *variables* are fine. Real secrets never go into VITE_*.
 name: deploy-web
@@ -65,6 +66,7 @@ jobs:
           VITE_MAPS_MAP_ID: ${{ vars.VITE_MAPS_MAP_ID }}
           VITE_EMBER_API_URL: ${{ vars.VITE_EMBER_API_URL }}
           VITE_VOICE_GATEWAY_WSS_URL: ${{ vars.VITE_VOICE_GATEWAY_WSS_URL }}
+          VITE_LIVEKIT_TEST_ENABLED: ${{ vars.VITE_LIVEKIT_TEST_ENABLED || secrets.VITE_LIVEKIT_TEST_ENABLED || 'false' }}
         run: |
           npm ci
           npm run build

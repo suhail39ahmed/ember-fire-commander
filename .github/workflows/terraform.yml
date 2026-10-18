@@ -44,6 +44,8 @@ concurrency:
 env:
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
+  # Public staging flag: inject into API + gateway through Terraform.
+  TF_VAR_livekit_test_enabled: ${{ vars.EMBER_LIVEKIT_TEST_ENABLED || secrets.EMBER_LIVEKIT_TEST_ENABLED || 'false' }}
   TF_VERSION: "1.16.5" # confirm: match your local `terraform version`
 
 defaults:

@@ -85,6 +85,10 @@ resource "google_cloud_run_v2_service" "ember_api" {
       }
 
       # First create/populate the secrets, then set livekit_url to enable calls.
+      env {
+        name  = "EMBER_LIVEKIT_TEST_ENABLED"
+        value = tostring(var.livekit_test_enabled)
+      }
       dynamic "env" {
         for_each = var.livekit_url != "" ? [var.livekit_url] : []
         content {
@@ -174,6 +178,10 @@ resource "google_cloud_run_v2_service" "voice_gateway" {
       env {
         name  = "LIVE_BACKEND"
         value = "agent-platform"
+      }
+      env {
+        name  = "EMBER_LIVEKIT_TEST_ENABLED"
+        value = tostring(var.livekit_test_enabled)
       }
       env {
         name  = "LIVE_MODEL"
