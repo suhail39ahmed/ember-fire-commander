@@ -11,9 +11,14 @@ from incidents.errors import ApiError
 
 
 def settings():
-    values = dotenv_values(Path(__file__).resolve().parents[3] / '.env')
+    keys = ('LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET')
+    values = {}
+    if any(key not in os.environ for key in keys):
+        # Local checkout fallback. In the image this file is /app/calls/media.py;
+        # parent traversal safely stops at /, unlike indexing parents[3].
+        values = dotenv_values(Path(__file__).resolve().parent.parent.parent.parent / '.env')
     config = {key: os.getenv(key, values.get(key) or '').strip()
-              for key in ('LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET')}
+              for key in keys}
     if not config['LIVEKIT_URL'].startswith('wss://') or not all(config.values()):
         raise ApiError(503, 'unavailable', 'Live calling is not configured on the server.')
     return config
@@ -30,7 +35,8 @@ def credentials(call, member):
                                          can_subscribe=True, can_publish_data=False,
                                          can_publish_sources=sources)).to_jwt())
     return {'serverUrl': config['LIVEKIT_URL'], 'participantToken': token,
-            'callId': call['id'], 'speakerId': member['speakerId']}
+            'callId': call['id'], 'speakerId': member['speakerId'],
+            'volunteerSpeakerId': call['speakerIds'][call['volunteerId']]}
 
 
 def terminate(call):

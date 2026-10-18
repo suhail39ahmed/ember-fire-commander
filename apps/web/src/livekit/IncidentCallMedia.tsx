@@ -20,14 +20,18 @@ function Media({ controller, volunteer, onSnapshot }: { controller: CallControll
   const state = useConnectionState()
   const peers = useRemoteParticipants()
   const tracks = useTracks([Track.Source.Camera])
-  const track = tracks.find((item) => volunteer ? item.participant.isLocal : !item.participant.isLocal)
+  // The server identifies the volunteer's feed; local/remote alone is not an identity.
+  // Keep the previous role-based selection while an older API is rolling out.
+  const cameraIdentity = controller.credentials?.volunteerSpeakerId
+    ?? (volunteer ? controller.credentials?.speakerId : undefined)
+  const track = tracks.find((item) => item.participant.isLocal === volunteer
+    && (!cameraIdentity || item.participant.identity === cameraIdentity))
   const stage = useRef<HTMLDivElement>(null)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [visionStatus, setVisionStatus] = useState('')
   const facing = useRef<'environment' | 'user'>('environment')
-  const cameraStarted = useRef(false)
   const connected = state === ConnectionState.Connected
   const setConnected = controller.setConnected
   const liveVideo = Boolean(connected && track && !track.publication.isMuted)
@@ -53,13 +57,6 @@ function Media({ controller, volunteer, onSnapshot }: { controller: CallControll
     return () => { disposed = true; window.clearTimeout(first); window.clearInterval(timer) }
   }, [liveVideo, volunteer, callId, request])
   useEffect(() => { setConnected(connected); return () => setConnected(false) }, [connected, setConnected])
-  useEffect(() => {
-    if (volunteer && controller.video && connected && !cameraStarted.current) {
-      cameraStarted.current = true
-      void localParticipant.setCameraEnabled(true, { facingMode: 'environment' })
-        .catch(() => setError('Camera unavailable. Audio can continue; allow camera access and try Camera again.'))
-    }
-  }, [volunteer, controller.video, connected, localParticipant])
 
   async function toggleMic() {
     try { controller.primeAudio(); await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled); setError('') }
@@ -82,7 +79,7 @@ function Media({ controller, volunteer, onSnapshot }: { controller: CallControll
         <strong>{connected ? 'Camera is off' : state === ConnectionState.Reconnecting ? 'Reconnecting…' : 'Connecting the call…'}</strong>
         <p>{connected ? 'You can still speak and hear each other.' : 'Waiting for a secure connection.'}</p>
       </div>}
-      {liveVideo && <span className="incident-live-badge">● LIVE</span>}
+      {liveVideo && <span className="incident-live-badge">● LIVE · {volunteer ? 'Your camera' : `${controller.call!.volunteerName}’s camera`}</span>}
       {connected && peers.length === 0 && <span className="incident-peer-wait">Waiting for the other participant…</span>}
     </div>
     <RoomAudioRenderer />
@@ -110,7 +107,8 @@ function Media({ controller, volunteer, onSnapshot }: { controller: CallControll
 export default function IncidentCallMedia({ controller, volunteer = false, onSnapshot }: { controller: CallController; volunteer?: boolean; onSnapshot?: (blob: Blob) => Promise<void> }) {
   const credentials = controller.credentials
   if (!credentials) return null
-  return <LiveKitRoom serverUrl={credentials.serverUrl} token={credentials.participantToken} connect audio video={false}
+  return <LiveKitRoom serverUrl={credentials.serverUrl} token={credentials.participantToken} connect audio
+    video={volunteer && controller.video ? { facingMode: 'environment' } : false}
     options={{ adaptiveStream: true, dynacast: true, videoCaptureDefaults: { resolution: { width: 640, height: 480, frameRate: 15 } } }}
     onError={(err) => controller.setError(err.message)}
     onDisconnected={() => { controller.setConnected(false); void controller.end() }}>
