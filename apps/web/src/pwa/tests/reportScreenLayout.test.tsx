@@ -21,7 +21,7 @@ const at = (html: string, needle: string) => {
 describe('Report upload layout', () => {
   it('shows cards, shared attachments and notes without the old Video/Call tools', () => {
     const html = screen()
-    expect(html).toContain('id="report-live-panel" class="report-live-panel" hidden=""')
+    expect(html).not.toContain('id="report-live-panel"')
     expect(html).not.toContain('report-live-tools')
     const order = ['Report fire', 'WHAT DO YOU SEE?', 'data-chip="asap"', 'Upload video', 'Upload photos', 'Note (optional)', 'Send report'].map((text) => at(html, text))
     expect([...order].sort((a, b) => a - b)).toEqual(order)
@@ -32,8 +32,13 @@ describe('Report upload layout', () => {
     for (const text of ['Smoke, no flames yet', 'I can see flames', 'No fire here, or it is out', 'I need help right now', 'butuh bantuan', 'asap', 'e.g. thin smoke by the canal', 'Location attached automatically', '±10 m']) expect(html).toContain(text)
   })
 
-  it('starts with the camera off until Record video is selected', () => {
-    expect(screen()).toContain('data-camera="off"')
+  it('uses separate native camera and gallery inputs', () => {
+    const html = screen()
+    expect(html).toContain('accept="image/*" capture="environment"')
+    expect(html).toContain('accept="video/*" capture="environment"')
+    expect(html).toContain('accept="image/*" multiple=""')
+    expect(html).toContain('accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"')
+    expect(html).not.toContain('data-camera=')
   })
 
   it('uses Bahasa for uploads and notes in Bahasa mode', () => {

@@ -199,7 +199,7 @@ def _own_sent_task(transaction, task_id):
     task = (snapshot.to_dict() or {}) if snapshot.exists else None
     if task is None or task.get("volunteerId") != g.user["id"]:
         raise not_found("task")
-    if task.get("status") != "approved" or task.get("type") == "withdraw":
+    if task.get("status") != "approved" or task.get("type") == "withdraw" or task.get("closedAt"):
         raise conflict("Only a sent instruction can be answered")
     return ref, task
 
@@ -239,6 +239,15 @@ def accept_task(task_id):
 
     task, audit_id = store.run_transaction(run)
     return jsonify({"task": task, "auditId": audit_id}), 200
+
+
+@volunteer_bp.post("/tasks/<task_id>/complete")
+def complete_task(task_id):
+    """Save the task's evidence and close it together; never run new-report intake."""
+    _require_volunteer()
+    from task_completion import submit
+    result = submit(task_id, _body(), g.user)
+    return jsonify(result), 200
 
 
 @volunteer_bp.route("/tasks/<task_id>/decline", methods=["POST"])

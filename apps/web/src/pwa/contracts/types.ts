@@ -294,6 +294,10 @@ export interface Task {
   closedBy?: string | null
   closedByName?: string | null
   closeMessage?: string | null
+  completedAt?: string | null
+  completionNote?: string | null
+  completionChip?: ChipValue | null
+  completionObservationIds?: string[]
 }
 
 /** Season counts on a volunteer's digest for the lead-closed screen (#140). */

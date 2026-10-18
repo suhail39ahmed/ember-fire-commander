@@ -34,7 +34,7 @@ beforeEach(() => {
   recorder.stopAndTakeClip.mockResolvedValue(null)
 })
 
-describe('shared Report and Task media submission', () => {
+describe('Report attachment submission', () => {
   it('keeps standalone reports independent of task context', async () => {
     const { submitBatch } = render(null)
     await panel.submit!(body)
@@ -62,18 +62,14 @@ describe('shared Report and Task media submission', () => {
     expect(camera.start).not.toHaveBeenCalled()
   })
 
-  it('waits for the final recorded clip before submitting and retains the task link', async () => {
-    camera.recorderSnap.recording = true
-    let finish!: (blob: Blob) => void
-    recorder.stopAndTakeClip.mockImplementation(() => new Promise<Blob>((resolve) => { finish = resolve }))
+  it('holds the native camera clip until submission without invoking the browser recorder', async () => {
     const clip = attachment('recorded', 'video')
-    media.add.mockResolvedValue([clip])
+    media.items = [clip]
     const { submitBatch } = render()
-    const result = panel.submit!(body)
     expect(submitBatch).not.toHaveBeenCalled()
-    finish(new Blob(['clip'], { type: 'video/mp4' }))
-    await result
+    await panel.submit!(body)
     expect(submitBatch.mock.calls[0][0]).toEqual([expect.objectContaining({ video: expect.objectContaining({ taskId: 'task_1', text: body.text, blob: clip.blob }) })])
+    expect(recorder.stopAndTakeClip).not.toHaveBeenCalled()
   })
 
   it('does not send an empty report when recording produces no clip', async () => {
@@ -102,7 +98,7 @@ describe('shared Report and Task media submission', () => {
     expect(media.clear).not.toHaveBeenCalled()
     panel.onMediaSent!()
     expect(media.clear).toHaveBeenCalledOnce()
-    expect(recorder.discard).toHaveBeenCalledOnce()
+    expect(recorder.discard).not.toHaveBeenCalled()
     expect(refresh).toHaveBeenCalledOnce()
   })
 })

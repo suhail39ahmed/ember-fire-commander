@@ -419,7 +419,7 @@ export function SnapshotsArea({ lang, popup, incidentId, photoUrl, videoUrl }: {
 
 /** One block per declined task: reason label, optional note, and when they declined. Absent when no task is declined. */
 function AcceptedArea({ lang, popup }: { lang: Lang; popup: Popup }) {
-  const accepted = popup.tasks.filter((task) => task.acceptedAt && !task.declinedAt)
+  const accepted = popup.tasks.filter((task) => task.acceptedAt && !task.declinedAt && !task.completedAt)
   if (accepted.length === 0) return null
   return <div className="exp-section exp-accepted-section" aria-label={t(lang, expandedCopy.doingItTitle)}>
     <p className="exp-eyebrow">{t(lang, expandedCopy.doingItTitle)}</p>
@@ -472,7 +472,9 @@ export function SentArea({ lang, popup }: { lang: Lang; popup: Popup }) {
       ) : (
         <ul className="exp-sent-list">
           {popup.tasks.map((task) => {
-            const status = task.declinedAt
+            const status = task.completedAt
+              ? { text: { en: 'Completed', id: 'Selesai' }, tick: true }
+              : task.declinedAt
               ? { text: expandedCopy.declined, tick: false }
               : task.acceptedAt
                 ? { text: expandedCopy.done, tick: true }
@@ -489,6 +491,7 @@ export function SentArea({ lang, popup }: { lang: Lang; popup: Popup }) {
                   <span className={`exp-sent-status${status.tick ? ' exp-sent-done' : ''}`}>
                     {t(lang, status.text)}{status.tick && ' ✓'}
                   </span>
+                  {task.completedAt && <><br /><time dateTime={task.completedAt}>{formatTime(task.completedAt)}</time>{task.completionNote && <span> · {task.completionNote}</span>}{Boolean(task.completionObservationIds?.length) && <span> · {task.completionObservationIds?.length} {lang === 'en' ? 'saved details' : 'rincian tersimpan'}</span>}</>}
                 </span>
               </li>
             )

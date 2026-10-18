@@ -305,6 +305,23 @@ export function createMockApi(volunteerId: string, latencyMs = 300, initialProfi
       joins.set(stored.id, { incidentId: INCIDENT_ID, incidentName: INCIDENT_NAME, incidentArea: 'Ketapang, Kalimantan Barat', joined: true, nearbyCount: 1, nearestM: 140, radiusM: 300 })
       return { ...stored, join: joins.get(stored.id) }
     },
+    async completeTask(taskId, body) {
+      await wait()
+      const task = digest.myTasks.find((row) => row.id === taskId && row.volunteerId === volunteerId)
+      if (!task) throw new ApiError('not_found', 'Task not found', 404, false)
+      const key = `task_${taskId}_${body.clientId}`
+      if (observations.some((row) => row.clientId === key)) return
+      if (task.status !== 'approved' || task.closedAt || task.declinedAt || task.type === 'withdraw') throw new ApiError('conflict', 'Task cannot be completed', 409, false)
+      body.observations.forEach((entry) => validate(entry, volunteerId))
+      const at = new Date().toISOString()
+      const ids = body.observations.map((entry, index) => {
+        const stored: Observation = { ...entry, clientId: key, id: `${key}_${index}`, volunteerId, receivedAt: at, severity: entry.chip ? SEVERITY[entry.chip] : 'unknown', photoPath: entry.source === 'photo' ? entry.photoPath : null, immutable: true }
+        observations.push(stored)
+        joins.set(stored.id, { incidentId: task.incidentId, incidentName: null, incidentArea: null, joined: true, nearbyCount: 0, nearestM: null, radiusM: 300 })
+        return stored.id
+      })
+      Object.assign(task, { completedAt: at, closedAt: at, completionNote: body.observations.find((entry) => entry.text)?.text ?? null, completionChip: body.observations.find((entry) => entry.chip)?.chip ?? null, completionObservationIds: ids })
+    },
     async markTaskHeard(taskId) {
       await wait()
       const task = digest.myTasks.find((t) => t.id === taskId)

@@ -558,7 +558,7 @@ def task_heard(task_id):
 def resend_task(task_id):
     """Send a sent, unheard instruction again. Records another attempt and an audit entry."""
     def apply(task, held):
-        if task.get("status") != "approved":
+        if task.get("status") != "approved" or task.get("closedAt"):
             raise conflict("Only a sent instruction can be sent again")
         if task.get("heardAt"):
             raise conflict("This instruction was already heard")

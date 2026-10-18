@@ -13,11 +13,12 @@ import { UploadError } from '../photo/upload'
 import { buildPhotoObservation } from '../photo/uploadPhoto'
 import { buildVideoObservation } from '../video/uploadVideo'
 import type { OutboxStore } from './store'
-import { capturedAtOf, type OutboxBatchEntry, type OutboxItem, type PendingPhoto, type PendingVideo } from './types'
+import { capturedAtOf, type OutboxBatchEntry, type OutboxItem, type PendingPhoto, type PendingVideo, type PendingTaskCompletion } from './types'
 
 export interface OutboxDeps {
   store: OutboxStore
   send: (body: ObservationRequest) => Promise<Observation>
+  completeTask?: (taskId: string, body: { clientId: string; observations: ObservationRequest[] }) => Promise<void>
   /** Uploads a pending photo and resolves with its private object path. */
   uploadPhoto: (blob: Blob, contentType: PhotoContentType) => Promise<string>
   /** Uploads a pending video and resolves with its private object path. Optional; items with video are skipped until this is provided. */
@@ -121,6 +122,17 @@ export class Outbox {
     return results.every((item) => item.state === 'sent') ? 'sent' : 'queued'
   }
 
+  async submitTask(id: string, taskCompletion: PendingTaskCompletion): Promise<'sent' | 'queued'> {
+    await this.load()
+    const previous = this.items.get(id)
+    if (!previous) await this.add({ body: null, photo: null, video: null, taskCompletion }, id)
+    else if (previous.state === 'failed') await this.save({ ...previous, state: 'queued', lastError: null })
+    await this.flush()
+    const item = this.items.get(id)!
+    if (item.state === 'failed') throw this.errors.get(id) ?? new ApiError('rejected', item.lastError ?? 'Task submission rejected', null, false)
+    return item.state === 'sent' ? 'sent' : 'queued'
+  }
+
   /**
    * Stores the report, then tries to send everything queued. Resolves with the
    * item after that attempt (`sent` or `queued`). A report the API rejects on
@@ -182,6 +194,32 @@ export class Outbox {
       let item: OutboxItem = { ...queued, state: 'sending', attempts: queued.attempts + 1 }
       await this.save(item)
       try {
+        if (item.taskCompletion) {
+          if (!this.deps.completeTask) throw new Error('Task completion is unavailable')
+          const submission = { ...item.taskCompletion, entries: item.taskCompletion.entries.map((entry) => ({ ...entry })) }
+          item = { ...item, taskCompletion: submission }
+          for (const entry of submission.entries) {
+            if (!entry.body && entry.photo) {
+              const { blob, contentType, capturedAt, pos, text, device, taskId } = entry.photo
+              const path = await this.deps.uploadPhoto(blob, contentType)
+              entry.body = buildPhotoObservation(path, capturedAt, pos, text ?? '', device, taskId)
+              entry.photo = null
+              await this.save(item)
+            }
+            if (!entry.body && entry.video) {
+              if (!this.deps.uploadVideo) throw new Error('Video upload is unavailable')
+              const { blob, contentType, capturedAt, pos, text, device, taskId } = entry.video
+              const path = await this.deps.uploadVideo(blob, contentType)
+              entry.body = { ...buildVideoObservation(path, capturedAt, pos, device, taskId), text: text ?? null }
+              entry.video = null
+              await this.save(item)
+            }
+          }
+          if (!submission.entries.length || submission.entries.some((entry) => !entry.body)) throw new Error('Task details are missing')
+          await this.deps.completeTask(submission.taskId, { clientId: item.id, observations: submission.entries.map((entry) => entry.body!) })
+          await this.save({ ...item, state: 'sent', sentAt: this.now().toISOString(), lastError: null })
+          continue
+        }
         if (!item.body && item.photo) {
           const { blob, contentType, capturedAt, pos, taskId, text, device } = item.photo
           const photoPath = await this.deps.uploadPhoto(blob, contentType)
@@ -212,7 +250,7 @@ export class Outbox {
     return false
   }
 
-  private async add(fields: Pick<OutboxItem, 'body' | 'photo' | 'video'>, id = this.newId()): Promise<OutboxItem> {
+  private async add(fields: Pick<OutboxItem, 'body' | 'photo' | 'video' | 'taskCompletion'>, id = this.newId()): Promise<OutboxItem> {
     await this.load()
     const item: OutboxItem = {
       ...fields,

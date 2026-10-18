@@ -82,8 +82,9 @@ describe('task detail (#138)', () => {
     expect(detail({ kind: 'unavailable' })).toContain('The Report tab still works')
   })
 
-  it('opens the report with this task and incident attached when the volunteer is there', () => {
-    expect(detail(near)).toContain('href="/pwa/report"')
+  it('keeps task details on the task page when the volunteer is there', () => {
+    expect(detail(near)).toContain('href="#task-details-label"')
+    expect(detail(near)).not.toContain('href="/pwa/report"')
   })
 
   it('has no wind card and no other-volunteer name', () => {
@@ -271,18 +272,23 @@ describe('task route', () => {
     expect(route('/pwa/task/task_2', { digest: d })).toContain('data-testid="doing-it"')
   })
 
-  it('shows the shared upload and notes form before and after acceptance without opening the camera', () => {
+  it('submits task details and completion instead of a standalone report', () => {
     for (const type of ['verify', 'instruct'] as const) for (const acceptedAt of [null, '2026-10-18T09:00:00Z']) {
       const d = digest({ incidents: [incident()], myTasks: [task({ type, acceptedAt })] })
       const html = route('/pwa/task/task_1', { digest: d })
       expect(html).not.toContain('Live communication options')
       expect(html).not.toContain('>Video</button>')
       expect(html).not.toContain('>Call</button>')
-      for (const text of ['Upload video', 'Upload photos', 'Note (optional)', 'Send report']) expect(html).toContain(text)
-      expect(html).toContain('<div class="report-form-content report-upload-layout">')
-      expect(html).toContain('class="report-live-panel" hidden=""')
-      expect(html).toContain('data-camera="off"')
+      for (const text of ['Upload video', 'Upload photos', 'Task note (optional)', 'Submit &amp; complete task']) expect(html).toContain(text)
+      expect(html).not.toContain('Send report')
+      expect(html).not.toContain('data-camera="on"')
     }
+  })
+
+  it('does not reopen a completed task form', () => {
+    const html = route('/pwa/task/task_1', { digest: digest({ incidents: [incident()], myTasks: [task({ closedAt: '2026-10-18T10:00:00Z', completedAt: '2026-10-18T10:00:00Z' })] }) })
+    expect(html).toContain('Task completed')
+    expect(html).not.toContain('Submit &amp; complete task')
   })
 })
 

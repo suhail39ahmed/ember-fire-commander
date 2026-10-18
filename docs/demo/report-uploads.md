@@ -4,13 +4,13 @@ The Report page keeps the live Video/Call shortcuts hidden. Select a report
 card, add an optional note, and attach up to four photos and one video.
 Attachments alone can also be sent.
 
-- **Upload photos → Take photo:** opens the in-app rear-camera preview. Capture
+- **Upload photos → Take photo:** requests the phone's native full-screen camera. Capture
   a still to add it to the list. Gallery selection supports multiple photos.
-- **Upload video → Record video:** opens the existing camera/recorder. Press
-  **Stop recording** to finalize the clip and add it to the list. Gallery
+- **Upload video → Record video:** requests the phone's native full-screen video camera.
+  Stop and confirm in the camera app to add the clip to the list. Gallery
   selection accepts one MP4, WebM, or MOV video, up to 10 MB.
-- Opening the recorder scrolls to the camera. Both red-square stop controls
-  save the clip as an attachment, then scroll to **Send report**.
+- Returning with a video adds the attachment and scrolls to **Send report**.
+  Capture depends on mobile browser support; desktops may open a file picker.
 - Remove an attachment to replace it. Selecting media does not upload it.
 - **Send report** saves the selected files to the existing offline outbox and
   uploads them through the private signed-URL endpoints. The existing API stores
@@ -23,9 +23,10 @@ Attachments alone can also be sent.
   photo/video uploads. Its separate Send now button is hidden; failed uploads
   retain Retry/Discard and previously submitted offline reports retry on reconnect.
 
-The Task page uses the same photo, video, and notes form, replacing its old
-Video/Call shortcuts. Reports submitted there retain the task ID. A note can
-also be sent without an attachment or report card.
+The Task page shares native capture and attachment controls, but has a dedicated
+**Submit & complete task** action. Evidence and task completion are saved together
+on the assigned incident; they do not enter new-report intake. A note can also
+be submitted without an attachment or finding card.
 
 Verification: reject a five-photo selection, attach four photos plus one video,
 remove and replace a file, send without a card, and confirm photos/video in the

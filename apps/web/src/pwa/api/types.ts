@@ -27,6 +27,7 @@ export interface EmberApi {
   /** GET /incidents/{id}: one incident this volunteer is on. A volunteer who is not on it gets `not_found` (404). */
   getIncident(incidentId: string): Promise<IncidentDetail>
   createObservation(body: ObservationRequest): Promise<Observation>
+  completeTask?(taskId: string, body: { clientId: string; observations: ObservationRequest[] }): Promise<void>
   /** POST /photos/upload-url: a signed PUT URL for one photo in the private bucket. */
   createUploadUrl(contentType: PhotoContentType): Promise<UploadUrl>
   /** POST /videos/upload-url: a signed PUT URL for one video clip in the private bucket. */
