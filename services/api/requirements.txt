@@ -2,3 +2,5 @@ Flask==3.0.0
 gunicorn==21.2.0
 firebase-admin==6.6.0
 flask-cors==5.0.0
+livekit-api==1.2.2
+python-dotenv==1.2.1

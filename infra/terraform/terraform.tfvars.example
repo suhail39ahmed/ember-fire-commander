@@ -19,6 +19,11 @@ create_gemini_api_key_secret = false
 live_location                = "us-central1"
 live_model                   = "gemini-live-2.5-flash-native-audio"
 
+# LiveKit: first apply with an empty URL to create the empty secret containers.
+# Add LIVEKIT_API_KEY and LIVEKIT_API_SECRET versions in Secret Manager, then
+# set the real wss:// URL in terraform.tfvars and apply again. Never put keys here.
+livekit_url = "" # e.g. "wss://your-project.livekit.cloud"
+
 # Firestore: location is PERMANENT.
 firestore_location          = "asia-southeast1"
 firestore_delete_protection = false

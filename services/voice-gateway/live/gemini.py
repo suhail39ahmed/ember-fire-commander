@@ -73,13 +73,15 @@ class ScriptedLive:
 class GeminiLiveClient:
     """Synchronous face over the async Gemini Live session."""
 
-    def __init__(self, model=None, location=None):
+    def __init__(self, model=None, location=None, transcription_only=False):
+        self.transcription_only = transcription_only
         self.model = model or os.getenv("LIVE_MODEL", "").strip() or "gemini-live-2.5-flash-native-audio"
         self.location = location or os.getenv("LIVE_LOCATION", "").strip() or "us-central1"
         self._loop = None
         self._thread = None
         self._cm = None
         self._session = None
+        self._receive_future = None
         self._events = []
         self._lock = threading.Lock()
 
@@ -88,7 +90,7 @@ class GeminiLiveClient:
         self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
         self._thread.start()
         self._await(self._open(context))
-        asyncio.run_coroutine_threadsafe(self._pump(), self._loop)
+        self._receive_future = asyncio.run_coroutine_threadsafe(self._pump(), self._loop)
 
     def send_audio(self, data):
         self._await(self._send_audio(data))
@@ -107,6 +109,9 @@ class GeminiLiveClient:
         return self._wait_for_turn()
 
     def close(self):
+        if self._receive_future is not None:
+            self._receive_future.cancel()
+            self._receive_future = None
         if self._cm is not None and self._loop is not None:
             try:
                 self._await(self._cm.__aexit__(None, None, None))
@@ -138,7 +143,7 @@ class GeminiLiveClient:
             return found
 
     def _await(self, coro):
-        return asyncio.run_coroutine_threadsafe(coro, self._loop).result()
+        return asyncio.run_coroutine_threadsafe(coro, self._loop).result(timeout=20 if self.transcription_only else None)
 
     async def _open(self, context):
         from google import genai
@@ -157,17 +162,40 @@ class GeminiLiveClient:
                 automatic_activity_detection=types.AutomaticActivityDetection(disabled=True),
             ),
         )
+        if self.transcription_only:
+            config = types.LiveConnectConfig(
+                response_modalities=["AUDIO"],
+                input_audio_transcription=types.AudioTranscriptionConfig(),
+                system_instruction=(
+                    "This is a speech transcription connectivity test. Listen to the input audio. "
+                    "Preserve the spoken language. Do not give advice or execute actions. "
+                    "Your audio responses are discarded; only input audio transcription is displayed."
+                ),
+                realtime_input_config=types.RealtimeInputConfig(
+                    automatic_activity_detection=types.AutomaticActivityDetection(disabled=False),
+                ),
+            )
         self._cm = client.aio.live.connect(model=self.model, config=config)
         self._session = await self._cm.__aenter__()
-        await self._session.send_realtime_input(activity_start=types.ActivityStart())
+        if not self.transcription_only:
+            await self._session.send_realtime_input(activity_start=types.ActivityStart())
 
     async def _pump(self):
         try:
-            async for message in self._session.receive():
-                with self._lock:
-                    self._events.extend(_events_from(message))
+            while True:
+                async for message in self._session.receive():
+                    events = _events_from(message)
+                    if self.transcription_only:
+                        events = [event for event in events if event["kind"] in ("transcript", "turn_complete")]
+                    with self._lock:
+                        self._events.extend(events)
+                if not self.transcription_only:
+                    break
         except Exception:
             logger.exception("Gemini Live receive ended")
+            if self.transcription_only:
+                with self._lock:
+                    self._events.append({"kind": "error"})
 
     async def _end_activity(self):
         from google.genai import types
@@ -242,6 +270,10 @@ def _events_from(message):
                 "args": dict(call.args or {}),
             })
     content = getattr(message, "server_content", None)
+    transcription = getattr(content, "input_transcription", None) if content is not None else None
+    if transcription is not None:
+        events.append({"kind": "transcript", "text": getattr(transcription, "text", "") or "",
+                       "finished": bool(getattr(transcription, "finished", False))})
     turn = getattr(content, "model_turn", None) if content is not None else None
     if turn is not None:
         for part in getattr(turn, "parts", None) or []:

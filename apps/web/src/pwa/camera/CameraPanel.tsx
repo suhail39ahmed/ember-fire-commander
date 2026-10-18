@@ -22,6 +22,7 @@ interface Props {
   framesToCoach?: boolean
   /** Current recording state from the VideoRecorder. Omit to hide the indicator. */
   recorderSnap?: VideoRecorderSnapshot
+  stopAction?: { label: string; onStop: () => void; busy: boolean }
 }
 
 function CameraIcon({ off }: { off: boolean }) {
@@ -82,7 +83,7 @@ function RecordingChip({ lang, startedAt }: { lang: Lang; startedAt: number }) {
  * The dark camera panel at the top of the Report tab. Its height is fixed, so turning the camera on or off, or an
  * error message, never moves what is below. The camera starts only from the toggle tap.
  */
-export function CameraPanel({ lang, state, stream, onToggle, accuracyM, onBack, framesToCoach = false, recorderSnap }: Props) {
+export function CameraPanel({ lang, state, stream, onToggle, accuracyM, onBack, framesToCoach = false, recorderSnap, stopAction }: Props) {
   const video = useRef<HTMLVideoElement>(null)
   const running = state === 'on'
   const problem = problemText(state)
@@ -104,6 +105,7 @@ export function CameraPanel({ lang, state, stream, onToggle, accuracyM, onBack, 
 
   const isRecording = recorderSnap?.recording === true
   const hasClip = Boolean(recorderSnap?.clip)
+  const showStop = Boolean(stopAction && (isRecording || hasClip || stopAction.busy))
 
   return (
     <section className="cam" data-testid="camera-panel" data-camera={state} aria-label={t(lang, s.panel)}>
@@ -151,15 +153,16 @@ export function CameraPanel({ lang, state, stream, onToggle, accuracyM, onBack, 
         </p>
         <button
           type="button"
-          className={`cam-toggle${running ? ' is-on' : ''}`}
-          aria-label={t(lang, s.toggle)}
-          aria-pressed={running}
-          aria-busy={state === 'starting' || undefined}
-          title={t(lang, running || state === 'starting' ? s.turnOff : s.turnOn)}
+          className={`cam-toggle${running ? ' is-on' : ''}${showStop ? ' cam-stop' : ''}`}
+          aria-label={showStop ? stopAction?.label : t(lang, s.toggle)}
+          aria-pressed={showStop ? undefined : running}
+          aria-busy={(showStop ? stopAction?.busy : state === 'starting') || undefined}
+          disabled={showStop && stopAction?.busy}
+          title={showStop ? stopAction?.label : t(lang, running || state === 'starting' ? s.turnOff : s.turnOn)}
           data-testid="camera-toggle"
-          onClick={onToggle}
+          onClick={showStop ? stopAction?.onStop : onToggle}
         >
-          <CameraIcon off={!running} />
+          {showStop ? <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" data-icon="stop"><rect x="5" y="5" width="14" height="14" rx="2" /></svg> : <CameraIcon off={!running} />}
         </button>
       </div>
     </section>

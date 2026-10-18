@@ -106,6 +106,11 @@ export const screenStrings = {
     unknown: { id: 'Belum diketahui', en: 'Unknown' },
   },
   profile: {
+    connectivity: { id: 'Uji Koneksi', en: 'Test Connectivity' },
+    testAudio: { id: 'Panggilan suara · transkripsi otomatis', en: 'Audio call · automatic transcription' },
+    testVideo: { id: 'Panggilan video · transkripsi otomatis', en: 'Video call · automatic transcription' },
+    testCall: { id: 'Uji panggilan', en: 'Test a call' },
+    closeTest: { id: 'Tutup', en: 'Close' },
     supervisor: { id: 'Supervisor', en: 'Supervisor' },
     phone: { id: 'Telepon untuk SMS', en: 'Phone for SMS' },
     training: { id: 'Pelatihan', en: 'Training' },

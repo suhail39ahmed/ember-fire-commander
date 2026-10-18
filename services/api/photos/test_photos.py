@@ -9,6 +9,14 @@ from google.oauth2 import service_account
 import identity
 from app import app
 from photos import signing, store
+
+
+def test_local_media_signing_uses_explicit_account_without_private_key(monkeypatch):
+    class UserCredentials:
+        token = 'local-token'
+    monkeypatch.setenv('PHOTO_SIGNING_SERVICE_ACCOUNT', 'signer@example.iam.gserviceaccount.com')
+    result = signing._signing_kwargs(UserCredentials(), {'method': 'GET'})
+    assert result == {'method': 'GET', 'service_account_email': 'signer@example.iam.gserviceaccount.com', 'access_token': 'local-token'}
 from photos.paths import is_owned_photo_path, new_photo_path, owner_of
 
 

@@ -52,6 +52,30 @@ def gateway():
     return ""
 
 
+@app.route("/transcription-test", websocket=True)
+def transcription_test():
+    """Reuse ticket authentication; keep call tests out of the reporting relay."""
+    from flask_sock import Server as WsServer
+    from live.transcription import run_transcription
+
+    protocols = [value.strip() for value in request.headers.get("Sec-WebSocket-Protocol", "").split(",") if value.strip()]
+    ws = WsServer(request.environ, subprotocols=protocols or None)
+    handle_upgrade(ws, request.headers, run_transcription)
+    return ""
+
+
+@app.route('/calls/transcription', websocket=True)
+def call_transcription():
+    from flask_sock import Server as WsServer
+    from live.transcription import run_transcription
+    from live.shared_transcripts import SharedTranscripts
+    protocols = [p.strip() for p in request.headers.get('Sec-WebSocket-Protocol', '').split(',') if p.strip()]
+    ws = WsServer(request.environ, subprotocols=protocols or None)
+    handle_upgrade(ws, request.headers, lambda user, socket: run_transcription(
+        user, socket, enabled=True, store=SharedTranscripts(collection='calls'), max_seconds=1800))
+    return ''
+
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT") or os.getenv("EMBER_VOICE_GATEWAY_PORT", "8084"))
     app.run(host="0.0.0.0", port=port)

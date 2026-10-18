@@ -124,7 +124,7 @@ export interface UploadUrl {
   expiresAt: string
 }
 
-export type VideoContentType = 'video/mp4' | 'video/webm'
+export type VideoContentType = 'video/mp4' | 'video/webm' | 'video/quicktime'
 
 /** Body of POST /videos/upload-url. */
 export interface VideoUploadUrlRequest {

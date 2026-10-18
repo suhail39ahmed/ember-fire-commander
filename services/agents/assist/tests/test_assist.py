@@ -42,6 +42,28 @@ def use_model(monkeypatch, reply):
     return fake
 
 
+def test_ask_and_suggestions_receive_shared_call_evidence(client, store, monkeypatch):
+    seed(store)
+    context = {'callId': 'a' * 64, 'transcript': [{'speaker': 'Sari', 'text': 'Smoke by the canal'}]}
+    model = use_model(monkeypatch, {'answer': 'Sari reports smoke by the canal.', 'enoughData': True})
+    response = client.post('/internal/incidents/inc_1/ask', json={'question': 'What did Sari say?', 'volunteerId': 'uid_sari', 'callContext': context})
+    assert response.status_code == 200
+    assert 'Smoke by the canal' in model.prompts[0]
+    model = use_model(monkeypatch, {'suggestions': [{'text': 'Send a photo of the canal.', 'rationale': 'The speaker mentioned smoke by the canal.'}]})
+    response = client.post('/internal/incidents/inc_1/suggestions', json={'volunteerId': 'uid_sari', 'callContext': context})
+    assert response.status_code == 200
+    assert 'Smoke by the canal' in model.prompts[0]
+
+
+def test_frame_description_validates_image_and_returns_only_bounded_text(client, monkeypatch):
+    import base64
+    assert client.post('/internal/calls/describe-frame', json={'image': 'bad'}).status_code == 400
+    use_model(monkeypatch, {'description': 'Visible smoke; distance cannot be estimated.'})
+    response = client.post('/internal/calls/describe-frame', json={'image': base64.b64encode(b'\xff\xd8\xffexample\xff\xd9').decode()})
+    assert response.status_code == 200
+    assert response.get_json()['text'].startswith('Visible smoke')
+
+
 def seed(store, photo=False, conflict=False):
     store.collections["incidents"]["inc_1"] = {
         "name": "Bengkalis, Riau · Pak Dedi · #3", "area": "Bengkalis, Riau", "status": "held" if conflict else "open",

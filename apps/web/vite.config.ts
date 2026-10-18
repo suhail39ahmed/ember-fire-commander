@@ -1,7 +1,18 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
+import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  // Only this public test flag is shared from the root staging .env.
+  // All existing app env handling stays with Vite; server keys never enter the bundle.
+  define: {
+    'import.meta.env.VITE_LIVEKIT_TEST_ENABLED': JSON.stringify(
+      process.env.VITE_LIVEKIT_TEST_ENABLED
+      ?? loadEnv(mode, process.cwd(), 'VITE_LIVEKIT_TEST_ENABLED').VITE_LIVEKIT_TEST_ENABLED
+      ?? loadEnv(mode, fileURLToPath(new URL('../../', import.meta.url)), 'VITE_LIVEKIT_TEST_ENABLED').VITE_LIVEKIT_TEST_ENABLED
+      ?? 'false',
+    ),
+  },
   plugins: [react()],
   server: {
     port: 5173,
@@ -26,4 +37,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

@@ -8,6 +8,7 @@ import { useLanguage } from '../language'
 import { useVolunteer } from '../layout/volunteerContext'
 import { t } from '../i18n'
 import { screenStrings } from './strings'
+import { ProfileConnectivity } from './ProfileConnectivity'
 import './profile.css'
 
 export function ProfileScreen() {
@@ -49,6 +50,7 @@ export function ProfileScreen() {
       </section>
       {settingsError && <p className="error" role="alert">{t(lang, copy.saveFailed)}</p>}
       <PermissionsPanel perms={perms} asking={asking} lang={lang} onRequest={requestPermission} accuracyM={position.kind === 'ok' ? position.accuracyM : null} />
+      <ProfileConnectivity lang={lang} />
       <button type="button" className="btn secondary profile-signout" onClick={() => { setFailed(false); signOut().catch(() => setFailed(true)) }}>{t(lang, copy.signOut)}</button>
       {failed && <p className="error" role="alert">{t(lang, copy.signOutFailed)}</p>}
       {me?.demoMode === true && <p className="profile-demo">{t(lang, copy.demo)}</p>}

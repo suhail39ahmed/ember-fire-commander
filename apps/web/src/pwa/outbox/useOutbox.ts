@@ -6,7 +6,7 @@ import { uploadPhoto } from '../photo/uploadPhoto'
 import { uploadVideo } from '../video/uploadVideo'
 import { Outbox } from './outbox'
 import { createIdbStore, createMemoryStore } from './store'
-import type { OutboxItem, PendingPhoto, PendingVideo } from './types'
+import type { OutboxBatchEntry, OutboxItem, PendingPhoto, PendingVideo } from './types'
 
 /** While items wait, replay is also tried on this interval (the `online` event is not reliable on every phone). */
 const RETRY_MS = 15000
@@ -17,6 +17,7 @@ export interface OutboxHandle {
   items: OutboxItem[]
   online: boolean
   submit(body: ObservationRequest): Promise<SubmitResult>
+  submitBatch?: (entries: readonly OutboxBatchEntry[]) => Promise<SubmitResult>
   queuePhoto(photo: PendingPhoto): Promise<void>
   /** Submit a video clip; works like submit for chip/text reports. */
   submitVideo?: (video: PendingVideo) => Promise<SubmitResult>
@@ -74,6 +75,7 @@ export function useOutbox(api: EmberApi, upload: UploadFn): OutboxHandle {
   return {
     items,
     online,
+    submitBatch: (entries) => outbox.submitBatch(entries),
     submit: async (body) => ((await outbox.submit(body)).state === 'sent' ? 'sent' : 'queued'),
     queuePhoto: async (photo) => {
       await outbox.enqueuePhoto(photo)

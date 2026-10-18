@@ -87,6 +87,20 @@ variable "create_gemini_api_key_secret" {
 }
 
 # ---------------------------------------------------------------------------
+# LiveKit
+# ---------------------------------------------------------------------------
+variable "livekit_url" {
+  description = "LiveKit WebSocket URL for ember-api. Leave empty until both LiveKit secrets have enabled versions; setting it mounts those secrets on Cloud Run."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.livekit_url == "" || can(regex("^wss://[^/?#[:space:]]+/?$", var.livekit_url))
+    error_message = "livekit_url must be empty or a wss:// server URL without a path, query, or whitespace."
+  }
+}
+
+# ---------------------------------------------------------------------------
 # Data stores
 # ---------------------------------------------------------------------------
 variable "firestore_location" {

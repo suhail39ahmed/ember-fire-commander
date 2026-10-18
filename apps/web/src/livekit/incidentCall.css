@@ -1,0 +1,108 @@
+.call-popup-backdrop { align-items: center; padding: 16px; background: rgb(12 12 10 / .72); }
+.call-popup { width: min(1180px, 100%); height: min(900px, calc(100dvh - 32px)); display: grid; grid-template-columns: minmax(0, 3fr) minmax(310px, 2fr); background: #fff; border-radius: 20px; overflow: hidden; position: relative; color: #171714; box-shadow: 0 24px 90px #0005; }
+.call-popup button, .volunteer-call-panel button { cursor: pointer; font: inherit; }
+.call-popup button:disabled, .volunteer-call-panel button:disabled { cursor: default; opacity: .5; }
+.call-popup button:focus-visible, .volunteer-call-panel button:focus-visible { outline: 2px solid #ff601d; outline-offset: 3px; }
+.call-popup-left { padding: 16px; overflow-y: auto; min-width: 0; background: #fff; }
+.call-popup-right { padding: 18px 16px 14px; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: #fbfaf8; }
+.call-popup-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.call-popup-header > div { flex: 1; min-width: 0; }
+.call-popup-header h2 { font-size: 15px; line-height: 1.3; margin: 0 0 3px; }
+.call-popup-header p { font: 9px/1.5 ui-monospace, monospace; text-transform: uppercase; color: #736e65; margin: 0; letter-spacing: .06em; }
+.call-popup-header .exp-avatar { width: 30px; height: 30px; font-size: 10px; }
+.call-close { border: 0; background: #f0eeea; border-radius: 50%; width: 28px; height: 28px; font-size: 20px !important; }
+.incident-video-stage { position: relative; overflow: hidden; border-radius: 13px; height: clamp(260px, 44vh, 420px); background: linear-gradient(160deg, #76736b 0%, #38322d 50%, #100e0b 100%); color: white; }
+.incident-video-stage video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.incident-video-placeholder { min-height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 24px; text-align: center; gap: 10px; }
+.incident-video-placeholder strong { font-size: 15px; font-weight: 600; }
+.incident-video-placeholder p { color: #b1a99e; font-size: 12px; max-width: 280px; margin: 0 0 5px; line-height: 1.45; }
+.call-state-label { border-radius: 20px; background: #201d18; padding: 5px 9px; color: #c4bcaa; font: 9px/1.3 ui-monospace, monospace; letter-spacing: .04em; display: inline-block; }
+.call-request { border: 0; border-radius: 24px; background: #ff601d; color: #fff; padding: 10px 18px; font-size: 12px !important; }
+.call-cancel { background: transparent; border: 1px solid #b1a99e; border-radius: 22px; color: white; padding: 9px 17px; font-size: 12px !important; }
+.call-wait-spinner { width: 34px; height: 34px; border: 2px solid #222; border-right-color: #ff601d; border-radius: 50%; animation: call-spin 1s linear infinite; margin-bottom: 5px; }
+@keyframes call-spin { to { transform: rotate(360deg); } }
+.incident-live-badge { position: absolute; top: 12px; left: 12px; background: #eb2b17; color: white; font: 10px ui-monospace, monospace; border-radius: 20px; padding: 5px 9px; }
+.incident-peer-wait { position: absolute; bottom: 12px; left: 12px; background: #222c; border-radius: 10px; padding: 5px 9px; font-size: 11px; }
+.incident-call-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 12px 0; }
+.incident-call-controls button { background: #161613; color: white; border: 1px solid #161613; padding: 8px 12px; border-radius: 22px; font-size: 11px; }
+.incident-call-controls .call-end, .call-end { color: #d82d20; background: #fff1ed; border: 1px solid #f04531; padding: 8px 12px; border-radius: 22px; }
+.incident-call-controls .call-end { margin-left: auto; }
+.incident-transcript { padding: 12px; margin: 12px 0; border-radius: 10px; background: #edeae4; color: #24231f; font-size: 12px; }
+.incident-transcript h3 { color: #2855d5; font: 9px/1.5 ui-monospace, monospace; letter-spacing: .08em; margin: 0 0 7px; }
+.incident-transcript p { font-size: 11px; margin: 5px 0; line-height: 1.4; }
+.incident-transcript .call-transcription-log { max-height: 180px; overflow-y: auto; padding: 0; margin: 7px 0 0; list-style: none; }
+.incident-transcript li { color: #35332e; background: transparent; border: 0; padding: 7px 0; font-size: 12px; border-radius: 0; }
+.incident-transcript li strong { color: #4b4940; }
+.incident-transcript .call-transcription-log time { color: #69665f; font-size: 10px; display: block; }
+.call-popup-left .exp-section { padding: 12px 0; border: 0; }
+.call-popup-left .exp-eyebrow, .call-snapshots h3 { color: #5d584e; font: 9px/1.5 ui-monospace, monospace; letter-spacing: .07em; }
+.call-popup-left .exp-snaps { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+.call-popup-left .exp-snap-thumb { width: 100%; height: 78px; border-radius: 6px; object-fit: cover; }
+.call-popup-left .exp-snap-cap { font-size: 9px; }
+.call-popup-left .exp-muted { font-size: 12px; }
+.call-snapshots ul { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; list-style: none; margin: 0; padding: 0; }
+.call-snapshots button { border: 0; padding: 0; background: transparent; width: 100%; }
+.call-snapshots img { width: 100%; height: 78px; object-fit: cover; border-radius: 6px; }
+.call-snapshots span { display: block; color: #6b655c; font: 9px ui-monospace, monospace; }
+.call-tabs { display: flex; background: #ece9e3; padding: 4px; gap: 3px; border-radius: 9px; margin-bottom: 12px; }
+.call-tabs button { flex: 1; background: transparent; border: 0; border-radius: 6px; font-size: 11px; padding: 7px; }
+.call-tabs button[aria-selected=true] { background: white; box-shadow: 0 1px 3px #0001; }
+.call-tab-panel { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; }
+.call-ai-title { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.call-ai-title h3 { margin: 0; font-size: 12px; }
+.call-ai-title > span { color: #2454cb; background: #e8eeff; border-radius: 12px; padding: 4px 6px; font: 8px/1.2 ui-monospace, monospace; letter-spacing: .06em; white-space: nowrap; }
+.call-popup .exp-thread-zone { flex: 1; min-height: 120px; overflow-y: auto; border-radius: 0; background: white; padding: 10px; }
+.call-popup .exp-thread-empty { font-size: 12px; }
+.call-popup .exp-thread { max-height: none; }
+.call-popup .exp-thread-zone p { font-size: 12px; }
+.call-suggestions-title { display: flex; justify-content: space-between; align-items: center; gap: 5px; }
+.call-suggestions h3 { font: 9px/1.4 ui-monospace, monospace; color: #665e52; letter-spacing: .05em; }
+.call-suggestions-title > button { border: 0; background: transparent; font-size: 10px; color: #54504a; }
+.call-suggestions ul { padding: 0; margin: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; max-height: 230px; overflow-y: auto; }
+.call-suggestions li { display: flex; align-items: center; gap: 8px; padding: 8px 9px; background: white; border: 1px solid #e7e3dd; border-radius: 12px; font-size: 11px; line-height: 1.4; }
+.call-suggestions li span { flex: 1; }
+.call-suggestions li button { background: #151512; color: white; border: 0; border-radius: 20px; font-size: 10px; padding: 5px 12px; }
+.call-empty { font-size: 12px; color: #797267; }
+.call-popup .exp-prompts { flex-wrap: wrap; gap: 4px; }
+.call-popup .exp-prompt-btn { font-size: 10px; padding: 5px 8px; }
+.call-composer { display: flex; align-items: center; gap: 6px; padding: 7px 8px; border-radius: 14px; border: 1px solid #e0dad1; background: white; }
+.call-composer input, .call-composer textarea { flex: 1; min-width: 0; resize: vertical; border: 0; background: transparent; color: #201f1a; padding: 6px; font-family: inherit; font-size: 12px; line-height: 1.5; }
+.call-composer button { border: 0; border-radius: 50%; width: 32px; height: 32px; color: white; background: #171714; font-size: 22px; flex-shrink: 0; }
+.call-message-history { flex: 1; min-height: 0; overflow-y: auto; background: white; font-size: 12px; }
+.call-message-history .exp-section { padding: 12px; }
+.call-error { color: #a62d23; font-size: 12px; line-height: 1.5; }
+.call-outcome { color: #74614a; font-size: 12px; }
+.call-vision-status { color: #746e62; font-size: 10px; }
+.call-code-invite { background: #fff5e9; border: 1px solid #f0dcc5; border-radius: 10px; padding: 10px 12px; margin: 10px 0; }
+.call-code-invite p { font-size: 11px; color: #645444; line-height: 1.5; margin: 4px 0; }
+.call-code-invite code { font: 600 18px ui-monospace, monospace; letter-spacing: .09em; color: #853b16; user-select: all; }
+.call-profile-join { border: 0; background: transparent; text-decoration: underline; padding: 14px 0 0; font-size: 12px !important; }
+.call-withdraw-note { color: #ad4539; font-size: 10px; text-align: center; margin: 0; }
+.call-confirm, .call-photo-preview { position: absolute; inset: 0; background: #171611b3; display: grid; place-items: center; padding: 24px; z-index: 2; }
+.call-confirm > div { background: white; padding: 24px; border-radius: 15px; max-width: 400px; }
+.call-confirm h3 { margin-top: 0; }
+.call-confirm button { padding: 9px 13px; margin: 5px; border-radius: 20px; }
+.call-photo-preview img { max-width: 100%; max-height: 75vh; }
+.call-photo-preview > button { background: white; padding: 10px 18px; border: 0; border-radius: 20px; }
+.volunteer-call-backdrop { position: fixed; inset: 0; z-index: 210; background: #151410ba; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.volunteer-call-panel { background: #fffcf6; color: #24211b; padding: 20px; border-radius: 22px; width: min(540px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; box-shadow: 0 15px 80px #0005; }
+.volunteer-call-panel h2 { font-size: 22px; margin: 10px 0 18px; }
+.volunteer-call-panel h3 { font-size: 17px; }
+.volunteer-call-panel p { font-size: 14px; line-height: 1.5; }
+.volunteer-call-panel .incident-transcript h3 { font-size: 9px; }
+.volunteer-call-panel .incident-transcript p { font-size: 11px; }
+.call-invite-actions { display: flex; gap: 10px; margin-top: 20px; }
+.call-invite-actions button { flex: 1; border-radius: 24px; padding: 12px; border: 1px solid #d9d0c2; }
+.call-invite-actions .call-request { border: 0; font-size: 15px !important; }
+.call-invite-notice { position: fixed; bottom: 85px; left: 16px; right: 16px; z-index: 205; background: #fff4de; padding: 15px; border-radius: 14px; font-size: 13px; box-shadow: 0 5px 25px #0002; }
+.call-invite-notice button { margin-left: 10px; }
+@media (max-width: 720px) {
+  .call-popup-backdrop { padding: 0; }
+  .call-popup { height: 100dvh; border-radius: 0; grid-template-columns: 1fr; overflow-y: auto; display: flex; flex-direction: column; }
+  .call-popup-right { order: -1; overflow: visible; flex-shrink: 0; }
+  .call-popup-left { overflow: visible; flex-shrink: 0; }
+  .call-popup .exp-thread-zone { max-height: 220px; }
+  .incident-video-stage { height: 300px; }
+  .call-ai-title { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) { .call-wait-spinner { animation: none; } }

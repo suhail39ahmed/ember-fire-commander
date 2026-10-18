@@ -50,6 +50,18 @@ An accepted upgrade waits for `session.start`, then relays audio and about one c
 
 ## Local development
 
+The opt-in LiveKit call transcription test uses the authenticated WebSocket
+`/transcription-test`. It enables Gemini Live input audio transcription and
+delivers one shared event history to authorized call members. The API registers
+membership when issuing a LiveKit token. Each browser publishes only its own
+microphone; the gateway stores globally ordered speaker events in Firestore and
+replays history by sequence after reconnect. It has no incident-writing tools
+or model audio playback. It uses the existing voice-ticket authentication.
+`EMBER_LIVEKIT_TEST_ENABLED=true` enables it (root `.env` is supported for this
+test flag). Each audio publishing session stops after two minutes; transcript
+viewing continues. Call access expires after two hours. See
+[`docs/demo/livekit-test.md`](../../docs/demo/livekit-test.md#speech-transcription-test).
+
 ```bash
 python3 -m venv venv
 source venv/bin/activate

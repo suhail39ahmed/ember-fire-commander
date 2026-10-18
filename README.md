@@ -9,7 +9,7 @@
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 
 > Built for the **Google Cloud AI Builder Cup 2026**.
-> **Status (14 Oct 2026):** the Google Cloud infrastructure is live in `ember-fire-commander` (asia-southeast1), defined in Terraform and deployed through the pipeline. The application code is **in progress**. Anything not built yet is marked *planned* or *in progress* below.
+> **Status (18 Oct 2026):** the application includes volunteer reporting and tasks, a supervisor console, Gemini voice assistance, and supervisor-initiated LiveKit calls with shared transcription. The latest call and media-upload changes are implemented; deployment configuration and two-device verification are described in the [call runbook](docs/demo/livekit-test.md). Infrastructure changes go through Terraform and the deployment pipelines. Older diagrams show the original design; the text below describes the added call path.
 
 ---
 
@@ -38,8 +38,8 @@ EMBER helps scarce brigades decide **where to look first**. It does **not** fore
 ## How it works
 
 1. **Leads:** every hour, NASA FIRMS hotspots and weather are pulled in and each hotspot is given an explainable 0–100 *spread-risk* score with its reasons shown (for example "8 dry days · RH 39% · wind 10 km/h · 62% peat"). These are **leads to verify**, never "fires". *(planned)*
-2. **Report:** a volunteer presses push-to-talk on the Bahasa-first PWA and speaks to Gemini Live while the camera streams frames, or taps a quick chip (*asap*, *api*, *aman*, *butuh bantuan*). *(in progress)*
-3. **Fuse:** the agents service merges reports, photos and positions from several volunteers, plus satellite leads and wind, into one incident with a transparent evidence score. *(in progress: a fusion prototype with unit tests exists but is **not yet in this repository**; the `ember-agents` service is in progress)*
+2. **Report:** volunteers submit quick chips (*asap*, *api*, *aman*, *butuh bantuan*), notes, up to four photos and one video from either Report or Task. Camera capture and gallery selection share the same form; submitted reports use an offline outbox and retain task context. [Report media guide](docs/demo/report-uploads.md).
+3. **Fuse:** the agents service processes observations into shared incidents with deterministic fusion and conflict rules, evidence scores, and advisory summaries. Implementation lives in `services/agents/`.
 4. **Conflicts are surfaced:** if volunteers disagree ("small flame" vs "no flame"), EMBER flags it, shows both side by side and holds dispatch. It never averages the reports. *(planned)*
 5. **Human approves:** the supervisor console shows the shared picture, a verification queue, wind and an *indicative* downwind exposure corridor. The supervisor approves, edits or rejects each proposal. Only a human can mark an incident verified or extinguished, or lower its severity. *(planned)*
 6. **Safety first:** deterministic rules in code (not model output) send **WITHDRAW upwind** on large flames or high wind, immediately and logged. *(planned)*
@@ -51,21 +51,31 @@ EMBER helps scarce brigades decide **where to look first**. It does **not** fore
 
 Editable source: [`docs/architecture/ember_infra_v2.drawio`](docs/architecture/ember_infra_v2.drawio). Details: [`docs/architecture/architecture.md`](docs/architecture/architecture.md).
 
-**Backend-mediated rule.** The browser talks only to our backend, and the backend talks to Google Cloud, third parties and the database. There are just two exceptions:
-1. Photo upload: an HTTPS `PUT` to Cloud Storage using a short-lived **signed URL** issued by `ember-api`.
-2. Live voice and video: a **WSS** connection to `voice-gateway`, which holds the Gemini session.
+**Backend-mediated data access.** The browser uses authenticated backend endpoints for application state, Gemini, and signed media URLs. The media paths are:
+1. Photos and recorded videos: direct HTTPS transfers to Cloud Storage using short-lived **signed URLs** issued by `ember-api`.
+2. Gemini voice assistance and call transcription: **WSS** connections to `voice-gateway`, which holds the Gemini sessions.
+3. Human calls: browser camera/microphone media through **LiveKit**, using room-scoped participant tokens issued by `ember-api`. LiveKit credentials stay on the API server.
 
 The browser never opens Firestore listeners and never calls Gemini or the Maps/Weather data APIs directly. The map tiles are the only Maps call from the browser, using a referrer-restricted key.
 
 | Component | Runs on | What it does |
 |---|---|---|
 | Volunteer PWA + supervisor console | Firebase Hosting | One React/Vite web app with role-based routes. Push-to-talk, camera, chips, task cards, WITHDRAW screen, shared map |
-| `ember-api` (public) | Cloud Run | REST: sessions and roles, signed upload URLs, approvals, incident and digest reads, Maps/Weather proxy, FCM sends, audit log |
-| `voice-gateway` (public, WSS) | Cloud Run | Verifies Firebase ID token and App Check, relays audio and video to Gemini Live, enforces Live-minute caps, writes observations from tool calls |
+| `ember-api` (public) | Cloud Run | REST: identity, incidents, tasks, approvals, signed media URLs, FCM, audit, call lifecycle, scoped LiveKit tokens and snapshots |
+| `voice-gateway` (public, WSS) | Cloud Run | Gemini voice assistance and authenticated call transcription, usage caps, shared transcript delivery |
+| LiveKit Cloud | LiveKit | Volunteer video and two-way call audio; supervisor publishes audio only |
 | `ember-agents` (private) | Cloud Run | ADK agent graph: intake, dedupe/cluster, fusion, conflict, scoring, plan. Only `ember-api` and `voice-gateway` can call it |
 | `ember-ingest` *(planned)* | Cloud Run job + Scheduler | Hourly FIRMS, weather and PSI pulls |
 | Firestore `ember-db` | Firestore Native | Shared incident state. Client access denied, so only the backend reads and writes it |
-| Photo bucket | Cloud Storage | Private compressed stills, deleted after 14 days |
+| Media bucket | Cloud Storage | Private photos, incident snapshots and recorded clips; photos expire after 14 days and videos after 7 days |
+
+### Supervisor-to-volunteer calls
+
+The supervisor opens a volunteer's incident popup and selects **Request live video**. The volunteer receives a push or foreground invitation and chooses **Join** or **Decline**. Requests expire after 45 seconds. Once accepted, LiveKit carries volunteer video and two-way audio; both participants can mute, and closing the supervisor popup asks to end the call.
+
+Each participant's unmuted local microphone also reaches Gemini through `/calls/transcription`. The gateway writes one ordered transcript history with call ID, speaker identity, segment ID, sequence and timestamps. Both screens replay the same history. Ember AI receives bounded recent transcript context and optional sampled-frame descriptions; suggestions and written messages reach the volunteer only when the supervisor sends them. Live media is not recorded automatically; explicit snapshots are saved to the incident.
+
+For hackathon testing, a signed-in volunteer can claim a pending `CALL-XXXX-XXXX` code through **Profile → Test Connectivity**. The first volunteer to join claims it. The separate console test is under the header profile menu. See the [call setup and test guide](docs/demo/livekit-test.md) and [API map](docs/api/api-map.md).
 
 ### Live voice and video path
 
@@ -100,8 +110,8 @@ sequenceDiagram
 
 | Model / tool | Used for | Status |
 |---|---|---|
-| **Gemini 3.8 Live** | Bahasa voice conversation per push-to-talk burst, with audio and about 1 fps video. Tool calls `submit_observation`, `get_common_picture`, `get_my_task`. The model never changes incident state itself | in progress |
-| **Gemini 3.8 Flash** | Photo triage ("Spotter") with structured JSON output, and Bahasa/English incident summaries and report drafts | planned |
+| **Gemini Live** (`LIVE_MODEL`) | Voice assistance through reporting tools and separate transcription-only sessions for each call speaker | implemented |
+| **Gemini Flash** (`agents_flash_model`) | Photo triage, incident summaries, advisory suggestions and sampled call-frame descriptions | implemented |
 | **ADK (Agent Development Kit)** | The agent graph in `ember-agents`, with a human-in-the-loop pause for supervisor approval | in progress |
 | **Agent Platform Evals** | Scenario tests with simulated volunteers as a quality gate | planned |
 | **Agent Platform Memory Bank** | Remembering landmarks and language preference, with consent | optional / planned |
@@ -112,10 +122,10 @@ Design principle: **the deterministic code decides and Gemini talks and looks.**
 
 | Service | Why we use it | Status |
 |---|---|---|
-| Cloud Run (`ember-api`, `voice-gateway`, `ember-agents`) | Serverless containers with WebSocket support (up to a 60-minute timeout) and scale to zero | **live** (placeholder image until app code ships) |
+| Cloud Run (`ember-api`, `voice-gateway`, `ember-agents`) | Serverless containers with WebSocket support and scale to zero | **live**; deploy latest images for new features |
 | Firestore (Native, `ember-db`) | Shared incident state. Point-in-time recovery and daily backups are on | **live** |
 | Cloud Storage | Private photo bucket: uniform access, public access prevention, 14-day lifecycle, soft delete, signed-URL uploads | **live** |
-| Secret Manager | FIRMS, data.gov.sg and Maps server keys. Each secret is readable only by the service that needs it | **live** |
+| Secret Manager | FIRMS, data.gov.sg, Maps and API-only LiveKit credentials | **live**; new LiveKit wiring requires apply and populated values |
 | Artifact Registry (`ember`) | Container images, with a cleanup policy | **live** |
 | IAM | One least-privilege service account per service | **live** |
 | Firebase Hosting | Serves the PWA and console over a global CDN | **live** (web app not deployed yet) |
@@ -131,7 +141,7 @@ Design principle: **the deterministic code decides and Gemini talks and looks.**
 ## Security and responsible AI
 
 - **Backend-mediated:** client Firestore and Storage rules are *deny-all*. Data reaches the browser only through authenticated backend endpoints.
-- **ID tokens and App Check:** `ember-api` verifies the Firebase ID token on every route except `GET /healthz` and reads the role from the `role` custom claim (`volunteer` or `supervisor`); a missing role is `403`. It checks the `X-Firebase-AppCheck` header in log-only mode (`APP_CHECK_ENFORCE=false`) until just before the demo. The same checks on the `voice-gateway` WebSocket upgrade are *planned*.
+- **ID tokens and App Check:** protected API routes verify Firebase identity and role. Gateway browser upgrades consume one-use API-issued voice tickets; native upgrades verify token headers. App Check follows `APP_CHECK_ENFORCE`. LiveKit tokens are scoped to a room and authorized participant; transcript access is checked separately against call membership.
 - **Least privilege:** one service account per service. `ember-agents` is private and only `ember-api` and `voice-gateway` can invoke it. Secrets are scoped per accessor.
 - **Keyless CI/CD:** GitHub Actions authenticates with Workload Identity Federation, so no JSON keys are stored in the repo.
 - **Human in the loop:** dispatch always needs supervisor approval. Only a human can verify or extinguish an incident or lower its severity. WITHDRAW is a hard-coded safety rule, not a model output.
@@ -150,7 +160,9 @@ Design principle: **the deterministic code decides and Gemini talks and looks.**
 
 ## Infrastructure as code and CI/CD
 
-All of the above is defined in **Terraform** under [`infra/`](infra/README.md) and is **applied** (55 resources in the first apply, plus the CI/CD identities added since). Nothing in the project is changed by hand in the console.
+Google Cloud infrastructure is defined in **Terraform** under [`infra/`](infra/README.md). LiveKit Cloud is configured separately. Terraform owns the API's LiveKit URL and secret references; secret values are populated separately in Secret Manager.
+
+For the new LiveKit wiring, first apply with `livekit_url = ""` to create `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET`. Add enabled secret versions, then set the actual `wss://` URL in `infra/terraform/terraform.tfvars` and apply again. Only `ember-api` can read these secrets. This configuration is separate from local `.env` values and optional connectivity-test flags.
 
 - **Remote state** in a private, versioned GCS bucket (`gs://ember-fire-commander-tfstate`) with native locking. State is not kept in Git.
 - **Pipeline-owned:** infrastructure changes go through a pull request. `terraform plan` runs on every PR, and `apply` runs from `main` only after approval in the `production` environment. GitHub Actions authenticates with **Workload Identity Federation** as `sa-ember-terraform`, with no JSON keys.
@@ -193,9 +205,9 @@ Gemini Live is the biggest cost driver, because each turn re-bills the accumulat
 .
 ├── apps/web/                 # React + Vite + TypeScript PWA – Google sign-in, role routes (/pwa volunteer, /console supervisor), in progress
 ├── services/
-│   ├── api/                  # ember-api (Cloud Run) – Flask: /healthz, GET /me (ID token + role claim, App Check log-only); other routes in progress
-│   ├── voice-gateway/        # WSS relay to Gemini Live (Cloud Run) – Flask skeleton (/healthz), in progress
-│   └── agents/               # ADK agent graph (ember-agents) – Flask skeleton (/healthz), in progress
+│   ├── api/                  # Flask REST: identity, incidents/tasks, media, notifications, calls and LiveKit tokens
+│   ├── voice-gateway/        # Gemini voice assistance and shared call transcription over WSS
+│   └── agents/               # Incident processing, photo triage, advisory AI and call-frame descriptions
 ├── jobs/ingest/              # hourly FIRMS / weather / PSI job – planned
 ├── infra/
 │   ├── terraform/            # all GCP + Firebase resources, GCS backend
@@ -262,4 +274,5 @@ An unregistered debug token causes `appCheck/fetch-status-error` (HTTP 403). Bec
 - **Open-Meteo:** weather data by [Open-Meteo.com](https://open-meteo.com/), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 - **data.gov.sg:** Singapore PSI data from data.gov.sg, under the Singapore Open Data Licence.
 - **Google Maps Platform:** maps and Weather API, used under the Google Maps Platform terms.
+- **LiveKit:** [LiveKit](https://livekit.io/) and its client/server SDKs provide real-time video and audio for supervisor–volunteer calls. Gemini provides speech transcription through our gateway.
 - Inspired by Reuters' reporting on the Power of Mama volunteer brigade (Sep 2026). The personas in our demo are simulated, and EMBER is not affiliated with or endorsed by any organisation mentioned.

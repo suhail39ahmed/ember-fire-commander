@@ -12,6 +12,7 @@ PREFIX = "videos"
 CONTENT_TYPES = {
     "video/mp4": "mp4",
     "video/webm": "webm",
+    "video/quicktime": "mov",
 }
 
 # Maximum upload size enforced server-side: 10 MB
@@ -20,7 +21,7 @@ MAX_VIDEO_BYTES = 10 * 1024 * 1024
 
 _UID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 _PATH_RE = re.compile(
-    r"^videos/(?P<uid>[A-Za-z0-9_-]{1,128})/\d{8}/[0-9a-f]{32}\.(mp4|webm)$"
+    r"^videos/(?P<uid>[A-Za-z0-9_-]{1,128})/\d{8}/[0-9a-f]{32}\.(mp4|webm|mov)$"
 )
 
 
