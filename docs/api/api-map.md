@@ -99,9 +99,9 @@ Incident list and detail responses use `INCIDENT_FIELDS`: `id`, `name`, `area`, 
 | POST | `/tasks/{id}/reject` | supervisor | console | none | `200` `{ task, auditId }`. `proposed` → `rejected`. `withdraw` is `409` |
 | POST | `/tasks/{id}/edit` | supervisor | console | `{ "instruction": string }` max 500 characters | `200` `{ task, auditId }`. Replaces `instruction` only. A withdraw instruction is `409` |
 | POST | `/incidents/{id}/verify` | supervisor | console | none | `200` `{ incident, auditId }`. Status must be `open` or `held` |
-| POST | `/incidents/{id}/extinguish` | supervisor | **not called by the console** | none | `200` `{ incident, auditId }`. `409` if already extinguished |
-| POST | `/incidents/{id}/severity` | supervisor | **not called by the console** | `{ "severity": "none" \| "smoke" \| "small_flame" \| "large_flame" }` | `200` `{ incident, auditId }` only when the new value is strictly lower. `unknown` is rejected |
-| POST | `/incidents/{id}/withdraw` | supervisor | **not called by the console** | `{ volunteerIds, instruction, reasons? }` | `200` `{ incident, auditId }`. Sets `withdraw`, creates one approved `withdraw` task per id, pushes after commit. Each id must already have an observation or a task on the incident |
+| POST | `/incidents/{id}/extinguish` | supervisor | console | none | `200` `{ incident, auditId }`. `409` if already extinguished |
+| POST | `/incidents/{id}/severity` | supervisor | console | `{ "severity": "none" \| "smoke" \| "small_flame" \| "large_flame" }` | `200` `{ incident, auditId }` only when the new value is strictly lower. `unknown` is rejected |
+| POST | `/incidents/{id}/withdraw` | supervisor | console | `{ volunteerIds, instruction, reasons? }` | `200` `{ incident, auditId }`. Sets `withdraw`, creates one approved `withdraw` task per id, pushes after commit. Each id must already have an observation or a task on the incident |
 | POST | `/notifications/token` | volunteer | PWA | `{ "token": string, "volunteerId"?: own uid }` | `200` `{ stored: boolean }` |
 | DELETE | `/notifications/token` | volunteer | PWA | same body | `200` `{ removed: boolean }` |
 | POST | `/internal/notifications/withdraw` | `ember-agents` service account | agents, after a code WITHDRAW | `{ incidentId, tasks: [{ id, volunteerId }] }` | `202` `{ results }`. Reads the stored task text. Does not undo the incident write |

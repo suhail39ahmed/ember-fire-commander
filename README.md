@@ -9,7 +9,7 @@
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 
 > Built for the **Google Cloud AI Builder Cup 2026**.
-> **Status (19 Oct 2026):** infrastructure is live in `asia-southeast1`, defined in Terraform, and all six deploy pipelines run on demand. Application code is shipped and deployed, including supervisor-initiated LiveKit calls with shared transcription. Items marked *partial* or *not built* below are stubs or planned future work.
+> **Status (19 Oct 2026):** infrastructure is live in `asia-southeast1`, defined in Terraform, and all six deploy pipelines run on demand. Application code is shipped and deployed. Supervisor-initiated LiveKit calls with shared transcription are built; they are switched on through deployment configuration (the `livekit_url` Terraform variable plus the `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` secret values), and the committed `infra/terraform/terraform.tfvars` leaves `livekit_url` empty. Items marked *partial* or *not built* below are stubs or planned future work.
 
 ---
 
@@ -25,7 +25,7 @@
 
 ## 30-second pitch
 
-Village fire brigades in Indonesia's peatlands are unpaid volunteers on motorbikes. Each day they face thousands of satellite hotspots and can only reach a handful. EMBER gives each volunteer a hands-free, Bahasa-speaking AI commander — press and hold to talk, show the fire on camera, and get guidance back in seconds. Records are clipped to video and stored with voice audio. Reports from many phones are fused into **one shared incident picture** for a human supervisor, who sees photos and video clips, resolves conflicts, and approves dispatch. Volunteers who cannot reach a cell tower get a pre-built SMS they can send from the phone's own messaging app. Supervisors sign in through a web console, no app store needed.
+Village fire brigades in Indonesia's peatlands are unpaid volunteers on motorbikes. Each day they face thousands of satellite hotspots and can only reach a handful. EMBER gives each volunteer a hands-free, Bahasa-speaking AI commander — press and hold to talk, show the fire on camera, and get guidance back in seconds. Records are clipped to video and stored with voice audio. Reports from many phones are fused into **one shared incident picture** for a human supervisor, who sees photos and video clips, resolves conflicts, and approves dispatch. When there is no data connection, the app opens a pre-filled SMS draft in the phone's own messaging app. The volunteer still has to send it, and sending needs cell signal. Supervisors sign in through a web console, no app store needed.
 
 The one rule that can never wait for approval — **WITHDRAW upwind** — is written in deterministic code. It fires immediately on large flames or high wind, before any model reply.
 
@@ -58,7 +58,7 @@ EMBER helps scarce brigades decide **where to look first**. It does **not** fore
 - **Incident detail:** full observation history, task card, nearby co-reporters.
 - **Task screen:** accept, decline (with reason selection), or flag a task.
 - **WITHDRAW flow:** full-screen safety instruction with reason, confirm-safe step, and a clear screen once the supervisor marks the volunteer safe.
-- **SMS fallback screen:** when signal is lost, a pre-built message (help / safe / spreading) opens the phone's own SMS composer addressed to the crew lead or duty line numbers configured by the supervisor.
+- **SMS fallback screen:** when signal is lost, a pre-built message (help / safe / spreading) opens as a draft in the phone's own SMS app, addressed to the crew lead or duty line numbers configured by the supervisor. EMBER does not send the SMS: the volunteer sends it, and that still needs cell signal.
 - **Guided AI learning (Guide screen):** a training video, scenario lessons with three-check quizzes, and a grounded Gemini Flash practice coach. Progress is saved per volunteer.
 - **Profile screen:** name, crew, phone, language, location-sharing preference.
 - **Incidents list:** past and current incidents the volunteer has reported on.
@@ -81,7 +81,7 @@ EMBER helps scarce brigades decide **where to look first**. It does **not** fore
 
 ### Voice coach
 
-- **Model:** `gemini-live-2.5-flash-native-audio` on Vertex AI, `us-central1` (no Asia endpoint yet).
+- **Model:** `gemini-live-2.5-flash-native-audio` on Agent Platform, `us-central1` (no Asia endpoint yet).
 - **Authentication:** the PWA calls `POST /voice/ticket` to get a 60-second single-use ticket, then opens `new WebSocket(url, [ticket])`. The gateway reads the ticket from `Sec-WebSocket-Protocol`, verifies it atomically from Firestore, and echoes the subprotocol back in the 101 response (required by browsers).
 - **Tools the model may call:** `submit_observation` (severity, text), `get_common_picture` (the caller's digest), `get_my_task` (newest approved task, withdraw preferred).
 - **Caps:** 10 min per user, 60 min per operation (counted per Cloud Run instance; a reconnect does not reset).
@@ -128,7 +128,7 @@ graph TD
         FS["Firestore ember-db"]
         GCS["Cloud Storage\n(photos + videos)"]
     end
-    subgraph "Gemini / Vertex AI"
+    subgraph "Gemini / Agent Platform"
         LIVE["Gemini Live\ngemini-live-2.5-flash-native-audio\n(us-central1)"]
         FLASH["Gemini Flash\ngemini-2.5-flash\n(asia-southeast1)"]
     end
@@ -159,7 +159,7 @@ graph TD
     FCM --> CON
 ```
 
-Photo and video bytes go directly to Cloud Storage via a **signed URL** issued by `ember-api`. Human call media flows through LiveKit using room-scoped tokens issued by `ember-api`. The browser never opens Firestore listeners and never calls Gemini or Maps/Weather APIs directly. Firestore and Storage rules are deny-all.
+Photo and video bytes go directly to Cloud Storage via a **signed URL** issued by `ember-api`. Human call media flows through LiveKit using room-scoped tokens issued by `ember-api`. The browser never opens Firestore listeners and never calls Gemini directly. The only Google API it calls itself is the Maps JavaScript API, for map tiles. Firestore and Storage rules are deny-all.
 
 Full component table:
 
@@ -169,7 +169,7 @@ Full component table:
 | `ember-api` (public) | Cloud Run | REST: auth, roles, signed upload URLs (photos + video), approvals, incidents, digest, dashboard, training, practice relay, FCM push, audit log, voice tickets, call lifecycle, scoped LiveKit tokens |
 | `voice-gateway` (public, WSS) | Cloud Run | Verifies voice ticket via `Sec-WebSocket-Protocol`, relays audio and ~1 fps camera frames to Gemini Live, enforces Live-minute caps, writes observations from tool calls, notifies agents, delivers shared call transcription |
 | LiveKit Cloud | LiveKit | Volunteer video and two-way call audio; supervisor publishes microphone only. Room-scoped tokens issued by `ember-api` |
-| `ember-agents` (private) | Cloud Run | ADK-style graph: intake, fusion, conflict detection, evidence scoring, WITHDRAW rules, Spotter (photo triage), Assist (suggestions/ask/translate/call-frame), Summary, Practice coach, Sites scan |
+| `ember-agents` (private) | Cloud Run | Python service that calls Gemini through the google-genai SDK: intake, fusion, conflict detection, evidence scoring, WITHDRAW rules, Spotter (photo triage), Assist (suggestions/ask/translate/call-frame), Summary, Practice coach, Sites scan |
 | `ember-ingest` | Cloud Run job + Scheduler | Hourly FIRMS hotspots, weather (Open-Meteo), and PSI (data.gov.sg) |
 | Firestore `ember-db` | Firestore Native | Shared incident state. Client access is deny-all |
 | Cloud Storage | Cloud Storage | Private bucket: photos (14-day lifecycle), videos (7-day lifecycle). Signed-URL access only |
@@ -218,7 +218,7 @@ sequenceDiagram
 |---|---|
 | **Gemini Live** (`gemini-live-2.5-flash-native-audio`, `us-central1`) | Bahasa voice and camera conversation per push-to-talk burst. Tool calls `submit_observation`, `get_common_picture`, `get_my_task`. The model never changes incident state. Also used for per-speaker call transcription via `voice-gateway /calls/transcription` |
 | **Gemini Flash** (`gemini-2.5-flash`, `asia-southeast1`) | Photo triage (Spotter), Bahasa/English incident summaries, supervisor suggestions, report translation, grounded practice coach, call-frame visual descriptions |
-| **Vertex AI Agent Platform** | Service-account auth for both model calls. No Gemini API key on the deployed path |
+| **Agent Platform** | Service-account auth for both model calls. No Gemini API key on the deployed path |
 
 Design principle: **deterministic code decides, Gemini talks and looks.** Distances, wind, scores, and safety rules come from code and data. Every number spoken or shown to a volunteer comes from a tool return value or a Firestore-stored field. Gemini never sets incident severity, tasks, or WITHDRAW.
 
@@ -231,7 +231,7 @@ Design principle: **deterministic code decides, Gemini talks and looks.** Distan
 | Cloud Run (`ember-api`, `voice-gateway`, `ember-agents`, `ember-ingest`) | Serverless containers. WebSocket support (3600 s timeout + session affinity on gateway), scale to zero, min 0 / max 3 |
 | Firestore Native (`ember-db`, `asia-southeast1`) | Shared incident state with point-in-time recovery and daily backups. Client access is deny-all |
 | Cloud Storage | Private bucket: uniform access, public access prevention, 14-day photo lifecycle, 7-day video lifecycle, signed-URL uploads and reads |
-| Secret Manager | Server API keys (`FIRMS_MAP_KEY`, `DATA_GOV_SG_API_KEY`, `MAPS_SERVER_API_KEY`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`). Each readable only by the service that needs it. Values are never in Terraform state or Git |
+| Secret Manager | Server API keys (`FIRMS_MAP_KEY`, `DATA_GOV_SG_API_KEY`, `MAPS_SERVER_API_KEY`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`). Each readable only by the service that needs it. `MAPS_SERVER_API_KEY` is reserved: no service mounts or reads it today. Values are never in Terraform state or Git |
 | LiveKit Cloud | Volunteer-supervisor video calls with room-scoped participant tokens. Configured via `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` in `ember-api` |
 | Artifact Registry (`ember`) | Container images with a cleanup policy (keeps newest 5, deletes images older than 30 days) |
 | IAM | One least-privilege service account per service (`sa-ember-api`, `sa-voice-gateway`, `sa-ember-agents`, `sa-ember-ingest`, `sa-ember-terraform`, `sa-ember-deployer`) |
@@ -239,9 +239,9 @@ Design principle: **deterministic code decides, Gemini talks and looks.** Distan
 | Firebase Authentication | Google sign-in. The `role` custom claim (`volunteer` or `supervisor`) is set by `ember-api` |
 | Firebase App Check | reCAPTCHA Enterprise (Fraud Defense) attestation, 6 h TTL. Log-only mode (`APP_CHECK_ENFORCE=false`) until production |
 | Firebase Cloud Messaging | Task, WITHDRAW, and supervisor-alert push notifications |
-| Vertex AI (Agent Platform) | Gemini Live and Flash with service-account auth; `roles/aiplatform.user` granted to `sa-voice-gateway` and `sa-ember-agents` |
+| Agent Platform | Gemini Live and Flash with service-account auth; `roles/aiplatform.user` granted to `sa-voice-gateway` and `sa-ember-agents` |
 | Cloud Scheduler | Triggers `ember-ingest` job hourly (`0 * * * *` UTC) |
-| Maps JavaScript API + Maps Weather API | Supervisor map (browser key, referrer-restricted); wind/humidity data calls (server key, through `ember-api`) |
+| Maps JavaScript API | Supervisor map (browser key, referrer-restricted). Weather is not a Google API here: the ingest job reads Open-Meteo |
 | Workload Identity Federation | GitHub Actions authenticates as `sa-ember-terraform` and `sa-ember-deployer` — no JSON keys in the repo |
 | Cloud Billing budgets | Budget alert emails (alert-only, not a hard cap) |
 
@@ -505,8 +505,8 @@ All settable names (never values in this file):
 | `GOOGLE_CLOUD_PROJECT` | `ember-fire-commander` | |
 | `PORT` | — | Cloud Run sets this; `EMBER_VOICE_GATEWAY_PORT=8084` is the local fallback |
 | `APP_CHECK_ENFORCE` | `false` | |
-| `LIVE_MODEL` | `gemini-live-2.5-flash-native-audio` | Vertex AI model ID for Gemini Live |
-| `LIVE_LOCATION` | `us-central1` | Vertex AI region for Gemini Live (no Asia endpoint) |
+| `LIVE_MODEL` | `gemini-live-2.5-flash-native-audio` | Agent Platform model ID for Gemini Live |
+| `LIVE_LOCATION` | `us-central1` | Agent Platform region for Gemini Live (no Asia endpoint) |
 | `LIVE_MINUTE_CAP_USER` | `10` | Per-user Live-minute cap (counted per instance) |
 | `LIVE_MINUTE_CAP_OP` | `60` | Per-operation Live-minute cap (counted per instance) |
 | `EMBER_AGENTS_URL` | *(required)* | Private `ember-agents` URL for observation intake |
@@ -520,12 +520,12 @@ All settable names (never values in this file):
 | `PORT` | — | Cloud Run sets this; `EMBER_AGENTS_PORT=8082` is the local fallback |
 | `EMBER_CLUSTER_RADIUS_M` | `300` | Radius to cluster observations into one incident |
 | `EMBER_WIND_WITHDRAW_KMH` | `40` | Wind speed that triggers automatic WITHDRAW |
-| `EMBER_SATELLITE_RADIUS_M` | `500` | Satellite lead proximity for evidence factor |
+| `EMBER_SATELLITE_RADIUS_M` | `2000` | Satellite lead proximity for evidence factor |
 | `EMBER_SATELLITE_WINDOW_H` | `24` | Satellite lead time window for evidence factor |
 | `EMBER_SITE_RADIUS_M` | `500` | Radius for re-ignition watch |
 | `EMBER_SITE_WATCH_DAYS` | `14` | Days to watch an extinguished site |
-| `EMBER_FLASH_MODEL` | `gemini-2.5-flash` | Vertex AI model ID for Gemini Flash |
-| `EMBER_VERTEX_LOCATION` | `asia-southeast1` | Vertex AI region for Flash calls |
+| `EMBER_FLASH_MODEL` | `gemini-2.5-flash` | Agent Platform model ID for Gemini Flash |
+| `EMBER_VERTEX_LOCATION` | `asia-southeast1` | Agent Platform region for Flash calls |
 | `EMBER_FLASH_TIMEOUT_SECONDS` | `30` | Flash call timeout |
 | `PHOTO_BUCKET` | `ember-fire-commander-ember-photos` | Bucket for photo reads by Spotter |
 
@@ -564,7 +564,6 @@ All settable names (never values in this file):
 - The risk / evidence score is hand-weighted and is **not a probability**. Clustering and conflict thresholds were tuned on synthetic GPS-noise models, not field data. Practitioners need to tune them.
 - Bahasa prompts and UI text need review by a native speaker before production use.
 - iOS web push requires a Home Screen install (iOS 16.4+). Reliable background GPS and audio are not available in web PWAs.
-- `ember-extinguish`, `ember-severity` (lower), and supervisor-initiated `POST /incidents/{id}/withdraw` routes exist in `ember-api` but are **not called by the console UI**.
 - `BigQuery` archive and the spread-risk score based on Earth Engine data are not built.
 
 ---
@@ -575,7 +574,6 @@ All settable names (never values in this file):
 - Offline voice: record a short clip and transcribe it with Flash when back online
 - Google Earth Engine peat and burn-history layers in the risk score
 - Spread-risk score back-test publication
-- Agency report drafts (BPBD / Manggala Agni) for the supervisor to generate outside EMBER
 - Field tuning of thresholds with practitioners and a native-speaker review of all Bahasa text
 - Automatic cleanup of call transcript history after call ends
 - Call-media recording (audio/video of the LiveKit session)
@@ -604,6 +602,6 @@ All settable names (never values in this file):
 - **NASA FIRMS:** "We acknowledge the use of data and/or imagery from NASA's Fire Information for Resource Management System (FIRMS) (https://earthdata.nasa.gov/firms), part of NASA's Earth Science Data and Information System (ESDIS)." FIRMS data is not intended for tactical decision-making.
 - **Open-Meteo:** weather data by [Open-Meteo.com](https://open-meteo.com/), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 - **data.gov.sg:** Singapore PSI data from data.gov.sg, under the Singapore Open Data Licence.
-- **Google Maps Platform:** maps and Weather API, used under the Google Maps Platform terms.
+- **Google Maps Platform:** maps (Maps JavaScript API), used under the Google Maps Platform terms.
 - **LiveKit:** [LiveKit](https://livekit.io/) and its client/server SDKs provide real-time video and audio for supervisor–volunteer calls. Gemini provides speech transcription through the voice-gateway.
 - Inspired by Reuters' reporting on the Power of Mama volunteer brigade (Sep 2026). The personas in the demo are simulated, and EMBER is not affiliated with or endorsed by any organisation mentioned.

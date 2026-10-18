@@ -1,10 +1,10 @@
 # ember-agents
 
-**ADK agent graph for incident fusion and planning** (Cloud Run, private, asia-southeast1)
+**Agent service for incident fusion and planning** (Cloud Run, private, asia-southeast1)
 
 ## Role
 
-The agents service is the **private** ADK (Agent Development Kit) agent graph that:
+The agents service is the **private** Python (Flask) service on Cloud Run that runs the fusion pipeline in deterministic code and calls Gemini through the `google-genai` SDK. It:
 
 - Ingests observations from volunteers (via `voice-gateway` and `ember-api` notifications)
 - Deduplicates and clusters nearby observations into shared incidents
