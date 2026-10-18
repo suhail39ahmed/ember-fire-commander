@@ -6,7 +6,8 @@ import type { CallController } from './calls'
 
 const media = vi.hoisted(() => ({
   tracks: [] as { participant: { identity: string; isLocal: boolean }; publication: { isMuted: boolean } }[],
-  room: {} as { video?: unknown; audio?: unknown },
+  state: 'connected',
+  room: {} as { video?: unknown; audio?: unknown; onDisconnected?: () => void; onConnected?: () => void; onError?: (error: Error) => void },
 }))
 vi.mock('@livekit/components-react', () => ({
   LiveKitRoom: (props: { children: ReactNode; video?: unknown; audio?: unknown }) => {
@@ -18,7 +19,8 @@ vi.mock('@livekit/components-react', () => ({
   StartAudio: () => null,
   useTracks: () => media.tracks,
   useLocalParticipant: () => ({ localParticipant: {}, isMicrophoneEnabled: true, isCameraEnabled: true }),
-  useConnectionState: () => 'connected',
+  useConnectionState: () => media.state,
+  useRoomContext: () => ({ connect: vi.fn() }),
   useRemoteParticipants: () => [{ identity: 'peer' }],
 }))
 vi.mock('./CallTranscription', () => ({ CallTranscription: () => null }))
@@ -36,9 +38,31 @@ function controller(volunteer: boolean, video = true): CallController {
   } as unknown as CallController
 }
 const camera = (identity: string, isLocal: boolean) => ({ participant: { identity, isLocal }, publication: { isMuted: false } })
-beforeEach(() => { media.tracks = []; media.room = {} })
+beforeEach(() => { media.tracks = []; media.room = {}; media.state = 'connected' })
 
 describe('incident call camera direction', () => {
+  it('does not end the shared call or revoke peer tokens when the SDK disconnects before joining', () => {
+    media.state = 'disconnected'
+    const call = controller(true)
+    const html = renderToStaticMarkup(<IncidentCallMedia volunteer controller={call} />)
+    media.room.onDisconnected!()
+    expect(call.setConnected).toHaveBeenCalledWith(false)
+    expect(call.end).not.toHaveBeenCalled()
+    expect(html).toContain('Retry connection')
+  })
+
+  it('preserves a connected call after a media failure and clears the error on reconnection', () => {
+    const call = controller(false)
+    renderToStaticMarkup(<IncidentCallMedia controller={call} />)
+    media.room.onError!(new Error('Signal connection failed'))
+    media.room.onDisconnected!()
+    expect(call.setError).toHaveBeenCalledWith('Signal connection failed')
+    expect(call.end).not.toHaveBeenCalled()
+    media.room.onConnected!()
+    expect(call.setConnected).toHaveBeenLastCalledWith(true)
+    expect(call.setError).toHaveBeenLastCalledWith(null)
+  })
+
   it('publishes only supervisor audio and displays the identified volunteer camera', () => {
     media.tracks = [camera('supervisor-speaker', true), camera('another-peer', false), camera('volunteer-speaker', false)]
     const html = renderToStaticMarkup(<IncidentCallMedia controller={controller(false)} />)
