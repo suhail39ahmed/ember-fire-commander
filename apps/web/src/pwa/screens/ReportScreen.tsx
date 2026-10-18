@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import { CameraPanel } from '../camera/CameraPanel'
@@ -18,13 +18,19 @@ import { t } from '../i18n'
 import { incidentLabelById } from '../incidentName'
 import { screenStrings } from './strings'
 import type { SubmitResult } from '../outbox/useOutbox'
+import './reportScreen.css'
 
-/** The Report tab (#128 / #129 / #130): live camera, hold to talk, coach reply, report cards, photo, outbox. */
-export function ReportScreen() {
+/** Quick cards and photo reporting first; existing video and voice tools open on demand. */
+export function ReportScreen({ taskContext, children, onBack }: {
+  taskContext?: { taskId: string; incidentId: string }
+  children?: ReactNode
+  onBack?: () => void
+} = {}) {
   const { lang } = useLanguage()
-  const { api, volunteerId, outbox, upload, talk, digest, refresh, perms, position } = useVolunteer()
+  const { api, volunteerId, outbox, upload, talk, digest, refresh, position } = useVolunteer()
   const navigate = useNavigate()
-  const state = useLocation().state as { chip?: ChipValue | null; n?: number; incidentId?: string; taskId?: string } | null
+  const routeState = useLocation().state as { chip?: ChipValue | null; n?: number; incidentId?: string; taskId?: string } | null
+  const state = taskContext ? { ...taskContext, chip: undefined } : routeState
   const preset = state && state.chip !== undefined ? { chip: state.chip, n: state.n ?? 1 } : undefined
   const [voiceNote, setVoiceNote] = useState<string | null>(null)
   const camera = useLiveCamera()
@@ -33,15 +39,17 @@ export function ReportScreen() {
   // the photo submit path can await the clip without a second stop() call.
   const pendingClipRef = useRef<Promise<Blob | null> | null>(null)
 
-  // The browser asks for the camera only from a tap. The one exception: when the volunteer already allowed it, the
-  // preview opens with the screen (no prompt). It is tried once, so turning it off or taking a photo keeps it off.
-  const autoStarted = useRef(false)
-  useEffect(() => {
-    if (autoStarted.current || perms.camera !== 'granted') return
-    autoStarted.current = true
-    camera.start()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- start is stable per screen; only the permission matters
-  }, [perms.camera])
+  const [videoOpen, setVideoOpen] = useState(() => talk.coach.phase !== 'idle')
+  const [callOpen, setCallOpen] = useState(false)
+  const voiceActive = talk.view.button === 'listening' || talk.view.button === 'connecting'
+  const livePanelOpen = videoOpen || callOpen || voiceActive || talk.view.button === 'replying'
+  const copy = screenStrings.report
+
+  function toggleVideo() {
+    if (videoOpen) camera.stop()
+    else camera.start()
+    setVideoOpen((open) => !open)
+  }
 
   // Connect / disconnect the microphone from Hold to Talk to the video recorder.
   // When HtT goes live, talk.micStream becomes non-null and is mixed into the recording.
@@ -68,11 +76,11 @@ export function ReportScreen() {
     if (!pos) return
     const contentType: VideoContentType = mimeType.startsWith('video/mp4') ? 'video/mp4' : 'video/webm'
     try {
-      await outbox.submitVideo?.({ blob: clip, contentType, capturedAt: stampNow(), pos })
+      await outbox.submitVideo?.({ blob: clip, contentType, capturedAt: stampNow(), pos, ...(state?.taskId ? { taskId: state.taskId } : {}) })
     } catch {
       // Submission failed (e.g. upload error retryable later); keep the clip in the outbox.
       try {
-        await outbox.queueVideo?.({ blob: clip, contentType, capturedAt: stampNow(), pos })
+        await outbox.queueVideo?.({ blob: clip, contentType, capturedAt: stampNow(), pos, ...(state?.taskId ? { taskId: state.taskId } : {}) })
       } catch {
         // Storage unavailable; the clip cannot be kept.
       }
@@ -168,27 +176,36 @@ export function ReportScreen() {
 
   return (
     <>
+      <header className="report-page-header">
+        <div className="report-heading-title">{onBack && <button type="button" className="back" onClick={onBack} aria-label={t(lang, screenStrings.common.back)}>←</button>}<div>{!taskContext && <p className="report-eyebrow">{t(lang, copy.fieldReport)}</p>}<h1>{t(lang, taskContext ? screenStrings.task.title : copy.reportFire)}</h1></div></div>
+        <div className="report-live-tools" role="group" aria-label={t(lang, copy.liveOptions)}>
+          <button type="button" className="report-tool" aria-expanded={videoOpen} aria-controls="report-live-panel" disabled={voiceActive} onClick={toggleVideo}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="3" y="6" width="12" height="12" rx="3" /><path d="m15 10 6-3v10l-6-3" /></svg>
+            {t(lang, copy.video)}
+          </button>
+          <button type="button" className="report-tool" aria-expanded={callOpen || voiceActive} aria-controls="report-live-panel" title={t(lang, talk.view.status)} onClick={() => setCallOpen((open) => !open)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m8 3 3 5-3 3c1 2 3 4 5 5l3-3 5 3c0 3-2 5-5 5C9 21 3 15 3 8c0-3 2-5 5-5Z" /></svg>
+            {t(lang, copy.call)}
+          </button>
+        </div>
+      </header>
+      {children}
+      {(!taskContext || livePanelOpen) && <p className="report-page-intro">{t(lang, copy.quickReportIntro)}</p>}
+      <section id="report-live-panel" className="report-live-panel" hidden={!livePanelOpen} aria-label={t(lang, videoOpen ? copy.videoAndVoice : copy.call)}>
+        <div className="report-live-heading"><h2>{t(lang, videoOpen ? copy.videoAndVoice : copy.call)}</h2><button type="button" className="report-live-close" disabled={voiceActive} onClick={() => { camera.stop(); setVideoOpen(false); setCallOpen(false) }}>{t(lang, copy.closeLive)}</button></div>
+      <div hidden={!videoOpen}>
       <CameraPanel
         lang={lang}
         state={camera.state}
         stream={camera.stream}
         onToggle={camera.toggle}
         accuracyM={position.kind === 'ok' ? position.accuracyM : null}
-        onBack={() => navigate('/pwa')}
+        onBack={onBack ?? (() => navigate('/pwa'))}
         // The browser cannot open the voice-gateway socket yet (contract section 7), so no frame leaves the phone.
         framesToCoach={false}
         recorderSnap={camera.recorderSnap}
       />
-      {state?.incidentId && (
-        <p className="muted small" data-testid="report-context">
-          {t(lang, screenStrings.report.forIncident)} {incidentLabelById(state.incidentId, digest?.incidents)}
-        </p>
-      )}
-      {state?.taskId && (
-        <p className="muted small" data-testid="report-task-context">
-          {t(lang, screenStrings.report.forTask)} {digest?.myTasks.find((x) => x.id === state.taskId)?.instruction ?? ''}
-        </p>
-      )}
+      </div>
       <CoachReply lang={lang} phase={talk.coach.phase} replyText={talk.coach.replyText} />
       <HoldToTalkPanel
         lang={lang}
@@ -203,18 +220,32 @@ export function ReportScreen() {
           {voiceNote}
         </p>
       )}
+      </section>
+      <div hidden={Boolean(taskContext) && !livePanelOpen} className="report-form-content">
+      {!taskContext && state?.incidentId && (
+        <p className="muted small" data-testid="report-context">
+          {t(lang, screenStrings.report.forIncident)} {incidentLabelById(state.incidentId, digest?.incidents)}
+        </p>
+      )}
+      {!taskContext && state?.taskId && (
+        <p className="muted small" data-testid="report-task-context">
+          {t(lang, screenStrings.report.forTask)} {digest?.myTasks.find((x) => x.id === state.taskId)?.instruction ?? ''}
+        </p>
+      )}
       <ReportPanel
         api={api}
         lang={lang}
+        heading={t(lang, copy.whatDoYouSee)}
+        photo={<div className="report-photo-option"><PhotoPanel compact api={api} upload={upload} lang={lang} getPosition={getPosition} submit={submitPhoto} queuePhoto={outbox.queuePhoto} taskId={state?.taskId} onBeforeCapture={onBeforePhotoCapture} /><p className="report-photo-hint">{t(lang, copy.photoSendsSeparately)}</p></div>}
         locate={locate}
         onLocationGranted={watchLocationGranted}
         preset={preset}
         taskId={state?.taskId}
         submit={submitWithVideo}
         volunteerId={volunteerId}
-        onDone={() => navigate('/pwa')}
+        onDone={() => taskContext ? (camera.stop(), setVideoOpen(false), setCallOpen(false)) : navigate('/pwa')}
       />
-      <PhotoPanel api={api} upload={upload} lang={lang} getPosition={getPosition} submit={submitPhoto} queuePhoto={outbox.queuePhoto} taskId={state?.taskId} onBeforeCapture={onBeforePhotoCapture} />
+      </div>
       <OutboxPanel
         items={outbox.items}
         online={outbox.online}

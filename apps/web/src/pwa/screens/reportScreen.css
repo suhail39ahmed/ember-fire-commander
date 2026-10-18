@@ -1,0 +1,31 @@
+.report-page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 6px; }
+.report-eyebrow { margin: 0 0 6px; color: var(--ink-muted); font: 600 10px/1.3 ui-monospace, monospace; letter-spacing: .1em; }
+.report-page-header h1 { margin: 0; color: var(--ink); font-size: 28px; line-height: 1.15; letter-spacing: -.8px; }
+.report-heading-title { display: flex; align-items: center; gap: 8px; }
+.report-form-content { display: flex; flex-direction: column; gap: 12px; }
+.report-form-content[hidden] { display: none; }
+.report-page-intro { margin: 0 0 14px; max-width: 34ch; color: var(--ink-muted); font-size: 14px; line-height: 1.5; }
+.report-live-tools { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.report .chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.report-tool { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink); font-family: inherit; font-size: 12px; font-weight: 600; line-height: 1.2; cursor: pointer; }
+.report-tool svg { width: 16px; height: 16px; flex: none; }
+.report-tool[aria-expanded='true'] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.report-tool:focus-visible, .report-live-close:focus-visible { outline: 2px solid var(--ember); outline-offset: 3px; }
+.report-tool:disabled { cursor: default; }
+.report-photo-option { display: flex; flex-direction: column; gap: 7px; margin: 6px 0; }
+.report-photo-option .photo-compact { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 15px 16px; border: 1px dashed #cec6bc; border-radius: 16px; background: rgba(255,255,255,.45); }
+.report-photo-option .photo-compact .section-label { color: var(--ink-muted); font-size: 10px; }
+.report-photo-option .photo-compact .photo-actions { grid-column: 2; grid-row: 1; }
+.report-photo-option .photo-compact .btn { min-height: 42px; height: auto; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; background: #fff; color: var(--ink); font-size: 13px; white-space: nowrap; }
+.report-photo-option .photo-compact > :not(h3):not(.photo-actions):not(input) { grid-column: 1 / -1; }
+.report-photo-hint { margin: 0; color: var(--ink-muted); font-size: 11px; line-height: 1.4; }
+.report-live-panel { display: flex; flex-direction: column; gap: 12px; margin-bottom: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 20px; background: #fff; }
+.report-live-panel[hidden] { display: none; }
+.report-live-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.report-live-heading h2 { margin: 0; font-size: 14px; }
+.report-live-close { border: 0; background: transparent; font: inherit; font-size: 12px; color: var(--ink-muted); cursor: pointer; }
+.report-live-panel .cam { margin: 0; }
+@media (max-width: 380px) {
+  .report-page-header { flex-wrap: wrap; }
+  .report-live-tools { margin-bottom: 2px; }
+}

@@ -1,9 +1,9 @@
 import type { Digest, Task, Withdraw } from '../contracts/types'
 
 /** How long the phone shows the first WITHDRAW screen before it asks "Are you upwind and safe?". */
-export const CONFIRM_AFTER_MS = 60_000
+export const CONFIRM_AFTER_MS = 3_000
 /** While the volunteer is asked and has not answered, the phone repeats the alarm this often. */
-export const REMIND_EVERY_MS = 15_000
+export const REMIND_EVERY_MS = 10_000
 /** While "I can't get out" is on, the phone sends its position again this often. */
 export const SHARE_EVERY_MS = 10_000
 

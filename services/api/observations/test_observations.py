@@ -79,6 +79,26 @@ def test_chip_observation_is_stored_and_read_back(client, store, signed_in):
     assert store.audits[0]["targetId"] == body["id"]
 
 
+@pytest.mark.parametrize("task_type,owner,status,expected", [
+    ("instruct", "uid_sari", "approved", 201),
+    ("investigate", "uid_sari", "approved", 201),
+    ("instruct", "uid_other", "approved", 400),
+    ("instruct", "uid_sari", "proposed", 400),
+    ("withdraw", "uid_sari", "approved", 400),
+])
+def test_assigned_task_report_link_is_validated(client, store, signed_in, monkeypatch, task_type, owner, status, expected):
+    from incidents import store as incident_store
+    from incidents.fake_firestore import FakeFirestore
+    fake = FakeFirestore()
+    fake.add("tasks", "task_progress", {"type": task_type, "volunteerId": owner, "status": status})
+    monkeypatch.setattr(incident_store, "db", lambda: fake)
+    response = _post(client, dict(CHIP_BODY, taskId="task_progress"))
+    assert response.status_code == expected
+    if expected == 201:
+        assert store.get(response.get_json()["id"])["checkTaskId"] == "task_progress"
+        assert "checkTaskId" not in response.get_json()
+
+
 def test_chip_with_optional_note(client, store, signed_in):
     body = dict(CHIP_BODY, text="  Past the west ditch.  ")
     response = _post(client, body)

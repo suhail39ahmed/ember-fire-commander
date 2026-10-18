@@ -15,6 +15,7 @@ import { IncidentsScreen } from '../screens/IncidentsScreen'
 import { ProfileScreen } from '../screens/ProfileScreen'
 import { ReportScreen } from '../screens/ReportScreen'
 import { DeclineScreen } from '../screens/DeclineScreen'
+import { AcceptScreen } from '../screens/AcceptScreen'
 import { NotAFireScreen } from '../screens/NotAFireScreen'
 import { SmsScreen } from '../screens/SmsScreen'
 import { TaskScreen } from '../screens/TaskScreen'
@@ -91,6 +92,7 @@ export function PhoneLayout() {
           <Route path="incidents/:id/flag/:obsId" element={<FlagReportScreen />} />
           <Route path="task/:id" element={<TaskScreen />} />
           <Route path="task/:id/decline" element={<DeclineScreen />} />
+          <Route path="task/:id/accept" element={<AcceptScreen />} />
           <Route path="task/:id/not-a-fire" element={<NotAFireScreen />} />
           <Route path="sms" element={<SmsScreen />} />
           <Route path="guide" element={<GuideScreen />} />

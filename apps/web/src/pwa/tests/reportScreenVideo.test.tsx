@@ -75,14 +75,14 @@ vi.mock('../report/location', () => ({
 // Helpers
 // ---------------------------------------------------------------------------
 
-function renderScreen(value = volunteerValue({ outbox: outboxHandle() })) {
+function renderScreen(value = volunteerValue({ outbox: outboxHandle() }), taskContext?: { taskId: string; incidentId: string }) {
   reportPanelProps.length = 0
   httPanelProps.length = 0
   renderToStaticMarkup(
     <LanguageProvider>
       <VolunteerContext.Provider value={value}>
         <StaticRouter location="/pwa/report">
-          <ReportScreen />
+          <ReportScreen taskContext={taskContext} />
         </StaticRouter>
       </VolunteerContext.Provider>
     </LanguageProvider>,
@@ -110,6 +110,14 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('chip/text Send path — submitWithVideo', () => {
+  it('passes the task link to the clip upload when recording from a task', async () => {
+    stopAndTakeClipImpl = async () => new Blob(['clip'], { type: 'video/mp4' })
+    const submitVideo = vi.fn(async () => 'sent' as const)
+    const { reportSubmit } = renderScreen(volunteerValue({ outbox: outboxHandle({ submitVideo }) }), { taskId: 'task_1', incidentId: 'inc_1' })
+    await reportSubmit!(chipBody)
+    expect(submitVideo).toHaveBeenCalledWith(expect.objectContaining({ taskId: 'task_1' }))
+    expect(reportPanelProps[0]).toMatchObject({ taskId: 'task_1' })
+  })
   it('calls stopAndTakeClip() so the clip is taken even when the camera is still recording at Send time', async () => {
     const { reportSubmit } = renderScreen()
     expect(reportSubmit).toBeDefined()

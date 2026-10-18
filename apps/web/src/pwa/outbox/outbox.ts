@@ -168,17 +168,17 @@ export class Outbox {
       await this.save(item)
       try {
         if (!item.body && item.photo) {
-          const { blob, contentType, capturedAt, pos } = item.photo
+          const { blob, contentType, capturedAt, pos, taskId } = item.photo
           const photoPath = await this.deps.uploadPhoto(blob, contentType)
           // Keep the completed reference and drop the image bytes.
-          item = { ...item, body: buildPhotoObservation(photoPath, capturedAt, pos), photo: null }
+          item = { ...item, body: buildPhotoObservation(photoPath, capturedAt, pos, '', undefined, taskId), photo: null }
           await this.save(item)
         }
         if (!item.body && item.video) {
           if (!this.deps.uploadVideo) throw new Error('Outbox item has a video but no uploadVideo dependency')
-          const { blob, contentType, capturedAt, pos } = item.video
+          const { blob, contentType, capturedAt, pos, taskId } = item.video
           const videoPath = await this.deps.uploadVideo(blob, contentType)
-          item = { ...item, body: buildVideoObservation(videoPath, capturedAt, pos), video: null }
+          item = { ...item, body: buildVideoObservation(videoPath, capturedAt, pos, undefined, taskId), video: null }
           await this.save(item)
         }
         if (!item.body) throw new Error('Outbox item has nothing to send')

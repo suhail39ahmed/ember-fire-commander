@@ -161,6 +161,16 @@ export const screenStrings = {
     loadFailed: { id: 'Tidak bisa memuat insiden ini. Periksa sinyal lalu coba lagi.', en: 'Could not load this incident. Check your signal and try again.' },
   },
   report: {
+    fieldReport: { id: 'LAPORAN LAPANGAN', en: 'FIELD REPORT' },
+    reportFire: { id: 'Laporkan kebakaran', en: 'Report fire' },
+    liveOptions: { id: 'Pilihan komunikasi langsung', en: 'Live communication options' },
+    video: { id: 'Video', en: 'Video' },
+    call: { id: 'Telepon', en: 'Call' },
+    quickReportIntro: { id: 'Pilih yang Anda lihat. Tambahkan catatan jika perlu.', en: 'Choose what you see. Add a note if you need to.' },
+    whatDoYouSee: { id: 'APA YANG ANDA LIHAT?', en: 'WHAT DO YOU SEE?' },
+    photoSendsSeparately: { id: 'Foto dikirim sebagai laporan tersendiri.', en: 'A photo is sent as its own report.' },
+    videoAndVoice: { id: 'Laporan video & suara', en: 'Video & voice report' },
+    closeLive: { id: 'Tutup', en: 'Close' },
     forIncident: { id: 'Melapor untuk', en: 'Reporting for' },
     forTask: { id: 'Menjawab tugas:', en: 'Answering task:' },
   },
@@ -197,6 +207,15 @@ export const screenStrings = {
     saveFailed: { id: 'Tidak terkirim. Periksa sinyal lalu coba lagi.', en: 'Not sent. Check your signal and try again.' },
     instruction: { id: 'Instruksi', en: 'Instruction' },
     noInstruction: { id: 'Supervisor belum menulis instruksi untuk tugas ini.', en: 'Your supervisor has not written an instruction for this task.' },
+  },
+  accept: {
+    title: { id: 'Saya kerjakan', en: 'Doing it' },
+    lead: { id: 'Instruksi dari supervisor', en: 'Your supervisor’s instruction' },
+    progress: { id: 'PEMBARUAN (OPSIONAL)', en: 'UPDATE (OPTIONAL)' },
+    responses: {
+      on_my_way: { id: 'Dalam perjalanan', en: 'On my way' },
+      starting_now: { id: 'Mulai sekarang', en: 'Starting now' },
+    },
   },
   decline: {
     title: { id: 'Tidak bisa mengerjakan', en: "Can't do it" },
@@ -252,8 +271,8 @@ export const screenStrings = {
     otherVolunteer: { id: 'relawan lain', en: 'other volunteer' },
     sentToYou: { id: 'Dikirim ke Anda.', en: 'Sent to you.' },
     stays: {
-      id: 'Ini tetap tampil sampai aturan keselamatan atau supervisor mencabutnya. Anda tidak bisa menutupnya.',
-      en: "In 1 min you'll be asked if you're safe. This stays until your supervisor clears it. You can't close it.",
+      id: 'Dalam 3 detik Anda akan ditanya apakah sudah aman. Ini tetap tampil sampai supervisor mencabutnya. Anda tidak bisa menutupnya.',
+      en: "In 3 seconds you'll be asked if you're safe. This stays until your supervisor clears it. You can't close it.",
     },
     noted: { id: 'Tercatat: Anda aman. Tetap di tempat aman sampai ada tugas baru.', en: 'Noted: you are safe. Stay somewhere safe until a new task comes.' },
     notedBySupervisor: { id: 'Supervisor mencatat Anda aman. Tetap di tempat aman sampai ada tugas baru.', en: 'Your supervisor marked you safe. Stay somewhere safe until a new task comes.' },

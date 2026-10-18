@@ -48,6 +48,12 @@ function makeOutbox({ uploadVideo = vi.fn().mockResolvedValue('videos/uid_sari/2
 }
 
 describe('video outbox', () => {
+  it('keeps the task link through offline storage and upload replay', async () => {
+    const { outbox, sent } = makeOutbox()
+    await outbox.enqueueVideo({ blob: new Blob(['v']), contentType: 'video/mp4', capturedAt: '2026-10-18T09:00:00Z', pos: POS, taskId: 'task_1' })
+    await outbox.flush()
+    expect(sent[0]).toMatchObject({ source: 'video', taskId: 'task_1' })
+  })
   it('uploads a pending video and then sends a video observation', async () => {
     const { outbox, sent, uploadVideo } = makeOutbox()
     const video: PendingVideo = {

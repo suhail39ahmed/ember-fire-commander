@@ -76,7 +76,7 @@ export const profileCopy = {
 
 /** What the instruction history says about the volunteer's answer. Bahasa is DRAFT. */
 export const answerCopy = {
-  accepted: { id: 'Dikerjakan', en: 'Accepted' },
+  accepted: { id: 'Sedang dikerjakan', en: 'Doing it' },
   declined: { id: 'Ditolak', en: 'Declined' },
 } as const
 

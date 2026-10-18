@@ -10,6 +10,14 @@ const headers = async () => ({ Authorization: 'Bearer id-token', 'X-Firebase-App
 const json = (data: unknown, status: number) => new Response(JSON.stringify(data), { status })
 
 describe('http api client', () => {
+  it('sends the optional acceptance response and trimmed note', async () => {
+    const fetchImpl = vi.fn(async () => json({}, 200))
+    const api = createHttpApi(headers, 'https://api.example', fetchImpl as unknown as typeof fetch)
+    await api.acceptTask('task_1', 'on_my_way', '  Bringing the pump  ')
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('https://api.example/tasks/task_1/accept')
+    expect(JSON.parse(init.body as string)).toEqual({ response: 'on_my_way', note: 'Bringing the pump' })
+  })
   it('PATCHes profile preferences with identity headers and returns the updated profile', async () => {
     const me = { id: 'one', role: 'volunteer', language: 'jv', shareMyLocationWithCrew: false }
     const fetchImpl = vi.fn(async () => json(me, 200))

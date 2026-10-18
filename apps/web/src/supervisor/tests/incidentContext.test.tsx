@@ -202,7 +202,8 @@ describe('instruction history shows the volunteer’s answer', () => {
 
   it('says accepted or declined with the reason and note, and nothing before an answer', () => {
     expect(answerLine('en', task, (v) => v)).toBeNull()
-    expect(answerLine('en', { ...task, acceptedAt: '2026-10-17T03:09:00Z' }, () => '03:09')).toBe('Accepted 03:09')
+    expect(answerLine('en', { ...task, acceptedAt: '2026-10-17T03:09:00Z' }, () => '03:09')).toBe('Doing it 03:09')
+    expect(answerLine('en', { ...task, acceptedAt: '2026-10-17T03:09:00Z', acceptResponse: 'on_my_way', acceptNote: ' Bringing the pump ' }, () => '03:09')).toBe('Doing it 03:09 · On my way · Bringing the pump')
     expect(answerLine('en', { ...task, declinedAt: '2026-10-17T03:09:00Z', declineReason: 'too_far', declineNote: ' Across the river ' }, () => '03:09')).toBe('Declined 03:09 · Too far / cannot get there · Across the river')
     expect(answerLine('id', { ...task, declinedAt: '2026-10-17T03:09:00Z', declineReason: null, declineNote: null }, () => '03:09')).toBe('Ditolak 03:09')
   })

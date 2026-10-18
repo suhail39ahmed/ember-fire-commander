@@ -34,6 +34,7 @@ type Status =
   | { kind: 'error'; message: string; retryable: boolean }
 
 interface Props {
+  compact?: boolean
   api: EmberApi
   upload: UploadFn
   lang: Lang
@@ -58,7 +59,7 @@ function describe(e: unknown, lang: Lang): { message: string; retryable: boolean
 }
 
 /** #20: take one still, upload it to a signed URL, then send `source: photo`. */
-export function PhotoPanel({ api, upload, lang, getPosition, submit, queuePhoto, taskId, onBeforeCapture }: Props) {
+export function PhotoPanel({ compact = false, api, upload, lang, getPosition, submit, queuePhoto, taskId, onBeforeCapture }: Props) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const deviceFacts = useDeviceFacts(lang)
   const [shot, setShot] = useState<Shot | null>(null)
@@ -103,7 +104,7 @@ export function PhotoPanel({ api, upload, lang, getPosition, submit, queuePhoto,
       if (!photoPath && queuePhoto && e instanceof UploadError && e.retryable) {
         // Weak signal: keep the photo in IndexedDB so it survives a reload and uploads later.
         try {
-          await queuePhoto({ blob: current.blob, contentType: current.contentType, capturedAt: current.capturedAt, pos: current.pos })
+          await queuePhoto({ blob: current.blob, contentType: current.contentType, capturedAt: current.capturedAt, pos: current.pos, ...(taskId ? { taskId } : {}) })
           setStatus({ kind: 'queued', uploaded: false })
           return
         } catch {
@@ -156,9 +157,9 @@ export function PhotoPanel({ api, upload, lang, getPosition, submit, queuePhoto,
     : ''
 
   return (
-    <section className="card photo" aria-labelledby="photo-label">
+    <section className={`card photo${compact ? ' photo-compact' : ''}`} aria-labelledby="photo-label">
       <h3 id="photo-label" className="section-label">
-        {t(lang, s.label)}
+        {compact ? (lang === 'en' ? 'PHOTO REPORT' : 'LAPORAN FOTO') : t(lang, s.label)}
       </h3>
       <input
         ref={input}
@@ -180,7 +181,7 @@ export function PhotoPanel({ api, upload, lang, getPosition, submit, queuePhoto,
         </div>
       )}
 
-      {status.kind === 'idle' && <p className="muted small">{t(lang, s.framing)}</p>}
+      {status.kind === 'idle' && !compact && <p className="muted small">{t(lang, s.framing)}</p>}
       {status.kind === 'preparing' && (
         <p className="photo-status" role="status">
           {t(lang, s.preparing)}
@@ -224,7 +225,7 @@ export function PhotoPanel({ api, upload, lang, getPosition, submit, queuePhoto,
       <div className="photo-actions">
         {status.kind === 'idle' && (
           <button type="button" className="btn primary" onClick={() => openCapture(() => input.current?.click(), onBeforeCapture)}>
-            {t(lang, s.take)}
+            {compact ? (lang === 'en' ? 'Take & send photo' : 'Ambil & kirim foto') : t(lang, s.take)}
           </button>
         )}
         {status.kind === 'uploading' && (
