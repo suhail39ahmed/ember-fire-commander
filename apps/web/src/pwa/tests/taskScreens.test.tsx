@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
 import { DECLINE_REASONS } from '../contracts/types'
+import { AcceptView } from '../screens/AcceptScreen'
 import { ARRIVAL_RADIUS_M, arrivalOf, isSpotTask } from '../screens/arrival'
 import { DeclineView } from '../screens/DeclineScreen'
 import { canSendNotAFire, NOT_A_FIRE_REASONS, notAFireNote, UNSURE_CHIP } from '../screens/notAFire'
@@ -154,6 +155,24 @@ const decline = (over: Partial<Parameters<typeof DeclineView>[0]> = {}, lang: 'i
     { lang },
   )
 
+describe('doing it response', () => {
+  it('allows an acknowledgement without a selection or note and offers optional context', () => {
+    const html = renderVolunteer(<AcceptView lang="en" instruction="Bring the pump" response={null} note="" action={{ kind: 'idle' }} onResponse={noop} onNote={noop} onSend={noop} onBack={noop} />)
+    expect(html).toContain('Bring the pump')
+    expect(html).toContain('On my way')
+    expect(html).toContain('Starting now')
+    expect(html).toContain('maxLength="300"')
+    expect(html).not.toMatch(/<button[^>]*disabled[^>]*data-testid="accept-send"/)
+  })
+
+  it('keeps the saved acceptance message on the task screen', () => {
+    const html = fire({ task: task({ type: 'instruct', acceptedAt: '2026-10-18T09:00:00Z', acceptResponse: 'on_my_way', acceptNote: 'Bringing the pump' }) })
+    expect(html).toContain('On my way')
+    expect(html).toContain('Bringing the pump')
+    expect(html).toContain('/decline')
+  })
+})
+
 describe("can't do it (#137)", () => {
   it('lists every reason from the contract with a label in both languages', () => {
     const en = decline()
@@ -250,6 +269,18 @@ describe('task route', () => {
     const d = digest({ incidents: [incident()], myTasks: [task(), task({ id: 'task_2', type: 'instruct' })] })
     expect(route('/pwa/task/task_1', { digest: d })).toContain('data-testid="im-there"')
     expect(route('/pwa/task/task_2', { digest: d })).toContain('data-testid="doing-it"')
+  })
+
+  it('keeps media controls on the task before and after acceptance without opening the camera', () => {
+    for (const acceptedAt of [null, '2026-10-18T09:00:00Z']) {
+      const d = digest({ incidents: [incident()], myTasks: [task({ type: 'instruct', acceptedAt })] })
+      const html = route('/pwa/task/task_1', { digest: d })
+      expect(html).toContain('Live communication options')
+      expect(html).toContain('>Video</button>')
+      expect(html).toContain('>Call</button>')
+      expect(html).toContain('class="report-live-panel" hidden=""')
+      expect(html).toContain('data-camera="off"')
+    }
   })
 })
 

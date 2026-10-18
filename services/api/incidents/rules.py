@@ -18,7 +18,7 @@ INCIDENT_FIELDS = (
 SUMMARY_FIELDS = ("id", "name", "area", "status", "severity", "withdraw", "lat", "lng")
 TASK_FIELDS = (
     "id", "incidentId", "volunteerId", "type", "status", "instruction", "sentAt", "heardAt", "sendCount", "resendAt",
-    "acceptedAt", "declinedAt", "declineReason", "declineNote",
+    "acceptedAt", "acceptResponse", "acceptNote", "declinedAt", "declineReason", "declineNote",
     # Lead closed thank-you (#140). Absent until a supervisor closes the check.
     "closedAt", "closedBy", "closedByName", "closeMessage",
 )

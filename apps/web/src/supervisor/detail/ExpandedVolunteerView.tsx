@@ -416,6 +416,20 @@ function SnapshotsArea({ lang, popup, incidentId, photoUrl, videoUrl }: {
 }
 
 /** One block per declined task: reason label, optional note, and when they declined. Absent when no task is declined. */
+function AcceptedArea({ lang, popup }: { lang: Lang; popup: Popup }) {
+  const accepted = popup.tasks.filter((task) => task.acceptedAt && !task.declinedAt)
+  if (accepted.length === 0) return null
+  return <div className="exp-section exp-accepted-section" aria-label={t(lang, expandedCopy.doingItTitle)}>
+    <p className="exp-eyebrow">{t(lang, expandedCopy.doingItTitle)}</p>
+    <ul className="exp-declined-list">{accepted.map((task) => <li key={task.id} className="exp-declined-item">
+      <p className="exp-declined-meta">{popup.profile.name} · <time dateTime={task.acceptedAt ?? undefined}>{formatTime(task.acceptedAt!)}</time></p>
+      <p className="exp-declined-summary">{task.instruction ?? t(lang, taskCopy.type[task.type])}</p>
+      {task.acceptResponse && <p className="exp-declined-reason">{t(lang, screenStrings.accept.responses[task.acceptResponse])}</p>}
+      {task.acceptNote?.trim() && <p className="exp-declined-note">&ldquo;{task.acceptNote.trim()}&rdquo;</p>}
+    </li>)}</ul>
+  </div>
+}
+
 function DeclinedArea({ lang, popup }: { lang: Lang; popup: Popup }) {
   const declined = popup.tasks.filter((task) => task.declinedAt)
   if (declined.length === 0) return null
@@ -456,10 +470,10 @@ function SentArea({ lang, popup }: { lang: Lang; popup: Popup }) {
       ) : (
         <ul className="exp-sent-list">
           {popup.tasks.map((task) => {
-            const status = task.acceptedAt
-              ? { text: expandedCopy.done, tick: true }
-              : task.declinedAt
-                ? { text: expandedCopy.declined, tick: false }
+            const status = task.declinedAt
+              ? { text: expandedCopy.declined, tick: false }
+              : task.acceptedAt
+                ? { text: expandedCopy.done, tick: true }
                 : task.heardAt
                   ? { text: expandedCopy.heard, tick: true }
                   : { text: expandedCopy.sentNoAnswer, tick: false }
@@ -856,6 +870,7 @@ export function ExpandedVolunteerView({ lang, detail, volunteerId, onClose, offl
             />
             <LatestMessage lang={lang} popup={popup} />
             <DeclinedArea lang={lang} popup={popup} />
+            <AcceptedArea lang={lang} popup={popup} />
             <SnapshotsArea lang={lang} popup={popup} incidentId={detail.incident.id} photoUrl={photoUrl} videoUrl={videoUrl} />
             <SentArea lang={lang} popup={popup} />
           </div>

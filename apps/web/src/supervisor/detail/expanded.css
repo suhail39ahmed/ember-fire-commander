@@ -426,6 +426,8 @@
 
 /* Declined block */
 .exp-declined-section { background: #fff8f0; border-left: 3px solid #b45309; }
+.exp-accepted-section { background: #f0f8f2; border-left: 3px solid #15803d; }
+.exp-accepted-section .exp-declined-reason { color: #15803d; }
 
 .exp-declined-list {
   list-style: none;

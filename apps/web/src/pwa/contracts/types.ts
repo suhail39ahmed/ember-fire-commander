@@ -64,7 +64,7 @@ export interface ObservationCreate {
   /** Outbox item id. Sending it again returns the stored report instead of creating another. */
   clientId?: string
   device?: ObservationDevice
-  /** Verify task answered by this report (used to credit a checked satellite lead). */
+  /** Assigned task answered by this report. Verify reports can credit a checked satellite lead. */
   taskId?: string
 }
 
@@ -83,7 +83,7 @@ export interface PhotoObservationCreate {
   photoPath: string
   clientId?: string
   device?: ObservationDevice
-  /** Verify task answered by this photo (used to credit a checked satellite lead). */
+  /** Assigned task answered by this photo. Verify reports can credit a checked satellite lead. */
   taskId?: string
 }
 
@@ -102,7 +102,7 @@ export interface VideoObservationCreate {
   videoPath: string
   clientId?: string
   device?: ObservationDevice
-  /** Verify task answered by this video. */
+  /** Assigned task answered by this video. */
   taskId?: string
 }
 
@@ -283,6 +283,8 @@ export interface Task {
   resendAt?: string | null
   /** When the volunteer tapped Doing it. Absent or null until then. */
   acceptedAt?: string | null
+  acceptResponse?: 'on_my_way' | 'starting_now' | null
+  acceptNote?: string | null
   /** When the volunteer said they cannot do it, with the reason key and the optional note. Absent or null until then. */
   declinedAt?: string | null
   declineReason?: DeclineReason | null

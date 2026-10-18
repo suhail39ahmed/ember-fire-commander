@@ -59,6 +59,17 @@ function withWeather(detail: IncidentDetail): IncidentDetail {
 }
 
 describe('expanded view: layout and structure', () => {
+  it('shows acceptance context and stops presenting it as done or when later declined', () => {
+    const detail = fixture('declined')
+    detail.tasks = detail.tasks.map((task) => ({ ...task, declinedAt: null, acceptedAt: '2026-10-18T09:00:00Z', acceptResponse: 'on_my_way' as const, acceptNote: 'Bringing the pump' }))
+    const html = expanded(detail, 'uid_sari')
+    expect(html).toContain('exp-accepted-section')
+    expect(html).toContain('On my way')
+    expect(html).toContain('Bringing the pump')
+    expect(html).toContain('doing it')
+    detail.tasks = detail.tasks.map((task) => ({ ...task, declinedAt: '2026-10-18T09:05:00Z' }))
+    expect(expanded(detail, 'uid_sari')).not.toContain('exp-accepted-section')
+  })
   it('renders a dialog with two panes', () => {
     const html = expanded(fixture('conflict'), 'uid_sari')
     expect(html).toContain('role="dialog"')

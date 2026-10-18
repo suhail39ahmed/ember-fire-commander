@@ -32,9 +32,10 @@ const at = (html: string, needle: string) => {
 }
 
 describe('Report tab, ready (design 06)', () => {
-  it('stacks camera panel, Hold to talk, the four cards, the note, Send report, then the photo and outbox', () => {
+  it('keeps live tools tucked away and puts cards and photo before the note and Send report', () => {
     const html = screen()
-    const order = ['data-testid="camera-panel"', 'data-testid="hold-to-talk"', 'OR TAP WHAT YOU SEE', 'data-chip="asap"', 'Note (optional)', 'Send report', 'PHOTO UPLOAD'].map((n) => at(html, n))
+    expect(html).toContain('id="report-live-panel" class="report-live-panel" hidden=""')
+    const order = ['Report fire', 'WHAT DO YOU SEE?', 'data-chip="asap"', 'PHOTO REPORT', 'Note (optional)', 'Send report'].map((n) => at(html, n))
     expect([...order].sort((a, b) => a - b)).toEqual(order)
   })
 
@@ -55,7 +56,7 @@ describe('Report tab, ready (design 06)', () => {
 
   it('is fully in Bahasa in Bahasa mode', () => {
     const html = screen({}, 'id')
-    for (const text of ['ATAU PILIH YANG ANDA LIHAT', 'Catatan (opsional)', 'Asap, belum ada api', 'Saya melihat api', 'KAMERA MATI']) expect(html).toContain(text)
+    for (const text of ['APA YANG ANDA LIHAT?', 'Catatan (opsional)', 'Asap, belum ada api', 'Saya melihat api', 'KAMERA MATI']) expect(html).toContain(text)
   })
 
   it('never shows a model or tool name', () => {
@@ -94,7 +95,7 @@ describe('Report tab, coach reply (design 08)', () => {
     expect(html).toContain('Stay upwind.')
     expect(html).toContain('Coach is replying…')
     expect(html).toContain('Saved as a report · TOHOR-3')
-    const order = ['AI COACH', 'Coach is replying…', 'Saved as a report', 'OR TAP WHAT YOU SEE'].map((n) => at(html, n))
+    const order = ['AI COACH', 'Coach is replying…', 'Saved as a report', 'WHAT DO YOU SEE?'].map((n) => at(html, n))
     expect([...order].sort((a, b) => a - b)).toEqual(order)
   })
 

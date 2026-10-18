@@ -1,7 +1,5 @@
-import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
-import { ApiError } from '../api/types'
 import type { IncidentSummary, Task } from '../contracts/types'
 import { formatTime } from '../formatTime'
 import { TalkCard } from '../gateway/TalkCard'
@@ -17,6 +15,7 @@ import { screenStrings } from './strings'
 import { useDevicePosition } from './useDevicePosition'
 import type { ActionState } from './actionState'
 import type { TalkView } from '../gateway/voiceView'
+import { ReportScreen } from './ReportScreen'
 
 const s = screenStrings
 
@@ -55,12 +54,14 @@ export function TaskDetailView({
   incident,
   position,
   onBack,
+  embedded = false,
 }: {
   lang: Lang
   task: Task
   incident: IncidentSummary | null
   position: DevicePosition
   onBack: () => void
+  embedded?: boolean
 }) {
   const target = incident ? { lat: incident.lat, lng: incident.lng } : null
   const arrival = arrivalOf(position, target)
@@ -73,7 +74,7 @@ export function TaskDetailView({
 
   return (
     <>
-      <Head lang={lang} title={t(lang, s.task.title)} onBack={onBack} />
+      {!embedded && <Head lang={lang} title={t(lang, s.task.title)} onBack={onBack} />}
       <p className="section-label" data-testid="task-kicker">
         {t(lang, strings.taskType[task.type])}
         {task.sentAt ? ` · ${t(lang, s.task.from)} ${formatTime(task.sentAt)}` : ''}
@@ -124,6 +125,7 @@ export function OnTheFireView({
   action,
   onDoingIt,
   onBack,
+  embedded = false,
 }: {
   lang: Lang
   task: Task
@@ -132,12 +134,13 @@ export function OnTheFireView({
   action: ActionState
   onDoingIt: () => void
   onBack: () => void
+  embedded?: boolean
 }) {
   const accepted = Boolean(task.acceptedAt)
   const declined = Boolean(task.declinedAt)
   return (
     <>
-      <Head lang={lang} title={t(lang, s.task.title)} onBack={onBack} />
+      {!embedded && <Head lang={lang} title={t(lang, s.task.title)} onBack={onBack} />}
       <p className="on-fire" data-testid="on-fire-line">
         <span className="row-dot sev-small_flame" aria-hidden="true" />
         {incident ? incidentLabel(incident) : incidentLabelById(task.incidentId, [])}
@@ -152,7 +155,7 @@ export function OnTheFireView({
         {declined ? (
           <p className="notice" role="status" data-testid="declined-note">{t(lang, s.task.declinedDone)}</p>
         ) : accepted ? (
-          <p className="notice ok" role="status" data-testid="accepted-note">{t(lang, s.task.doingItDone)}</p>
+          <div className="notice ok" role="status" data-testid="accepted-note"><p>{t(lang, s.task.doingItDone)}</p>{task.acceptResponse && <p>{t(lang, s.accept.responses[task.acceptResponse])}</p>}{task.acceptNote && <p>{task.acceptNote}</p>}<Link to={`/pwa/task/${encodeURIComponent(task.id)}/decline`}>{t(lang, s.task.cantDoIt)}</Link></div>
         ) : (
           <div className="task-actions">
             <button type="button" className="btn ink" disabled={action.kind === 'busy'} onClick={onDoingIt} data-testid="doing-it">
@@ -166,20 +169,19 @@ export function OnTheFireView({
         {action.kind === 'failed' && <p className="error" role="alert">{t(lang, s.task.saveFailed)}</p>}
       </section>
       <p className="muted small">{t(lang, s.task.safetyRule)}</p>
-      <TalkCard lang={lang} view={talk.view} onPress={talk.onPress} onRelease={talk.onRelease} />
+      {!embedded && <TalkCard lang={lang} view={talk.view} onPress={talk.onPress} onRelease={talk.onRelease} />}
     </>
   )
 }
 
 export function TaskScreen() {
   const { lang } = useLanguage()
-  const { api, digest, refresh, talk } = useVolunteer()
+  const { digest, talk } = useVolunteer()
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const task = findTask(digest, id)
   const incident = task ? findIncident(digest, task.incidentId) : null
   const position = useDevicePosition(task !== null && isSpotTask(task.type))
-  const [action, setAction] = useState<ActionState>({ kind: 'idle' })
   const back = () => navigate(-1)
 
   if (!task || task.status !== 'approved') {
@@ -195,19 +197,9 @@ export function TaskScreen() {
     )
   }
 
-  if (isSpotTask(task.type)) {
-    return <TaskDetailView lang={lang} task={task} incident={incident} position={position} onBack={back} />
-  }
-
-  const doingIt = () => {
-    setAction({ kind: 'busy' })
-    api
-      .acceptTask(task.id)
-      .then(() => {
-        setAction({ kind: 'idle' })
-        refresh()
-      })
-      .catch((error: unknown) => setAction(error instanceof ApiError && error.status === 409 ? { kind: 'idle' } : { kind: 'failed' }))
-  }
-  return <OnTheFireView lang={lang} task={task} incident={incident} talk={talk} action={action} onDoingIt={doingIt} onBack={back} />
+  return <ReportScreen key={task.id} taskContext={{ taskId: task.id, incidentId: task.incidentId }} onBack={back}>
+    {isSpotTask(task.type)
+      ? <TaskDetailView embedded lang={lang} task={task} incident={incident} position={position} onBack={back} />
+      : <OnTheFireView embedded lang={lang} task={task} incident={incident} talk={talk} action={{ kind: 'idle' }} onDoingIt={() => navigate(`/pwa/task/${encodeURIComponent(task.id)}/accept`)} onBack={back} />}
+  </ReportScreen>
 }

@@ -312,11 +312,12 @@ export function createMockApi(volunteerId: string, latencyMs = 300, initialProfi
       if (task.status !== 'approved') throw new ApiError('conflict', 'Only a sent instruction can be heard', 409, false)
       task.heardAt ??= new Date().toISOString()
     },
-    async acceptTask(taskId) {
+    async acceptTask(taskId, response, note) {
       await wait()
       const task = digest.myTasks.find((t) => t.id === taskId)
       if (!task) throw new ApiError('not_found', 'task id is unknown', 404, false)
-      task.acceptedAt ??= new Date().toISOString()
+      if (task.status !== 'approved' || task.type === 'withdraw' || task.declinedAt) throw new ApiError('conflict', 'Only an open instruction can be accepted', 409, false)
+      if (!task.acceptedAt) Object.assign(task, { acceptedAt: new Date().toISOString(), acceptResponse: response ?? null, acceptNote: note?.trim() || null })
     },
     async declineTask(taskId, reason, note) {
       await wait()

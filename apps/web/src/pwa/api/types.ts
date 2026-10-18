@@ -34,7 +34,7 @@ export interface EmberApi {
   /** POST /tasks/{id}/heard: this phone showed the task. Sets `heardAt` once; a repeat changes nothing. */
   markTaskHeard(taskId: string): Promise<void>
   /** POST /tasks/{id}/accept: Doing it. Recorded once; a repeat changes nothing. */
-  acceptTask(taskId: string): Promise<void>
+  acceptTask(taskId: string, response?: 'on_my_way' | 'starting_now' | null, note?: string): Promise<void>
   /** POST /tasks/{id}/decline: Can't do it, with a reason key and an optional note. The instruction is not changed. */
   declineTask(taskId: string, reason: DeclineReason, note?: string): Promise<void>
   /** POST /incidents/{id}/withdraw/answer: safe upwind, or can't get out. The latest answer replaces the earlier one. */

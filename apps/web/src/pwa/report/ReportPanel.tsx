@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ChipValue, ObservationCreate, SentReport } from '../contracts/types'
 import type { EmberApi } from '../api/types'
 import { clockMessage, stampNow } from '../clock'
@@ -19,6 +19,8 @@ import { sendReport } from './sendReport'
 import { statusLine, type ReportStatus } from './status'
 
 interface Props {
+  heading?: string
+  photo?: ReactNode
   api: EmberApi
   lang: Lang
   /** Asks the browser for the position. Waits while the permission prompt is open. */
@@ -40,7 +42,7 @@ const signatureOf = (chip: ChipValue | null, text: string) => `${chip ?? ''}|${t
 const EMPTY_SIGNATURE = signatureOf(null, '')
 
 /** #17: chip and text report. Works without Live voice. */
-export function ReportPanel({ api, lang, locate, onLocationGranted, preset, taskId, submit, volunteerId = null, onDone }: Props) {
+export function ReportPanel({ heading, photo, api, lang, locate, onLocationGranted, preset, taskId, submit, volunteerId = null, onDone }: Props) {
   // A draft left by this volunteer within the last hour comes back after a reload or a closed app (#160).
   const [restored] = useState(() => (volunteerId ? loadDraft(volunteerId) : null))
   const [chip, setChip] = useState<ChipValue | null>(restored?.chip ?? null)
@@ -199,35 +201,18 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, task
 
   const title = (
     <h3 id="quick-report-label" className="section-label">
-      {t(lang, strings.tapWhatYouSee)}
+      {heading ?? t(lang, strings.tapWhatYouSee)}
     </h3>
   )
 
-  if (status.kind === 'sent' || status.kind === 'queued') {
-    return (
-      <>
-        <section className="card report" aria-labelledby="quick-report-label">
-          {title}
-          <SentCard
-            lang={lang}
-            kind={status.kind}
-            at={status.at}
-            chip={status.chip}
-            text={status.text}
-            onNew={reset}
-            onDone={onDone}
-            join={join}
-          />
-        </section>
-        <SentToday lang={lang} rows={sentRows(today, remote, lang)} />
-      </>
-    )
-  }
-
+  const finished = status.kind === 'sent' || status.kind === 'queued'
   return (
+    <>
     <section className="card report" aria-labelledby="quick-report-label">
       {title}
-      <ChipRow
+      {status.kind === 'sent' || status.kind === 'queued' ? (
+        <SentCard lang={lang} kind={status.kind} at={status.at} chip={status.chip} text={status.text} onNew={reset} onDone={onDone} join={join} />
+      ) : <ChipRow
         lang={lang}
         value={chip}
         disabled={locked}
@@ -238,9 +223,11 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, task
           setChip(next)
           if (status.kind === 'error') setStatus({ kind: 'idle' })
         }}
-      />
+      />}
 
-      <label className="note-label" htmlFor="report-note">
+      {photo}
+
+      {!finished && <><label className="note-label" htmlFor="report-note">
         {t(lang, strings.noteLabel)}
       </label>
       <input
@@ -267,6 +254,9 @@ export function ReportPanel({ api, lang, locate, onLocationGranted, preset, task
         {line.tone === 'busy' && <span className="report-spinner" aria-hidden="true" />}
         {line.text}
       </p>
+      </>}
     </section>
+    {finished && <SentToday lang={lang} rows={sentRows(today, remote, lang)} />}
+    </>
   )
 }

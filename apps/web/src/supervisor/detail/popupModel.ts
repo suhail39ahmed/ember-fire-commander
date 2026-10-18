@@ -98,7 +98,11 @@ export function answerLine(lang: Lang, task: Task, format: (value: string) => st
     const reason = task.declineReason ? screenStrings.decline.reasons[task.declineReason]?.[lang] : null
     return [`${answerCopy.declined[lang]} ${format(task.declinedAt)}`, reason, task.declineNote?.trim() || null].filter(Boolean).join(' · ')
   }
-  if (task.acceptedAt) return `${answerCopy.accepted[lang]} ${format(task.acceptedAt)}`
+  if (task.acceptedAt) return [
+    `${answerCopy.accepted[lang]} ${format(task.acceptedAt)}`,
+    task.acceptResponse ? screenStrings.accept.responses[task.acceptResponse]?.[lang] : null,
+    task.acceptNote?.trim() || null,
+  ].filter(Boolean).join(' · ')
   return null
 }
 

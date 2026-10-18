@@ -60,9 +60,10 @@ def create_observation():
         if (
             not task
             or task.get("volunteerId") != g.user["id"]
-            or task.get("type") != "verify"
+            or task.get("type") not in ("verify", "instruct", "investigate")
+            or (task.get("type") != "verify" and task.get("status") != "approved")
         ):
-            return jsonify({"error": {"code": "validation_error", "message": "taskId must name your verify task", "fields": {"taskId": "invalid for this report"}}}), 400
+            return jsonify({"error": {"code": "validation_error", "message": "taskId must name your assigned task", "fields": {"taskId": "invalid for this report"}}}), 400
         prepared["taskId"] = task_id
 
     record = assemble_record(prepared, g.user["id"], utc_now_iso(), g.user.get("displayName"))

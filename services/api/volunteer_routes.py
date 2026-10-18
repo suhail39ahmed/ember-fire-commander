@@ -214,6 +214,17 @@ def _task_body(task_id, task):
 def accept_task(task_id):
     """"Doing it": the volunteer says they will follow the instruction. Recorded once; a repeat writes nothing."""
     _require_volunteer()
+    # Empty requests remain valid for older clients (including the joined screen).
+    body = _body() if request.get_data() else {}
+    response = body.get("response")
+    if response is not None and response not in ("on_my_way", "starting_now"):
+        raise validation("response", "use on_my_way or starting_now")
+    note = body.get("note")
+    if note is not None and not isinstance(note, str):
+        raise validation("note", "a string or null")
+    note = (note or "").strip()
+    if len(note) > NOTE_MAX:
+        raise validation("note", f"at most {NOTE_MAX} characters")
 
     def run(transaction):
         ref, task = _own_sent_task(transaction, task_id)
@@ -221,7 +232,7 @@ def accept_task(task_id):
             raise conflict("This instruction was already declined")
         if task.get("acceptedAt"):
             return _task_body(task_id, task), None
-        changes = {"acceptedAt": rules.now_iso()}
+        changes = {"acceptedAt": rules.now_iso(), "acceptResponse": response, "acceptNote": note or None}
         transaction.update(ref, changes)
         audit_id = _audit(transaction, "task.accept", task_id)
         return _task_body(task_id, task | changes), audit_id

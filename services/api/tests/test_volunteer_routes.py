@@ -83,6 +83,29 @@ def test_a_supervisor_cannot_accept_or_decline(client, db, monkeypatch):
 
 # Can't do it ----------------------------------------------------------------
 
+def test_accept_message_survives_retry_and_both_reads(client, db, monkeypatch):
+    _as(monkeypatch)
+    first = client.post("/tasks/task_sari/accept", headers=AUTH, json={"response": "on_my_way", "note": "  Bringing the pump  "})
+    assert first.status_code == 200
+    assert first.get_json()["task"]["acceptNote"] == "Bringing the pump"
+    retry = client.post("/tasks/task_sari/accept", headers=AUTH, json={"response": "starting_now", "note": "Changed"})
+    assert retry.get_json()["auditId"] is None
+    assert retry.get_json()["task"]["acceptResponse"] == "on_my_way"
+    digest = client.get("/digest", headers=AUTH).get_json()
+    assert next(t for t in digest["myTasks"] if t["id"] == "task_sari")["acceptNote"] == "Bringing the pump"
+    _as(monkeypatch, role="supervisor", uid="uid_maya", name="Bu Maya")
+    detail = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    assert next(t for t in detail["tasks"] if t["id"] == "task_sari")["acceptNote"] == "Bringing the pump"
+    assert len(_audit(db)) == 1
+
+
+@pytest.mark.parametrize("body", [{"response": "unknown"}, {"response": []}, {"note": 4}, {"note": "x" * 301}, []])
+def test_accept_validates_optional_message(client, db, monkeypatch, body):
+    _as(monkeypatch)
+    assert client.post("/tasks/task_sari/accept", headers=AUTH, json=body).status_code == 400
+    assert _audit(db) == []
+
+
 def test_decline_stores_the_reason_and_note_and_keeps_the_instruction(client, db, monkeypatch):
     _as(monkeypatch)
     response = client.post("/tasks/task_sari/decline", headers=AUTH, json={"reason": "too_far", "note": "  Road is flooded "})

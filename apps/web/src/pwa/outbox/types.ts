@@ -5,6 +5,7 @@ export type OutboxState = 'queued' | 'sending' | 'failed' | 'sent'
 
 /** A photo taken offline whose upload has not finished yet. */
 export interface PendingPhoto {
+  taskId?: string
   blob: Blob
   contentType: PhotoContentType
   capturedAt: string
@@ -13,6 +14,7 @@ export interface PendingPhoto {
 
 /** A video clip recorded offline whose upload has not finished yet. */
 export interface PendingVideo {
+  taskId?: string
   blob: Blob
   contentType: VideoContentType
   capturedAt: string

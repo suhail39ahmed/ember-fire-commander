@@ -95,8 +95,8 @@ export function createHttpApi(
     markTaskHeard: async (taskId) => {
       await request<unknown>(ENDPOINTS.heard(taskId), { method: 'POST' })
     },
-    acceptTask: async (taskId) => {
-      await request<unknown>(ENDPOINTS.accept(taskId), { method: 'POST' })
+    acceptTask: async (taskId, response, note) => {
+      await request<unknown>(ENDPOINTS.accept(taskId), { method: 'POST', body: JSON.stringify({ response: response ?? null, note: note?.trim() || null }) })
     },
     declineTask: async (taskId: string, reason: DeclineReason, note?: string) => {
       await request<unknown>(ENDPOINTS.decline(taskId), { method: 'POST', body: JSON.stringify({ reason, note: note?.trim() ? note.trim() : null }) })

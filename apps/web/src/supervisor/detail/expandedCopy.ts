@@ -46,7 +46,8 @@ export const expandedCopy = {
   sentTitle: { id: 'Dikirim ke', en: 'Sent to' },
   noSent: { id: 'Belum ada instruksi untuk relawan ini.', en: 'No instructions for this volunteer yet.' },
   heard: { id: 'terdengar', en: 'heard' },
-  done: { id: 'selesai', en: 'done' },
+  done: { id: 'sedang dikerjakan', en: 'doing it' },
+  doingItTitle: { id: 'Sedang dikerjakan', en: 'Doing it' },
   declined: { id: 'ditolak', en: 'declined' },
   sentNoAnswer: { id: 'terkirim', en: 'sent' },
 
