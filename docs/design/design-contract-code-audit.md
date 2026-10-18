@@ -1,6 +1,6 @@
 # Design ↔ contract ↔ code audit — Supervisor Console
 
-Read-only comparison of the final Figma page **Ember Final Design · Supervisor Console (Web)** (`204:2`), [contract #4](../contracts/shared-contract.md), and the code on 15 Oct 2026. Nothing here is implemented, and the contract is unchanged. Route lookup: [docs/api/api-map.md](../api/api-map.md).
+Read-only comparison of the final Figma page **Ember Final Design · Supervisor Console (Web)** (`204:2`), [contract #4](../contracts/shared-contract.md), and the code on 15 Oct 2026. Many items marked ❌ or ⚠️ in this snapshot have since been built; see the git log and `docs/api/api-map.md` for the current state. Route lookup: [docs/api/api-map.md](../api/api-map.md).
 
 Figma was read through the REST API (file `WacSWJ9eGsdJ4vG9Q1nbyk`, version `2410619806413550595`, last modified 2026-10-15 16:10 UTC), one section at a time. Sections read: `205:2` User Flow, `205:3` Final Screens, `205:4` Important States. `205:5` WIP / Archive was not read. The volunteer page (`204:3`) and the Supervisor PWA page (`204:4`) were read for their dev notes only, to answer the volunteer and phone checks in §4. Their screens are not scored here.
 

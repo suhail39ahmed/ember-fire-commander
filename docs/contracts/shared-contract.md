@@ -6,7 +6,7 @@ The browser talks only to `ember-api` (REST) and `voice-gateway` (WebSocket). Cl
 
 Examples below are synthetic.
 
-This revision matches `main` at `0e0b32c` (15 Oct 2026). Section 11 lists the settings, §12 is for the UI rework, and §13 is the changelog since v1.
+This revision matches `main` at `dc56371` (18 Oct 2026). Section 11 lists the settings, §12 is for the UI rework, and §13 is the changelog since v1.
 
 ## 1. Rules
 

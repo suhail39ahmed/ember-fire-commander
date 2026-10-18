@@ -2,13 +2,14 @@
 
 Lookup of the HTTP and WebSocket surface as the code serves it, and which client calls each route. Field rules, enums, and error codes are defined in [`docs/contracts/shared-contract.md`](../contracts/shared-contract.md). When this file and the contract disagree, the contract wins; the last section lists the places the code already differs.
 
-The browser talks only to `ember-api` (REST) and `voice-gateway` (WebSocket). It does not read Firestore. A photo `PUT` goes to a signed Cloud Storage URL that `ember-api` issued. Map tiles load in the browser with the referrer-restricted Maps key.
+The browser talks only to `ember-api` (REST) and `voice-gateway` (WebSocket). It does not read Firestore. Photo and video `PUT`s go to signed Cloud Storage URLs that `ember-api` issued. Map tiles load in the browser with the referrer-restricted Maps key.
 
 | Service | Code | Default local port |
 |---|---|---|
 | `ember-api` | `services/api/` | `8080` (`VITE_EMBER_API_URL`, `VITE_API_BASE_URL`) |
-| `voice-gateway` | `services/voice-gateway/` | `8080` (`VITE_VOICE_GATEWAY_WSS_URL`) |
+| `voice-gateway` | `services/voice-gateway/` | `8084` (`VITE_VOICE_GATEWAY_WSS_URL`) |
 | `ember-agents` | `services/agents/` | `8082` (`EMBER_AGENTS_URL`, server-side only) |
+| `ember-ingest` | `jobs/ingest/` | Cloud Run job only (no local HTTP server) |
 
 Clients:
 
@@ -46,7 +47,7 @@ Error body:
 | Name | Values |
 |---|---|
 | Role | `volunteer`, `supervisor` |
-| Observation source | `live`, `chip`, `text`, `photo` |
+| Observation source | `live`, `chip`, `text`, `photo`, `video` |
 | Chip | `asap`, `api`, `aman`, `butuh_bantuan` |
 | Severity | `none`, `smoke`, `small_flame`, `large_flame`, `unknown` |
 | Severity order (low to high) | `none`, `smoke`, `small_flame`, `large_flame`. `unknown` does not raise or lower a known severity |
@@ -113,17 +114,21 @@ There is no route that clears `withdraw`, raises severity, sets incident status 
 
 `POST /photos/upload-url` returns a short-lived V4 signed URL. The PWA `PUT`s the still to that URL with the returned `Content-Type`, then `POST /observations` with `source: "photo"` and the returned `photoPath`. The path is private. Upload records live in `photoUploads`. Client: `apps/web/src/pwa/photo/`.
 
+### Video clips
+
+`POST /videos/upload-url` mirrors the photo path for video. The PWA records up to 60 s (`MAX_RECORDING_MS`) at 500 kbps with audio mixed from the push-to-talk microphone stream. Format is feature-detected: `video/mp4` on iOS/Chrome 105+, `video/webm` on Android Chrome. Clips are PUT to the signed URL, then `POST /observations` with `source: "video"` and `videoPath`. Upload records live in `videoUploads`. Max clip size is 10 MB. Client: `apps/web/src/pwa/video/`. Video clips are not sent to the Spotter photo-triage agent. Supervisors play clips via `GET /incidents/{id}/videos/{observationId}` in the expanded volunteer view Live panel.
+
 ### Polling
 
 The PWA polls `GET /digest` and the console polls `GET /incidents` (and reloads the open incident) every 5 seconds (`POLL_MS` in `VolunteerApp.tsx` and `SupervisorConsole.tsx`). The console chrome polls `GET /dashboard` every 15 seconds (`CHROME_POLL_MS` in `ConsoleProvider.tsx`). During a Live session the gateway also sends `digest` messages. FCM is the channel when the app is backgrounded: new tasks and withdraw instructions. Payload fields are outside the shared contract.
 
 ## voice-gateway
 
-`GET /healthz` is public. The WebSocket is `GET /` upgraded to a socket (`services/voice-gateway/app.py`).
+`GET /healthz` and `GET /health` are public. The WebSocket is `GET /` upgraded to a socket (`services/voice-gateway/app.py`). The gateway runs under Gunicorn `gthread` (100 threads) to support concurrent WebSocket sessions alongside gRPC-based Gemini calls.
 
 Two upgrade paths:
-- **Native clients**: `Authorization: Bearer <Firebase ID token>` + `X-Firebase-AppCheck` headers, same as §2.
-- **Browser (PWA)**: `Sec-WebSocket-Protocol: <ticket>` where the ticket was issued by `POST /voice/ticket`. The gateway verifies and consumes the ticket atomically from Firestore (`voiceTickets/{ticket}` in `ember-db`). The browser requires the gateway to echo the same protocol value in the 101 response.
+- **Browser (PWA):** `Sec-WebSocket-Protocol: <ticket>` where the ticket was issued by `POST /voice/ticket`. The gateway reads the ticket from that header, verifies and atomically consumes it from `voiceTickets/{ticket}` in `ember-db`, then echoes the same value in the `Sec-WebSocket-Protocol` response header (browsers reject the upgrade if this is missing). App Check is not re-checked here; `ember-api` already enforced it when it issued the ticket.
+- **Native clients:** `Authorization: Bearer <Firebase ID token>` + `X-Firebase-AppCheck` headers.
 
 The service does not accept tokens on the query string.
 
@@ -137,29 +142,43 @@ Caps: `LIVE_MINUTE_CAP_USER` (default 10) and `LIVE_MINUTE_CAP_OP` (default 60),
 
 ## ember-agents
 
-Private. Only the `ember-api` and `voice-gateway` service accounts can invoke it. No Firebase user auth on these handlers.
+Private. Only the `sa-ember-api` and `sa-voice-gateway` service accounts can invoke it. No Firebase user auth on these handlers.
 
 | Method | Path | Body | Success |
 |---|---|---|---|
 | GET | `/healthz` | — | `200` `{ status, service, firestore_database }` |
-| POST | `/internal/observations/{id}/intake` | none | `202` `{ observationId }`. Idempotent once the observation is already in an incident |
-| POST | `/internal/observations/{id}/triage` | optional `{ callerId }` | `200` `photo_triage` record |
+| POST | `/internal/observations/{id}/intake` | none | `202` `{ observationId }`. Idempotent once the observation is already in an incident. Clusters, scores, detects conflicts, fires WITHDRAW rules |
+| POST | `/internal/observations/{id}/triage` | optional `{ callerId }` | `200` `photo_triage` record. `photo` source only; video is not triaged |
+| POST | `/internal/incidents/{id}/suggestions` | none | `200` `incident_suggestions` record. Gemini Flash advisory for the supervisor |
+| POST | `/internal/incidents/{id}/ask` | `{ question, volunteerId? }` | `200` `{ answer, enoughData }`. No Firestore write. `502` on model failure |
+| POST | `/internal/observations/{id}/translate` | none | `200` `observation_translations` record. `502` on model failure; stored translation is final on a repeat |
 | POST | `/internal/incidents/{id}/summary` | none | `200` `incident_summaries` record |
-| POST | `/internal/sites/scan` | none | `200` `{ sitesWatched, sitesRemembered, sitesExpired, alertsCreated }` |
-| POST | `/internal/practice` | `{ message, lang, lessonId?, index: 1..3 }` | Grounded localized reply, allowlisted `ruleKey`, question, three options, `correctId` and right/wrong feedback. Private to backend service callers; `503 practice_grounding_unconfigured` when no datastore is configured |
+| POST | `/internal/sites/scan` | none | `200` `{ sitesWatched, sitesRemembered, sitesExpired, alertsCreated }`. Run by Cloud Scheduler |
+| POST | `/internal/practice` | `{ message, lang, lessonId?, index: 1..3 }` | Grounded localized reply, allowlisted `ruleKey`, question, three options, `correctId` and right/wrong feedback. `503 practice_grounding_unconfigured` when no datastore is configured |
 
-`ember-api` calls intake with a 3 second timeout after storing an observation. A failed call stays in `intakePending` and is retried later, up to 20 attempts. The observation is not refused because agents is down.
+`ember-api` calls intake with a 3-second timeout after storing an observation. A failed call stays in `intakePending` and is retried later, up to 20 attempts. The observation is not refused because agents is down.
 
-`photo_triage`, `incident_summaries`, `sites`, `leads`, `weather`, `psi`, and `ingestRuns` have no public REST route. Shapes are contract §5.7.
+`photo_triage`, `incident_summaries`, `incident_suggestions`, `observation_translations`, `sites`, `leads`, `weather`, `psi`, and `ingestRuns` have no public REST route. Shapes are contract §5.7.
+
+## ember-ingest (Cloud Run job)
+
+Not a long-running HTTP service. Invoked on schedule (`0 * * * *` UTC) by Cloud Scheduler and on demand via `deploy-ingest.yml`. No HTTP routes other than the job container's health endpoint used by Cloud Run.
+
+| Source | Writes | Notes |
+|---|---|---|
+| NASA FIRMS area API | `leads/{id}` | Needs `FIRMS_MAP_KEY` secret |
+| Open-Meteo weather | `weather/current` | No key required |
+| data.gov.sg PSI | `psi/current` | `DATA_GOV_SG_API_KEY` optional |
+| — | `ingestRuns/{runId}` | Per-source ok/error for every run |
 
 ## Where the code and the contract already differ
 
 | Topic | Contract | Code |
 |---|---|---|
-| Photo on `POST /observations` | §6.2 says `source: "photo"` is rejected on this route; the signed URL is outside the contract | The route accepts `source: "photo"` with a `photoPath` from `POST /photos/upload-url` |
+| Photo on `POST /observations` | §6.2 says `source: "photo"` is rejected on this route; the signed URL is outside the contract | The route accepts `source: "photo"` with a `photoPath` from `POST /photos/upload-url`. Video likewise with `videoPath` |
 | Observation fields on incident detail | §5.1 includes optional `volunteerName` and `clientId` | Authorized detail returns stored `volunteerName` for either role; it omits `clientId` and device data. `POST /observations` returns them when stored |
 | Supervisor client | §6.5 includes extinguish, lower severity, and supervisor withdraw | Those three routes exist on `ember-api`. `apps/web/src/supervisor/api/client.ts` does not call them |
-| `investigate` tasks | §6.5 approves them when no conflict is open | Approve/reject handle them. Fusion creates `verify` and `withdraw` tasks only |
+| `investigate` tasks | §6.5 approves them when no conflict is open | Approve/reject handles them. Fusion creates `verify` and `withdraw` tasks only |
 | Conflict `resolved` | Clients have no route that sets it | No production writer sets `resolved` |
-| Audit read | §5.5 is append-only; no read route | Matches. Writes happen. Nothing lists them |
-| Maps and weather proxy | Architecture notes say browser weather goes through `ember-api` | No maps or weather route in `services/api/` |
+| Maps and weather proxy | Architecture notes say browser weather goes through `ember-api` | No maps or weather proxy route in `services/api/`; map tiles load in the browser with the browser key |
+| Live-seat two-way call | §6.8 describes a supervisor-volunteer live call | `POST /incidents/{id}/live/make-live` and `/retry` exist on `ember-api`. The console `LiveControls` component renders but the two-way call is not wired |

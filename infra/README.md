@@ -1,10 +1,10 @@
 # EMBER infrastructure (Terraform + pipelines)
 
-All Google Cloud and Firebase infrastructure for EMBER is defined in Terraform and **applied** to project `ember-fire-commander` (number `991193351821`, region `asia-southeast1`).
+All Google Cloud and Firebase infrastructure for EMBER is defined in Terraform and **applied** to project `ember-fire-commander` (region `asia-southeast1`).
 
 - **State:** `gs://ember-fire-commander-tfstate`. The bucket is private and versioned, with native locking. State is never stored in Git.
 - **Ownership:** every infrastructure change goes through a pull request and the `terraform` pipeline. **Don't change resources in the console**, because the next plan will show the edit as drift.
-- **Current state:** `terraform plan` on `main` shows **No changes**. The three Cloud Run services run app skeletons or the placeholder image until the app code ships.
+- **Current state:** `terraform plan` on `main` shows **No changes**. All six deploy pipelines (api, voice-gateway, agents, ingest, web, terraform) are live.
 
 ```
 infra/
@@ -21,10 +21,12 @@ infra/
 │   ├── cicd_identities.tf       sa-ember-terraform, sa-ember-deployer + roles
 │   ├── wif.tf                   GitHub Workload Identity Federation
 │   ├── firestore.tf             Firestore Native `ember-db` + PITR + daily backups
-│   ├── storage.tf               photo bucket (private, 14-day TTL, CORS) + build-source bucket
+│   ├── storage.tf               photo+video bucket (private, lifecycle, CORS) + build-source bucket
 │   ├── secrets.tf               secret containers + per-secret access (values never in state)
 │   ├── artifact_registry.tf     Docker repo "ember" + cleanup policy
 │   ├── cloud_run.tf             ember-api, voice-gateway, ember-agents
+│   ├── ingest.tf                ember-ingest Cloud Run job + Cloud Scheduler
+│   ├── agents_jobs.tf           optional agents Cloud Scheduler jobs (sites scan)
 │   ├── firebase.tf              Firebase project, Hosting site, optional web app/App Check
 │   ├── maps_keys.tf             optional restricted Maps keys (off)
 │   ├── budget.tf                optional budget (off; console alerts are used)
@@ -83,10 +85,12 @@ Don't `apply` from a laptop. Apply goes through the pipeline. On PowerShell, quo
 | `cicd_identities.tf` | `sa-ember-terraform` (Owner-lite roles for managing infra) and `sa-ember-deployer` (run.developer, firebasehosting.admin, logWriter, Artifact Registry writer, actAs the 3 runtime SAs only) |
 | `wif.tf` | Pool `github`, provider `github-oidc` restricted to `suhail39ahmed/ember-fire-commander` |
 | `firestore.tf` | Native DB `ember-db` in `asia-southeast1`, PITR, daily backup schedule; optional rules release |
-| `storage.tf` | `ember-fire-commander-ember-photos` (UBLA, public access prevention, delete after 14 days, CORS PUT from localhost:5173 + Hosting domains; objectAdmin for ember-api only) and `ember-fire-commander-ember-build-src` (Cloud Build source, 7-day TTL) |
+| `storage.tf` | `ember-fire-commander-ember-photos` (UBLA, public access prevention, CORS PUT+GET from localhost:5173 + Hosting domains; objectAdmin for ember-api only). Lifecycle: delete photos under `photos/` after 14 days, videos under `videos/` after `video_retention_days` (default 7). `ember-fire-commander-ember-build-src` (Cloud Build source, 7-day TTL) |
 | `secrets.tf` | `FIRMS_MAP_KEY`, `DATA_GOV_SG_API_KEY` (→ ingest), `MAPS_SERVER_API_KEY` (→ api) |
 | `artifact_registry.tf` | `asia-southeast1-docker.pkg.dev/ember-fire-commander/ember`, keeps the 5 newest images, deletes images older than 30 days |
 | `cloud_run.tf` | The 3 services with env vars (`FIRESTORE_DATABASE=ember-db`, etc.). ember-api and voice-gateway are public (auth in code); ember-agents can only be invoked by the api and gateway SAs. Terraform **ignores image changes**, so the deploy pipelines own the image. |
+| `ingest.tf` | `ember-ingest` Cloud Run job and Cloud Scheduler trigger (`0 * * * *` UTC). Env vars: `FIRESTORE_DATABASE`, `GOOGLE_CLOUD_PROJECT`, and FIRMS/weather/PSI settings. |
+| `agents_jobs.tf` | Optional Cloud Scheduler job to call `POST /internal/sites/scan` hourly on `ember-agents`. Off by default. |
 | `firebase.tf` | Firebase on the project and the Hosting site; optional web app / App Check |
 | `budget.tf`, `maps_keys.tf` | Optional (off) |
 
@@ -125,7 +129,9 @@ gcloud secrets list --project=ember-fire-commander
 
 ## Deploying code
 
-App code is deployed by `.github/workflows/deploy-{api,voice-gateway,agents,web}.yml`. They're manual (`workflow_dispatch`), run from `main` only, and use WIF as `sa-ember-deployer`. Each deploy changes **only the image**, and passes the same runtime SA and env vars that Terraform sets, so `terraform plan` stays clean.
+App code is deployed by `.github/workflows/deploy-{api,voice-gateway,agents,ingest,web}.yml`. They're manual (`workflow_dispatch`), run from `main` only, and use WIF as `sa-ember-deployer`. Each deploy changes **only the image**, and passes the same runtime SA and env vars that Terraform sets, so `terraform plan` stays clean.
+
+`deploy-ingest.yml` has an optional boolean input `run_now`: when checked it executes the job once immediately after swapping the image (useful for a manual ingest run after deploy).
 
 Cloud Build alternative:
 ```bash
@@ -144,6 +150,6 @@ Things that cost money only when used: Cloud Run requests (min instances 0), Gem
 
 ## Confirm list
 
-- `LIVE_MODEL` is `gemini-live-2.5-flash-native-audio` (Vertex AI Agent Platform GA id; retires 2026-12-13). Live-minute caps (10 per user, 60 per op) are placeholders.
+- `LIVE_MODEL` is `gemini-live-2.5-flash-native-audio` (Vertex AI Agent Platform; retires 2026-12-13). Live-minute caps: 10 per user, 60 per operation (per instance).
 - `api_token_creator_scope = "self"` for least privilege. Test signed URLs after changing it.
 - Out of scope for now: Scheduler + `ember-ingest` job, BigQuery, Pub/Sub, Earth Engine, Load Balancer/Cloud Armor, custom domain.
