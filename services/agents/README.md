@@ -21,12 +21,20 @@ The agents service is the **private** ADK (Agent Development Kit) agent graph th
 - **Service account:** `sa-ember-agents@ember-fire-commander.iam.gserviceaccount.com` with least-privilege IAM bindings.
 - **Gemini via Agent Platform:** uses service-account auth, so no Gemini API key is needed.
 
-## Phase 1 (current)
+## Current state
 
-This is a **walking skeleton** with:
-- `GET /healthz` returning `200` for Cloud Run health checks
+All private routes described in `docs/api/api-map.md` are implemented:
 
-No secrets, no ADK graph, no Gemini calls yet. The deploy pipeline builds this directory and deploys to Cloud Run `ember-agents`.
+- `POST /internal/observations/{id}/intake` — fusion, conflict detection, WITHDRAW rules
+- `POST /internal/observations/{id}/triage` — Gemini Flash photo triage (Spotter)
+- `POST /internal/incidents/{id}/suggestions` — Gemini Flash supervisor advisory (Assist)
+- `POST /internal/incidents/{id}/ask` — Gemini Flash ad-hoc supervisor question (Assist)
+- `POST /internal/observations/{id}/translate` — Gemini Flash report translation (Assist)
+- `POST /internal/incidents/{id}/summary` — Gemini Flash incident summary (Spotter)
+- `POST /internal/sites/scan` — re-ignition watch (Sites)
+- `POST /internal/practice` — grounded Gemini Flash practice coach (Guide)
+
+Sub-packages: `fusion/` (rules, store), `spotter/` (photo triage, summary), `assist/` (suggestions, ask, translate), `practice/`, `sites/`.
 
 ## Fusion rules (`fusion/`)
 
@@ -79,7 +87,7 @@ Neither Python app loads `.env.local` automatically, so export those values befo
 Test the health check:
 
 ```bash
-curl http://localhost:8080/healthz
+curl http://localhost:8082/healthz
 ```
 
 ## Docker build (local verification)
@@ -93,5 +101,3 @@ curl http://localhost:8080/healthz
 ## Deployment
 
 The `.github/workflows/deploy-agents.yml` workflow builds from `services/agents` and deploys to Cloud Run. It is **manual dispatch only** and runs only from the `main` branch.
-
-After this PR merges, a maintainer can trigger the workflow from the Actions tab.

@@ -101,12 +101,10 @@ docker run -p 8080:8080 -e FIRESTORE_DATABASE=ember-db voice-gateway-test
 curl http://localhost:8080/healthz
 ```
 
-## Live gate (14 Oct 2026)
+## Live model
 
-Not passed. The gate is a push-to-talk report on a real phone through the deployed `voice-gateway` in asia-southeast1 that stores the step 2 observation. Singapore-region latency was not measured. Gemini Live has no Asia endpoint (`LIVE_LOCATION` defaults to `us-central1`), so the measurement needs that deployed gateway and a client in Singapore. This workspace has no Agent Platform credential for `sa-voice-gateway`. The scripted session against the test double does pass.
+`LIVE_MODEL` defaults to `gemini-live-2.5-flash-native-audio` on Vertex AI. `LIVE_LOCATION` defaults to `us-central1` — Gemini Live has no Asia endpoint, so voice sessions relay cross-region from Singapore. Latency measurement on a real device in the field is not yet done.
 
 ## Deployment
 
 The `.github/workflows/deploy-voice-gateway.yml` workflow builds from `services/voice-gateway` and deploys to Cloud Run. It is **manual dispatch only** and runs only from the `main` branch.
-
-After this PR merges, a maintainer can trigger the workflow from the Actions tab.

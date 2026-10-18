@@ -108,13 +108,23 @@ Routes follow `docs/contracts/shared-contract.md` §6.3 to §6.5, and `GET /dash
 
 A volunteer gets `403 forbidden` on every write route. Each decision writes the record and its audit entry (`actorId`, `action`, `targetId`, `at`) in one Firestore transaction. No route clears `withdraw`, raises severity, or sets `open` or `held`.
 
-## Phase 1 (current)
+## Current routes
 
-- `GET /healthz` returning `200` for Cloud Run health checks
-- `GET /me` returning the signed-in user from a verified Firebase ID token
-- `POST /photos/upload-url` returning a signed upload URL for the private photo bucket
+All routes described in `docs/api/api-map.md` are implemented. The major areas are:
 
-No secrets, no Gemini API keys, no service-account JSON. The deploy pipeline builds this directory and deploys to Cloud Run `ember-api`.
+- Identity: `GET /me`, `POST /volunteers/register`, `POST /supervisors/register`
+- Incidents and digest: `GET /incidents`, `GET /incidents/{id}`, `GET /digest`, `GET /dashboard`
+- Supervisor actions: approve/reject/edit tasks, verify/extinguish/severity, send withdraw, join-request decisions, re-ignition alert dismiss/recheck
+- Observations: `POST /observations` (chip, text, photo, video)
+- Photo uploads: `POST /photos/upload-url`, `GET /incidents/{id}/photos/{observationId}`
+- Video uploads: `POST /videos/upload-url`, `GET /incidents/{id}/videos/{observationId}`
+- Voice ticket: `POST /voice/ticket`
+- Training / Guide: `GET /training`, `POST /training/progress`, `POST /training/practice`, `POST /training/practice/{turnId}/answer`
+- Notifications: `POST /notifications/token`, `DELETE /notifications/token`
+- Internal: `POST /internal/notifications/withdraw`
+- Supervisor Assist: `POST /incidents/{id}/suggestions`, `POST /incidents/{id}/ask`, `POST /incidents/{id}/observations/{observationId}/translate`
+
+No Gemini API keys and no service-account JSON in the repo. The deploy pipeline builds this directory and deploys to Cloud Run `ember-api`.
 
 ## Local development
 
@@ -153,4 +163,3 @@ The browser caches the last successful volunteer profile and digest for that Fir
 
 The `.github/workflows/deploy-api.yml` workflow builds from `services/api` and deploys to Cloud Run. It is **manual dispatch only** and runs only from the `main` branch.
 
-After this PR merges, a maintainer can trigger the workflow from the Actions tab.

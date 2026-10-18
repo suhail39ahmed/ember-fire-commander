@@ -8,4 +8,4 @@
 | [`scenario.md`](scenario.md) | Step-by-step script: who does what, the exact input, the expected incident state and the expected screen |
 | [`scenario-data.json`](scenario-data.json) | The same synthetic inputs as data (contract-shaped requests, expected states, transcripts), so seed scripts and tests use identical values |
 
-Out of scope: recording (#30) and deployment (#28).
+The demo scenario is frozen at this commit. Update it via a separate PR that names the reason.
