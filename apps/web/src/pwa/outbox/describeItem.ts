@@ -5,6 +5,7 @@ import type { OutboxItem } from './types'
 
 /** One line saying what an outbox entry is, in the current language. */
 export function describeItem(item: OutboxItem, lang: Lang): string {
+  if (item.taskCompletion) return lang === 'en' ? 'Task details & completion' : 'Rincian & penyelesaian tugas'
   const body = item.body
   if (!body) {
     if (item.video) return t(lang, s.videoWaiting)

@@ -3,6 +3,13 @@ import type { Position } from '../report/buildObservation'
 
 export type OutboxState = 'queued' | 'sending' | 'failed' | 'sent'
 
+/** All task evidence travels as one durable submission; completion follows all uploads. */
+export interface PendingTaskCompletion {
+  taskId: string
+  capturedAt: string
+  entries: OutboxBatchEntry[]
+}
+
 /** A photo taken offline whose upload has not finished yet. */
 export interface PendingPhoto {
   text?: string | null
@@ -31,6 +38,7 @@ export interface PendingVideo {
  */
 export interface OutboxItem {
   id: string
+  taskCompletion?: PendingTaskCompletion
   /** The exact body to send. Absent only while a photo or video still has to upload. */
   body: ObservationRequest | null
   photo: PendingPhoto | null
@@ -48,5 +56,5 @@ export interface OutboxItem {
 export type OutboxBatchEntry = Pick<OutboxItem, 'id' | 'body' | 'photo' | 'video'>
 
 export function capturedAtOf(item: OutboxItem): string {
-  return item.body?.capturedAt ?? item.photo?.capturedAt ?? item.video?.capturedAt ?? item.queuedAt
+  return item.taskCompletion?.capturedAt ?? item.body?.capturedAt ?? item.photo?.capturedAt ?? item.video?.capturedAt ?? item.queuedAt
 }

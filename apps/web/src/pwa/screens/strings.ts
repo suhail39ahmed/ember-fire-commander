@@ -189,7 +189,7 @@ export const screenStrings = {
     direction: { id: 'arah', en: 'direction' },
     checkHere: { id: 'Periksa di sini', en: 'Check here' },
     mapCaption: { id: 'Posisi Anda dan titik yang harus diperiksa', en: 'Your position and the spot to check' },
-    imThere: { id: 'Saya di sini — laporkan yang saya lihat', en: "I'm there — report what I see" },
+    imThere: { id: 'Saya di sini — isi rincian tugas', en: "I'm there — add task details" },
     waitingGps: { id: 'Menunggu lokasi dari ponsel…', en: 'Waiting for your phone location…' },
     gpsDenied: {
       id: 'Lokasi diblokir. Izinkan lokasi di pengaturan situs agar tombol ini aktif.',

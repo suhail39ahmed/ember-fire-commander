@@ -15,7 +15,7 @@ import { screenStrings } from './strings'
 import { useDevicePosition } from './useDevicePosition'
 import type { ActionState } from './actionState'
 import type { TalkView } from '../gateway/voiceView'
-import { ReportScreen } from './ReportScreen'
+import { TaskCompletionPanel } from './TaskCompletionPanel'
 
 const s = screenStrings
 
@@ -94,9 +94,9 @@ export function TaskDetailView({
         </ul>
       )}
       {there ? (
-        <Link className="btn primary report-cta" to="/pwa/report" state={{ taskId: task.id, incidentId: task.incidentId }} data-testid="im-there">
+        <a className="btn primary report-cta" href="#task-details-label" data-testid="im-there">
           {t(lang, s.task.imThere)}
-        </Link>
+        </a>
       ) : (
         <button type="button" className="btn primary" disabled data-testid="im-there">
           {t(lang, s.task.imThere)}
@@ -197,10 +197,13 @@ export function TaskScreen() {
     )
   }
 
-  // The shared report form handles photos, video and notes with this task's ID.
-  return <ReportScreen key={task.id} taskContext={{ taskId: task.id, incidentId: task.incidentId }} onBack={back}>
+  if (task.closedAt) return <><Head lang={lang} title={t(lang, s.task.title)} onBack={back} /><p className="notice ok" role="status">{lang === 'en' ? 'Task completed. Your supervisor has the details.' : 'Tugas selesai. Supervisor telah menerima rinciannya.'}</p><Link className="btn secondary" to="/pwa/incidents">{t(lang, s.incidents.backToList)}</Link></>
+
+  return <>
+    <Head lang={lang} title={t(lang, s.task.title)} onBack={back} />
     {isSpotTask(task.type)
       ? <TaskDetailView embedded lang={lang} task={task} incident={incident} position={position} onBack={back} />
       : <OnTheFireView embedded lang={lang} task={task} incident={incident} talk={talk} action={{ kind: 'idle' }} onDoingIt={() => navigate(`/pwa/task/${encodeURIComponent(task.id)}/accept`)} onBack={back} />}
-  </ReportScreen>
+    {!task.declinedAt && <TaskCompletionPanel key={task.id} task={task} />}
+  </>
 }

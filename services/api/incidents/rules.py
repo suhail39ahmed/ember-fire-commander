@@ -21,6 +21,7 @@ TASK_FIELDS = (
     "acceptedAt", "acceptResponse", "acceptNote", "declinedAt", "declineReason", "declineNote",
     # Lead closed thank-you (#140). Absent until a supervisor closes the check.
     "closedAt", "closedBy", "closedByName", "closeMessage",
+    "completedAt", "completionNote", "completionChip", "completionObservationIds",
 )
 # A task that was sent and not heard can be sent again after this long.
 RESEND_AFTER_SECONDS = 60
@@ -116,7 +117,7 @@ def _parse(iso):
 def with_receipt(record):
     """Add `resendAt` to a task record: the moment a sent, unheard task can be sent again. None otherwise."""
     sent = _parse(record.get("sentAt")) if record.get("sentAt") else None
-    waiting = record.get("status") == "approved" and not record.get("heardAt") and sent is not None
+    waiting = record.get("status") == "approved" and not record.get("closedAt") and not record.get("heardAt") and sent is not None
     record["resendAt"] = (
         (sent + timedelta(seconds=RESEND_AFTER_SECONDS)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z" if waiting else None
     )

@@ -88,6 +88,9 @@ export function createHttpApi(
     getIncident: (incidentId) => request<IncidentDetail>(ENDPOINTS.incident(incidentId)),
     createObservation: (body: ObservationRequest) =>
       request<Observation>(ENDPOINTS.observations, { method: 'POST', body: JSON.stringify(body) }),
+    completeTask: async (taskId, body) => {
+      await request(`/tasks/${encodeURIComponent(taskId)}/complete`, { method: 'POST', body: JSON.stringify(body) })
+    },
     createUploadUrl: (contentType) =>
       request<UploadUrl>(ENDPOINTS.photoUploadUrl, { method: 'POST', body: JSON.stringify({ contentType }) }),
     createVideoUploadUrl: (contentType: VideoContentType) =>

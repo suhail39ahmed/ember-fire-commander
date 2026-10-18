@@ -94,6 +94,10 @@ export function visionLine(lang: Lang, read: PhotoRead | undefined): string | nu
 
 /** "Accepted" or "Declined · Too far", with the volunteer's note. Null while the volunteer has not answered. */
 export function answerLine(lang: Lang, task: Task, format: (value: string) => string): string | null {
+  if (task.completedAt) return [
+    `${lang === 'en' ? 'Completed' : 'Selesai'} ${format(task.completedAt)}`,
+    task.completionNote?.trim(),
+  ].filter(Boolean).join(' · ')
   if (task.declinedAt) {
     const reason = task.declineReason ? screenStrings.decline.reasons[task.declineReason]?.[lang] : null
     return [`${answerCopy.declined[lang]} ${format(task.declinedAt)}`, reason, task.declineNote?.trim() || null].filter(Boolean).join(' · ')

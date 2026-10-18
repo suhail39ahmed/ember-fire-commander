@@ -43,7 +43,7 @@ export function findTask(digest: Digest | null, id: string): Task | null {
 
 /** The newest instruction a supervisor sent for this incident, which is what approving a join request creates. */
 export function joinTask(tasks: Task[] | undefined, incidentId: string): Task | null {
-  const mine = (tasks ?? []).filter((x) => x.incidentId === incidentId && x.type === 'instruct' && x.status === 'approved')
+  const mine = (tasks ?? []).filter((x) => x.incidentId === incidentId && x.type === 'instruct' && x.status === 'approved' && !x.closedAt)
   return mine.sort((a, b) => String(b.sentAt ?? '').localeCompare(String(a.sentAt ?? '')))[0] ?? null
 }
 
