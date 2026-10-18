@@ -570,7 +570,7 @@ All settable names (never values in this file):
 | Name | Role | Company |
 |---|---|---|
 | [Suhail Ahmed](https://github.com/suhail39ahmed) | Solution Architect, AI & Automation | [Revantage](https://www.revantage.com/asiapacific/) |
-| [Md Naushad](https://github.com/MdNaushad) | Lead Software Engineer | Company TBD |
+| [Md Naushad](https://github.com/MdNaushad) | Lead Software Engineer | [LogicMonitor](https://www.logicmonitor.com/) |
 | [Zeeshan](https://github.com/zeeshrocky) | UI/UX Designer | [Perfios](https://perfios.ai/) |
 | [Aqib Pasha](https://github.com/aqibpasha-20) | Salesforce Solution Architect | [Accenture](https://www.accenture.com/) |
 
