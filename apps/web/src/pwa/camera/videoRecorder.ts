@@ -87,6 +87,12 @@ export class VideoRecorder {
   private listeners = new Set<() => void>()
   /** The mic stream to connect when the AudioContext becomes available. */
   private pendingMic: MediaStream | null = null
+  /**
+   * True while stopAndTakeClip() is waiting for onstop. discard() is a no-op
+   * during this window so that navigation cleanup cannot throw away a clip
+   * that is still being flushed by the browser.
+   */
+  private finalizing = false
 
   constructor(env: VideoRecorderEnv = {}) {
     this.env = { ...browserEnv(), ...env }
@@ -236,8 +242,76 @@ export class VideoRecorder {
     return clip
   }
 
-  /** Discard the clip without uploading (volunteer left the screen without submitting). */
+  /**
+   * Stop the recording, flush any buffered data with requestData(), and wait
+   * for the onstop blob. Resolves with:
+   *   - the recorded Blob when data was captured
+   *   - null when the recorder was never started, onstop produced no data,
+   *     or the timeout fires before onstop (~3 s by default)
+   *
+   * While finalising, discard() is a no-op so navigation cleanup cannot throw
+   * away a clip that is still being committed to memory by the browser.
+   *
+   * Safe to call when the recorder is already stopped (waits for onstop that
+   * may still be pending) or when no recording was ever made (returns null
+   * immediately).
+   */
+  stopAndTakeClip(timeoutMs = 3000): Promise<Blob | null> {
+    if (this.snap.clip) return Promise.resolve(this.takeClip())
+    if (!this.snap.recording && this.recorder === null) return Promise.resolve(null)
+
+    this.finalizing = true
+    return new Promise<Blob | null>((resolve) => {
+      let settled = false
+      let timer: ReturnType<typeof setTimeout> | null = null
+
+      // unsub is assigned below; all callers run after the synchronous setup.
+      let unsub: () => void = () => undefined
+
+      const settle = (clip: Blob | null) => {
+        if (settled) return
+        settled = true
+        this.finalizing = false
+        if (timer !== null) { clearTimeout(timer); timer = null }
+        unsub()
+        resolve(clip)
+      }
+
+      unsub = this.subscribe(() => {
+        if (settled) return
+        if (this.snap.clip !== null) {
+          // Unsubscribe before takeClip() so its internal notify({ clip: null })
+          // does not re-fire this listener and race settle() to null.
+          unsub()
+          settle(this.takeClip())
+        } else if (!this.snap.recording && this.recorder === null) {
+          settle(null)
+        }
+      })
+
+      // Flush any buffered chunk before stopping (requestData fires
+      // ondataavailable, which adds to chunks before onstop is delivered).
+      if (this.recorder && this.recorder.state === 'recording') {
+        try { this.recorder.requestData() } catch { /* best effort */ }
+      }
+      // Stop the recorder if it is still active. If it is already in the
+      // 'inactive' state (stop() was called externally), just wait for onstop.
+      if (this.recorder && this.recorder.state !== 'inactive') {
+        this.stop()
+      }
+
+      // Timeout fallback: resolve null if onstop never fires.
+      timer = setTimeout(() => settle(null), timeoutMs)
+    })
+  }
+
+  /**
+   * Discard the clip without uploading (volunteer left the screen without submitting).
+   * No-op while stopAndTakeClip() is pending so navigation cleanup cannot
+   * throw away a clip being flushed by the browser.
+   */
   discard(): void {
+    if (this.finalizing) return
     if (this.snap.clip) this.notify({ clip: null })
     this.chunks = []
   }

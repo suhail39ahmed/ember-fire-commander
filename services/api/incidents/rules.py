@@ -29,7 +29,7 @@ CONFLICT_FIELDS = (
 )
 OBSERVATION_FIELDS = (
     "id", "volunteerId", "capturedAt", "receivedAt", "source", "lat", "lng",
-    "accuracyM", "chip", "text", "severity", "photoPath", "immutable",
+    "accuracyM", "chip", "text", "severity", "photoPath", "videoPath", "immutable",
 )
 
 

@@ -27,12 +27,15 @@ resource "google_storage_bucket" "photos" {
     }
   }
 
-  # INTENDED CHANGE: not live yet. Needed so the PWA can PUT photos and
-  # video clips to signed URLs from the browser.
+  # Allows the PWA to PUT photos and video clips to signed URLs, and allows the
+  # supervisor console to GET signed video URLs for playback. GET is required
+  # because Safari sends Origin on <video> range requests even without the
+  # crossorigin attribute; without it, seeking fails on Safari. Content-Range
+  # and Accept-Ranges must be exposed so range-aware players can buffer correctly.
   cors {
     origin          = local.photo_origins
-    method          = ["PUT"]
-    response_header = ["Content-Type"]
+    method          = ["PUT", "GET"]
+    response_header = ["Content-Type", "Content-Range", "Content-Length", "Accept-Ranges"]
     max_age_seconds = 3600
   }
 

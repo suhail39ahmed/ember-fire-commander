@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { StaticRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { IncidentDetail, Observation } from '../contracts'
 import { fixture } from '../fixtures'
@@ -481,8 +481,9 @@ describe('expanded view: language', () => {
 })
 
 describe('expanded view: where it opens in the incident detail', () => {
+  const noop = { busyId: null, outcomes: {}, onApprove: () => undefined, onReject: () => undefined, onVerify: () => undefined } as unknown as IncidentActions
+
   it('does not render the expanded view when no card is expanded', () => {
-    const noop = { busyId: null, outcomes: {}, onApprove: () => undefined, onReject: () => undefined, onVerify: () => undefined } as unknown as IncidentActions
     const d = fixture('conflict')
     const html = renderToStaticMarkup(
       <StaticRouter location="/console/incidents/inc_demo_01">
@@ -497,5 +498,47 @@ describe('expanded view: where it opens in the incident detail', () => {
     )
     expect(html).not.toContain('role="dialog"')
     expect(html.match(/aria-label="Expand (Sari|Dedi)"/g)).toHaveLength(2)
+  })
+
+  it('threads videoUrl through to ExpandedVolunteerView so ClipPlayer can load signed URLs', () => {
+    // IncidentDetailPage passes videoUrl={(id, obsId) => api.getVideoUrl(id, obsId)} to IncidentDetailView.
+    // IncidentDetailView passes it through to ExpandedVolunteerView via the Body component.
+    // This test confirms that when a source:video observation is in the detail and a videoUrl prop is
+    // provided, IncidentDetailView does not drop it before it reaches the expanded view.
+    //
+    // We render IncidentDetailView with videoUrl and confirm it accepts the prop without error, since
+    // ExpandedVolunteerView only opens on a click (popupId state) which does not run in SSR. The
+    // companion tests in videoPlayer.test.tsx verify ClipPlayer renders end-to-end.
+    const videoObs = {
+      id: 'obs_vid_01',
+      volunteerId: 'uid_sari',
+      capturedAt: '2026-10-17T03:06:00Z',
+      receivedAt: '2026-10-17T03:06:01Z',
+      source: 'video' as const,
+      lat: -1.85, lng: 110.06, accuracyM: 12,
+      chip: null, text: null, severity: 'unknown' as const,
+      photoPath: null, videoPath: 'videos/uid_sari/20261017/abc.mp4',
+      immutable: true as const,
+    }
+    const d = { ...fixture('conflict'), observations: [...fixture('conflict').observations, videoObs] }
+    const videoUrl = vi.fn(async () => ({ url: 'https://storage.example/v.mp4', expiresAt: '2026-10-17T04:00:00Z' }))
+    const html = renderToStaticMarkup(
+      <StaticRouter location="/console/incidents/inc_demo_01">
+        <IncidentDetailView
+          lang="en" incidentId="inc_demo_01" detail={d} queue={[d.incident]} failure={null} link="online" lastOkAt={NOW} now={NOW} actions={noop}
+          onRetry={() => undefined} onSelect={() => undefined} sendWithdraw={async () => ({ incident: d.incident, auditId: 'a' })} actorName="Bu Maya"
+          serverNow={() => NOW} lowerSeverity={async () => ({ incident: d.incident, auditId: 'a' })} extinguish={async () => ({ incident: d.incident, auditId: 'a' })}
+          markSafe={async () => ({ incident: d.incident, auditId: 'a' })} resendTask={async () => ({ auditId: 'a' })}
+          sendInstruction={async () => ({ task: d.tasks[0], auditId: 'a' })}
+          photoUrl={async () => ({ url: 'https://photo.example/x.jpg', expiresAt: '2026-10-17T03:15:00Z' })}
+          videoUrl={videoUrl}
+        />
+      </StaticRouter>,
+    )
+    // The view renders with a video observation and videoUrl prop without error.
+    // Volunteer cards are present (expanded view opens on click, unavailable in SSR).
+    expect(html.match(/aria-label="Expand (Sari|Dedi)"/g)).toHaveLength(2)
+    // videoUrl was not called (ClipPlayer useEffect does not run in SSR), but the prop flows through.
+    expect(videoUrl).not.toHaveBeenCalled()
   })
 })

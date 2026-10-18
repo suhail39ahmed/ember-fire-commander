@@ -1263,6 +1263,79 @@ def test_photo_read_says_unavailable_when_signing_fails(client, monkeypatch, db)
     assert "signBlob" not in response.get_data(as_text=True)
 
 
+# Video read (GET /incidents/{id}/videos/{observationId}) -----------------------------------------
+
+VIDEO = "videos/uid_sari/20261013/" + "a" * 32 + ".mp4"
+
+
+def _video_db(db):
+    db.data["observations"]["obs_01"].update(source="video", videoPath=VIDEO)
+    db.data["incidents"]["inc_01"]["observationIds"] = ["obs_01", "obs_02"]
+
+
+def test_video_path_is_serialised_in_get_incident_observations(client, monkeypatch, db):
+    """GET /incidents/{id} must include videoPath in each observation so the console can identify clips."""
+    _video_db(db)
+    _as(monkeypatch)
+    body = client.get("/incidents/inc_01", headers=AUTH).get_json()
+    video_obs = next((o for o in body["observations"] if o["id"] == "obs_01"), None)
+    assert video_obs is not None
+    assert video_obs["source"] == "video"
+    assert video_obs["videoPath"] == VIDEO
+    assert video_obs["photoPath"] is None
+
+
+def test_supervisor_gets_a_short_lived_read_url_for_a_video_report(client, monkeypatch, db):
+    _video_db(db)
+    calls = []
+    monkeypatch.setattr("incidents.routes.signing.sign_get_url", lambda bucket, path, ttl: calls.append((bucket, path, ttl)) or "https://storage.googleapis.com/signed?X-Goog-Signature=s")
+    _as(monkeypatch)
+    response = client.get("/incidents/inc_01/videos/obs_01", headers=AUTH)
+    body = response.get_json()
+    assert response.status_code == 200
+    assert calls == [("ember-fire-commander-ember-photos", VIDEO, 300)]
+    assert body["url"].startswith("https://storage.googleapis.com/") and body["expiresAt"].endswith("Z")
+    assert response.headers["Cache-Control"] == "no-store"
+
+
+def test_a_volunteer_cannot_read_incident_videos(client, monkeypatch, db):
+    _video_db(db)
+    monkeypatch.setattr("incidents.routes.signing.sign_get_url", lambda *a: pytest.fail("must not sign"))
+    _as(monkeypatch, role="volunteer", uid="uid_sari")
+    assert client.get("/incidents/inc_01/videos/obs_01", headers=AUTH).status_code == 403
+
+
+@pytest.mark.parametrize("incident,observation,patch", [
+    ("nope", "obs_01", None),                        # unknown incident
+    ("inc_01", "obs_gone", None),                    # unknown observation
+    ("inc_old", "obs_01", None),                     # observation is not on this incident
+    ("inc_01", "obs_02", None),                      # a report with no video
+    ("inc_01", "obs_01", "videos/uid_rizal/20261013/" + "a" * 32 + ".mp4"),  # path owned by someone else
+    ("inc_01", "obs_01", "https://evil.example/x.mp4"),                      # not an object path
+])
+def test_video_read_is_refused_for_anything_that_is_not_a_stored_video_of_this_incident(client, monkeypatch, db, incident, observation, patch):
+    _video_db(db)
+    if patch:
+        db.data["observations"]["obs_01"]["videoPath"] = patch
+    monkeypatch.setattr("incidents.routes.signing.sign_get_url", lambda *a: pytest.fail("must not sign"))
+    _as(monkeypatch)
+    response = client.get(f"/incidents/{incident}/videos/{observation}", headers=AUTH)
+    assert response.status_code == 404 and response.get_json()["error"]["code"] == "not_found"
+
+
+def test_video_read_says_unavailable_when_signing_fails(client, monkeypatch, db):
+    _video_db(db)
+
+    def boom(*a):
+        raise RuntimeError("signBlob denied")
+
+    monkeypatch.setattr("incidents.routes.signing.sign_get_url", boom)
+    _as(monkeypatch)
+    response = client.get("/incidents/inc_01/videos/obs_01", headers=AUTH)
+    assert response.status_code == 503 and response.get_json()["error"]["code"] == "unavailable"
+    assert "signBlob" not in response.get_data(as_text=True)
+
+
 # Reports disagree (#95) and agency in charge (#105): supervisor-only context --------------------------------
 
 def _conflict_audit(db):
@@ -1292,7 +1365,7 @@ def test_supervisor_conflict_context_lists_reports_on_neither_side_and_the_confl
     assert [o["id"] for o in context["otherObservations"]] == ["obs_03"]
     other = context["otherObservations"][0]
     assert (other["volunteerName"], other["severity"], other["lat"], other["accuracyM"], other["text"]) == ("Ayu", "unknown", 1.483, 30, "Smoke near the canal")
-    assert set(other) == {"id", "volunteerId", "capturedAt", "receivedAt", "source", "lat", "lng", "accuracyM", "chip", "text", "severity", "photoPath", "immutable", "volunteerName"}
+    assert set(other) == {"id", "volunteerId", "capturedAt", "receivedAt", "source", "lat", "lng", "accuracyM", "chip", "text", "severity", "photoPath", "videoPath", "immutable", "volunteerName"}
     assert [e["id"] for e in context["audit"]] == ["aud_ok1", "aud_ok2", "aud_heard", "aud_ok3"]
     approve, reject, heard, verify = context["audit"]
     assert (approve["kind"], approve["actorName"], approve["taskId"], approve["volunteerId"]) == ("audit", "Bu Maya", "task_verify_sari", "uid_sari")
