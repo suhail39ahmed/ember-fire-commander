@@ -841,3 +841,13 @@
 }
 .exp-clip { align-items: flex-start; }
 
+/* Recorded clip playing in the Live panel */
+.exp-live-clip {
+  display: block;
+  width: 100%;
+  min-height: 250px;
+  border-radius: 12px;
+  background: #000;
+  object-fit: contain;
+}
+

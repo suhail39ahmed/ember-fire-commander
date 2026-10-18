@@ -147,21 +147,118 @@ function LiveControls({ lang, name, channel }: { lang: Lang; name: string; chann
   )
 }
 
-/** Live video placeholder — out of scope until the live seat media path is wired (#102). */
-function VideoArea({ lang, detail, name, channel }: { lang: Lang; detail: IncidentDetail; name: string; channel?: LiveChannel }) {
+/** Describes the clip for screen readers. */
+function clipAriaLabel(lang: Lang, name: string, capturedAt: string) {
+  return `${t(lang, expandedCopy.snapshot)} · ${name} · ${formatTime(capturedAt)}`
+}
+
+/**
+ * Fetches a short-lived signed URL and shows the clip in a <video> element.
+ *
+ * While the URL is loading or when the fetch fails, the existing video-area
+ * placeholder is shown so the panel never appears broken. The signed URL is
+ * re-fetched 60 s before it expires so an open panel keeps playing without
+ * the volunteer needing to interact.
+ *
+ * When `observationId` changes (a newer clip arrived via incident polling)
+ * the effect re-runs, fetching a fresh URL for the new clip.
+ */
+function LiveClipPlayer({ lang, incidentId, observationId, capturedAt, name, load }: {
+  lang: Lang
+  incidentId: string
+  observationId: string
+  capturedAt: string
+  name: string
+  load(incidentId: string, observationId: string): Promise<VideoUrl>
+}) {
+  type State = { kind: 'loading' } | { kind: 'ready'; url: string } | { kind: 'failed' }
+  const [state, setState] = useState<State>({ kind: 'loading' })
+  const loader = useRef(load)
+  loader.current = load
+
+  useEffect(() => {
+    let live = true
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    function fetchUrl() {
+      loader.current(incidentId, observationId).then(
+        (r) => {
+          if (!live) return
+          setState({ kind: 'ready', url: r.url })
+          // Re-fetch 60 s before expiry so an open panel keeps playing.
+          const refreshIn = Date.parse(r.expiresAt) - Date.now() - 60_000
+          if (refreshIn > 0) timer = setTimeout(() => { if (live) fetchUrl() }, refreshIn)
+        },
+        () => { if (live) setState({ kind: 'failed' }) },
+      )
+    }
+
+    setState({ kind: 'loading' })
+    fetchUrl()
+    return () => { live = false; if (timer !== null) clearTimeout(timer) }
+  }, [incidentId, observationId])
+
+  if (state.kind === 'ready') {
+    return (
+      <video
+        className="exp-live-clip"
+        src={state.url}
+        autoPlay
+        muted
+        loop
+        controls
+        playsInline
+        aria-label={clipAriaLabel(lang, name, capturedAt)}
+        data-testid="live-clip-video"
+      />
+    )
+  }
+
+  return (
+    <div className="exp-video-box" role="img" aria-label={t(lang, expandedCopy.videoPlaceholder)}>
+      <span className="exp-video-off">{t(lang, expandedCopy.notYet).toUpperCase()}</span>
+      <p className="exp-video-body">{t(lang, expandedCopy.videoPlaceholder)}</p>
+    </div>
+  )
+}
+
+/** Live panel: shows the most recent recorded clip when one is available, or the placeholder otherwise. */
+function VideoArea({ lang, detail, name, channel, latestClip, videoUrl }: {
+  lang: Lang
+  detail: IncidentDetail
+  name: string
+  channel?: LiveChannel
+  /** The most recent video observation for this volunteer/incident, or null when none exists. */
+  latestClip: { incidentId: string; observationId: string; capturedAt: string } | null
+  videoUrl?(incidentId: string, observationId: string): Promise<VideoUrl>
+}) {
+  const hasClip = latestClip !== null && videoUrl !== undefined
   return (
     <div className="exp-section exp-video-section" aria-label={t(lang, expandedCopy.leftTitle)}>
       <div className="exp-video-stage">
-        <div className="exp-video-box" role="img" aria-label={t(lang, expandedCopy.videoPlaceholder)}>
-          <span className="exp-video-off">{t(lang, expandedCopy.notYet).toUpperCase()}</span>
-          <p className="exp-video-body">{t(lang, expandedCopy.videoPlaceholder)}</p>
-        </div>
+        {hasClip ? (
+          <LiveClipPlayer
+            lang={lang}
+            incidentId={latestClip.incidentId}
+            observationId={latestClip.observationId}
+            capturedAt={latestClip.capturedAt}
+            name={name}
+            load={videoUrl}
+          />
+        ) : (
+          <div className="exp-video-box" role="img" aria-label={t(lang, expandedCopy.videoPlaceholder)}>
+            <span className="exp-video-off">{t(lang, expandedCopy.notYet).toUpperCase()}</span>
+            <p className="exp-video-body">{t(lang, expandedCopy.videoPlaceholder)}</p>
+          </div>
+        )}
         <span className="exp-live-badge" aria-label="LIVE">LIVE</span>
         <WindChip lang={lang} detail={detail} />
-        <div className="exp-caption-card">
-          <p className="exp-caption-title">{t(lang, expandedCopy.captionTitle)}</p>
-          <p className="exp-caption-body">{t(lang, expandedCopy.captionPlaceholder)}</p>
-        </div>
+        {!hasClip && (
+          <div className="exp-caption-card">
+            <p className="exp-caption-title">{t(lang, expandedCopy.captionTitle)}</p>
+            <p className="exp-caption-body">{t(lang, expandedCopy.captionPlaceholder)}</p>
+          </div>
+        )}
       </div>
       <LiveControls lang={lang} name={name} channel={channel} />
     </div>
@@ -749,7 +846,14 @@ export function ExpandedVolunteerView({ lang, detail, volunteerId, onClose, offl
         <div className="exp-grid">
           {/* Left pane */}
           <div className="exp-left" aria-label="Field view">
-            <VideoArea lang={lang} detail={detail} name={profile.name} channel={liveChannel} />
+            <VideoArea
+              lang={lang}
+              detail={detail}
+              name={profile.name}
+              channel={liveChannel}
+              latestClip={popup.videos[0] ? { incidentId: detail.incident.id, observationId: popup.videos[0].id, capturedAt: popup.videos[0].capturedAt } : null}
+              videoUrl={videoUrl}
+            />
             <LatestMessage lang={lang} popup={popup} />
             <DeclinedArea lang={lang} popup={popup} />
             <SnapshotsArea lang={lang} popup={popup} incidentId={detail.incident.id} photoUrl={photoUrl} videoUrl={videoUrl} />
