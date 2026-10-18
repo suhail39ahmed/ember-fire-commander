@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
-import { LiveKitRoom, RoomAudioRenderer, StartAudio, VideoTrack, useTracks, useLocalParticipant, useConnectionState, useRemoteParticipants } from '@livekit/components-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { LiveKitRoom, RoomAudioRenderer, StartAudio, VideoTrack, useTracks, useLocalParticipant, useConnectionState, useRemoteParticipants, useRoomContext } from '@livekit/components-react'
 import { ConnectionState, LocalVideoTrack, Track } from 'livekit-client'
-import type { CallController } from './calls'
+import type { CallController, CallCredentials } from './calls'
 import { CallTranscription } from './CallTranscription'
 import './incidentCall.css'
 
@@ -18,6 +18,7 @@ async function captureFrame(video: HTMLVideoElement | null | undefined, maxWidth
 function Media({ controller, volunteer, onSnapshot }: { controller: CallController; volunteer: boolean; onSnapshot?: (blob: Blob) => Promise<void> }) {
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled, cameraTrack } = useLocalParticipant()
   const state = useConnectionState()
+  const room = useRoomContext()
   const peers = useRemoteParticipants()
   const tracks = useTracks([Track.Source.Camera])
   // The server identifies the volunteer's feed; local/remote alone is not an identity.
@@ -29,10 +30,12 @@ function Media({ controller, volunteer, onSnapshot }: { controller: CallControll
   const stage = useRef<HTMLDivElement>(null)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [saved, setSaved] = useState(false)
   const [visionStatus, setVisionStatus] = useState('')
   const facing = useRef<'environment' | 'user'>('environment')
   const connected = state === ConnectionState.Connected
+  const disconnected = state === ConnectionState.Disconnected
   const setConnected = controller.setConnected
   const liveVideo = Boolean(connected && track && !track.publication.isMuted)
   const callId = controller.call!.id
@@ -62,6 +65,17 @@ function Media({ controller, volunteer, onSnapshot }: { controller: CallControll
     try { controller.primeAudio(); await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled); setError('') }
     catch { setError('Microphone unavailable. Allow microphone permission and try again.') }
   }
+  async function retryConnection() {
+    if (retrying) return
+    setRetrying(true); setError('')
+    try {
+      controller.primeAudio()
+      // Obtain a fresh token: an earlier join token may have expired while offline.
+      const credentials = await request<CallCredentials>(`/calls/${callId}/token`, 'POST')
+      await room.connect(credentials.serverUrl, credentials.participantToken)
+    } catch (err) { setError(err instanceof Error ? err.message : 'Could not reconnect. Try again.') }
+    finally { setRetrying(false) }
+  }
   async function snapshot() {
     const video = stage.current?.querySelector('video')
     if (!video || !video.videoWidth || !onSnapshot) return
@@ -75,9 +89,9 @@ function Media({ controller, volunteer, onSnapshot }: { controller: CallControll
   return <>
     <div className="incident-video-stage" ref={stage}>
       {liveVideo && track ? <VideoTrack trackRef={track} /> : <div className="incident-video-placeholder">
-        <span className="call-state-label">{connected ? 'AUDIO ONLY' : 'CONNECTING'}</span>
-        <strong>{connected ? 'Camera is off' : state === ConnectionState.Reconnecting ? 'Reconnecting…' : 'Connecting the call…'}</strong>
-        <p>{connected ? 'You can still speak and hear each other.' : 'Waiting for a secure connection.'}</p>
+        <span className="call-state-label">{connected ? 'AUDIO ONLY' : disconnected && controller.error ? 'DISCONNECTED' : 'CONNECTING'}</span>
+        <strong>{connected ? 'Camera is off' : disconnected && controller.error ? 'Call connection interrupted' : state === ConnectionState.Reconnecting ? 'Reconnecting…' : 'Connecting the call…'}</strong>
+        <p>{connected ? 'You can still speak and hear each other.' : disconnected && controller.error ? 'Check your connection and retry, or end the call.' : 'Waiting for a secure connection.'}</p>
       </div>}
       {liveVideo && <span className="incident-live-badge">● LIVE · {volunteer ? 'Your camera' : `${controller.call!.volunteerName}’s camera`}</span>}
       {connected && peers.length === 0 && <span className="incident-peer-wait">Waiting for the other participant…</span>}
@@ -85,6 +99,7 @@ function Media({ controller, volunteer, onSnapshot }: { controller: CallControll
     <RoomAudioRenderer />
     <StartAudio label="Enable incoming audio" />
     <div className="incident-call-controls">
+      {disconnected && <button type="button" disabled={retrying || controller.busy} onClick={() => void retryConnection()}>{retrying ? 'Retrying…' : 'Retry connection'}</button>}
       <button type="button" aria-pressed={isMicrophoneEnabled} onClick={() => void toggleMic()}>{isMicrophoneEnabled ? '● Mic on · Mute' : 'Mic off · Unmute'}</button>
       {volunteer && <>
         <button type="button" aria-pressed={isCameraEnabled} onClick={() => void localParticipant.setCameraEnabled(!isCameraEnabled).catch(() => setError('Allow camera permission and try again.'))}>{isCameraEnabled ? 'Camera off' : 'Camera on'}</button>
@@ -105,13 +120,22 @@ function Media({ controller, volunteer, onSnapshot }: { controller: CallControll
 }
 
 export default function IncidentCallMedia({ controller, volunteer = false, onSnapshot }: { controller: CallController; volunteer?: boolean; onSnapshot?: (blob: Blob) => Promise<void> }) {
+  const current = useRef(controller)
+  current.current = controller
+  // LiveKit's connect effect depends on these callbacks. Keep them stable across
+  // clock ticks and heartbeats, and never turn SDK cleanup/failure into /end.
+  const onError = useCallback((err: Error) => current.current.setError(err.message), [])
+  const onConnected = useCallback(() => { current.current.setConnected(true); current.current.setError(null) }, [])
+  const onDisconnected = useCallback(() => {
+    current.current.setConnected(false)
+    current.current.setError((error) => error || 'Call connection interrupted. Retry to reconnect.')
+  }, [])
   const credentials = controller.credentials
   if (!credentials) return null
   return <LiveKitRoom serverUrl={credentials.serverUrl} token={credentials.participantToken} connect audio
     video={volunteer && controller.video ? { facingMode: 'environment' } : false}
     options={{ adaptiveStream: true, dynacast: true, videoCaptureDefaults: { resolution: { width: 640, height: 480, frameRate: 15 } } }}
-    onError={(err) => controller.setError(err.message)}
-    onDisconnected={() => { controller.setConnected(false); void controller.end() }}>
+    onError={onError} onConnected={onConnected} onDisconnected={onDisconnected}>
     <Media controller={controller} volunteer={volunteer} onSnapshot={onSnapshot} />
   </LiveKitRoom>
 }
