@@ -1,5 +1,7 @@
 # EMBER: Many eyes, one fire
 
+![EMBER: many eyes, one fire](docs/cover.jpg)
+
 **A Bahasa-first voice and camera AI fire commander for village volunteer firefighters in Sumatra and Kalimantan. Several volunteers' phones feed one shared incident, and a human supervisor approves every high-stakes call.**
 
 ![Gemini](https://img.shields.io/badge/Gemini-Live%20%2B%20Flash-4285F4?logo=googlegemini&logoColor=white)
@@ -101,6 +103,44 @@ EMBER helps scarce brigades decide **where to look first**. It does **not** fore
 ### Ingest (`ember-ingest`)
 
 Hourly Cloud Run job. Pulls NASA FIRMS hotspots, Open-Meteo weather, and data.gov.sg PSI. Writes to `leads/`, `weather/current`, and `psi/current` in Firestore. Never writes incidents or severities.
+
+---
+
+## Design & Engineering
+
+I led the architecture for EMBER with my team (see [Team](#team)). The design starts from the people using it: unpaid volunteers on motorbikes, patchy signal, and a supervisor who has to make the call.
+
+**Design goals**
+
+- Hands-free, Bahasa-first reporting: push-to-talk voice plus live camera.
+- Fuse many phones into **one shared incident**, and surface disagreements instead of hiding them.
+- Keep a human in charge of every high-stakes decision; only the safety rule that can't wait is automatic.
+- Treat satellite hotspots as leads to verify, never as "fires".
+- Secure by default: the browser never talks to Firestore or Gemini directly.
+
+**Key design decisions and trade-offs**
+
+| Decision | Why | Trade-off |
+|---|---|---|
+| **WITHDRAW upwind** is deterministic code, not model output | Life-safety guidance must be instant, predictable and logged | Rules can't adapt to situations they don't cover |
+| Supervisor approves dispatch; only a human can verify, extinguish or downgrade | Models advise, people decide | Slower than full automation |
+| Backend-mediated data: Firestore and Storage rules deny-all, uploads via signed URLs | Small attack surface; every read goes through authenticated APIs | More backend endpoints to build |
+| Single-use, 60 s voice tickets for the WebSocket | Browsers can't send auth headers on a WebSocket upgrade | An extra round trip before a voice session |
+| Private `ember-agents` service, one service account per service | Least privilege; only the API and gateway can invoke agents | More IAM to manage |
+| Gemini Live relayed via `us-central1` | No Asia endpoint for Gemini Live today | Cross-region latency, not yet measured in the field |
+| SMS draft fallback when offline | Works on the phone's own messaging app | The volunteer still needs cell signal to send it |
+
+**Engineering details**
+
+- **Architecture:** see [Architecture](#architecture) for the full diagram and component table.
+- **Stack:** React/Vite/TypeScript PWA on Firebase Hosting; Python services on Cloud Run (`ember-api`, `voice-gateway`, `ember-agents`, `ember-ingest` job); Firestore, Cloud Storage, FCM; Gemini Live and Gemini Flash via the google-genai SDK; LiveKit for supervisor calls.
+- **Infrastructure as code:** everything in Terraform under [`infra/terraform`](infra/terraform), including budgets and CI/CD identities.
+- **CI/CD:** `ci.yml` runs lint, type checks and each service's test suite on every PR; six manual deploy workflows authenticate with Workload Identity Federation (no JSON keys).
+- **Testing:** per-service pytest suites plus web lint, `tsc` and unit tests (see [Tests](#tests)).
+
+**What I'd do next**
+
+See [Roadmap](#roadmap): a native app for background GPS and audio, offline voice, Earth Engine layers in the risk score, and field tuning of thresholds with practitioners.
 
 ---
 
