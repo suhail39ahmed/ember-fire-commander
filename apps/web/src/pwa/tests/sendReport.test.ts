@@ -11,7 +11,7 @@ const ok: LocationResult = { kind: 'ok', pos }
 
 function deps(over: Partial<SendDeps> = {}) {
   const phases: SendPhase[] = []
-  const create = vi.fn<[ObservationCreate], Promise<unknown>>(async () => ({}))
+  const create = vi.fn(async (_body: ObservationCreate): Promise<unknown> => ({}))
   const d: SendDeps = { locate: async () => ok, create, onPhase: (p) => phases.push(p), ...over }
   return { d, phases, create }
 }
@@ -65,7 +65,7 @@ describe('sendReport', () => {
   })
 
   it('goes through the outbox when there is one, and reports a queued report', async () => {
-    const submit = vi.fn<[ObservationCreate], Promise<'sent' | 'queued'>>(async () => 'queued')
+    const submit = vi.fn(async (_body: ObservationCreate): Promise<'sent' | 'queued'> => 'queued')
     const { d, create } = deps({ submit })
     expect(await sendReport(draft, d)).toEqual({ kind: 'queued' })
     expect(submit).toHaveBeenCalledTimes(1)
