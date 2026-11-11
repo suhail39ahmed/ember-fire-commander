@@ -1,0 +1,9 @@
+# For a project whose state bucket is not gs://ember-fire-commander-tfstate:
+#   cp backend.hcl.example backend.hcl
+#   # edit the bucket name
+#   terraform init "-backend-config=backend.hcl"
+#
+# backend.hcl is gitignored. The committed backend.tf keeps the live
+# project's bucket so `terraform init` on an undelete needs no extra flags.
+bucket = "YOUR_PROJECT_ID-tfstate"
+prefix = "terraform/state"

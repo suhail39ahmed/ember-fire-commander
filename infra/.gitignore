@@ -7,3 +7,4 @@ crash.log
 .terraform.tfstate.lock.info
 # Keep .terraform.lock.hcl (commit it) so everyone uses the same provider builds.
 *.plan
+backend.hcl

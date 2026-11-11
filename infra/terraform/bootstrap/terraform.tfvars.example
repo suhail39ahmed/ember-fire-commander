@@ -1,0 +1,17 @@
+# Copy to terraform.tfvars (gitignored via *.auto.tfvars; this file stays an example)
+# or pass -var flags from scripts/bootstrap-gcp.ps1.
+#
+# Do not apply this module against the existing ember-fire-commander project
+# unless you first import the already-created state bucket. Undelete does not
+# need bootstrap.
+
+project_id         = "your-new-project-id"
+region             = "asia-southeast1"
+create_project     = true
+billing_account_id = "" # gcloud billing accounts list
+org_id             = "" # leave empty for a personal Gmail account
+link_billing       = false
+enable_bootstrap_apis = true
+create_state_bucket   = true
+state_bucket_name     = "" # empty = <project_id>-tfstate
+grant_terraform_sa    = false # set true after the main stack creates the SA

@@ -1,0 +1,68 @@
+# Example values for a brand-new GCP project.
+# Do NOT apply this file against the existing ember-fire-commander project:
+# the optional flags below would create resources that are console-managed
+# there, and terraform plan would no longer be empty.
+#
+#   cp fresh-project.tfvars.example my-new-project.tfvars
+#   # edit project_id, billing_account_id, team emails, livekit_url
+#   terraform init "-backend-config=bucket=YOUR_PROJECT_ID-tfstate"
+#   terraform apply "-var-file=my-new-project.tfvars"
+#
+# The committed terraform.tfvars stays the live-project values (optional
+# flags off) so an undelete still plans with no resource changes.
+
+project_id         = "your-new-project-id"
+region             = "asia-southeast1"
+create_project     = false # bootstrap (or gcloud) already created it
+billing_account_id = ""    # needed only if create_project or enable_budget is true
+
+team_member_emails = [
+  # "naushad@example.com",
+  # "zeeshan@example.com",
+]
+team_role = "roles/editor"
+
+create_gemini_api_key_secret = false
+live_location                = "us-central1"
+live_model                   = "gemini-live-2.5-flash-native-audio"
+
+# First apply with an empty URL so the empty LiveKit secret containers exist.
+# Then run scripts/restore-secrets.ps1, set the real wss:// URL, and apply again.
+livekit_url = ""
+
+firestore_database_name     = "ember-db"
+firestore_location          = "asia-southeast1"
+firestore_delete_protection = true
+manage_firestore_rules      = true # deny-all rules from infra/terraform/rules/firestore.rules
+
+photo_retention_days = 14
+bucket_force_destroy = false
+
+run_min_instances       = 0
+run_max_instances       = 3
+run_deletion_protection = false
+app_check_enforce       = false
+
+api_token_creator_scope    = "project"
+enable_observability_roles = false
+
+# Empty hosting_site_id = use project_id. Also set the FIREBASE_HOSTING_SITE
+# GitHub repository variable (or edit apps/web/firebase.json) to match.
+hosting_site_id         = ""
+manage_firebase_web_app = true
+firebase_web_app_id     = "" # empty = create a new ember-web app
+enable_identity_platform = true
+enable_app_check         = true
+
+# Empty UIDs = Terraform generates new restricted keys. Map ID stays console-only.
+create_maps_keys     = true
+maps_browser_key_uid = ""
+maps_server_key_uid  = ""
+
+enable_budget       = false
+budget_amount       = 50
+budget_alert_emails = []
+
+enable_github_wif  = true
+github_repository  = "suhail39ahmed/ember-fire-commander"
+github_allowed_ref = "refs/heads/main"

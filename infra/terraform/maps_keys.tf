@@ -9,13 +9,13 @@
 # = false). To adopt them, set create_maps_keys = true AND both *_uid vars
 # (the key UID, not the key string):
 #   gcloud services api-keys list --project ember-fire-commander --format="table(uid,displayName)"
-# Without the UIDs Terraform would CREATE two NEW keys, so the uid vars are required.
+# Without the UIDs Terraform creates two NEW keys (used by fresh-project.tfvars.example).
 
 # 1) Browser key: Maps JavaScript API only, HTTP referrers = Hosting + localhost.
 resource "google_apikeys_key" "maps_browser" {
   count        = var.create_maps_keys ? 1 : 0
   project      = local.project_id
-  name         = var.maps_browser_key_uid
+  name         = var.maps_browser_key_uid != "" ? var.maps_browser_key_uid : null
   display_name = "ember-maps-browser"
 
   restrictions {
@@ -40,7 +40,7 @@ resource "google_apikeys_key" "maps_browser" {
 resource "google_apikeys_key" "maps_server" {
   count        = var.create_maps_keys ? 1 : 0
   project      = local.project_id
-  name         = var.maps_server_key_uid
+  name         = var.maps_server_key_uid != "" ? var.maps_server_key_uid : null
   display_name = "ember-maps-server"
 
   restrictions {
