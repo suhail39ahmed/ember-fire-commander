@@ -11,10 +11,13 @@ infra/
 ├── README.md                    ← you are here
 ├── terraform/                   ← infrastructure (run terraform here)
 │   ├── versions.tf              providers (google / google-beta 8.6.x, time)
-│   ├── backend.tf               GCS backend (ember-fire-commander-tfstate)
+│   ├── backend.tf               GCS backend (ember-fire-commander-tfstate; override with -backend-config)
+│   ├── backend.hcl.example      template for a different state bucket
 │   ├── variables.tf             every knob, with defaults + explanations
-│   ├── terraform.tfvars         real, non-secret values (committed)
-│   ├── terraform.tfvars.example template
+│   ├── terraform.tfvars         live project, non-secret values (committed; optional flags off)
+│   ├── terraform.tfvars.example generic template
+│   ├── fresh-project.tfvars.example  greenfield flags (do not apply to the live project)
+│   ├── bootstrap/               separate root module: project, APIs, state bucket
 │   ├── main.tf                  locals, optional project creation (off)
 │   ├── apis.tf                  APIs + propagation wait
 │   ├── iam.tf                   4 runtime SAs, teammates
@@ -30,7 +33,7 @@ infra/
 │   ├── firebase.tf              Firebase project, Hosting site, optional web app/App Check
 │   ├── maps_keys.tf             optional restricted Maps keys (off)
 │   ├── budget.tf                optional budget (off; console alerts are used)
-│   ├── outputs.tf               URLs, SA emails, WIF provider
+│   ├── outputs.tf               URLs, SA emails, WIF provider, GitHub variable maps
 │   └── rules/                   firestore.rules, storage.rules (both deny-all)
 └── pipelines/                   Cloud Build alternatives (manual `gcloud builds submit`)
     ├── cloudbuild-api.yaml / -voice-gateway.yaml / -agents.yaml
@@ -38,6 +41,8 @@ infra/
     ├── cloudbuild-web.yaml      Vite build → Firebase Hosting
     └── firebase.json.example
 ```
+
+After a project shutdown, follow [docs/runbooks/restore.md](../docs/runbooks/restore.md): undelete (preferred) or bootstrap a new project with `scripts/bootstrap-gcp.ps1`, then add secret values with `scripts/restore-secrets.ps1`.
 
 GitHub Actions workflows are in `.github/workflows/` at the repository root: `terraform.yml` and `deploy-*.yml`.
 
@@ -95,9 +100,17 @@ Don't `apply` from a laptop. Apply goes through the pipeline. On PowerShell, quo
 | `budget.tf`, `maps_keys.tf` | Optional (off) |
 
 **Secret values** never go through Terraform. Add them by hand so they never enter state:
+
+```powershell
+.\scripts\restore-secrets.ps1 -ProjectId ember-fire-commander
+```
+
+Or:
+
 ```bash
 printf %s "<value>" | gcloud secrets versions add FIRMS_MAP_KEY --data-file=-
 ```
+
 `FIRMS_MAP_KEY` and `DATA_GOV_SG_API_KEY` hold placeholders until the keys are registered.
 
 ## Not managed by Terraform (deliberately)
@@ -113,16 +126,20 @@ printf %s "<value>" | gcloud secrets versions add FIRMS_MAP_KEY --data-file=-
 | Budget alerts | Console budget alerts (`enable_budget = false`) |
 | Secret **values** | `gcloud secrets versions add` |
 | Project Owner binding | Kept outside Terraform so it can't lock us out |
-| State bucket `ember-fire-commander-tfstate` | Must exist before `terraform init` (its object access for `sa-ember-terraform` is granted on the bucket) |
+| State bucket `ember-fire-commander-tfstate` | Created by the separate `infra/terraform/bootstrap` stack (or `scripts/bootstrap-gcp.ps1`) before `terraform init`. `sa-ember-terraform` object access is granted by a second bootstrap apply with `grant_terraform_sa = true`. |
 
 ## Smoke tests (infrastructure)
 
 ```bash
 R=asia-southeast1
 gcloud run services list --region=$R --project=ember-fire-commander
-curl -s -o /dev/null -w '%{http_code}\n' https://ember-api-xmjvsg4o6a-as.a.run.app/       # 200 (or 404 from the app)
-curl -s -o /dev/null -w '%{http_code}\n' https://voice-gateway-xmjvsg4o6a-as.a.run.app/   # 200 (or 404 from the app)
-curl -s -o /dev/null -w '%{http_code}\n' https://ember-agents-xmjvsg4o6a-as.a.run.app/    # 403 (private)
+# URLs change with the project number; read them from Terraform rather than a hardcoded hash:
+#   terraform output ember_api_url
+#   terraform output voice_gateway_url
+#   terraform output ember_agents_url
+curl -s -o /dev/null -w '%{http_code}\n' "$(terraform output -raw ember_api_url)/"       # 200 (or 404 from the app)
+curl -s -o /dev/null -w '%{http_code}\n' "$(terraform output -raw voice_gateway_url)/"   # 200 (or 404 from the app)
+curl -s -o /dev/null -w '%{http_code}\n' "$(terraform output -raw ember_agents_url)/"    # 403 (private)
 gcloud firestore databases describe --database=ember-db --project=ember-fire-commander --format='value(type,locationId)'
 gcloud secrets list --project=ember-fire-commander
 ```

@@ -448,18 +448,19 @@ printf %s "<value>" | gcloud secrets versions add <SECRET_NAME> --data-file=-
 
 For a first deploy from a clean project, follow this order:
 
-1. **Bootstrap Terraform state bucket** (one-time, by hand before `terraform init`):
+1. **Bootstrap the project and Terraform state bucket** (one-time, before `terraform init`). Prefer `scripts/bootstrap-gcp.ps1` or `infra/terraform/bootstrap` so the bucket is versioned and private. The equivalent gcloud command for the live project is:
    ```bash
    gcloud storage buckets create gs://ember-fire-commander-tfstate \
      --project=ember-fire-commander --location=asia-southeast1 \
      --uniform-bucket-level-access
    ```
+   After a shutdown, follow [docs/runbooks/restore.md](docs/runbooks/restore.md) (undelete first; a new project cannot reuse the ID `ember-fire-commander` once deletion is permanent).
 
 2. **Terraform apply** — provision all GCP and Firebase resources:
-   - Go to **Actions → terraform → Run workflow**, choose `apply`, approve in the `production` environment.
-   - Then set the GitHub repository variables listed above.
+   - First apply of WIF identities must be local, as Owner. Later applies: **Actions → terraform → Run workflow**, choose `apply`, approve in the `production` environment.
+   - Then set the GitHub repository variables listed above (`terraform output -json github_actions_variables` and `github_web_variables`).
 
-3. **Set Secret Manager values** for `FIRMS_MAP_KEY`, `DATA_GOV_SG_API_KEY`, and `MAPS_SERVER_API_KEY`.
+3. **Set Secret Manager values** for `FIRMS_MAP_KEY`, `DATA_GOV_SG_API_KEY`, `MAPS_SERVER_API_KEY`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` with `scripts/restore-secrets.ps1` (never via Terraform).
 
 4. **Deploy ember-api** — Actions → `deploy-api` → Run workflow.
 

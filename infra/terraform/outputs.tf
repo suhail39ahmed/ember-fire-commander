@@ -118,3 +118,22 @@ output "ingest_job_name" {
   description = "Cloud Run job run hourly by Cloud Scheduler (deploy-ingest.yml updates its image)"
   value       = google_cloud_run_v2_job.ember_ingest.name
 }
+
+output "github_actions_variables" {
+  description = "GitHub repository variables to set after a fresh apply (enable_github_wif). Copy into Settings → Secrets and variables → Actions → Repository variables."
+  value = var.enable_github_wif ? {
+    GCP_PROJECT_ID   = local.project_id
+    GCP_WIF_PROVIDER = google_iam_workload_identity_pool_provider.github[0].name
+    GCP_TF_SA        = google_service_account.terraform[0].email
+    GCP_DEPLOYER_SA  = google_service_account.deployer[0].email
+  } : null
+}
+
+output "github_web_variables" {
+  description = "GitHub repository variables for deploy-web.yml. Firebase/Maps/VAPID keys that Terraform does not emit stay console-copied. firebase_web_config is a sibling output when manage_firebase_web_app is true."
+  value = {
+    VITE_EMBER_API_URL         = google_cloud_run_v2_service.ember_api.uri
+    VITE_VOICE_GATEWAY_WSS_URL = replace(google_cloud_run_v2_service.voice_gateway.uri, "https://", "wss://")
+    FIREBASE_HOSTING_SITE      = google_firebase_hosting_site.web.site_id
+  }
+}
