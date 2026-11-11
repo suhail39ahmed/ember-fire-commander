@@ -21,6 +21,7 @@ export default defineConfig(({ mode }) => ({
     allowedHosts:['0.0.0.0', '127.0.0.1', 'localhost']
   },
   build: {
+    target: 'es2022',
     rollupOptions: {
       output: {
         // Vendor code changes far less often than app code, so keeping it in its own

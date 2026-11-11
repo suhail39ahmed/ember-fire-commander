@@ -20,7 +20,7 @@ const body: ObservationCreate = { source: 'text', chip: null, text: 'Smoke near 
 const attachment = (id: string, kind: Attachment['kind']): Attachment => ({ id, kind, name: id, blob: new Blob(['data']), contentType: kind === 'photo' ? 'image/jpeg' : 'video/mp4', previewUrl: 'blob:test' })
 
 function render(taskContext: { taskId: string; incidentId: string } | null = { taskId: 'task_1', incidentId: 'inc_1' }) {
-  const submitBatch = vi.fn<[readonly OutboxBatchEntry[]], Promise<'queued' | 'sent'>>().mockResolvedValue('queued')
+  const submitBatch = vi.fn(async (_entries: readonly OutboxBatchEntry[]): Promise<'queued' | 'sent'> => 'queued')
   const refresh = vi.fn()
   renderVolunteer(<ReportScreen taskContext={taskContext ?? undefined} />, { value: volunteerValue({ outbox: outboxHandle({ submitBatch }), refresh }) })
   return { submitBatch, refresh }
